@@ -105,9 +105,6 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   the SAM License terms (the repo's `LICENSE` file has not been read yet).
 - Q13. May the UI load assets from the internet (a CDN)? The planning lead's reading of
   constraint 1 is no; Nick to confirm.
-- Q14. Is there a third urchin type besides purple and red that needs its own class?
-  Research in progress; Nick decides. (Sunflower sea star, anemone and fish are already
-  starting classes: Nick, chat 2026-11-24.)
 
 Answered (Nick, chat 2026-11-24):
 - Repo name stays `urchin_detector_pipeline`; the repo is public.
@@ -120,4 +117,11 @@ Answered (Nick, chat 2026-11-24):
 - Q7. On a prompt or setting change, re-run that class only; keep reviewed masks, marked as older.
 - Q8. A "Keep laptop awake" toggle in the UI plus a plugged-in / lid-open reminder.
 - Q9 (part). Missed objects are added by a click or a box in label review.
+- Q14. Classes start small and grow toward the Reef Check California manual's species list
+  (https://www.reefcheck.org/wp-content/uploads/2021/03/RCCA_Manual_10th_Edition_web.pdf);
+  Nick collaborates with Reef Check and wants to match their standard later (D6). No third
+  urchin class now: a web review on 2026-11-24 found no named third type, and that manual
+  describes red urchins as "purple to red to almost black" (review by a helper agent; the
+  manual itself to be re-read before the class list is extended). Crowned urchin waits for
+  footage that clearly shows it. One broad "sea star" class plus "sunflower sea star".
 - SAM is tested on the laptop before any tool code (D3). Job control is a standalone module (D4).
