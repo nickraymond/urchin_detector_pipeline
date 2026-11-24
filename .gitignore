@@ -19,8 +19,11 @@ projects/
 *.lrv
 *.LRV
 *.mkv
+*.MKV
 *.m4v
+*.M4V
 *.avi
+*.AVI
 *.h264
 *.thm
 *.THM
@@ -31,11 +34,15 @@ projects/
 *.png
 *.PNG
 *.webp
+*.WEBP
 *.tif
+*.TIF
 *.tiff
+*.TIFF
 *.heic
 *.HEIC
 *.pt
+*.PT
 *.pth
 *.ckpt
 *.bin

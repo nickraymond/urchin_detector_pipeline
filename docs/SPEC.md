@@ -105,10 +105,9 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   the SAM License terms (the repo's `LICENSE` file has not been read yet).
 - Q13. May the UI load assets from the internet (a CDN)? The planning lead's reading of
   constraint 1 is no; Nick to confirm.
-- Q14. Urchin and sea star class list: is there a third urchin type besides purple and red,
-  and which sea star species get their own class (sunflower sea star requested by Nick,
-  2026-11-24)? Research in progress; Nick decides. Nick also asked for anemone and fish
-  classes (fish as one class for now; rockfish species later).
+- Q14. Is there a third urchin type besides purple and red that needs its own class?
+  Research in progress; Nick decides. (Sunflower sea star, anemone and fish are already
+  starting classes: Nick, chat 2026-11-24.)
 
 Answered (Nick, chat 2026-11-24):
 - Repo name stays `urchin_detector_pipeline`; the repo is public.

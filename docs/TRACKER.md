@@ -64,9 +64,11 @@ before any tool code is written. This is a test, not the tool: keep it small and
 - [ ] download the weights with `uvx hf download` into the Hugging Face cache (not the repo, not git)
 - [ ] pull 3 frames from one ReefCheck video with ffmpeg into `<data_dir>/sam_test/`
 - [ ] run text prompts ("sea urchin", "purple sea urchin", "red sea urchin", "sea star",
-      "sea anemone", "fish") on each
+      "sunflower sea star", "sea anemone", "fish") on each
       frame: first on the Apple GPU (MPS), then CPU if MPS fails; at full size with tiles and at
       one reduced size
+- [ ] on one frame, also test a point prompt (one click on an urchin) and a box prompt, as
+      the "add a missed object" step in label review needs them
 - [ ] record per run: device, seconds per frame (first frame not counted), peak memory,
       masks found; and any error text in full
 - [ ] write one local report page, `<data_dir>/sam_test/report.html`: each frame with its masks
