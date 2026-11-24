@@ -1,57 +1,26 @@
-# Agent Process Template
+# urchin_detector_pipeline
 
-Sofar-style agent discipline, parameterized. This folder mirrors a real repo's
-layout exactly — starting a new project is copy-and-fill.
+A local labeling tool for the Urchin Monitoring MVP: GoPro videos → frames → SAM labeling →
+reviewed COCO boxes and per-pixel class masks. It runs in the browser on Nick's laptop;
+images never leave the laptop.
 
-```
-SPEC.md      ─┐  what OWNER wants      ┌─ DESIGN.md    ─┐
-TRACKER.md   ─┴──► code generation ────┤                ├─ what it did
-                        │              └─ DEV_LOG.md   ─┘
-                        ▼
-                    the thing
-```
+Status: scaffold only (Sprint S0). No app code yet — see `docs/TRACKER.md`.
 
-## Contents (mirrors repo root)
+## Docs
 
-```
-CLAUDE.md                      always-loaded router + engineering values
-.claude/skills/agent-entry/    session-start ritual  → /agent-entry
-.claude/skills/capture-task/   tracker capture       → /capture-task
-docs/SPEC.md                   goal, verified facts, constraints, open questions
-docs/TRACKER.md                rules + sprint ladder (the agent entry point)
-docs/DESIGN.md                 as-built architecture + decision log
-docs/DEV_LOG.md                session log, newest first
-docs/PROMPTS.md                owner's kickoff prompts (verbatim, fill <N>/<slug>)
+- `docs/source/mvp_spec.md` — Nick's full MVP spec (the source)
+- `docs/SPEC.md` — condensed contract: goal, facts, hard constraints, open questions
+- `docs/TRACKER.md` — rules + sprint ladder (start here)
+- `docs/DESIGN.md`, `docs/DEV_LOG.md`, `docs/PROMPTS.md` — decisions, session log, kickoff prompts
+
+## Setup (so far)
+
+```bash
+cp config.example.toml config.local.toml
 ```
 
-## Starting a new project
+Then open `config.local.toml` and check the two paths. That file is gitignored. Videos,
+frames, datasets and model weights never go in git.
 
-1. Copy everything in this folder into the new repo root (including the hidden
-   `.claude/` directory — check it survived the copy).
-2. Find-and-replace across all files: `{{OWNER}}` → your name,
-   `{{PROJECT}}` → project name, `{{DATE}}` → today.
-3. Fill `docs/SPEC.md` (goal, verified facts, non-goals) and the TRACKER.md
-   sprint ladder. DESIGN.md / DEV_LOG.md start near-empty — agents fill them.
-4. Add project code dirs; update the layout lines in CLAUDE.md and TRACKER.md.
-5. First session: paste the "New sprint" prompt from docs/PROMPTS.md.
-
-## Division of labor (why each file exists)
-
-- **CLAUDE.md** — loaded every session, kept short: points at the ritual,
-  carries only timeless engineering values. One home per rule; no duplicates.
-- **Skills** — procedures, loaded on demand. Repo-local so the repo controls
-  them. Do NOT copy these into `~/.claude/skills/` — a same-named personal
-  skill silently overrides every repo's version.
-- **docs/** — all project state. Prompts stay constant; requirements go in
-  SPEC/TRACKER, never in chat.
-
-## The rules (summary — full text in docs/TRACKER.md)
-
-- TRACKER cover-to-cover every session; skim SPEC + DESIGN; top 3 DEV_LOG entries
-- Bites ~300 LoC, one TODO at a time
-- Four nibbles: plan (OWNER gate) → code+tests → manual tests (OWNER runs,
-  copy-pastable CLI) → PR
-- Feature branch for ALL new work (`sprint/<n>-<slug>`); never commit to main
-- Every sprint ends with a live demo OWNER can run
-- DEV_LOG entry every session; DESIGN updated on any decision
-- Facts carry sources; unknowns get flagged, not guessed
+Process: this repo was created from `template_LLM_project` (agent discipline in
+`docs/TRACKER.md`; skills in `.claude/skills/`).

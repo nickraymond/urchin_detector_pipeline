@@ -1,0 +1,8 @@
+# Copy this file to config.local.toml and set your own paths.
+# config.local.toml is gitignored; never put tokens or passwords in either file.
+
+# Folders the app may look in for videos. Read-only: the app never changes them.
+video_roots = ["/Volumes/Nick_R_SSD/NereusData/nereus-camera-test-rig"]
+
+# Where projects (frames, SAM results, exports, logs) are written. Outside the repo.
+data_dir = "/Volumes/Nick_R_SSD/NereusData/urchin_detector_pipeline"
