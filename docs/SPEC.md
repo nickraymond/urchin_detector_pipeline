@@ -119,9 +119,10 @@ Answered (Nick, chat 2026-11-24):
 - Q9 (part). Missed objects are added by a click or a box in label review.
 - Q14. Classes start small and grow toward the Reef Check California manual's species list
   (https://www.reefcheck.org/wp-content/uploads/2021/03/RCCA_Manual_10th_Edition_web.pdf);
-  Nick collaborates with Reef Check and wants to match their standard later (D6). No third
-  urchin class now: a web review on 2026-11-24 found no named third type, and that manual
-  describes red urchins as "purple to red to almost black" (review by a helper agent; the
-  manual itself to be re-read before the class list is extended). Crowned urchin waits for
+  Nick wants to match that standard later (D6). No third
+  urchin class now (Nick, chat 2026-11-24). Unverified background: a helper agent's web
+  review on 2026-11-24 reported no named third type and that the manual describes red
+  urchins as "purple to red to almost black"; nobody has re-read the manual for this yet,
+  so re-read it before the class list is extended. Crowned urchin waits for
   footage that clearly shows it. One broad "sea star" class plus "sunflower sea star".
 - SAM is tested on the laptop before any tool code (D3). Job control is a standalone module (D4).
