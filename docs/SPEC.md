@@ -9,7 +9,7 @@ A local labeling tool, run in the browser on Nick's laptop, that turns a few GoP
 into reviewed training data for two on-camera models: COCO boxes for a detector and
 per-pixel class masks for a segmenter. Done when Nick can start the app with one command,
 walk six stages in the UI (ingest → pick clips → extract frames → review frames → SAM
-labeling → review + export) on his ReefCheck videos, and the export passes the acceptance
+labeling → review + export) on his ReefCheck videos (or on folders of still images), and the export passes the acceptance
 criteria in `docs/source/mvp_spec.md`.
 
 ## Background
@@ -49,15 +49,21 @@ criteria in `docs/source/mvp_spec.md`.
 - Video names are ReefCheck-style (`<site>-<date>-<time>-<diver>-<tag>.MP4`), not
   GoPro `GX01xxxx`; the SSD also holds macOS `._*.MP4` shadow files that are not videos
   (file listing + ffprobe error, 2026-11-24).
-- The laptop has ffmpeg / ffprobe and Python 3.13.5; `uv` and the `hf` tool are not
-  installed (checked 2026-11-24).
-- Nick's Hugging Face account is approved for `facebook/sam3.1` (Nick, chat 2026-11-24).
+- The laptop has ffmpeg / ffprobe and Python 3.13.5 (checked 2026-11-24).
+- `uv` 0.13.10 is installed at `~/.local/bin` from the standalone installer
+  (`uv --version`, 2026-11-24). The Hugging Face tool is run as `uvx hf ...`; it is not
+  installed separately.
+- Do not install tools with Homebrew on this laptop: on macOS 14 Homebrew builds from
+  source (it tried to build `llvm` and `rust` for `hf` and `uv`; Nick's terminal, 2026-11-24).
+- Nick is logged in to Hugging Face and has access to the gated repo `facebook/sam3.1`:
+  `uvx hf download facebook/sam3.1 --dry-run` listed 12 files, 3.5 GB in total, the
+  checkpoint being `sam3.1_multiplex.pt` (Nick's terminal output, 2026-11-24).
 - Coding agents may view real frames (Nick, chat 2026-11-24).
 
 ## Safety / hard constraints (non-negotiable)
 
-1. **Images never leave the laptop.** No cloud APIs, no uploads, no remote UI assets (no
-   CDN). Only exception: Claude coding sessions may view frames (Nick, 2026-11-24).
+1. **Images never leave the laptop.** No cloud APIs and no uploads. Only exception: Claude
+   coding sessions may view frames (Nick, 2026-11-24).
 2. **No tokens or secrets in git.** Hugging Face access only through `hf auth login`; the
    app never stores the token.
 3. **Videos, frames, datasets and model weights stay out of git**, in the data folder named
@@ -68,6 +74,8 @@ criteria in `docs/source/mvp_spec.md`.
    acceptable for the labeling tool only.
 7. **Every stage has a browser UI.** The terminal is used only to start the app. Basic and
    functional, not flashy (Nick, chat 2026-11-24).
+8. **The repo is public** (Nick, chat 2026-11-24). No real frames, video stills, people's
+   names or tokens in git, PRs, issues or test fixtures. Tests use synthetic images.
 
 ## Success criteria by sprint
 
@@ -77,32 +85,40 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
 
 - Training, quantizing, camera firmware, the hourly Iridium packet (later milestones).
 - Hand-editing mask outlines; colour correction of frames.
-- Panoptic export; tracking individual animals.
+- Panoptic export; tracking individual animals; kelp growth rates in cm/day.
 - Multi-user, cloud, login.
+- Kelp and kelp shoot classes, until Nick has reference images (then a settings change).
 
 ## Open questions (flag, don't guess)
 
-- Q1. Kelp shoot is missing from the full spec's top class list; which segmenter class do
-  its pixels get?
-- Q2. Overlap rules for area-vs-area (kelp vs rock) and for several prompts of one class.
-- Q3. Is the 300-frame cap applied before or after the blur / duplicate filters; what does
-  "count matches the preview" compare?
-- Q4. Frame names when two videos share a name; the chapter rule for non-GoPro names.
-- Q5. 70 / 20 / 10 split by video when there are only a few videos.
-- Q6. Which sprint carries "Suggest clips" and "Pre-screen with SAM" (milestone 1 says no SAM).
-- Q7. What happens to results and review edits when a prompt or threshold changes.
-- Q8. Scheduled start when the laptop is asleep or the lid is closed.
-- Q9. How to add an object SAM missed; CVAT export format and re-import.
+- Q2. Overlap rules for area-vs-area and for several prompts of one class.
+- Q6. Which sprint carries "Suggest clips" and "Pre-screen with SAM".
+- Q9. CVAT export format for fine outline fixes, and whether fixes are imported back.
 - Q10. Defaults: blur threshold, hash distance, minimum mask area, inference resolution,
   tile size, memory guard.
 - Q11. "Largest object %" by mask or by box; the id for unknown; which frames count as
   "accepted" for export.
-- Q12. SAM facts to verify against primary docs before S2: `facebook/sam3.1` has no
-  Transformers support; Python / PyTorch needs of `facebookresearch/sam3`; Apple MPS
-  support; SAM License terms; exact `hf` login commands.
+- Q12. Does SAM 3.1 run on the M1 Max? A read of the `facebookresearch/sam3` readme on
+  2026-11-24 reported these prerequisites: Python 3.12+, PyTorch 2.7+, and a CUDA GPU; it
+  does not mention Apple MPS or CPU. The Hugging Face page says the 3.1 repo has checkpoints
+  only, with no Transformers integration. Both to be re-read and tested in S1. Also open:
+  the SAM License terms (the repo's `LICENSE` file has not been read yet).
+- Q13. May the UI load assets from the internet (a CDN)? The planning lead's reading of
+  constraint 1 is no; Nick to confirm.
+- Q14. Urchin and sea star class list: is there a third urchin type besides purple and red,
+  and which sea star species get their own class (sunflower sea star requested by Nick,
+  2026-11-24)? Research in progress; Nick decides. Nick also asked for anemone and fish
+  classes (fish as one class for now; rockfish species later).
 
 Answered (Nick, chat 2026-11-24):
-- Repo name stays `urchin_detector_pipeline`.
+- Repo name stays `urchin_detector_pipeline`; the repo is public.
 - Project data lives on the SSD; source code in git (DESIGN D1).
-- Laptop is an Apple M1 Max, 32 GB.
-- Agents may view real frames.
+- Laptop is an Apple M1 Max, 32 GB. Agents may view real frames.
+- Q1. Kelp and kelp shoot wait for reference images; adding them later is a settings change (D5).
+- Q3. The live count is before the filters; kept + dropped add up to it.
+- Q4. Frame names carry a short code from the video's path; the chapter rule is GoPro-only.
+- Q5. No limit on the number of videos; splits go by site and dive date.
+- Q7. On a prompt or setting change, re-run that class only; keep reviewed masks, marked as older.
+- Q8. A "Keep laptop awake" toggle in the UI plus a plugged-in / lid-open reminder.
+- Q9 (part). Missed objects are added by a click or a box in label review.
+- SAM is tested on the laptop before any tool code (D3). Job control is a standalone module (D4).

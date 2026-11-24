@@ -11,7 +11,8 @@ You are working under this repo's agent discipline. OWNER (the human gate) is:
 ## On session start — in this order, before any code
 
 1. `git fetch origin` and check your branch against `origin/main` (in a worktree,
-   `main` is checked out elsewhere, so do not `git checkout main`).
+   `main` is checked out elsewhere, so do not `git checkout main`). Install any new
+   skills the repo ships in `.claude/skills/`.
 2. Read `docs/TRACKER.md` **cover to cover**. Non-negotiable.
 3. Skim `docs/SPEC.md` and `docs/DESIGN.md`.
 4. Read the top ~3 entries of `docs/DEV_LOG.md`.
@@ -43,4 +44,4 @@ You are working under this repo's agent discipline. OWNER (the human gate) is:
 - Facts carry sources. Unknowns get flagged in SPEC.md §Open questions — never
   guessed. Model names, licenses, library APIs and file formats are verified
   against primary docs before use.
-- Obey SPEC.md §Safety rules absolutely.
+- Obey SPEC.md §Safety / hard constraints absolutely.

@@ -14,7 +14,7 @@ Pick the go-to-market camera (N6 vs Pi) by testing which one, fixed in one spot,
 | How do urchin types change with season and temperature? | Count and % cover per type, joined in the cloud with buoy sensors by timestamp |
 | Did the planted kelp survive, or did urchins eat it? | Kelp % cover + kelp shoot count |
 
-**Starting classes:** purple urchin, red urchin, sea star, kelp, rock/substrate, unknown. Confirm the urchin types (class discovery + Reef Check) before labeling at scale. Classes live in a settings file, so adding one later is a config change.
+**Starting classes:** purple urchin, red urchin, sea star, sunflower sea star, anemone, fish, rock/substrate, unknown. Anemone and fish are labeled for later use (fish as one class for now; rockfish species can be split out in a later training round); they have no field in the hourly packet yet. Kelp and kelp shoot are added later, when Nick has reference images: add them to the settings file and re-run, and only the new classes are labeled. Until then the kelp metrics and kelp packet fields below are not produced. Confirm the urchin types (class discovery + Reef Check) before labeling at scale. Classes live in a settings file, so adding one later is a config change.
 
 **Not in the MVP:** panoptic segmentation, tracking individual animals, kelp growth rates in cm/day.
 
@@ -78,7 +78,7 @@ The time box keeps the AE3 from eating the MVP schedule.
 
 A local app that turns a few GoPro videos into reviewed training data for both models: boxes for the detector and per-pixel class masks for the segmenter, from one SAM 3.1 pass. User: Nick, on his own laptop; no cloud.
 
-**Sandbox limits (configurable):** up to 10 videos and at most 300 frames per project, drawn from marked clips if any are marked, otherwise from whole videos.
+**Sandbox limit (configurable):** at most 300 frames per project, with no limit on the number of videos, drawn from marked clips if any are marked, otherwise from whole videos.
 
 1. **Ingest** — pick a folder or files; the app lists the GoPro videos it found.
 2. **Pick clips (optional)** — scrub each video's timeline and mark the stretches worth extracting from.
@@ -89,7 +89,7 @@ A local app that turns a few GoPro videos into reviewed training data for both m
 
 Each stage resumes where it left off and can be re-run without redoing earlier stages. A dashboard shows each stage's status.
 
-**Class settings file** (`classes.yaml`): per class, a name, its kind (`object` = countable, or `area` = cover only), one or more text prompts, and optional example boxes. Starting classes: purple urchin, red urchin, sea star, kelp shoot (object); kelp, rock/substrate (area); everything unlabeled = unknown.
+**Class settings file** (`classes.yaml`): per class, a name, its kind (`object` = countable, or `area` = cover only), one or more text prompts, and optional example boxes. Starting classes: purple urchin, red urchin, sea star, sunflower sea star, anemone, fish (object); rock/substrate (area); everything unlabeled = unknown. Later, with reference images: kelp shoot (object) and kelp (area).
 
 ## Stage details
 
@@ -99,6 +99,8 @@ Each stage resumes where it left off and can be re-run without redoing earlier s
 - Accept `.MP4` / `.MOV`. Don't list GoPro sidecar files as videos: `.LRV` (low-res proxy, used only for clip scrubbing) and `.THM` (thumbnail).
 - Treat GoPro chaptered files (`GX01xxxx`, `GX02xxxx`, … with the same `xxxx`) as one recording, in chapter order.
 - Show per video: duration, resolution, fps, codec, file size. GoPro files are often HEVC (H.265); confirm the decoder works and warn if not.
+- Skip macOS `._` shadow files. File names may be GoPro style or ReefCheck style (`<site>-<date>-<time>-<diver>-<tag>.MP4`); the chapter rule applies only to GoPro names.
+- Also accept folders of still images (JPEG / PNG), for example frames from the N6 or the Pi. They skip stages 2 and 3 and join at frame review.
 - Never modify or move source videos. Read-only.
 
 ### 2. Pick clips (optional)
@@ -116,7 +118,8 @@ Each stage resumes where it left off and can be re-run without redoing earlier s
 - Cap at the sandbox limit (default 300). If over, spread samples evenly across all videos.
 - **Blur filter:** score each frame (variance of Laplacian); drop frames below a threshold. Show the threshold as a slider with example kept/dropped frames.
 - **Near-duplicate filter:** perceptual hash; drop frames too similar to the previous kept frame (camera sitting still).
-- Save full-resolution frames as PNG or high-quality JPEG (quality ≥ 95). Name: `<video-stem>_<timestamp-ms>.jpg`.
+- Save full-resolution frames as PNG or high-quality JPEG (quality ≥ 95). Name: `<video-stem>_<path-code>_<timestamp-ms>.jpg`, where the path code is a short code made from the video's full path, so two videos with the same name never collide.
+- The live count is the number of frames sampled before the filters. After extraction, show kept, dropped as blurry and dropped as duplicate; the three add up to the live count (or to the cap, if the cap applied).
 - Record each frame's source video and timestamp so any label can be traced back to the video.
 
 ### 4. Review frames (optional)
@@ -137,6 +140,7 @@ Each stage resumes where it left off and can be re-run without redoing earlier s
 - **Prompt preview:** before a full run, run on 3 sample frames and show the masks, so prompts and thresholds can be tuned.
 - Settings: confidence threshold (default 0.4), minimum mask area, inference resolution.
 - **Tiling** (on by default for frames wider than 2000 px): overlapping tiles (about 20%), results merged to full-frame coordinates, duplicates across tile edges removed.
+- Each saved result records the prompt text and the settings that made it. Changing a prompt or a setting re-runs only that class. Masks Nick already reviewed are kept and marked "from older settings"; they are never silently replaced.
 - Save results after each frame, including frames with zero detections. Never send images off the laptop.
 
 ### 6. Review labels and export
@@ -146,11 +150,12 @@ Each stage resumes where it left off and can be re-run without redoing earlier s
 - **Split check:** per frame, mark whether touching urchins were separated correctly. Frames marked "no" still count for cover but are left out of detector training.
 - **Fully checked flag:** per frame and class, record that the reviewer looked for that class. Training skips a class on frames never checked for it, so classes added later don't turn old frames into false "background".
 - Running totals per class (objects and frames), so the user knows when a class has enough examples (target 150–200 objects per class).
+- **Add a missed object:** click on it (or drag a box around it); SAM returns a mask for that spot; pick its class. The mask is saved like any other, marked as added by hand.
 - No hand-editing of mask outlines in v1. Export to CVAT for fine fixes.
 
 ## Job control: estimate, pause, resource limits
 
-Long-running stages (extraction, SAM pre-screen, SAM labeling) run as a background job in a separate worker process, so the UI stays responsive and the job survives closing the browser tab.
+Long-running stages (extraction, SAM pre-screen, SAM labeling) run as a background job in a separate worker process, so the UI stays responsive and the job survives closing the browser tab. Job control is its own module with no labeling-specific code, so later training and evaluation jobs can use the same queue, schedule, pause and log.
 
 **Time estimate before Run**
 
@@ -177,7 +182,7 @@ Long-running stages (extraction, SAM pre-screen, SAM labeling) run as a backgrou
 **Overnight mode**
 
 - Basic scheduler: a "Start at" time picker (e.g. 22:00) on every long job (frame extraction, SAM pre-screen, SAM labeling), plus an optional "stop by" time (e.g. 07:00) that auto-pauses. A queued job shows its start time and can be cancelled or started now. The schedule survives an app restart.
-- Keep the laptop awake while a job runs (macOS: `caffeinate`), and only while it runs.
+- A **Keep laptop awake** toggle in the UI (it runs macOS `caffeinate`), offered whenever a long or scheduled job is started and released when the job ends. Next to it, a reminder: keep the laptop plugged in with the lid open.
 - Write a log file and show a morning summary: frames done, urchins found, errors, time taken.
 
 ## Outputs and folder layout
@@ -189,7 +194,7 @@ One set of reviewed labels exports in two formats, one per model. Both use the f
 | `export/images/` | Accepted full-resolution frames | Input for both models |
 | `export/detector_coco.json` | COCO: per object a box, outline and class (object classes only; frames failing the split check left out) | Detector training |
 | `export/seg_masks/` | One PNG per frame, each pixel = a class id, plus `classes.json` mapping ids to names and colors | Segmenter training |
-| `export/splits/` | Train / valid / test, 70 / 20 / 10, split by video so near-identical frames don't leak between sets | Fair evaluation |
+| `export/splits/` | Train / valid / test, about 70 / 20 / 10, split by site and dive date (read from the folder and file name) so near-identical frames don't leak between sets | Fair evaluation |
 | `export/frame_metrics.csv` | Per frame: source video, timestamp, count and % cover per class, largest object % | Ground truth for the hourly packet fields; sanity checks |
 
 Project folder:
@@ -222,6 +227,14 @@ Nick built a similar labeling pipeline earlier (RF-DETR based) and has his own l
 - SAM 3.1: run through Meta's official code (GitHub repo `facebookresearch/sam3`) with the `facebook/sam3.1` checkpoint. That checkpoint has no Transformers integration, so don't use the Transformers SAM 3 classes. Download with `huggingface_hub` after the user runs `hf auth login`; never store the token in the project. If 3.1 access isn't granted yet, fall back to `facebook/sam3` behind the same interface. License: Meta's SAM License (royalty-free, commercial use allowed); include its text in the repo's `THIRD_PARTY_LICENSES` file.
 - Masks stored as RLE; polygons made only at export (`pycocotools`).
 
+### First step: SAM test on Nick's laptop
+
+Before any tool code, test SAM 3.1 on Nick's M1 Max (32 GB): does it load and run on the Apple GPU (MPS) or on CPU, how many seconds per 4K frame, and how much memory. The official readme lists a CUDA (NVIDIA) GPU as a prerequisite and does not mention Apple chips, so this is unverified. If it does not run, stop and choose between the SAM 3 fallback, CPU only, or another machine.
+
+### Public repo
+
+The GitHub repo is public. No real frames, video stills, people's names or tokens in git, PRs, issues or test fixtures. Tests use synthetic images.
+
 ### Out of scope for Build 1
 
 - Training the models, quantizing, camera firmware, the hourly packet (later milestones)
@@ -231,7 +244,7 @@ Nick built a similar labeling pipeline earlier (RF-DETR based) and has his own l
 
 ### Acceptance criteria
 
-- [ ] Point at a folder with 2 GoPro videos; frames extract with blur and duplicate filtering; count matches the preview
+- [ ] Point at a folder with 2 GoPro videos; frames extract with blur and duplicate filtering; kept + dropped counts add up to the preview count
 - [ ] Frame review deletes to `rejected/` and undo works
 - [ ] Adding a class to `classes.yaml` and re-running labels only that class on existing frames
 - [ ] Estimate shows seconds per frame and finish time before Run

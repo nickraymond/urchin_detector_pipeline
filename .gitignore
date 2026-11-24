@@ -18,16 +18,42 @@ projects/
 *.MOV
 *.lrv
 *.LRV
+*.mkv
+*.m4v
+*.avi
+*.h264
+*.thm
+*.THM
 *.jpg
+*.JPG
 *.jpeg
+*.JPEG
 *.png
+*.PNG
+*.webp
+*.tif
+*.tiff
+*.heic
+*.HEIC
 *.pt
 *.pth
+*.ckpt
+*.bin
+*.npz
 *.safetensors
 *.onnx
 *.tflite
 *.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.db
+*.log
+sam_raw/
 
-# allowed: small synthetic test images and doc pictures
-!tests/fixtures/**
-!docs/img/**
+# allowed: small synthetic test images and doc pictures (images only, nothing else)
+!tests/fixtures/**/*.png
+!tests/fixtures/**/*.jpg
+!docs/img/*.png
+!docs/img/*.jpg
