@@ -5,11 +5,17 @@
 
 ## System topology
 
-*(nothing built yet — filled in S1)*
+S1 (a test, not the tool): `uv run sam-test --video <file>` → `app/sam_test/run.py` pulls 3
+frames with ffmpeg into `<data_dir>/sam_test/frames/`, then starts `app/sam_test/worker.py` as a
+separate process for each attempt (Apple GPU → Apple GPU with CPU fallback → CPU, stopping at
+the first that works). Each worker writes `result_<attempt>.json` after every step;
+`report.py` turns them into `<data_dir>/sam_test/report.html` with the overlays embedded.
 
 ## Key designs
 
-*(filled in S1)*
+- Meta's code is installed unmodified (pinned commit); `device_patch.py` makes the
+  run-time changes it needs off-CUDA and lists every one on the report page (D8).
+- One process per attempt, so a hard crash in the Apple GPU driver still leaves a report (D9).
 
 ## Decision log
 
@@ -21,6 +27,9 @@
 | D4 | 2026-11-24 | Job control (queue, schedule, pause, log) is a standalone module with no labeling-specific code. | Nick wants to reuse it for nightly training and evaluation jobs. Nick, chat 2026-11-24. |
 | D5 | 2026-11-24 | Kelp and kelp shoot classes are deferred; classes stay a settings-file change. | Nick has no reference images yet. Nick, chat 2026-11-24. |
 | D6 | 2026-11-24 | The class list starts small (purple urchin, red urchin, sea star, sunflower sea star, anemone, fish, rock/substrate) and grows toward the Reef Check California manual's species list. Class ids are only ever appended, never renumbered or reused. | Prove the pipeline first; splitting a class later costs a re-review of that class only. Stable ids keep old exports and models readable. Nick, chat 2026-11-24. |
+| D7 | 2026-11-24 | Pin PyTorch to 2.10.0 (the version in Meta's sam3 readme), Python 3.12. | torch 2.15.0 aborts on the Apple GPU on macOS 14.6 (`MPSNDArray arrayViewWithShape:strides:` unrecognized selector) on a plain Conv2d; 2.8.0–2.14.0 pass the same test (S1 test, 2026-11-24). |
+| D8 | 2026-11-24 | Run Meta's SAM 3 code unmodified; apply small run-time fixes in `app/sam_test/device_patch.py`: stub the triton-only `edt` module, build two caches on the chosen device instead of `"cuda"`, replace the fused `_addmm_activation` (missing on MPS) with linear + activation, skip empty point/box encodes and `pin_memory` on MPS. Other missing ops use PyTorch's CPU fallback; the report lists which. | Smallest change that runs; Meta's files stay untouched and upgradeable. Each fix is from a failure seen in the S1 smoke test. |
+| D9 | 2026-11-24 | The SAM test runs each attempt in its own worker process. | The Apple GPU can abort the whole process (seen with torch 2.15.0); the parent must still write the report. |
 
 ## Bench / test results
 

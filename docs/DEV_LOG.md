@@ -17,6 +17,18 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S1 — SAM test runner built; Apple GPU works with run-time fixes
+**Branch:** sprint/1-sam-test
+**Done:** plan approved by Nick. `pyproject.toml` (uv, Python 3.12, torch 2.10.0, Meta's sam3
+pinned at `31cb7e6`). `app/sam_test/`: frame pull, one worker process per attempt, report page
+with overlays embedded, click and box test. 9 unit tests on synthetic images. Smoke test with
+untrained weights: text, click and box prompts run on the Apple GPU (~2.3 s per 1008 px image).
+Dry run on a real video: frames extracted; report shows the "download the weights" error.
+**Broke/surprised us:** torch 2.15.0 aborts on the Apple GPU on macOS 14.6 → pinned 2.10.0 (D7).
+Meta's image code needs six run-time fixes off-CUDA plus PyTorch's CPU fallback (D8). The bite
+is ~630 lines of app code, about twice the plan's ~340, because of the fixes and the worker.
+**Next:** Nick downloads the SAM 3.1 weights and runs the demo (nibble 3).
+
 ## 2026-11-24 — Sprint S0 — Spec review edits, QE fixes, SAM test sprint added
 **Branch:** sprint/0-scaffold
 **Done:** Nick ran the S0 demo (3 checks passed). QE gave PASS-with-nits on 51dabf1; its 12

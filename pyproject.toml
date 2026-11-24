@@ -1,0 +1,43 @@
+[project]
+name = "urchin-detector-pipeline"
+version = "0.1.0"
+description = "Local labeling tool: GoPro videos -> frames -> SAM labels -> COCO boxes + masks"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # PyTorch from PyPI: the macOS arm64 wheels include the Apple GPU (MPS) backend.
+    # Pinned to 2.10.0, the version in Meta's sam3 readme. torch 2.15.0 aborts on the
+    # Apple GPU on macOS 14.6 (a plain Conv2d; 2.8-2.14 pass the same test, 2026-11-24).
+    "torch==2.10.0",
+    "torchvision",
+    "pillow",
+    "numpy>=1.26,<2",
+    # Meta's official SAM 3 / 3.1 code, pinned to the commit read on 2026-11-24.
+    # Licence: SAM License (see the LICENSE file in that repo). Labeling tool only.
+    "sam3 @ git+https://github.com/facebookresearch/sam3@31cb7e624e4fe95301b1be1d4e809111593d2e45",
+    # sam3 imports pkg_resources but does not declare it.
+    "setuptools<81",
+    # sam3 imports these on the image path but does not declare them.
+    "psutil",
+    "einops",
+    "scipy",
+    "pycocotools",
+]
+
+[project.scripts]
+sam-test = "app.sam_test.run:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

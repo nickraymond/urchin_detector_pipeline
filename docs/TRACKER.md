@@ -43,7 +43,7 @@ config.example.toml   copy to config.local.toml (gitignored) and set your paths
 
 State key: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 
-### S0 — Scaffold  `[~]`  (demo passed: Nick 2026-11-24; PR 1 open)
+### S0 — Scaffold  `[x]`  (demo passed: Nick 2026-11-24; PR 1 squash-merged to main as `8c322ac`)
 **Goal:** template filled for this project; full spec in git; data and secrets kept out of git. No app code.
 - [x] fill CLAUDE.md, SPEC.md, TRACKER.md, DESIGN.md, DEV_LOG.md, skills, README.md
 - [x] commit Nick's spec as `docs/source/mvp_spec.md`
@@ -55,14 +55,14 @@ State key: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 3. `git check-ignore -v test.mp4 frames/x.jpg model.pt` → prints one `.gitignore` rule per file.
 **Needs:** nothing.
 
-### S1 — SAM test on the laptop  `[ ]`
+### S1 — SAM test on the laptop  `[~]`
 **Goal:** know whether SAM 3.1 runs on Nick's M1 Max, how fast, and under what licence,
 before any tool code is written. This is a test, not the tool: keep it small and throwaway-friendly.
-- [ ] re-read the primary docs and record what they say in SPEC (Q12): `facebookresearch/sam3`
+- [~] re-read the primary docs and record what they say in SPEC (Q12): `facebookresearch/sam3`
       readme and its SAM 3.1 release notes; the `LICENSE` file in `facebook/sam3.1`
-- [ ] install the official SAM 3 code in a local `.venv` with `uv` (never Homebrew; SPEC facts)
+- [x] install the official SAM 3 code in a local `.venv` with `uv` (never Homebrew; SPEC facts)
 - [ ] download the weights with `uvx hf download` into the Hugging Face cache (not the repo, not git)
-- [ ] pull 3 frames from one ReefCheck video with ffmpeg into `<data_dir>/sam_test/`
+- [x] pull 3 frames from one ReefCheck video with ffmpeg into `<data_dir>/sam_test/`
 - [ ] run text prompts ("sea urchin", "purple sea urchin", "red sea urchin", "sea star",
       "sunflower sea star", "sea anemone", "fish") on each
       frame: first on the Apple GPU (MPS), then CPU if MPS fails; at full size with tiles and at
@@ -71,11 +71,11 @@ before any tool code is written. This is a test, not the tool: keep it small and
       the "add a missed object" step in label review needs them
 - [ ] record per run: device, seconds per frame (first frame not counted), peak memory,
       masks found; and any error text in full
-- [ ] write one local report page, `<data_dir>/sam_test/report.html`: each frame with its masks
+- [x] write one local report page, `<data_dir>/sam_test/report.html`: each frame with its masks
       drawn, and a table of the numbers. No internet assets.
 - [ ] if SAM 3.1 will not run: try `facebook/sam3` the same way, then stop and report the options
       (SAM 3, CPU only, another machine). Time box: one working day.
-**Demo (Nick):** one command (exact command confirmed in the S1 plan) runs the test and opens
+**Demo (Nick):** `uv run sam-test --video "<one ReefCheck video>"` runs the test and opens
 `report.html` in the browser: 3 frames with coloured masks on the urchins, and a table showing
 device, seconds per frame and memory. A failed run still produces the page, with the error shown.
 **Needs:** S0; Nick logged in to Hugging Face (done 2026-11-24); the SSD plugged in.
