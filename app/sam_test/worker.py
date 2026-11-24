@@ -49,9 +49,9 @@ def detections(state, prompt, dx=0, dy=0):
     return out
 
 
-def run_mode(proc, image, prompts, tiles, sync):
-    """All prompts on one frame, whole (resized by SAM to 1008 px) or as tiles."""
-    regions = tile_grid(*image.size) if tiles else [(0, 0, *image.size)]
+def run_mode(proc, image, prompts, tiles, sync, tile=1008):
+    """All prompts on one frame, whole (resized by SAM to 1008 px) or as tiles of `tile` px."""
+    regions = tile_grid(*image.size, tile=tile) if tiles else [(0, 0, *image.size)]
     found = []
     t = time.perf_counter()
     for x0, y0, x1, y1 in regions:
@@ -142,7 +142,11 @@ def main(job: dict) -> None:
             model = model.to(device)
         R["load_seconds"] = round(time.perf_counter() - t, 1)
         R["load_messages"] = log.getvalue().strip()[-3000:]
-        proc = Sam3Processor(model, device=device)
+        # the click/box model's weights: count how many the checkpoint did not supply
+        R["click_weights_missing"] = log.getvalue().count("'inst_interactive_predictor.")
+        R["click_weights_total"] = sum(1 for k in model.state_dict()
+                                       if k.startswith("inst_interactive_predictor."))
+        proc = Sam3Processor(model, device=device, confidence_threshold=job["cutoff"])
         names = [p.lower() for p in job["prompts"]]
         palette = names + ["similar to box", "click", "box"]
         out = Path(job["out_dir"])
@@ -157,7 +161,8 @@ def main(job: dict) -> None:
         for i, (path, image) in enumerate(zip(job["frames"], frames)):
             entry = {"name": Path(path).name}
             for mode in ("whole", "tiles"):
-                found, secs, n = run_mode(proc, image, names, mode == "tiles", sync_and_measure)
+                found, secs, n = run_mode(proc, image, names, mode == "tiles", sync_and_measure,
+                                          job["tile"])
                 overlay = f"overlay_{job['attempt']}_{i + 1}_{mode}.jpg"
                 draw_overlay(image, found, palette).save(out / overlay, quality=90)
                 counts = {p: sum(d["prompt"] == p for d in found) for p in names}

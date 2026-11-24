@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import html
+import json
 import time
 from pathlib import Path
 
@@ -82,6 +83,10 @@ def attempt_section(r: dict, out_dir: Path, prompts: list[str]) -> str:
     ct = r.get("click_test")
     if ct:
         parts.append("<h3>Click and box prompts (frame 1)</h3>")
+        if r.get("click_weights_missing"):
+            parts.append(f"<p class=bad>Not a valid result: the checkpoint is missing "
+                         f"{r['click_weights_missing']} of {r.get('click_weights_total', '?')} "
+                         "weights of the click/box model, so it runs untrained.</p>")
         if "error" in ct:
             parts.append(f"<p class=bad>{html.escape(ct['error'])}</p>" + _pre(ct.get("traceback")))
         else:
@@ -100,7 +105,8 @@ def attempt_section(r: dict, out_dir: Path, prompts: list[str]) -> str:
 
 
 def write_report(out_dir: Path, video_name: str, model: str, prompts: list[str],
-                 results: list[dict]) -> Path:
+                 results: list[dict], settings: dict | None = None) -> Path:
+    settings = settings or {"tile": 1008, "cutoff": 0.5}
     palette = prompts + ["similar to box", "click", "box"]
     key = "".join(f'<span><i class=sw style="background:rgb{COLOURS[i % len(COLOURS)]}"></i>'
                   f"{html.escape(p)}</span>" for i, p in enumerate(palette))
@@ -109,11 +115,42 @@ def write_report(out_dir: Path, video_name: str, model: str, prompts: list[str],
                "<p class=bad>SAM did not complete on any attempt. Errors are below.</p>")
     body = (f"<h1>S1 SAM test: {html.escape(model)}</h1>"
             f"<p>Video: {html.escape(video_name)} · written {time.strftime('%Y-%m-%d %H:%M')}"
-            " · 'whole' = the frame shrunk to 1008 px by SAM; 'tiles' = full size, 1008 px tiles "
-            "with 20 % overlap (no duplicate removal across tile edges yet).</p>"
+            f" · 'whole' = the frame shrunk to 1008 px by SAM; 'tiles' = full size, "
+            f"{settings['tile']} px tiles with 20 % overlap, each resized by SAM to 1008 px "
+            f"(no duplicate removal across tile edges yet) · objects kept at score ≥ "
+            f"{settings['cutoff']:g}.</p>"
             + verdict + summary_rows(results) + f"<p class=key>{key}</p>"
             + "".join(attempt_section(r, out_dir, prompts) for r in results))
     page = out_dir / "report.html"
     page.write_text(f"<!doctype html><html><head><meta charset=utf-8><title>S1 SAM test</title>"
                     f"<style>{CSS}</style></head><body>{body}</body></html>")
     return page
+
+
+def write_index(top: Path) -> Path:
+    """<data_dir>/sam_test/report.html: one row per run folder, linking to its report."""
+    rows = []
+    for page in sorted(top.glob("*/report.html")):
+        run = page.parent
+        for res in sorted(run.glob("result_*.json")):
+            r = json.loads(res.read_text())
+            if r.get("status") != "ok":
+                continue
+            frames = r.get("frames_done", [])
+            totals = {}
+            for f in frames:
+                for p, n in f["tiles"]["masks"].items():
+                    totals[p] = totals.get(p, 0) + n
+            found = ", ".join(f"{p}: {n}" for p, n in totals.items() if n) or "nothing"
+            rows.append(f'<tr><td><a href="{html.escape(run.name)}/report.html">'
+                        f"{html.escape(run.name)}</a></td><td>{html.escape(r['attempt'])}</td>"
+                        f"<td>{_mean([f['tiles']['seconds'] for f in frames])}</td>"
+                        f"<td>{html.escape(found)}</td></tr>")
+    body = ("<h1>S1 SAM test: all runs</h1><p>Objects found in 'tiles' mode, summed over the "
+            "frames. Open a run for its pictures.</p><table><tr><th>run</th><th>attempt</th>"
+            "<th>s / frame, tiles</th><th>objects found (tiles)</th></tr>" + "".join(rows)
+            + "</table>")
+    index = top / "report.html"
+    index.write_text(f"<!doctype html><html><head><meta charset=utf-8><title>S1 SAM runs</title>"
+                     f"<style>{CSS}</style></head><body>{body}</body></html>")
+    return index

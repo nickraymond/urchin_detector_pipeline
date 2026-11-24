@@ -94,3 +94,22 @@ def test_run_attempt_reads_worker_result(tmp_path, monkeypatch):
 def test_missing_config_gives_fix_hint(tmp_path):
     with pytest.raises(SystemExit, match="config.local.toml"):
         run.load_data_dir(tmp_path / "nope.toml")
+
+
+def test_index_lists_each_run_with_totals(tmp_path):
+    run_dir = tmp_path / "sam3_tile504_cutoff0.5"
+    run_dir.mkdir()
+    r = _fake_result(run_dir)
+    (run_dir / "result_mps.json").write_text(json.dumps(r))
+    report.write_report(run_dir, "clip.MP4", "sam3", ["fish"], [r], {"tile": 504, "cutoff": 0.5})
+    assert "504 px tiles" in (run_dir / "report.html").read_text()
+    text = report.write_index(tmp_path).read_text()
+    assert "sam3_tile504_cutoff0.5/report.html" in text and "fish: 5" in text
+
+
+def test_report_flags_missing_click_weights(tmp_path):
+    r = _fake_result(tmp_path)
+    r.update(click_weights_missing=40, click_weights_total=50,
+             click_test={"error": "x", "traceback": ""})
+    text = report.write_report(tmp_path, "c.MP4", "sam3.1", ["fish"], [r]).read_text()
+    assert "missing 40 of 50" in text

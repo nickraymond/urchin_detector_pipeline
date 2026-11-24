@@ -61,19 +61,19 @@ before any tool code is written. This is a test, not the tool: keep it small and
 - [~] re-read the primary docs and record what they say in SPEC (Q12): `facebookresearch/sam3`
       readme and its SAM 3.1 release notes; the `LICENSE` file in `facebook/sam3.1`
 - [x] install the official SAM 3 code in a local `.venv` with `uv` (never Homebrew; SPEC facts)
-- [ ] download the weights with `uvx hf download` into the Hugging Face cache (not the repo, not git)
+- [~] download the weights with `uvx hf download` into the Hugging Face cache (not the repo, not git)
 - [x] pull 3 frames from one ReefCheck video with ffmpeg into `<data_dir>/sam_test/`
-- [ ] run text prompts ("sea urchin", "purple sea urchin", "red sea urchin", "sea star",
+- [~] run text prompts ("sea urchin", "purple sea urchin", "red sea urchin", "sea star",
       "sunflower sea star", "sea anemone", "fish") on each
       frame: first on the Apple GPU (MPS), then CPU if MPS fails; at full size with tiles and at
       one reduced size
 - [ ] on one frame, also test a point prompt (one click on an urchin) and a box prompt, as
       the "add a missed object" step in label review needs them
-- [ ] record per run: device, seconds per frame (first frame not counted), peak memory,
+- [x] record per run: device, seconds per frame (first frame not counted), peak memory,
       masks found; and any error text in full
 - [x] write one local report page, `<data_dir>/sam_test/report.html`: each frame with its masks
       drawn, and a table of the numbers. No internet assets.
-- [ ] if SAM 3.1 will not run: try `facebook/sam3` the same way, then stop and report the options
+- [~] if SAM 3.1 will not run: try `facebook/sam3` the same way, then stop and report the options
       (SAM 3, CPU only, another machine). Time box: one working day.
 **Demo (Nick):** `uv run sam-test --video "<one ReefCheck video>"` runs the test and opens
 `report.html` in the browser: 3 frames with coloured masks on the urchins, and a table showing

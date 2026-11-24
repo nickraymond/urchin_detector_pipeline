@@ -97,16 +97,26 @@ def main(argv=None) -> None:
     ap.add_argument("--attempts", default="mps,mps-fallback,cpu",
                     help="tried in order; stops at the first that works")
     ap.add_argument("--all", action="store_true", help="run every attempt, even after a success")
+    ap.add_argument("--tile", type=int, default=1008,
+                    help="tile size in frame pixels for the 'tiles' mode (SAM resizes each to 1008)")
+    ap.add_argument("--cutoff", type=float, default=0.5,
+                    help="keep objects with a score at or above this (0-1)")
     ap.add_argument("--click", help="x,y in frame-1 pixels for the click test (default: auto)")
     ap.add_argument("--config", type=Path, default=Path("config.local.toml"))
     ap.add_argument("--no-open", action="store_true", help="do not open the report")
     args = ap.parse_args(argv)
 
-    out_dir = load_data_dir(args.config) / "sam_test"
-    frames = extract_frames(args.video, out_dir / "frames")
+    if not 100 <= args.tile <= 4000 or not 0 < args.cutoff < 1:
+        sys.exit("--tile must be 100-4000 px and --cutoff between 0 and 1")
+    top = load_data_dir(args.config) / "sam_test"
+    frames = extract_frames(args.video, top / "frames")
+    # each setting combination gets its own folder, so runs can be compared side by side
+    out_dir = top / f"{args.model}_tile{args.tile}_cutoff{args.cutoff:g}"
+    out_dir.mkdir(parents=True, exist_ok=True)
     repo_id, ckpt = MODELS[args.model]
     job = {"model": args.model, "repo_id": repo_id, "checkpoint": ckpt, "prompts": PROMPTS,
-           "frames": [str(p) for p in frames], "out_dir": str(out_dir), "click": args.click}
+           "frames": [str(p) for p in frames], "out_dir": str(out_dir), "click": args.click,
+           "tile": args.tile, "cutoff": args.cutoff}
 
     results = []
     for name in [a.strip() for a in args.attempts.split(",") if a.strip()]:
@@ -118,8 +128,10 @@ def main(argv=None) -> None:
         if "not in the Hugging Face cache" in str(results[-1].get("error")):
             break  # a missing download is not a device problem; other attempts would fail too
 
-    page = report.write_report(out_dir, args.video.name, args.model, PROMPTS, results)
-    print(f"\nreport: {page}")
+    page = report.write_report(out_dir, args.video.name, args.model, PROMPTS, results,
+                               settings={"tile": args.tile, "cutoff": args.cutoff})
+    report.write_index(top)
+    print(f"\nreport: {page}\nall runs: {top / 'report.html'}")
     if not args.no_open:
         webbrowser.open(page.as_uri())
 

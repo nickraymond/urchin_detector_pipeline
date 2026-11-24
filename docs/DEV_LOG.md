@@ -27,7 +27,12 @@ Dry run on a real video: frames extracted; report shows the "download the weight
 **Broke/surprised us:** torch 2.15.0 aborts on the Apple GPU on macOS 14.6 → pinned 2.10.0 (D7).
 Meta's image code needs six run-time fixes off-CUDA plus PyTorch's CPU fallback (D8). The bite
 is ~630 lines of app code, about twice the plan's ~340, because of the fixes and the worker.
-**Next:** Nick downloads the SAM 3.1 weights and runs the demo (nibble 3).
+Later the same day: Nick's first real run found nothing — my bfloat16 replacement gave NaN
+scores on the Apple GPU (fixed, CPU and GPU now agree). Added `--tile` and `--cutoff`, one folder
+per setting combination and an all-runs index page. SAM 3.1 at 504 px tiles: 233 s per frame,
+finds urchins only in patches and calls many urchins "sea anemone" (DESIGN, Bench results).
+The Hugging Face `LICENSE` for `facebook/sam3.1` matches the GitHub one word for word.
+**Next:** Nick downloads `facebook/sam3` (`sam3.pt`); run the same settings on SAM 3 and compare.
 
 ## 2026-11-24 — Sprint S0 — Spec review edits, QE fixes, SAM test sprint added
 **Branch:** sprint/0-scaffold

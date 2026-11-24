@@ -33,4 +33,15 @@ the first that works). Each worker writes `result_<attempt>.json` after every st
 
 ## Bench / test results
 
-*(appended by sprints)*
+**S1, 2026-11-24 — SAM 3.1 (`sam3.1_multiplex.pt`) on the M1 Max, Apple GPU + CPU fallback,
+torch 2.10.0, 3 frames (4K HEVC) from one Mendocino Headlands ReefCheck video, cut-off 0.5.**
+Source: `<data_dir>/sam_test/sam3.1_tile504_cutoff0.5/result_mps-fallback.json`.
+
+| Mode | s / frame | Peak memory | Objects kept (frame 2, ~hundreds of urchins visible) |
+|---|---|---|---|
+| whole frame (→1008 px) | 3.9 | 7.4 GB process, 14.4 GB Apple GPU | fish 12; no urchins |
+| 504 px tiles (60 per frame) | 233 | same | urchin prompts 46–125 each, in a few tiles only; "sea anemone" 91, mostly on urchins |
+
+Model load 8.7 s. Only `aten::_assert_async` fell back to the CPU. The SAM 3.1 checkpoint
+supplies none of the 309 weights of the click/box model, so the click test is not valid with
+3.1. Visual check of the frame-2 overlay: most urchins missed; the one real anemone not labelled.

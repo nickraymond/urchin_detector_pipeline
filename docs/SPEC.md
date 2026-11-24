@@ -109,7 +109,8 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   default, so whether `sam3.1_multiplex.pt` loads into the image model is still open. Licence:
   the repo's `LICENSE` is the "SAM License", last updated 19 Nov 2025: royalty-free, allows
   commercial use and changes; copies passed on must carry the licence; no ITAR, military,
-  weapons, nuclear or espionage use. The `facebook/sam3.1` Hugging Face copy is not read yet.
+  weapons, nuclear or espionage use. The `LICENSE` in `facebook/sam3.1` on Hugging Face is
+  word-for-word the same text (compared 2026-11-24).
 - Q13. May the UI load assets from the internet (a CDN)? The planning lead's reading of
   constraint 1 is no; Nick to confirm.
 
