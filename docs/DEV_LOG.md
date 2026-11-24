@@ -9,7 +9,7 @@ what broke, what's next.*
 
 ```
 ## YYYY-MM-DD — Sprint Sn — <one-line summary>
-**Branch:** sprint/n-slug
+**Branch:** sprint/n-name
 **Done:**  <bullets>
 **Broke/surprised us:** <bullets or "nothing">
 **Next:** <the single next bite>
@@ -17,9 +17,10 @@ what broke, what's next.*
 
 ---
 
-## {{DATE}} — Pre-work — Project scaffolded
+## 2026-11-24 — Pre-work — Project scaffolded
 
 **Branch:** n/a
-**Done:** docs created from agent-process-template; SPEC and sprint ladder filled.
+**Done:** docs created from agent-process-template; SPEC and sprint ladder filled from
+`docs/source/mvp_spec.md`; `.gitignore` and `config.example.toml` added. Planning session, no app code.
 **Broke/surprised us:** nothing yet.
-**Next:** S0, plan nibble — {{OWNER}} gate.
+**Next:** Nick runs the S0 demo; then S1 plan nibble — Nick gate.

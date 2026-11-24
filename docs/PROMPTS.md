@@ -1,6 +1,6 @@
 # PROMPTS.md — Session Kickoff Prompts
 
-*Copy-paste these verbatim; fill only `<N>` and `<slug>`. Never add task
+*Copy-paste these verbatim; fill only `<N>` and `<name>`. Never add task
 instructions here or in the prompt itself — requirements belong in SPEC.md or
 TRACKER.md, where the next session can see them.*
 
@@ -17,7 +17,7 @@ Run /agent-entry. We're starting Sprint S<N>.
 Read docs/TRACKER.md cover to cover, skim docs/SPEC.md and docs/DESIGN.md,
 and read the top 3 entries of docs/DEV_LOG.md before doing anything else.
 
-Then: create branch sprint/<N>-<slug>, and give me your PLAN for the first
+Then: create branch sprint/<N>-<name>, and give me your PLAN for the first
 bite of S<N> — nibble 1 only. Throwaway exploration is fine, but change no
 files and write no production code until I approve the plan.
 
@@ -29,7 +29,7 @@ TRACKER and it passes.
 ## 2 — Resume mid-sprint
 
 ```
-Run /agent-entry. We're mid-Sprint S<N> on branch sprint/<N>-<slug>.
+Run /agent-entry. We're mid-Sprint S<N> on branch sprint/<N>-<name>.
 Do the full read ritual, then check the branch diff against the TRACKER
 state and the top DEV_LOG entry, tell me exactly where the last session
 stopped and which nibble we're in, and wait for my go before continuing.

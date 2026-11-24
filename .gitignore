@@ -1,0 +1,33 @@
+.DS_Store
+.claude/worktrees/
+
+# local paths and secrets
+config.local.toml
+.env
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# data never goes in git: videos, frames, datasets, model weights
+projects/
+*.mp4
+*.MP4
+*.mov
+*.MOV
+*.lrv
+*.LRV
+*.jpg
+*.jpeg
+*.png
+*.pt
+*.pth
+*.safetensors
+*.onnx
+*.tflite
+*.sqlite
+
+# allowed: small synthetic test images and doc pictures
+!tests/fixtures/**
+!docs/img/**

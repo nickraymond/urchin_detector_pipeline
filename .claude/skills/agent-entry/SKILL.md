@@ -6,12 +6,12 @@ description: Session-start ritual for this repo's agent discipline. Use at the S
 # Agent Entry
 
 You are working under this repo's agent discipline. OWNER (the human gate) is:
-**{{OWNER}}**.
+**Nick**.
 
 ## On session start — in this order, before any code
 
-1. `git checkout main && git pull` — sync main. Install any new skills the repo
-   ships in `.claude/skills/`.
+1. `git fetch origin` and check your branch against `origin/main` (in a worktree,
+   `main` is checked out elsewhere, so do not `git checkout main`).
 2. Read `docs/TRACKER.md` **cover to cover**. Non-negotiable.
 3. Skim `docs/SPEC.md` and `docs/DESIGN.md`.
 4. Read the top ~3 entries of `docs/DEV_LOG.md`.
@@ -28,7 +28,7 @@ You are working under this repo's agent discipline. OWNER (the human gate) is:
   2. **Code + unit tests** — flag OWNER if the plan must substantially change.
   3. **Manual tests** — OWNER runs them; provide copy-pastable CLI commands.
   4. **Open PR** — description includes the demo commands.
-- **Branch:** all new work on `sprint/<n>-<slug>`. Never commit to main.
+- **Branch:** all new work on `sprint/<n>-<name>`. Never commit to main.
 - **Demo:** a sprint is not done until OWNER runs its live demo successfully.
 
 ## On session end — always
@@ -41,6 +41,6 @@ You are working under this repo's agent discipline. OWNER (the human gate) is:
 ## Standing rules
 
 - Facts carry sources. Unknowns get flagged in SPEC.md §Open questions — never
-  guessed. Hardware pinouts, strap polarities, and register addresses are
-  verified against vendor docs before use.
+  guessed. Model names, licenses, library APIs and file formats are verified
+  against primary docs before use.
 - Obey SPEC.md §Safety rules absolutely.
