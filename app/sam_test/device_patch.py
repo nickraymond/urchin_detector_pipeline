@@ -77,25 +77,25 @@ def apply(device: str) -> None:
     decoder.TransformerDecoder._get_coords = staticmethod(get_coords_on_target)
     CHANGES.append('decoder: coordinate cache built on the chosen device instead of "cuda"')
 
-    if device == "mps":
-        from sam3.model import vitdet
+    from sam3.model import vitdet
 
-        vitdet.addmm_act = addmm_act_plain
-        CHANGES.append(
-            "vitdet: fused aten::_addmm_activation (not on MPS) replaced by "
-            "linear + activation in bfloat16, same maths"
-        )
+    vitdet.addmm_act = addmm_act_plain
+    CHANGES.append(
+        "vitdet: fused bfloat16 aten::_addmm_activation replaced by linear + activation in "
+        "float32 (its bfloat16 output fed float32 layers: CPU errors, MPS gave NaN scores)"
+    )
 
-        from sam3.model import geometry_encoders
+    from sam3.model import geometry_encoders
 
-        enc = geometry_encoders.SequenceGeometryEncoder
-        for name in ("_encode_points", "_encode_boxes"):
-            setattr(enc, name, _skip_when_empty(getattr(enc, name)))
-        CHANGES.append(
-            "geometry_encoders: an empty point/box list returns an empty result directly "
-            "(MPS asserts on zero-size tensors; text-only prompts pass an empty list); "
-            "pin_memory skipped inside them (fails on MPS, only speeds up CUDA)"
-        )
+    enc = geometry_encoders.SequenceGeometryEncoder
+    for name in ("_encode_points", "_encode_boxes"):
+        setattr(enc, name, _skip_when_empty(getattr(enc, name)))
+    CHANGES.append(
+        "geometry_encoders: an empty point/box list returns an empty result directly "
+        "(MPS asserts on zero-size tensors; text-only prompts pass an empty list); "
+        "pin_memory skipped inside them (on a Mac it pins to the Apple GPU, which breaks "
+        "CPU and MPS runs alike; pinning only speeds up CUDA)"
+    )
 
 
 def _skip_when_empty(encode):
@@ -121,10 +121,13 @@ def _skip_when_empty(encode):
 
 
 def addmm_act_plain(activation, linear, mat1):
-    """Same result as sam3.perflib.fused.addmm_act, using ops the Apple GPU has."""
-    bias = linear.bias.detach().to(torch.bfloat16)
-    weight = linear.weight.detach().to(torch.bfloat16)
-    y = torch.nn.functional.linear(mat1.to(torch.bfloat16), weight, bias)
+    """linear + activation, as sam3.perflib.fused.addmm_act, but kept in the input's dtype.
+
+    Meta's version casts to bfloat16 and relies on CUDA autocast to cast back; without CUDA
+    the bfloat16 output reaches float32 layers (CPU: dtype error; MPS: NaN scores, S1 run
+    2026-11-24).
+    """
+    y = torch.nn.functional.linear(mat1, linear.weight, linear.bias)
     if activation in (torch.nn.functional.relu, torch.nn.ReLU):
         return torch.relu(y)
     if activation in (torch.nn.functional.gelu, torch.nn.GELU):
