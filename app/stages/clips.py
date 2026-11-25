@@ -7,6 +7,8 @@ about 0.2x (4K) to 0.5x (5.3K 60 fps) the video's length; a strip from the copy 
 
 from __future__ import annotations
 
+import json
+import math
 import os
 import shutil
 import subprocess
@@ -109,3 +111,135 @@ def make_playback(video: dict, project_folder: Path,
         shutil.rmtree(strip, ignore_errors=True)
         os.replace(tmp_dir, strip)
     return out
+
+
+def frame_at(project_folder: Path, code: str, t: float, duration_s: float) -> Path | None:
+    """A 160 px picture of the playback copy at time t (to 0.1 s), for a clip's row: made once
+    with ffmpeg into <project>/clipthumbs/<code>/, then reused (a cache, D14a)."""
+    copy = playback_path(project_folder, code)
+    if not copy.is_file() or not math.isfinite(t) or not 0 <= t <= duration_s + 0.05:
+        return None
+    t = min(round(t, 1), max(0.0, duration_s - 0.05))
+    out = Path(project_folder) / "clipthumbs" / code / f"{round(t * 1000):08d}.jpg"
+    if out.is_file():
+        return out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_name(out.stem + ".tmp.jpg")
+    r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", str(copy),
+                        "-frames:v", "1", "-vf", f"scale={STRIP_WIDTH}:-2", "-q:v", "5", str(tmp)],
+                       capture_output=True, timeout=60)
+    if r.returncode != 0 or not tmp.is_file():
+        return None
+    os.replace(tmp, out)
+    return out
+
+
+# --- clips.json: the stretches of each video to extract from (bite 2b) ---
+
+MIN_CLIP_S = 0.5
+MAX_NOTE = 200
+
+
+class ClipError(ValueError):
+    """A clip the user must correct; the message says what is wrong."""
+
+
+def clips_path(project_folder: Path) -> Path:
+    return Path(project_folder) / "clips.json"
+
+
+def load_clips(project_folder: Path) -> list[dict]:
+    """All clips of the project: [{video, start_s, end_s, note}], or [] if none saved yet."""
+    path = clips_path(project_folder)
+    if not path.is_file():
+        return []
+    fix = "Restore it from a backup, or move it aside to start the clip list again."
+    try:
+        data = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        raise ClipError(f"{path} cannot be read ({e}). {fix}") from e
+    items = data.get("clips") if isinstance(data, dict) else None
+    ok = isinstance(items, list) and all(
+        isinstance(c, dict) and isinstance(c.get("video"), str)
+        and all(isinstance(c.get(k), (int, float)) and not isinstance(c.get(k), bool)
+                and math.isfinite(c[k]) for k in ("start_s", "end_s"))
+        for c in items)
+    if not ok:
+        raise ClipError(f"{path} cannot be read (not a list of clips with video, start_s and "
+                        f"end_s). {fix}")
+    return items
+
+
+def _fmt(t: float) -> str:
+    return f"{int(t // 60)}:{t % 60:04.1f}"
+
+
+def check_clips(video_clips: list[dict], duration_s: float) -> list[dict]:
+    """Clean and check one video's clips; sorted by start. Raises ClipError on any problem."""
+    out = []
+    for c in video_clips:
+        try:
+            start, end = round(float(c["start_s"]), 2), round(float(c["end_s"]), 2)
+        except (KeyError, TypeError, ValueError) as e:
+            raise ClipError(f"A clip needs a start and an end time in seconds ({e}).") from e
+        if not (math.isfinite(start) and math.isfinite(end)):
+            raise ClipError("A clip's start and end must be real numbers of seconds.")
+        note = str(c.get("note") or "").strip()[:MAX_NOTE]
+        if start < 0 or end > duration_s + 0.05:
+            raise ClipError(f"Clip {_fmt(start)}–{_fmt(end)} is outside the video "
+                            f"(0:00–{_fmt(duration_s)}).")
+        # Messages say what to do next (Nick's test, 2026-11-24: "end must come after start"
+        # was not clear when start and end were the same moment).
+        if end == start:
+            raise ClipError(f"This clip would be 0 s long: start and end are both {_fmt(start)}. "
+                            "Play or step the video forward, then press O (or Set end here).")
+        if end < start:
+            raise ClipError(f"This clip would end ({_fmt(end)}) before it starts "
+                            f"({_fmt(start)}). Set the end to a later time, or the start to an "
+                            "earlier one.")
+        if end - start < MIN_CLIP_S:
+            raise ClipError(f"This clip is only {end - start:.1f} s long; a clip must be at "
+                            f"least {MIN_CLIP_S} s. Move the video further before pressing O.")
+        out.append({"start_s": start, "end_s": min(end, round(duration_s, 2)), "note": note})
+    out.sort(key=lambda c: c["start_s"])
+    for a, b in zip(out, out[1:]):
+        if b["start_s"] < a["end_s"]:
+            raise ClipError(f"Clips can't share time: {_fmt(b['start_s'])}–{_fmt(b['end_s'])} "
+                            f"overlaps the clip {_fmt(a['start_s'])}–{_fmt(a['end_s'])}. Mark "
+                            "outside it, or change that clip with Set start here / Set end "
+                            "here, or delete it.")
+    return out
+
+
+def save_video_clips(project_folder: Path, video_path: str, duration_s: float,
+                     video_clips: list[dict]) -> list[dict]:
+    """Replace one video's clips in clips.json (atomic write); return them, checked."""
+    checked = check_clips(video_clips, duration_s)
+    others = [c for c in load_clips(project_folder) if c["video"] != video_path]
+    data = {"clips": others + [{"video": video_path, **c} for c in checked]}
+    path = clips_path(project_folder)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, allow_nan=False) + "\n")
+    os.replace(tmp, path)
+    return checked
+
+
+def frames_in(seconds: float, every_s: float) -> int:
+    """Samples at 0, N, 2N ... inside a stretch: how many extraction will take (before the cap
+    and the blur / duplicate filters)."""
+    return math.ceil(round(seconds / every_s, 6)) if seconds > 0 else 0
+
+
+def summary(videos: list[dict], all_clips: list[dict], every_s: float) -> dict:
+    """Per video code: clips, marked seconds, frames; plus totals. A video with no clips counts
+    as the whole video (spec §Stage details 3)."""
+    per = {}
+    for v in videos:
+        mine = [c for c in all_clips if c["video"] == v["path"]]
+        marked = sum(c["end_s"] - c["start_s"] for c in mine)
+        frames = (sum(frames_in(c["end_s"] - c["start_s"], every_s) for c in mine) if mine
+                  else frames_in(v["duration_s"] or 0, every_s))
+        per[v["path_code"]] = {"clips": len(mine), "marked_s": round(marked, 1), "frames": frames}
+    return {"videos": per, "clips": sum(p["clips"] for p in per.values()),
+            "marked_s": round(sum(p["marked_s"] for p in per.values()), 1),
+            "frames": sum(p["frames"] for p in per.values())}
