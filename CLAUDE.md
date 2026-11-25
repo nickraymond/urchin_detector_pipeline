@@ -54,8 +54,10 @@ any older step in this repo's docs, skills or prompts.
    last ticket, the planning lead archives it at once; the lead's own successor
    archives it. Before archiving, check that its worktree has no uncommitted
    work and that its PRs are merged or closed; if not, keep it and say why in
-   the handoff. Never archive a session whose worktree a live session still
-   uses. Archiving can be undone; deleting a session is never done.
+   the handoff. Never archive a session whose worktree another session still
+   uses that is not archived, whether it is working or idle. Archiving can be
+   undone; deleting a session is never done. For this repo, this replaces the
+   team rules' §11 archive list for rotated sessions.
 
 Team rules (`~/Documents/GitHub/nereus-software-engineering-team/TEAM_RULES.md`)
 still apply: QE before ready, approvals read at the source, never make it up.
