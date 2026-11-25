@@ -174,19 +174,39 @@ One draft PR per bite, about 300 lines each.
       6 frames from at least 2 videos (urchins kept, seconds per frame, tiles vs whole frame); numbers into
       DESIGN §Bench results
 
-**Bite 4 — Run, re-run only what changed, overlap rules**
-- [ ] "Run" labels every kept frame through `app/jobs.py`, with an estimate from the preview (D26); Stop, and
+**Bite 4 — Run, re-run only what changed, overlap rules** (PR 24; QE fixes: ids up to 254, D31)
+- [x] "Run" labels every kept frame through `app/jobs.py`, with an estimate from the preview (D26); Stop, and
       Run again carries on
-- [ ] re-run only what changed: per run unit and frame, by settings key; before Run the page lists the classes
+- [x] re-run only what changed: per run unit and frame, by settings key; before Run the page lists the classes
       that will run and those unchanged; reviewed masks kept and marked "from older settings"
-- [ ] `app/sam/overlap.py` with the rules of D22, unit-tested; a "final class map" toggle in the preview
-- [ ] watch (QE PR 16, PR 19): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27);
-      S5's export images must be upright too
+- [x] `app/sam/overlap.py` with the rules of D22, unit-tested; a "final class map" toggle in the preview
+- [x] watch (QE PR 16, PR 19): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27);
+      S5's export images must be upright too (still open for S5)
+
+**Bite 5 — Large-image viewer on the Labeling page** (Nick, 2026-11-25, SPEC Q16)
+- [ ] clicking a preview frame opens it large on the same page (no new tab), with < > buttons and arrow keys
+      through the preview frames, Esc to close, zoom and pan: S2's `static/viewer.js`, reused, not copied
+- [ ] a class legend along the bottom of the viewer, with each class's colour and mask count. Clicking a class
+      turns its masks on or off; a second control shows only that class, so "urchin" masks stand out from
+      everything else. The legend applies to the large view and the preview tiles alike
+- [ ] the legend says why some masks have a box: objects (counted things) are boxed, areas (kelp, rock) are not
+
+**Bite 6 — Class editor form** (Nick, 2026-11-25: the YAML text box invites typing errors; replaces D25's text box)
+- [ ] a form instead of the text box: one row per class with name, kind (object / area as a choice), prompts as
+      chips (add / remove), group and "pixels count as" as drop-downs of valid values, colour swatch; an
+      "Add class" button that gives the next free id; settings as labelled number fields
+- [ ] ids are shown and never typed. A class with results keeps its name (D6), and the form says why
+      renaming is locked; removing it keeps its saved results (DESIGN §Planned for S3). Every change is
+      checked before Save with the same checks as `classes.py`, and nothing invalid is saved
+- [ ] the page's Save still writes `classes.yaml` (so a text editor plus Reload keeps working); test: no form
+      input can produce a file that fails the checks
 
 **Demo (Nick):** same start command, a project of about 5 kept frames. On the Labeling page press "Preview":
 3 frames show coloured masks per class, with counts and seconds per frame; "final class map" shows one colour
 per pixel, kelp on top of rock. Press "Run". Then add a class on the page and press "Run" again: the page says
 only the new class will run, and afterwards the other classes' results are unchanged.
+Click a preview frame: it opens large on the page; < > move to the next frame; click "urchin" in the legend
+to show only urchin masks. Add a class with the form (no typing of YAML) and Save.
 **Needs:** S2 (done); SPEC Q2 and the SAM part of Q10 answered by Lead calls D22–D24 (Nick can reverse them).
 
 ### S4 — Job control  `[ ]`
@@ -204,6 +224,7 @@ start 2 minutes ahead with "Keep laptop awake" on, wait, read the summary page.
 
 ### S5 — Review labels and export  `[ ]`
 **Goal:** spec stage 6 and all outputs; the spec's acceptance criteria pass on Nick's videos.
+- [ ] label review uses the app's one large-image viewer and its class legend (SPEC Q16, S3 bite 5)
 - [ ] label review page: class change, delete mask, add a missed object by click or box, accept
       frame, split check, fully-checked flags, running totals
 - [ ] urchin type: `P` / `R` tags the selected urchin purple or red; a frame with an untagged
@@ -223,4 +244,6 @@ values matching those 5 frames. All acceptance boxes in `docs/source/mvp_spec.md
 ## Icebox (captured, not scheduled)
 
 - "Suggest clips" and "Pre-screen with SAM" buttons: left out of S2; decide after S3 (a tiled SAM pass costs about a minute per frame).
+- Re-check the kelp prompts (D29) and urchin defaults on more restoration-site footage once the full pipeline
+  works and more video is available (Nick, 2026-11-25: only the SSD's videos for now).
 - Later MVP milestones (train, quantize, bench test, quality gate, bake-off, Iridium packet): not this repo's Build 1.

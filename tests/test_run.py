@@ -82,3 +82,38 @@ def test_final_class_map_overlay(tmp_path, monkeypatch):
     assert mapped.status_code == 200 and mapped.headers["content-type"] == "image/jpeg"
     assert mapped.content != plain.content
     assert "final class map" in client.get("/p/p/labeling").text
+
+
+def test_an_unreadable_results_file_does_not_stop_run(tmp_path):
+    """QE PR 24: a corrupt sam_raw file is left alone, named, and the other frames labeled."""
+    _, folder = make_project(tmp_path)
+    files = [f"v_aaaaaa_{i}.png" for i in range(4)]
+    results.raw_dir(folder).mkdir(exist_ok=True)
+    results.raw_path(folder, files[0]).write_text("{not json")
+    msg = label.run_all(folder, files, lambda p, m: None, predictor=FAKE)
+    assert "labeled 3 frames" in msg and "cannot be read" in msg and files[0] in msg
+    assert all(results.read(folder, f) for f in files[1:])
+    assert results.raw_path(folder, files[0]).read_text() == "{not json"   # left as it was
+
+
+def test_stop_is_offered_for_a_run_not_a_preview(tmp_path, monkeypatch):
+    """QE PR 24: Stop did nothing during a Preview, so it is shown only while a Run goes."""
+    client, folder = make_project(tmp_path)
+    gate = threading.Event()
+
+    def slow(folder, files, report, **kw):
+        gate.wait(10)
+        return {}
+    monkeypatch.setattr(label, "run_preview", slow)
+    monkeypatch.setattr(label, "run_all", lambda *a, stop=None, **kw: gate.wait(10) and "done")
+    client.post("/p/p/labeling/preview", data={})
+    wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "running", 10)
+    assert "/labeling/stop" not in client.get("/p/p/labeling").text
+    gate.set()
+    wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "done", 10)
+    gate.clear()
+    client.post("/p/p/labeling/run")
+    wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "running", 10)
+    assert "/labeling/stop" in client.get("/p/p/labeling").text
+    gate.set()
+    wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "done", 10)

@@ -75,7 +75,7 @@
 <form method="post" action="/p/{{ info.name }}/labeling/run" class="inline">
   <button {% if job.state in ("queued", "running") or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
 </form>
-{% if job.state in ("queued", "running") %}
+{% if can_stop %}
 <form method="post" action="/p/{{ info.name }}/labeling/stop" class="inline"><button>Stop</button></form>
 {% endif %}
 

@@ -34,6 +34,9 @@ Stop at frame 2, Run carried on; a new class ran alone, and the other classes' r
 **Broke/surprised us:** the first estimate (preview s/frame × the share of units) said 1 min for one new class;
 it took 3 min 43 s, because reading, tiling and image encoding cost about 21 s per frame however few units run.
 The estimate is now a fixed cost per frame plus a per-unit cost.
+QE fixes (PR 24 FAIL at `77b11bd`): class ids capped at 254 (the class map is one byte, 255 = untagged);
+a frame with an unreadable `sam_raw` file is skipped and named instead of stopping Run; Stop only shows during a
+Run; D31 in `overlap.py` (a reviewed mask beats an unreviewed one at IoU > 0.5).
 Nick's feedback on the Labeling page (viewer, mask legend, class editor) is captured separately.
 **Next:** QE on PR 24; then Nick's feedback items.
 
