@@ -20,8 +20,8 @@ from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
 import uvicorn
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi import FastAPI, Form, Query, Request
+from fastapi.responses import Response, FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -29,7 +29,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app import config, db, project
 from app.jobs import Jobs
 from app.sam import classes
-from app.stages import clips, extract, ingest, review
+from app.stages import clips, extract, ingest, label, review
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
 # Host and origin rule (DESIGN D14): pages answer only to these host names, and a POST is
@@ -483,9 +483,24 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         data = cls["data"]
         rows = [{**c, "colour": classes.colour(c["id"])} for c in data["classes"]] if data else []
         ids = [c["id"] for c in rows] + list(cls["used"]) + [0]
+        units = classes.run_units(data["classes"]) if data else []
+        prev = label.read_preview(info["folder"])
+        shown = []
+        if prev and data:
+            for f in prev["files"]:
+                ev = next((e for e in prev["frames"] if e["file"] == f), {})
+                try:  # an unreadable sam_raw file: say so for that frame, keep the page (QE PR 22)
+                    c, problem = label.frame_counts(info["folder"], f, units, data["settings"]), ""
+                except ValueError as e:
+                    c, problem = {}, str(e)
+                shown.append({"file": f, "counts": c, "seconds": ev.get("seconds"),
+                              "problem": problem})
         return templates.TemplateResponse(request, "labeling.html", {
             "cfg": cfg, "info": info, "cls": cls, "rows": rows, "note": note,
-            "units": classes.run_units(data["classes"]) if data else [],
+            "units": units, "preview": prev, "shown": shown,
+            "colours": {u["key"]: label.unit_colour(u) for u in units},
+            "job": jobs.status(f"{info['folder']}:sam") or {},
+            "n_label": len(label.frames_to_label(conn)),
             "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
             "kept": review.summary(conn), "refused": text is not None}, status_code=status)
 
@@ -507,6 +522,55 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                                          status=400)
             return RedirectResponse(f"/p/{name}/labeling?" + urlencode(
                 {"note": "Saved classes.yaml."}), status_code=303)
+        return with_project(request, name, work)
+
+    def sam_busy(info) -> bool:
+        return (jobs.status(f"{info['folder']}:sam") or {}).get("state") in ("queued", "running")
+
+    @app.post("/p/{name}/labeling/preview")
+    def labeling_preview(request: Request, name: str, other: str = Form("")):
+        """Run SAM on 3 kept frames (D26) in the background; one SAM job at a time."""
+        def work(cfg, info, conn):
+            note = ""
+            files = label.frames_to_label(conn)
+            try:
+                classes.ensure(info["folder"])
+            except classes.ClassesError:
+                note = "classes.yaml has problems (listed below); fix them first."
+            if not note and not files:
+                note = "No kept frames to preview. Extract frames or add still images first."
+            if not note and (sam_busy(info) or extract_busy(info)):
+                note = "Another job is running; preview when it has finished."
+            if not note:
+                picks = label.preview_frames(files, other=bool(other))
+                jobs.submit(f"{info['folder']}:sam", lambda report: label.run_preview(
+                    info["folder"], picks, report))
+            return RedirectResponse(f"/p/{name}/labeling" + (
+                "?" + urlencode({"note": note}) if note else ""), status_code=303)
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/labeling/status")
+    def labeling_status(request: Request, name: str):
+        return with_project(request, name, lambda cfg, info, conn: JSONResponse(
+            jobs.status(f"{info['folder']}:sam") or {}))
+
+    @app.get("/p/{name}/labeling/overlay/{file}")
+    def labeling_overlay(request: Request, name: str, file: str,
+                         hide: list[str] = Query(default=[])):
+        """A frame of this project with its saved SAM masks drawn (reads only); one `hide`
+        parameter per run unit left out, so a name with a comma works too."""
+        def work(cfg, info, conn):
+            row = conn.execute("SELECT 1 FROM frames WHERE file = ?", (file,)).fetchone()
+            cls = classes.read(info["folder"])
+            try:
+                data = (label.overlay(info["folder"], file, classes.run_units(
+                    cls["data"]["classes"]), set(hide))
+                    if row and extract.FRAME_NAME.match(file) and cls["data"] else None)
+            except ValueError as e:  # unreadable sam_raw file (QE PR 22)
+                return PlainTextResponse(str(e), status_code=404)
+            if data is None:
+                return PlainTextResponse("not found", status_code=404)
+            return Response(data, media_type="image/jpeg")
         return with_project(request, name, work)
 
     @app.get("/p/{name}/framethumbs/{file}")

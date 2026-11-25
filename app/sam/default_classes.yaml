@@ -6,7 +6,7 @@ settings:
   tile_px: 1008            # D10, D23
   tile_overlap: 0.2        # spec
   tile_above_px: 2000      # frames wider than this are tiled (spec)
-  min_mask_area_px: null   # set from S3 bite 3's measurements (D24)
+  min_mask_area_px: 500    # below the smallest real urchin seen, 948 px (S3 bite 3, D24)
 classes:
   # ids are fixed: never renumbered or reused (D6); 0 means unknown.
   # One SAM prompt, "urchin", for both urchins; the type is tagged by hand in label review (D18).
@@ -16,8 +16,8 @@ classes:
   - {id: 4, name: sunflower sea star, kind: object, prompts: [sunflower sea star]}
   - {id: 5, name: anemone, kind: object, prompts: [sea anemone]}
   - {id: 6, name: fish, kind: object, prompts: [fish]}
-  # Kelp prompts are untested; S3 bite 3 tries them (D11). Kelp-shoot pixels count as kelp (D22).
-  - {id: 8, name: kelp shoot, kind: object, prompts: [kelp stipe], seg_as: kelp}
+  # Kelp prompts picked on 6 restoration frames (S3 bite 3, DESIGN Bench). Shoot pixels count as kelp (D22).
+  - {id: 8, name: kelp shoot, kind: object, prompts: [young kelp], seg_as: kelp}
   # Areas listed first win where two areas overlap: kelp before rock/substrate (D22).
   - {id: 9, name: kelp, kind: area, prompts: [kelp]}
   - {id: 7, name: rock/substrate, kind: area, prompts: [rock]}

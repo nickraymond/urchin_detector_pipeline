@@ -3,8 +3,45 @@
 {% block content %}
 <p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
 <h1>SAM labeling</h1>
-<p class="hint">Frames to label: {{ kept }}. Preview and Run come in the next steps of this sprint.</p>
+<p class="hint">Frames to label: {{ kept }}. Run comes in the next step of this sprint.</p>
 {% if note %}<p class="totals">{{ note }}</p>{% endif %}
+
+<h2>Preview</h2>
+<p class="hint">Runs SAM with the classes below on 3 kept frames (first, middle and last by name; "Other frames"
+  picks 3 at random), so you can check the prompts before labeling every frame. The results are kept: Run
+  will not label these frames again unless a class changes.</p>
+<form method="post" action="/p/{{ info.name }}/labeling/preview" class="inline">
+  <button {% if job.state in ("queued", "running") %}disabled{% endif %}>Preview</button>
+  <button name="other" value="1" {% if job.state in ("queued", "running") %}disabled{% endif %}>Other frames</button>
+</form>
+<p id="sam-job" class="totals" {% if not job.state %}hidden{% endif %}
+   data-status="/p/{{ info.name }}/labeling/status" data-state="{{ job.state or '' }}">
+  SAM: <span id="sam-job-text">{{ job.state }}{% if job.message and job.message != job.state %} — {{ job.message }}{% endif %}</span></p>
+{% if preview %}
+<p class="totals">Preview of {{ preview.at | replace('T', ' ') }}: {% if preview.seconds_per_frame %}<b>{{ preview.seconds_per_frame }} s per frame</b>
+  (model load {{ preview.load_seconds }} s), peak memory {{ preview.peak_process_gb }} GB process,
+  {{ preview.peak_gpu_gb }} GB Apple GPU{% else %}all 3 frames already had results for these classes{% endif %}.
+  {% if preview.seconds_per_frame %}Run on all {{ n_label }} kept frames: about
+  {{ ((preview.seconds_per_frame * n_label) / 60) | round(0, 'ceil') | int }} min.{% endif %}</p>
+<p class="toggles" id="toggles">Show:
+  {% for u in units %}<label><input type="checkbox" value="{{ u.key }}" checked>
+    <span class="swatch" style="background: {{ colours[u.key] }}"></span> {{ u.key }}{% if u.group %} (untagged){% endif %}</label>
+  {% endfor %}</p>
+<div class="preview-grid">
+{% for f in shown %}
+  <figure>
+    {% if f.problem %}<p class="error">{{ f.file }}: {{ f.problem }}</p>{% else %}
+    <a href="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}" target="_blank">
+      <img class="overlay" data-src="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}"
+           src="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}" alt="{{ f.file }}"></a>
+    <figcaption>{{ f.file }}{% if f.seconds %} · {{ f.seconds }} s{% endif %}<br>
+      {% for u in units %}{% set c = f.counts[u.key] %}<span class="count"><span class="swatch" style="background: {{ colours[u.key] }}"></span>
+      {{ u.key }}: {% if c.masks is none %}not run{% else %}{{ c.masks }}{% if c.older %} (older settings){% endif %}{% endif %}</span>
+      {% endfor %}</figcaption>{% endif %}
+  </figure>
+{% endfor %}
+</div>
+{% endif %}
 
 <h2>Classes</h2>
 <p class="hint">File: <code>{{ cls.path }}</code>{% if not cls.exists %} — not in the project yet:
@@ -40,4 +77,5 @@
   <textarea name="text" class="yaml" rows="{{ [cls.text.count('\n') + 3, 40] | min }}" spellcheck="false">{{ cls.text }}</textarea>
   <p><button>Save</button> <a href="/p/{{ info.name }}/labeling" class="button">Reload from file</a></p>
 </form>
+<script src="{{ static('labeling.js') }}"></script>
 {% endblock %}

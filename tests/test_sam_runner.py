@@ -153,7 +153,7 @@ def test_worker_process_labels_frames_with_tiles_and_skips_done_units(tmp_path):
 
 def test_kelp_area_and_min_mask_area(tmp_path):
     folder, files = project_with_frames(tmp_path, n=1)
-    text = classes.DEFAULT_FILE.read_text().replace("min_mask_area_px: null",
+    text = classes.DEFAULT_FILE.read_text().replace("min_mask_area_px: 500 ",
                                                     "min_mask_area_px: 5000")
     classes.save(folder, text)
     label.run(folder, files, lambda p, m: None, predictor=FAKE)
