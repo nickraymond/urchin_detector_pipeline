@@ -17,6 +17,15 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S3 — Plan
+**Branch:** sprint/3-plan (docs only)
+**Done:** planning lead wrote the S3 plan (CLAUDE.md rule 7): four bites in TRACKER (classes, SAM runner and
+results files, prompt preview, run + re-run + overlap rules), DESIGN §Planned for S3, Lead calls D22–D27
+(SPEC Q2 overlap rules and kelp shoot; Q10 SAM defaults; classes edited in the browser; preview frames;
+EXIF orientation of stills).
+**Broke/surprised us:** nothing.
+**Next:** QE reviews the plan; then the S3 builder starts bite 1.
+
 ## 2026-11-25 — Sprint S2 — Demo passed
 **Branch:** sprint/2-demo-passed (docs only)
 **Done:** Nick ran the S2 test build and wrote "the demo passes" in the builder chat (12:09 PM).

@@ -144,19 +144,50 @@ a folder of still images: they appear in frame review.
 
 ### S3 — SAM on single frames  `[ ]`
 **Goal:** spec stage 5 without job control: class settings file, prompt preview, tiling, overlap rules.
-- [ ] `classes.yaml` loaded and shown in the UI
-- [ ] urchins: one SAM prompt, "urchin", shared in `classes.yaml` by purple and red urchin; its masks
-      are saved as urchins with no type (no class id) until tagged; changing it re-runs both classes (D18)
-- [ ] kelp: try prompts for kelp shoot (object) and kelp (area) on frames from a restoration-site
-      video; prompts are untested (DESIGN D11)
-- [ ] prompt preview on 3 sample frames with masks drawn per class
-- [ ] tiling and overlap rules; one result file per frame in `sam_raw/`, recording prompt and settings
-- [ ] re-run only what changed; reviewed masks kept and marked "from older settings"
-- [ ] watch (QE PR 16): still images with EXIF orientation are copied as stored (D21); check
-      that SAM and the masks use the same upright image, or turn such stills upright at ingest
-**Demo (Nick):** same start command. On the Labeling page press "Preview": 3 frames show coloured
-masks per class. Add a class to `classes.yaml`, run again: only the new class is labeled.
-**Needs:** S2; answers to SPEC Q2 and the SAM part of Q10.
+Design: DESIGN §Planned for S3; Lead calls D22–D27 (they answer SPEC Q2 and the SAM part of Q10).
+One draft PR per bite, about 300 lines each.
+
+**Bite 1 — Classes**
+- [ ] `app/sam/default_classes.yaml` with the starting classes, fixed ids and settings (DESIGN §Planned for S3);
+      copied into a project as `classes.yaml` on first use
+- [ ] urchins: one SAM prompt, "urchin", shared by purple and red urchin through `sam_group: urchin`; its masks
+      have no class id until tagged; changing it re-runs both classes (D18)
+- [ ] checks before any save or run (ids append-only, D6; groups; `seg_as`); errors name the line
+- [ ] Labeling page: classes table with colours, edit `classes.yaml` in the browser, Reload (D25);
+      dashboard row "SAM labeling"; PyYAML a direct dependency with its licence read
+- [ ] one EXIF-orientation helper for every pixel read (D27); fix the review-grid thumbnails, which show a
+      rotated still sideways today (QE PR 19)
+
+**Bite 2 — SAM runner and results files**
+- [ ] SAM in its own worker process (D9), reusing `app/sam_test/device_patch.py`; one model load per job
+- [ ] tiling above 2000 px, merge to frame coordinates, tile-edge duplicates removed (D23); minimum mask area
+- [ ] one `sam_raw/<frame>.json` per frame, written after each frame, also with zero masks; records prompts,
+      settings and a settings key per run unit
+- [ ] tests with a fake predictor (no torch, weights or real frames); one real-SAM run in the self-test
+
+**Bite 3 — Prompt preview**
+- [ ] "Preview" on 3 sample frames (D26) shows masks coloured per class, a toggle per class, counts,
+      seconds per frame and peak memory
+- [ ] kelp: try prompts for kelp shoot (object) and kelp (area) on frames from a restoration-site video;
+      put the best in the default file (D11)
+- [ ] measure for D24: mask areas of real vs false masks → proposed minimum mask area; re-check D10 on at least
+      6 frames from at least 2 videos (urchins kept, seconds per frame, tiles vs whole frame); numbers into
+      DESIGN §Bench results
+
+**Bite 4 — Run, re-run only what changed, overlap rules**
+- [ ] "Run" labels every kept frame through `app/jobs.py`, with an estimate from the preview (D26); Stop, and
+      Run again carries on
+- [ ] re-run only what changed: per run unit and frame, by settings key; before Run the page lists the classes
+      that will run and those unchanged; reviewed masks kept and marked "from older settings"
+- [ ] `app/sam/overlap.py` with the rules of D22, unit-tested; a "final class map" toggle in the preview
+- [ ] watch (QE PR 16, PR 19): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27);
+      S5's export images must be upright too
+
+**Demo (Nick):** same start command, a project of about 5 kept frames. On the Labeling page press "Preview":
+3 frames show coloured masks per class, with counts and seconds per frame; "final class map" shows one colour
+per pixel, kelp on top of rock. Press "Run". Then add a class on the page and press "Run" again: the page says
+only the new class will run, and afterwards the other classes' results are unchanged.
+**Needs:** S2 (done); SPEC Q2 and the SAM part of Q10 answered by Lead calls D22–D24 (Nick can reverse them).
 
 ### S4 — Job control  `[ ]`
 **Goal:** long jobs run in a background worker with estimate, pause/resume, limits and a schedule.
