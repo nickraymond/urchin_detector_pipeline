@@ -8,7 +8,8 @@
   <tbody>
   {% for s in stages %}
   <tr class="state-{{ s.state | replace(' ', '-') }}">
-    <td>{{ loop.index }}</td><td>{{ s.label }}</td><td>{{ s.state }}</td>
+    <td>{{ loop.index }}</td>
+    <td>{% if s.stage == "ingest" %}<a href="/p/{{ info.name }}/ingest">{{ s.label }}</a>{% else %}{{ s.label }}{% endif %}</td><td>{{ s.state }}</td>
     <td>{{ s.counts or "—" }}</td><td>{{ s.updated }}</td>
   </tr>
   {% endfor %}

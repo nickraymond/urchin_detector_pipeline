@@ -39,6 +39,10 @@ app/web/static/          one CSS file, small plain JavaScript files
 - Every page and file the server serves keeps the host and origin rule (D14): only the host
   names `127.0.0.1` and `localhost` are answered, and any request other than GET / HEAD must come
   from the app's own page (`Origin` or `Referer` equal to the request's host and port).
+- Ingest (as-built, bite 1b): the scan re-reads the folder on each page load; ffprobe results are
+  kept in memory per (path, size, modified time) while the app runs. Only videos the scan of the
+  posted folder found can be added, never a path typed into the form. A video that fails the
+  one-frame decode check cannot be added.
 - Video work goes through the installed `ffmpeg` / `ffprobe` as subprocesses; no extra video library.
 - Blur score (variance of Laplacian) and near-duplicate hash use numpy / scipy / Pillow, already installed.
 - Long steps run in the background behind one small interface (start, progress, done / error) so

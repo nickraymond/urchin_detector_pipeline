@@ -17,6 +17,19 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S2 — Bite 1b: ingest page
+**Branch:** sprint/2-frames-1b (from main `b00be85`, after PR 3 merged)
+**Done:** plan approved by Nick. `app/stages/ingest.py`: find .MP4 / .MOV under a folder and its
+subfolders, skip `._` files, .LRV / .THM and hidden folders; ffprobe details plus a one-frame
+decode check; GoPro chapters grouped; same name + size counted once ("also in"). Ingest page with
+a folder browser (starts at `video_roots`, or a pasted path), tick boxes, add / remove; the
+project's Ingest row shows "done · N videos (M recordings)". 12 new tests (43 in total), one
+proving source files are byte-identical with the same modified time afterwards.
+On the SSD: 29 videos listed, 17 with "also in", none failing the decode check. The first page
+load takes ~6.6 s (ffprobe + decode of 29 videos); later loads ~0.1 s (cached while the app runs).
+**Broke/surprised us:** of two copies, the one in the folder that sorts first is the one listed.
+**Next:** Nick runs the 1b manual test; QE reviews the draft PR; then bite 2 (clip picker).
+
 ## 2026-11-24 — Sprint S2 — Bite 1a: app skeleton (start, settings errors, projects)
 **Branch:** sprint/2-frames
 **Done:** bite 1 plan approved by Nick, split into 1a (skeleton) and 1b (ingest); same-name,

@@ -14,7 +14,7 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Form, Request
@@ -24,6 +24,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
+from app.stages import ingest
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
 # Host and origin rule (DESIGN D14): pages answer only to these host names, and a POST is
@@ -79,22 +80,67 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                              status=500)
         return RedirectResponse(f"/p/{name}", status_code=303)
 
-    @app.get("/p/{name}", response_class=HTMLResponse)
-    def project_page(request: Request, name: str):
+    def with_project(request: Request, name: str, work):
+        """Open the project, run work(cfg, info, conn), always close the database.
+        Settings or project problems go back to the dashboard with the message."""
         cfg = config.load(config_path)
         if not cfg.ok:
             return dashboard(request, status=503)
         try:
             info = project.open_project(cfg.data_dir, name)
             conn = db.connect(info["folder"] / "state.sqlite")
-            try:
-                stages = db.stage_statuses(conn)
-            finally:
-                conn.close()
         except (project.ProjectError, OSError, sqlite3.Error) as e:
             return dashboard(request, error=str(e), status=404)
-        return templates.TemplateResponse(request, "project.html", {
-            "cfg": cfg, "info": info, "stages": stages})
+        try:
+            return work(cfg, info, conn)
+        finally:
+            conn.close()
+
+    @app.get("/p/{name}", response_class=HTMLResponse)
+    def project_page(request: Request, name: str):
+        return with_project(request, name, lambda cfg, info, conn: templates.TemplateResponse(
+            request, "project.html", {"cfg": cfg, "info": info,
+                                      "stages": db.stage_statuses(conn)}))
+
+    def ingest_url(name: str, folder: str) -> str:
+        return f"/p/{name}/ingest?" + urlencode({"folder": folder})
+
+    @app.get("/p/{name}/ingest", response_class=HTMLResponse)
+    def ingest_page(request: Request, name: str, folder: str = ""):
+        def work(cfg, info, conn):
+            start = folder.strip() or next((str(r) for r in cfg.video_roots if r.is_dir()), "")
+            here = Path(start).expanduser() if start else None
+            error, subfolders, videos = "", [], []
+            if here is None:
+                error = "No video folder found. Paste a folder path below."
+            elif not here.is_dir():
+                error = f"Folder not found: {here}. Check the path, or plug in the SSD."
+            else:
+                subfolders = sorted(p for p in here.iterdir()
+                                    if p.is_dir() and not p.name.startswith("."))
+                videos = ingest.scan(here)
+            return templates.TemplateResponse(request, "ingest.html", {
+                "cfg": cfg, "info": info, "here": here, "error": error,
+                "subfolders": subfolders, "videos": videos, "added": ingest.added(conn),
+                "added_paths": {r["path"] for r in ingest.added(conn)}})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/ingest/add")
+    def ingest_add(request: Request, name: str, folder: str = Form(""),
+                   paths: list[str] = Form([])):
+        def work(cfg, info, conn):
+            # Only videos the scan of this folder found can be added, never an arbitrary path.
+            picked = set(paths)
+            ingest.add(conn, [v for v in ingest.scan(Path(folder)) if str(v.path) in picked])
+            return RedirectResponse(ingest_url(name, folder), status_code=303)
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/ingest/remove")
+    def ingest_remove(request: Request, name: str, folder: str = Form(""), path: str = Form("")):
+        def work(cfg, info, conn):
+            ingest.remove(conn, path)
+            return RedirectResponse(ingest_url(name, folder), status_code=303)
+        return with_project(request, name, work)
 
     return app
 
