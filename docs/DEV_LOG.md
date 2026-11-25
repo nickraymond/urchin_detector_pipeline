@@ -17,6 +17,28 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S1 — SAM test runner built; Apple GPU works with run-time fixes
+**Branch:** sprint/1-sam-test
+**Done:** plan approved by Nick. `pyproject.toml` (uv, Python 3.12, torch 2.10.0, Meta's sam3
+pinned at `31cb7e6`). `app/sam_test/`: frame pull, one worker process per attempt, report page
+with overlays embedded, click and box test. 9 unit tests on synthetic images (13 by the end of S1). Smoke test with
+untrained weights: text, click and box prompts run on the Apple GPU (~2.3 s per 1008 px image).
+Dry run on a real video: frames extracted; report shows the "download the weights" error.
+**Broke/surprised us:** torch 2.15.0 aborts on the Apple GPU on macOS 14.6 → pinned 2.10.0 (D7).
+Meta's image code needs six run-time fixes off-CUDA plus PyTorch's CPU fallback (D8). The bite
+is ~630 lines of app code, about twice the plan's ~340, because of the fixes and the worker.
+Later the same day: Nick's first real run found nothing — my bfloat16 replacement gave NaN
+scores on the Apple GPU (fixed, CPU and GPU now agree). Added `--tile` and `--cutoff`, one folder
+per setting combination and an all-runs index page. SAM 3.1 at 504 px tiles: 233 s per frame,
+finds urchins only in patches and calls many urchins "sea anemone" (DESIGN, Bench results).
+The Hugging Face `LICENSE` for `facebook/sam3.1` matches the GitHub one word for word.
+Then (Nick approved the download): SAM 3 gives the same text results as 3.1, but its click
+model works (clean urchin outline from one click). The prompt word "urchin" finds far more than
+"sea urchin" (DESIGN, Bench results). Added `--prompts`. Licence of `facebook/sam3` = GitHub text.
+Nick chose SAM 3 + "urchin" as defaults and to close S1 (D10). Smaller crops do not help
+mid-range urchins (504 → 4, 336 → 2, 252 → 0 kept on one hazy patch).
+**Next:** Nick runs the S1 demo; QE reviews the draft PR; then S2 plan.
+
 ## 2026-11-24 — Sprint S0 — Spec review edits, QE fixes, SAM test sprint added
 **Branch:** sprint/0-scaffold
 **Done:** Nick ran the S0 demo (3 checks passed). QE gave PASS-with-nits on 51dabf1; its 12
