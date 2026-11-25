@@ -17,6 +17,13 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S2 — Demo passed
+**Branch:** sprint/2-demo-passed (docs only)
+**Done:** Nick ran the S2 test build and wrote "the demo passes" in the builder chat (12:09 PM).
+Every S2 PR is merged (last code PR: PR 15, filter rows, `4fad379`; then docs PR 17, `106f867`). S2 marked `[x]` in TRACKER.
+**Broke/surprised us:** nothing new.
+**Next:** S3 (SAM on single frames), planned by the lead.
+
 ## 2026-11-25 — Sprint S2 — Bites 4 (review frames) and 5 (stills + resume) merged
 **Branch:** sprint/2-frames-4 (PR 14), sprint/2-frames-5 (PR 16), sprint/2-frames-45-done (docs only)
 **Done:** Bite 4: `app/stages/review.py`; grid of 640 px copies with a 1–8 per-row slider, arrows,
