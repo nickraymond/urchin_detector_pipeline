@@ -122,7 +122,7 @@ def run_plan(folder: Path, files: list[str], units: list[dict], settings: dict,
              preview: dict | None = None) -> dict:
     """What Run will do (SPEC Q7): per run unit, on how many frames it runs (its settings key
     differs or is missing); frames with any work; unreadable sam_raw files; an estimate from
-    the preview's seconds per frame, scaled by the share of units that run (D26)."""
+    the preview's timing: a fixed cost per frame with work plus a cost per unit (D26)."""
     from app.sam import results
     todo = {u["key"]: 0 for u in units}
     frames, unreadable = 0, []
@@ -135,10 +135,38 @@ def run_plan(folder: Path, files: list[str], units: list[dict], settings: dict,
         for u in run_units:
             todo[u["key"]] += 1
         frames += bool(run_units)
-    spf = (preview or {}).get("seconds_per_frame")
-    work = sum(todo.values()) / len(units) if units else 0
+    cost = frame_costs(folder, preview)
+    est = (round(frames * cost[0] + sum(todo.values()) * cost[1]) if cost and frames
+           else None)
     return {"units": todo, "frames": frames, "total": len(files), "unreadable": unreadable,
-            "estimate_s": round(spf * work) if spf else None}
+            "estimate_s": est}
+
+
+def frame_costs(folder: Path, preview: dict | None) -> tuple[float, float] | None:
+    """(seconds per frame with any work, seconds per unit) from the preview's frames. The
+    fixed part (read, tile, image encoding, which the first unit pays) does not shrink when
+    fewer units run: measured 2026-11-25, one unit on 8 4K frames took 28 s per frame, not
+    62 s / 8 units."""
+    import statistics
+
+    from app.sam import results
+    rows = []
+    for e in (preview or {}).get("frames", []):
+        if e.get("skipped") or not e.get("seconds"):
+            continue
+        try:
+            raw = results.read(folder, e["file"]) or {}
+        except ValueError:
+            continue
+        secs = [u["seconds"] for u in raw.get("units", {}).values()
+                if u.get("run_at", "") <= (preview.get("at") or "~")]
+        if secs:
+            rows.append((e["seconds"], secs))
+    if not rows:
+        return None
+    unit = statistics.median(s for _, secs in rows for s in secs)
+    fixed = statistics.mean(total - sum(secs) + max(secs) - unit for total, secs in rows)
+    return max(fixed, 0.0), unit
 
 
 def run_all(folder: Path, files: list[str], report, stop: threading.Event | None = None,

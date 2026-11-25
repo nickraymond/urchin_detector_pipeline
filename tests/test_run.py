@@ -1,6 +1,7 @@
 """S3 bite 4: Run on every kept frame through the page, Stop and carry on, re-run only what
 changed (SPEC Q7), and the final class map overlay. Fake SAM, synthetic frames only."""
 
+import json
 import threading
 
 from app.sam import classes, results
@@ -51,15 +52,24 @@ def test_stop_keeps_finished_frames_and_run_carries_on(tmp_path):
     assert all(results.read(folder, f) for f in files)
 
 
-def test_plan_estimate_from_the_preview_scales_with_the_units_that_run(tmp_path):
+def test_plan_estimate_is_a_fixed_cost_per_frame_plus_a_cost_per_unit(tmp_path):
     from tests.test_sam_runner import project_with_frames
     folder, files = project_with_frames(tmp_path, n=2)
-    label.run(folder, files[:1], lambda p, m: None, predictor=FAKE)
+    preview = label.run_preview(folder, files[:1], lambda p, m: None, predictor=FAKE)
+    # pretend SAM's timing as measured on the M1 Max: 62 s per frame, units ~5 s, the first 13 s
+    raw = results.read(folder, files[0])
+    for k, u in raw["units"].items():
+        u["seconds"] = 13.0 if k == "urchin" else 5.0
+    (folder / "sam_raw" / f"{files[0]}.json").write_text(json.dumps(raw))
+    preview["frames"][0]["seconds"] = 62.0
+    fixed, unit = label.frame_costs(folder, preview)
+    assert unit == 5.0 and fixed == 62.0 - 48.0 + 13.0 - 5.0          # 22 s per frame
     cfg = classes.ensure(folder)
     units = classes.run_units(cfg["classes"])
-    plan = label.run_plan(folder, files, units, cfg["settings"], {"seconds_per_frame": 80})
-    assert plan["frames"] == 1 and plan["total"] == 2 and plan["estimate_s"] == 80
-    assert set(plan["units"].values()) == {1}
+    plan = label.run_plan(folder, files, units, cfg["settings"], preview)
+    assert plan["frames"] == 1 and plan["total"] == 2 and set(plan["units"].values()) == {1}
+    assert plan["estimate_s"] == round(22 + 8 * 5)                   # one frame, all 8 units
+    assert label.run_plan(folder, files, units, cfg["settings"], None)["estimate_s"] is None
 
 
 def test_final_class_map_overlay(tmp_path, monkeypatch):
