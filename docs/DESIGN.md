@@ -36,6 +36,9 @@ app/web/static/          one CSS file, small plain JavaScript files
 - Stage modules are plain functions that take a project and return data; the web layer only
   calls them, so they are tested without a browser.
 - The server listens on `127.0.0.1` only. Pages load nothing from the internet (D12).
+- Every page and file the server serves keeps the host and origin rule (D14): only the host
+  names `127.0.0.1` and `localhost` are answered, and any request other than GET / HEAD must come
+  from the app's own page (`Origin` or `Referer` equal to the request's host and port).
 - Video work goes through the installed `ffmpeg` / `ffprobe` as subprocesses; no extra video library.
 - Blur score (variance of Laplacian) and near-duplicate hash use numpy / scipy / Pillow, already installed.
 - Long steps run in the background behind one small interface (start, progress, done / error) so
@@ -68,6 +71,7 @@ app/web/static/          one CSS file, small plain JavaScript files
 | D11 | 2026-11-24 | Kelp is back in the starting classes: kelp shoot (object) and kelp (area). This replaces D5. | The restoration-site videos show kelp (seen in the S1 demo run), so reference frames exist. Prompts are untested; S3 tries them. Nick, chat 2026-11-24. |
 | D12 | 2026-11-24 | S2 stack: FastAPI on `127.0.0.1`, plain HTML and plain JavaScript, no internet assets; ffmpeg / ffprobe as subprocesses; a low-res H.264 playback copy for scrubbing. Starting filter values: the blur threshold slider starts at the value that drops the blurriest 10% of the sampled frames (their 10th-percentile score); a small hash distance for duplicates; both adjustable in the UI. "Suggest clips" and "Pre-screen with SAM" are left out of S2. | Boring and debuggable; browser playback of 4K HEVC is unverified; the filter values are starting guesses to tune on real footage, not measurements. Nick approved the S2 plan, chat 2026-11-24. |
 | D13 | 2026-11-24 | S2 bite 1 is split into two PRs: 1a (start, settings errors, projects, stage list) and 1b (ingest). Files with the same name and size in two folders count as one video. Settings errors are shown in the browser and the settings file is re-read on every page load; the app never creates `data_dir` (an unplugged SSD would otherwise put data on the laptop disk). Added `python-multipart` (Apache-2.0, PyPI metadata), which FastAPI needs for form posts. | Plan estimate grew to ~450 lines once ingest had to pick files or folders; the SSD holds 17 copied videos. Nick approved, chat 2026-11-24. |
+| D14 | 2026-11-24 | Host and origin rule for the web server: `TrustedHostMiddleware` answers only `127.0.0.1` and `localhost`; a request other than GET / HEAD whose `Origin` (or, if absent, `Referer`) is not `http://<the request's own host:port>` gets 403. Every later page, including those that serve frames, stays behind it. Opening a project never creates a missing `state.sqlite`; only project creation does. | Binding 127.0.0.1 alone does not stop another web page in the browser from posting to the app, or from reading pages through DNS rebinding; once frames are served that would let images leave the laptop (SPEC constraint 1). A silently recreated database would lose review state. QE findings 1 and 2 on PR 3, 2026-11-24. |
 
 ## Bench / test results
 

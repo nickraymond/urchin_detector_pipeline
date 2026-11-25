@@ -28,9 +28,16 @@ CREATE TABLE IF NOT EXISTS review_actions (
 """
 
 
-def connect(path: Path) -> sqlite3.Connection:
-    """Open (and create if new) a project database. Callers close it."""
-    conn = sqlite3.connect(path)
+def connect(path: Path, create: bool = False) -> sqlite3.Connection:
+    """Open a project database; callers close it. Only project.create passes create=True:
+    a missing file on open is an error, never silently replaced by an empty database
+    (that would lose review state)."""
+    path = Path(path).absolute()
+    if not create and not path.is_file():
+        raise FileNotFoundError(
+            f"Project database missing: {path}. It holds this project's progress; restore it "
+            "from a backup. The app will not make a new empty one in its place.")
+    conn = sqlite3.connect(path.as_uri() + ("?mode=rwc" if create else "?mode=rw"), uri=True)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     conn.executemany("INSERT OR IGNORE INTO stage_status (stage, state) VALUES (?, 'not started')",

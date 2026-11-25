@@ -14,16 +14,22 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
+# Host and origin rule (DESIGN D14): pages answer only to these host names, and a POST is
+# accepted only from a page this app served. Stops other web pages in the browser (and DNS
+# rebinding) from reading pages or changing projects.
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 WEB = Path(__file__).parent
 templates = Jinja2Templates(directory=WEB / "templates")
 
@@ -31,6 +37,20 @@ templates = Jinja2Templates(directory=WEB / "templates")
 def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     app = FastAPI(title="Urchin labeling tool", docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
+
+    @app.middleware("http")
+    async def same_origin_posts_only(request: Request, call_next):
+        if request.method not in ("GET", "HEAD"):
+            source = request.headers.get("origin") or request.headers.get("referer") or ""
+            parts = urlsplit(source)
+            if parts.scheme != "http" or parts.netloc != request.headers.get("host"):
+                return PlainTextResponse(
+                    "Refused: this action can only come from the app's own pages "
+                    f"(got origin {source or 'none'!r}).", status_code=403)
+        return await call_next(request)
+
+    # Added last so it runs first: a request with a foreign Host never reaches a page.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
     def dashboard(request: Request, error: str = "", name: str = "", status: int = 200):
         cfg = config.load(config_path)

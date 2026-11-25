@@ -52,7 +52,7 @@ def create(data_dir: Path, name: str) -> Path:
     write_json_atomic(folder / "project.json", {
         "name": name, "created": datetime.now().isoformat(timespec="seconds"),
         "format_version": FORMAT_VERSION, "settings": dict(DEFAULT_SETTINGS)})
-    db.connect(folder / "state.sqlite").close()
+    db.connect(folder / "state.sqlite", create=True).close()
     return folder
 
 

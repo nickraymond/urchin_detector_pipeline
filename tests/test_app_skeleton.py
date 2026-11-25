@@ -21,7 +21,15 @@ def write_config(tmp_path, data_dir, roots=None):
 def setup(tmp_path):
     data = tmp_path / "data"
     data.mkdir()
-    return data, TestClient(server.create_app(write_config(tmp_path, data)))
+    return data, client_for(write_config(tmp_path, data))
+
+
+BASE = "http://127.0.0.1:8000"
+
+
+def client_for(config_path):
+    """A test client that behaves like Nick's browser on the app's own page."""
+    return TestClient(server.create_app(config_path), base_url=BASE, headers={"Origin": BASE})
 
 
 # --- settings ---
@@ -81,7 +89,7 @@ def test_damaged_project_json_gives_fix(tmp_path):
 
 
 def test_stage_status_order_and_update(tmp_path):
-    conn = db.connect(tmp_path / "s.sqlite")
+    conn = db.connect(tmp_path / "s.sqlite", create=True)
     assert [s["stage"] for s in db.stage_statuses(conn)] == [s for s, _ in db.STAGES]
     db.set_stage(conn, "ingest", "done", "2 videos")
     assert db.stage_statuses(conn)[0]["counts"] == "2 videos"
@@ -92,7 +100,7 @@ def test_stage_status_order_and_update(tmp_path):
 # --- pages ---
 
 def test_dashboard_shows_setup_problem_not_a_crash(tmp_path):
-    client = TestClient(server.create_app(tmp_path / "missing.toml"))
+    client = client_for(tmp_path / "missing.toml")
     r = client.get("/")
     assert r.status_code == 200 and "Setup problem" in r.text and "Traceback" not in r.text
     assert client.post("/projects", data={"name": "x"}).status_code == 503
@@ -128,3 +136,36 @@ def test_pages_load_nothing_from_the_internet(setup):
 
 def test_server_binds_localhost_only():
     assert server.HOST == "127.0.0.1"
+
+
+# --- host and origin rule (DESIGN D14) ---
+
+def test_foreign_host_refused(setup):
+    _, client = setup
+    assert client.get("/", headers={"Host": "attacker.example"}).status_code == 400
+    assert client.get("/", headers={"Host": "localhost:8000"}).status_code == 200
+
+
+@pytest.mark.parametrize("headers", [
+    {"Origin": "http://evil.example"}, {"Origin": "http://127.0.0.1:9999"},
+    {"Origin": "", "Referer": "http://evil.example/page"}, {"Origin": ""}])
+def test_post_from_other_origin_refused(setup, headers):
+    data, client = setup
+    r = client.post("/projects", data={"name": "x"}, headers=headers)
+    assert r.status_code == 403 and not (data / "projects" / "x").exists()
+
+
+def test_post_with_own_referer_accepted(setup):
+    data, client = setup
+    r = client.post("/projects", data={"name": "x"},
+                    headers={"Origin": "", "Referer": BASE + "/"}, follow_redirects=False)
+    assert r.status_code == 303 and (data / "projects" / "x").is_dir()
+
+
+def test_missing_database_is_an_error_not_recreated(setup):
+    data, client = setup
+    client.post("/projects", data={"name": "p"})
+    (data / "projects" / "p" / "state.sqlite").unlink()
+    r = client.get("/p/p")
+    assert r.status_code == 404 and "Project database missing" in r.text
+    assert not (data / "projects" / "p" / "state.sqlite").exists()
