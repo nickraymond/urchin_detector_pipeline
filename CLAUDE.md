@@ -32,8 +32,10 @@ any older step in this repo's docs, skills or prompts.
    his eye. His feedback becomes TRACKER items. Builders test each bite
    themselves in the browser and say in the PR what they saw.
 3. **The planning lead merges** any PR with a QE PASS on its exact head
-   (squash, `--match-head-commit`) and checks `main` afterwards. Nick merges
-   these himself: changes to this section, TRACKER's Rules for Agents, anything
+   (squash, `--match-head-commit`) and checks `main` afterwards. This standing
+   grant replaces the per-session merge grant of the team rules and holds for
+   successor lead sessions. Nick merges these himself: changes to `CLAUDE.md`,
+   TRACKER's Rules for Agents, anything
    under `.claude/`, `docs/PROMPTS.md`; changes to SPEC's hard constraints; and
    changes to the spec's scope.
 4. **Gaps in the spec are Lead calls.** The lead decides within the spec's
