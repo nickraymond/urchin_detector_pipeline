@@ -148,6 +148,14 @@ app/web/templates/label.html  the Labeling page
   frame, model load, peak process and Apple GPU memory and a Run estimate, and draws each frame at 1600 px
   (`/labeling/overlay/<file>?hide=`): areas first and faint, objects on top, untagged urchins grey; a toggle per
   run unit. Counts from older settings say so. Kelp prompts and the minimum area come from the bench below.
+- Run and overlap (as-built, bite 4): `label.run_all` labels every kept frame in one worker process; Stop
+  sets an event that ends the worker, and Run again skips units whose settings key is current. A job may
+  return its final message (`app/jobs.py`). `label.run_plan` lists, per run unit, the frames it will run
+  on; the estimate is a fixed cost per frame with work plus a cost per unit (`label.frame_costs`, from the
+  preview frames' `sam_raw` timings: on 4K frames about 21 s per frame and 5 s per unit; the fixed part
+  includes the image encoding, which the first unit pays). `app/sam/overlap.py`: `objects` (rule 1, IoU from
+  RLEs) and `class_map` (rules 2-7; an untagged urchin paints 255). The preview's "final class map" draws
+  it at 1600 px.
 - Images are read through one helper that applies the EXIF orientation (Pillow `ImageOps.exif_transpose`), so
   SAM, the masks and the page all use the same upright image (D27).
 - Tests: a fake predictor stands in for SAM (no torch, no weights, no real frames); synthetic images; the
