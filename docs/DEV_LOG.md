@@ -28,6 +28,8 @@ what broke, what's next.*
   around the image; click zooms to actual pixels at that point, scroll / pinch zooms, drag pans, 0 fits.
   Nick did not see the changes: the browser kept old saved copies of the scripts. Script and style
   links now carry a content hash (`?v=`) and /static answers `Cache-Control: no-cache`.
+  QE PASS-with-nits at 730b58e; its Low finding fixed: a stop between moving a frame and updating its
+  row is repaired on the next run (test added, 74 pass). The 3b watch item is in TRACKER.
 **Broke:** nothing known.
 **Next:** QE verdict on the new head (new QE session not running yet); Nick's manual test; then bite 3b.
 

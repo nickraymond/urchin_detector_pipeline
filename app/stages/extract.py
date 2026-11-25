@@ -125,8 +125,12 @@ def run(project_folder: Path, samples: list[dict],
             v = s["video"]
             name = frame_name(v["path"], v["path_code"], s["t"])
             planned.add(name)
-            if status.get(name) == "unplanned" and (aside / name).is_file():
+            # move back from dropped/unplanned/; a stop between a move and its database update
+            # is repaired here, whichever way the frame was moving (QE PR 7, 730b58e)
+            if (status.get(name) in ("kept", "unplanned") and (aside / name).is_file()
+                    and not (folder / name).is_file()):
                 os.replace(aside / name, folder / name)
+            if status.get(name) == "unplanned" and (folder / name).is_file():
                 conn.execute("UPDATE frames SET status='kept' WHERE file=?", (name,))
                 conn.commit()
             elif name not in status or not (folder / name).is_file():

@@ -121,6 +121,8 @@ the review stage can be skipped. A test proves source videos are unchanged after
       kept / dropped frames; near-duplicate filter (dHash distance to the previous kept frame) with a slider
 - [ ] 3b: dropped frames moved to `dropped/blurry/` and `dropped/duplicate/` (never erased; Apply moves them back
       and forth); kept + dropped-blurry + dropped-duplicate add up to the live count (or the cap)
+      (QE PR 7 watch: `extract.run` must not re-decode a planned frame whose file sits in `dropped/blurry/`
+      or `dropped/duplicate/`, nor set it back to kept)
 
 **Bite 4 — Review frames**
 - [ ] grid with size slider, full-screen view (`F`), arrow keys

@@ -170,3 +170,25 @@ def test_rotated_video_comes_out_upright(tmp_path):
     assert extract.run(proj, [{"video": row, "t": 1.0}]) == 1
     with Image.open(extract.frames_dir(proj) / "upright_abc123_1000.jpg") as im:
         assert im.size == (240, 320)
+
+
+def test_a_stop_between_a_move_and_its_database_update_is_repaired(tmp_path):
+    """QE PR 7 at 730b58e: a frame moved but not yet updated in the database comes right on
+    the next run, in both directions, without decoding it again."""
+    src = make_video(tmp_path / "v" / "dive.MP4", seconds=4, size="160x120")
+    row = {"path": str(src), "path_code": "abc123", "duration_s": 4.0}
+    proj = _project(tmp_path)
+    plan, _ = extract.sample_plan([row], [], 2.0, 300)          # 0, 2
+    assert extract.run(proj, plan) == 2
+    name = "dive_abc123_2000.jpg"
+    conn = sqlite3.connect(proj / "state.sqlite")
+    status = lambda: conn.execute("SELECT status FROM frames WHERE file=?", (name,)).fetchone()[0]
+    aside = extract.unplanned_dir(proj)
+    aside.mkdir(parents=True)
+    # stopped after moving back to frames/, before the row said 'kept'
+    conn.execute("UPDATE frames SET status='unplanned' WHERE file=?", (name,)); conn.commit()
+    assert extract.run(proj, plan) == 0 and status() == "kept"
+    # stopped after moving aside, before the row said 'unplanned'; the plan wants it again
+    (extract.frames_dir(proj) / name).rename(aside / name)
+    assert extract.run(proj, plan) == 0 and status() == "kept"
+    assert (extract.frames_dir(proj) / name).is_file() and not (aside / name).exists()
