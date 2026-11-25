@@ -39,7 +39,7 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
   <p class="totals" id="filter-counts">{{ counts.kept }} kept + {{ counts.dropped_blur }} blurry +
     {{ counts.dropped_duplicate }} duplicate{% if counts.rejected %} + {{ counts.rejected }} rejected{% endif %} = {{ counts.total }}</p>
   <button type="submit" {% if running %}disabled{% endif %}>Apply</button>
-  <span class="hint">The counts and examples follow the sliders; files move only when you press Apply.</span>
+  <span class="hint">The counts and rows below follow the sliders; files move only when you press Apply.</span>
   <div id="filter-examples" class="examples"></div>
 </form>
 

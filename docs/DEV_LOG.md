@@ -17,6 +17,18 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S2 — Filter rows simplified (Nick's feedback on 3b)
+**Branch:** sprint/2-filter-rows (from main `87310c0`)
+**Done:** Nick found the filter examples too much and their labels confusing ("the sharpest
+frames dropped"). Now one row per filter showing every frame it would drop: blurry from least to
+most blurry, duplicates from most to least unique (bits differing from the last kept frame),
+scrolling sideways; click opens the viewer. The kept-side and paired examples are gone. Browser
+check on the scratch project at 30 % / 20: rows of 12 and 14 in order (sharpness 141 → 4,
+19 → 11 bits). 82 tests.
+**Broke/surprised us:** Nick's app on port 8000 was an old copy from the previous builder's
+folder, so he saw no filters at first.
+**Next:** QE reviews the draft PR; the lead merges.
+
 ## 2026-11-25 — Sprint S2 — Bite 3b merged; builder rotates
 **Branch:** sprint/2-frames-3b-done (docs only)
 **Done:** PR 9 (bite 3b) merged by the lead as `1284232`, matching QE's PASS on `5a72243`, under

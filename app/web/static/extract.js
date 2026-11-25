@@ -151,7 +151,7 @@
 })();
 
 // Filters (bite 3b): while a slider moves, ask the app what Apply would do (reads only) and show
-// the counts and example frames at each cut-off. Clicking an example opens it in the viewer.
+// the counts and, per filter, one row of every frame it would drop. Click one to view it.
 (function () {
   "use strict";
   const form = document.getElementById("filter-form");
@@ -164,7 +164,7 @@
   function thumb(f, label) {
     const a = document.createElement("a");
     a.href = base + encodeURIComponent(f.file);
-    a.title = f.file;
+    a.title = f.file + " (" + f.video + ")";
     a.dataset.i = list.length;
     list.push(f);
     const img = document.createElement("img");
@@ -173,26 +173,19 @@
     img.loading = "lazy";
     const cap = document.createElement("span");
     cap.textContent = label;
-    const vid = document.createElement("span");  // the blur cut-off is per video
-    vid.className = "ex-video";
-    vid.textContent = f.video;
-    a.append(img, cap, vid);
+    a.append(img, cap);
     return a;
   }
-  function row(title, items) {
-    const div = document.createElement("div");
-    div.className = "example-row";
+  // one row per filter: every frame it would drop, in order, scrolling sideways
+  function row(title, left, right, frames, label) {
     const h = document.createElement("p");
     h.className = "hint";
-    h.textContent = title + (items.length ? "" : ": none");
-    div.append(h);
-    items.forEach(nodes => {
-      const g = document.createElement("span");
-      g.className = "example";
-      g.append(...nodes);
-      div.append(g);
-    });
-    box.append(div);
+    h.textContent = title + " (" + frames.length + ")" +
+      (frames.length ? ": " + left + " on the left, " + right + " on the right" : "");
+    const strip = document.createElement("div");
+    strip.className = "drop-row";
+    frames.forEach(f => strip.append(thumb(f, label(f))));
+    box.append(h, strip);
   }
   function render(a) {
     const c = a.counts;
@@ -200,13 +193,10 @@
       " duplicate" + (c.rejected ? " + " + c.rejected + " rejected" : "") + " = " + c.total;
     box.replaceChildren();
     list = [];
-    const blur = f => [thumb(f, "sharpness " + Math.round(f.blur))];
-    const pair = f => [thumb(f, f.distance + " bits differ"), thumb(f.match, "last kept")];
-    row("Blur: the sharpest frames dropped", a.blur_dropped.map(blur));
-    row("Blur: the blurriest frames kept", a.blur_kept.map(blur));
-    row("Duplicates: dropped, nearest the cut-off (each beside the frame it matched)",
-        a.dup_dropped.map(pair));
-    row("Duplicates: kept, nearest the cut-off", a.dup_kept.map(pair));
+    row("Dropped as blurry", "least blurry", "most blurry", a.blur_dropped,
+        f => "sharpness " + Math.round(f.blur));
+    row("Dropped as duplicates", "most unique", "least unique", a.dup_dropped,
+        f => f.distance + " of 64 bits differ");
   }
   async function update() {
     form.querySelectorAll("output").forEach(o => { o.value = o.previousElementSibling.value; });
