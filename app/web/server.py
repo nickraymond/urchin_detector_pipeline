@@ -159,6 +159,9 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
 def port_free(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        # Same option uvicorn uses: connections of an app copy that just stopped (TIME_WAIT,
+        # ~30 s on macOS) must not count as "in use"; a running app still does.
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind((HOST, port))
             return True
