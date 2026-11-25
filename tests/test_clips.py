@@ -265,11 +265,14 @@ def test_clip_row_thumbnail_at_exact_time(tmp_path):
     client.post("/p/p/clips/prepare", data={"v": code})
     assert wait_for(lambda: client.get("/p/p/clips/status").json()[code]["ready"])
 
-    one, two = client.get(f"/p/p/frame/{code}.jpg?t=1.0"), client.get(f"/p/p/frame/{code}.jpg?t=4.2")
+    assert client.get(f"/p/p/frame/{code}.jpg?t=1.0").status_code == 404  # not a clip start
+    client.post("/p/p/clips/save", json={"video": code, "clips": [
+        {"start_s": 1.0, "end_s": 2.0}, {"start_s": 4.25, "end_s": 5.5}]})
+    one, two = client.get(f"/p/p/frame/{code}.jpg?t=1.0"), client.get(f"/p/p/frame/{code}.jpg?t=4.25")
     assert one.status_code == two.status_code == 200 and one.content[:2] == b"\xff\xd8"
     assert one.content != two.content  # a trimmed start shows a different picture
     folder = data / "projects" / "p" / "clipthumbs" / code
     assert sorted(p.name for p in folder.glob("[0-9]*.jpg")) == ["00001000.jpg", "00004200.jpg"]
-    for bad in ("t=-1", "t=99", "t=nan", "t=x"):
+    for bad in ("t=-1", "t=99", "t=nan", "t=x", "t=3.0"):
         assert client.get(f"/p/p/frame/{code}.jpg?{bad}").status_code in (404, 422), bad
     assert client.get("/p/p/frame/ffffff.jpg?t=1").status_code == 404

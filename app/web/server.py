@@ -8,6 +8,7 @@ config.local.toml only needs a browser reload, not a restart.
 from __future__ import annotations
 
 import argparse
+import math
 import re
 import socket
 import sqlite3
@@ -276,10 +277,18 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     @app.get("/p/{name}/frame/{code}.jpg")
     def frame(request: Request, name: str, code: str, t: float = 0.0):
-        """One picture of a video's playback copy at time t: the thumbnail on a clip's row."""
+        """One picture of a video's playback copy at time t: the thumbnail on a clip's row.
+        Only at a saved clip's start, so the cache can only grow through the app's own saves
+        (QE finding on PR 6: any web page could otherwise ask for thousands of pictures)."""
         def work(cfg, info, conn):
             video = next((r for r in ingest.added(conn) if r["path_code"] == code), None)
-            path = clips.frame_at(info["folder"], code, t, video["duration_s"] or 0) if video else None
+            try:
+                starts = {round(c["start_s"], 2) for c in clips.load_clips(info["folder"])
+                          if video and c["video"] == video["path"]}
+            except clips.ClipError:
+                starts = set()
+            path = (clips.frame_at(info["folder"], code, t, video["duration_s"] or 0)
+                    if video and math.isfinite(t) and round(t, 2) in starts else None)
             if path is None:
                 return PlainTextResponse("not found", status_code=404)
             return FileResponse(path, media_type="image/jpeg")

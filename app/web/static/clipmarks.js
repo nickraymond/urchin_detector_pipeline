@@ -60,7 +60,7 @@
       const tr = document.createElement("tr");
       tr.classList.toggle("selected", same(c, selected));
       tr.innerHTML = "<td>" + (i + 1) + "</td><td><img class='cthumb' alt='' src='" + data.frame +
-        "?t=" + c.start_s.toFixed(1) + "' title='First frame of this clip'></td><td>" + fmt(c.start_s) + "</td><td>" + fmt(c.end_s) +
+        "?t=" + c.start_s + "' title='First frame of this clip'></td><td>" + fmt(c.start_s) + "</td><td>" + fmt(c.end_s) +
         "</td><td>" + (c.end_s - c.start_s).toFixed(1) + " s</td><td><input maxlength='200'></td><td>" +
         "<button data-a='go' title='Jump the video to where this clip starts'>Go to</button> " +
         "<button data-a='start' title='Move this clip&#39;s start to the video&#39;s current time'>Set start here</button> " +
