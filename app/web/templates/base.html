@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Urchin labeling tool{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header><a href="/">Urchin labeling tool</a></header>
+<main>
+{% if cfg and cfg.problems %}
+<section class="problem">
+  <h2>Setup problem: the app cannot work until this is fixed</h2>
+  <ul>{% for p in cfg.problems %}<li>{{ p }}</li>{% endfor %}</ul>
+  <p>After fixing it, reload this page.</p>
+</section>
+{% endif %}
+{% if cfg and cfg.warnings %}
+<section class="warning"><ul>{% for w in cfg.warnings %}<li>{{ w }}</li>{% endfor %}</ul></section>
+{% endif %}
+{% block content %}{% endblock %}
+</main>
+<footer>Settings file: {{ cfg.path if cfg else "?" }}</footer>
+</body>
+</html>

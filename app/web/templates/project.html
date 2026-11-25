@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ info.name }} · Urchin labeling tool{% endblock %}
+{% block content %}
+<h1>Project: {{ info.name }}</h1>
+<p class="hint">Folder: {{ info.folder }} · created {{ info.created | replace('T', ' ') }}</p>
+<table class="stages">
+  <thead><tr><th>#</th><th>Stage</th><th>Status</th><th>Counts</th><th>Last change</th></tr></thead>
+  <tbody>
+  {% for s in stages %}
+  <tr class="state-{{ s.state | replace(' ', '-') }}">
+    <td>{{ loop.index }}</td><td>{{ s.label }}</td><td>{{ s.state }}</td>
+    <td>{{ s.counts or "—" }}</td><td>{{ s.updated }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

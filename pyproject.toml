@@ -21,13 +21,24 @@ dependencies = [
     "einops",
     "scipy",
     "pycocotools",
+    # S2 web app (D12). Licences from PyPI metadata, 2026-11-24: fastapi MIT,
+    # uvicorn BSD-3-Clause, Jinja2 BSD, python-multipart Apache-2.0 (form posts);
+    # starlette, pulled in by fastapi: BSD-3-Clause.
+    "fastapi>=0.165.0",
+    "uvicorn>=0.54.0",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.34",
 ]
 
 [project.scripts]
 sam-test = "app.sam_test.run:main"
+app = "app.web.server:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "httpx>=0.28.1",  # FastAPI test client; BSD-3-Clause
+    "pytest>=8",
+]
 
 [build-system]
 requires = ["hatchling"]

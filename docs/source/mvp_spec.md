@@ -14,7 +14,7 @@ Pick the go-to-market camera (N6 vs Pi) by testing which one, fixed in one spot,
 | How do urchin types change with season and temperature? | Count and % cover per type, joined in the cloud with buoy sensors by timestamp |
 | Did the planted kelp survive, or did urchins eat it? | Kelp % cover + kelp shoot count |
 
-**Starting classes:** purple urchin, red urchin, sea star, sunflower sea star, anemone, fish, rock/substrate, unknown. Anemone and fish are labeled for later use (fish as one class for now; rockfish species can be split out in a later training round); they have no field in the hourly packet yet. Kelp and kelp shoot are added later, when Nick has reference images: add them to the settings file and re-run, and only the new classes are labeled. Until then the kelp metrics and kelp packet fields below are not produced. Confirm the urchin types (class discovery + Reef Check) before labeling at scale. Classes live in a settings file, so adding one later is a config change. Class ids are only ever appended, never renumbered or reused. The long-term class list follows the Reef Check California manual's species list; the starting list is kept small to prove the pipeline.
+**Starting classes:** purple urchin, red urchin, sea star, sunflower sea star, anemone, fish, kelp shoot, kelp, rock/substrate, unknown. Anemone and fish are labeled for later use (fish as one class for now; rockfish species can be split out in a later training round); they have no field in the hourly packet yet. Kelp is back in the starting list (2026-11-24): the restoration-site videos show kelp, so there are reference frames. Confirm the urchin types (class discovery + Reef Check) before labeling at scale. Classes live in a settings file, so adding one later is a config change. Class ids are only ever appended, never renumbered or reused. The long-term class list follows the Reef Check California manual's species list; the starting list is kept small to prove the pipeline.
 
 **Not in the MVP:** panoptic segmentation, tracking individual animals, kelp growth rates in cm/day.
 
@@ -89,7 +89,7 @@ A local app that turns a few GoPro videos into reviewed training data for both m
 
 Each stage resumes where it left off and can be re-run without redoing earlier stages. A dashboard shows each stage's status.
 
-**Class settings file** (`classes.yaml`): per class, a name, its kind (`object` = countable, or `area` = cover only), one or more text prompts, and optional example boxes. Starting classes: purple urchin, red urchin, sea star, sunflower sea star, anemone, fish (object); rock/substrate (area); everything unlabeled = unknown. Later, with reference images: kelp shoot (object) and kelp (area).
+**Class settings file** (`classes.yaml`): per class, a name, its kind (`object` = countable, or `area` = cover only), one or more text prompts, and optional example boxes. Starting classes: purple urchin, red urchin, sea star, sunflower sea star, anemone, fish, kelp shoot (object); kelp, rock/substrate (area); everything unlabeled = unknown.
 
 ## Stage details
 

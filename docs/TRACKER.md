@@ -55,7 +55,7 @@ State key: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked
 3. `git check-ignore -v test.mp4 frames/x.jpg model.pt` → prints one `.gitignore` rule per file.
 **Needs:** nothing.
 
-### S1 — SAM test on the laptop  `[~]`
+### S1 — SAM test on the laptop  `[x]`  (demo passed: Nick 2026-11-24; PR 2 squash-merged to main as `a362495`)
 **Goal:** know whether SAM 3.1 runs on Nick's M1 Max, how fast, and under what licence,
 before any tool code is written. This is a test, not the tool: keep it small and throwaway-friendly.
 - [x] re-read the primary docs and record what they say in SPEC (Q12): `facebookresearch/sam3`
@@ -83,33 +83,64 @@ device, seconds per frame and memory. A failed run still produces the page, with
 **Needs:** S0; Nick logged in to Hugging Face (done 2026-11-24); the SSD plugged in.
 
 ### S2 — Frames (ingest, clips, extract, review; no SAM)  `[ ]`
-**Goal:** spec stages 1–4 work in the browser on Nick's ReefCheck videos.
-- [ ] plan nibble: inspect prior art (SPEC §Background), choose what to reuse, confirm stack and start command
-- [ ] app starts with one command; dashboard page shows every stage and its status
-- [ ] ingest: list videos under `video_roots` with duration, resolution, fps, codec, size; skip
-      sidecar and `._` files; also accept folders of still images
-- [ ] HEVC check: warn if the decoder is missing; if the browser cannot play a video, scrub a
-      low-res proxy (GoPro `.LRV` or an H.264 proxy made with ffmpeg)
-- [ ] clip picker: timeline, thumbnail strip, in/out marks saved to `clips.json`
-- [ ] extract frames: sampling, cap, blur filter, near-duplicate filter, source video + timestamp recorded
-- [ ] review frames: grid, keyboard keep/delete/undo, delete moves to `rejected/`
+**Goal:** spec stages 1–4 work in the browser on Nick's ReefCheck videos. Design: DESIGN §Planned for S2.
+One draft PR per bite; each bite ends with something Nick can click.
+Every item of `docs/source/mvp_spec.md` §Stage details 1–4 belongs to the matching bite, including:
+ingest takes picked files or a folder (with subfolders), not only `video_roots`; default sampling
+every 2 s and cap 300; JPEG quality ≥ 95; counts add up to the live count, or to the cap if the cap
+applied; grid from 8 per row down to 1 (default 6); thumbnails never cropped, click for full size;
+the review stage can be skipped. A test proves source videos are unchanged after every stage
+(SPEC constraint 4).
+
+**Bite 1 — Skeleton + ingest** (split in two PRs, Nick 2026-11-24: 1a skeleton, 1b ingest)
+- [x] plan nibble: re-read the prior art (SPEC §Background) and say what is reused (Nick approved 2026-11-24)
+- [~] 1a: `uv run app` starts the app on `127.0.0.1` and opens the dashboard; a missing or wrong
+      `config.local.toml` path shows a clear message, not a stack trace
+- [~] 1a: create / open a project under `<data_dir>/projects/<name>/` (`project.json`, `state.sqlite`)
+- [ ] 1b: ingest: list videos under `video_roots` with duration, resolution, fps, codec, size (ffprobe);
+      skip sidecar (`.LRV`, `.THM`) and `._` files; group GoPro chapters; warn if a video cannot be read.
+      Pick files or a folder (the app's own folder browser, starting at `video_roots`, plus a
+      pasted path). Same name + same size = one video, shown as "also in: <folder>" (Nick 2026-11-24)
+- [~] 1a: dashboard shows every stage and its status (1b fills in Ingest)
+
+**Bite 2 — Clip picker**
+- [ ] low-res H.264 playback copy per video, made with ffmpeg into the project folder (GoPro `.LRV` used if present)
+- [ ] player with timeline and thumbnail strip (one frame every ~5 s)
+- [ ] in / out marks with `I` / `O`, optional note; adjust and delete; saved to `clips.json`
+- [ ] marked time per video and the number of frames extraction will produce
+
+**Bite 3 — Extract frames**
+- [ ] sampling plan (every N seconds inside clips, whole video if none), cap spread evenly, live count
+- [ ] frames pulled from the full-resolution original; named `<video-stem>_<path-code>_<timestamp-ms>.jpg`
+- [ ] blur filter with a slider and example kept / dropped frames; near-duplicate filter
+- [ ] runs in the background with a progress bar; kept + dropped-blurry + dropped-duplicate add up to the live count
+
+**Bite 4 — Review frames**
+- [ ] grid with size slider, full-screen view (`F`), arrow keys
+- [ ] `D` delete (moves the file to `rejected/`), `K` keep, `Z` undo
+
+**Bite 5 — Stills + resume**
+- [ ] ingest also accepts folders of still images; they skip clips and extraction
 - [ ] each stage resumes where it left off and can be re-run without redoing earlier stages
-**Demo (Nick):** `uv run app` (start command and port confirmed in the S2 plan), open
-`http://localhost:8000`. Pick 2 ReefCheck videos, mark a clip with `I`/`O`, extract: the kept and
-dropped counts add up to the preview count. Delete one frame with `D`, undo with `Z`, delete it
-again. Quit and restart: the dashboard shows the four stages where you left them, and the deleted
-frame is in the project's `rejected/` folder.
-**Needs:** S1 result (so the stack fits what SAM needs); answer to SPEC Q6.
+
+**Demo (Nick):** `uv run app`, browser opens `http://127.0.0.1:8000`. Pick 2 ReefCheck videos, mark
+a clip with `I`/`O`, extract: the kept and dropped counts add up to the preview count. Delete one
+frame with `D`, undo with `Z`, delete it again. Quit and restart: the dashboard shows the four
+stages where you left them, and the deleted frame is in the project's `rejected/` folder. Then add
+a folder of still images: they appear in frame review.
+**Needs:** S1 (done).
 
 ### S3 — SAM on single frames  `[ ]`
 **Goal:** spec stage 5 without job control: class settings file, prompt preview, tiling, overlap rules.
 - [ ] `classes.yaml` loaded and shown in the UI
+- [ ] kelp: try prompts for kelp shoot (object) and kelp (area) on frames from a restoration-site
+      video; prompts are untested (DESIGN D11)
 - [ ] prompt preview on 3 sample frames with masks drawn per class
 - [ ] tiling and overlap rules; one result file per frame in `sam_raw/`, recording prompt and settings
 - [ ] re-run only what changed; reviewed masks kept and marked "from older settings"
 **Demo (Nick):** same start command. On the Labeling page press "Preview": 3 frames show coloured
 masks per class. Add a class to `classes.yaml`, run again: only the new class is labeled.
-**Needs:** S2; answers to SPEC Q2, Q10, Q14.
+**Needs:** S2; answers to SPEC Q2 and the SAM part of Q10.
 
 ### S4 — Job control  `[ ]`
 **Goal:** long jobs run in a background worker with estimate, pause/resume, limits and a schedule.
@@ -142,6 +173,5 @@ values matching those 5 frames. All acceptance boxes in `docs/source/mvp_spec.md
 
 ## Icebox (captured, not scheduled)
 
-- "Suggest clips" and "Pre-screen with SAM" buttons: sprint not chosen yet (SPEC Q6).
-- Kelp and kelp shoot classes: when Nick has reference images (SPEC Q1, answered).
+- "Suggest clips" and "Pre-screen with SAM" buttons: left out of S2; decide after S3 (a tiled SAM pass costs about a minute per frame).
 - Later MVP milestones (train, quantize, bench test, quality gate, bake-off, Iridium packet): not this repo's Build 1.

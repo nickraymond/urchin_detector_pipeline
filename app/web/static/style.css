@@ -1,0 +1,18 @@
+/* One plain stylesheet; no fonts or files from the internet (DESIGN D12). */
+body { font-family: -apple-system, system-ui, sans-serif; margin: 0; color: #222; background: #fafafa; }
+header { background: #1f4e5f; padding: 10px 20px; }
+header a { color: #fff; text-decoration: none; font-weight: 600; }
+main { max-width: 960px; margin: 20px auto; padding: 0 16px; }
+footer { max-width: 960px; margin: 30px auto; padding: 0 16px; color: #777; font-size: 13px; }
+.problem { background: #fde8e8; border: 2px solid #c62828; padding: 8px 16px; border-radius: 6px; }
+.problem h2 { color: #c62828; font-size: 18px; }
+.warning { background: #fff6dd; border: 1px solid #d49b00; padding: 4px 16px; border-radius: 6px; }
+.error { background: #fde8e8; border-left: 4px solid #c62828; padding: 8px 12px; }
+.hint { color: #666; font-size: 14px; }
+input { font-size: 16px; padding: 4px 8px; }
+button { font-size: 16px; padding: 4px 14px; }
+table { border-collapse: collapse; width: 100%; background: #fff; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #ddd; }
+.state-done td:nth-child(3) { color: #2e7d32; font-weight: 600; }
+.state-in-progress td:nth-child(3) { color: #d49b00; font-weight: 600; }
+.state-not-started td:nth-child(3) { color: #888; }
