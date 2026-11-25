@@ -158,3 +158,23 @@ def test_decode_timeout_names_ffmpeg(library, monkeypatch):
     monkeypatch.setattr(ingest, "_probe_cache", {})
     warning = ingest.probe(library / "dive" / "GX010042.MP4")["warning"]
     assert warning.startswith("ffmpeg cannot read")
+
+
+def test_thumbnails_made_in_data_dir_and_served(library, tmp_path):
+    """Nick's request on PR 4: a Finder-style thumbnail per video."""
+    before = digest(library)
+    data = tmp_path / "data"
+    data.mkdir()
+    client = client_for(write_config(tmp_path, data, roots=[str(library / "dive")]))
+    client.post("/projects", data={"name": "p"})
+    page = client.get("/p/p/ingest").text
+    code = ingest.path_code(library / "dive" / "GX010042.MP4")
+    assert f'src="/thumbs/{code}.jpg"' in page
+    thumb = data / "thumbs" / f"{code}.jpg"
+    assert thumb.stat().st_size > 500
+    r = client.get(f"/thumbs/{code}.jpg")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    assert r.content[:2] == b"\xff\xd8"  # a real JPEG
+    for bad in ("zzzzzz", "..%2Fx", "abcdef"):
+        assert client.get(f"/thumbs/{bad}.jpg").status_code == 404
+    assert digest(library) == before  # nothing written beside the videos

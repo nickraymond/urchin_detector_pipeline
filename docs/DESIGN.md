@@ -45,6 +45,8 @@ app/web/static/          one CSS file, small plain JavaScript files
   one-frame decode check cannot be added. A video whose file name and size are already in the
   project, from any folder, is not added again (D13). At most 200 videos are read per page load;
   a bigger folder asks for a subfolder until bite 3's background jobs exist.
+  Each video gets a thumbnail (one frame 10 % in, 240 px wide) in `<data_dir>/thumbs/<path code>.jpg`,
+  served only as `/thumbs/<6 hex>.jpg` from that folder (Nick's request on PR 4).
 - Video work goes through the installed `ffmpeg` / `ffprobe` as subprocesses; no extra video library.
 - Blur score (variance of Laplacian) and near-duplicate hash use numpy / scipy / Pillow, already installed.
 - Long steps run in the background behind one small interface (start, progress, done / error) so

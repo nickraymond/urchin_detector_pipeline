@@ -18,7 +18,7 @@ from urllib.parse import urlencode, urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -122,6 +122,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                     videos = ingest.scan(here)
                 except ingest.IngestError as e:
                     error = str(e)
+            for v in videos:
+                ingest.thumbnail(v, cfg.data_dir / "thumbs")
             keys = ingest.added_keys(conn)
             return templates.TemplateResponse(request, "ingest.html", {
                 "cfg": cfg, "info": info, "here": here, "error": error,
@@ -132,6 +134,16 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                                     if (v.path.name, v.size) in keys
                                     and keys[(v.path.name, v.size)] != str(v.path)}})
         return with_project(request, name, work)
+
+    @app.get("/thumbs/{code}.jpg")
+    def thumb(code: str):
+        """Video thumbnails made by the ingest page; only names like 3fa9c1.jpg, only from
+        <data_dir>/thumbs/ (no path from the request reaches the disk)."""
+        cfg = config.load(config_path)
+        path = cfg.data_dir / "thumbs" / f"{code}.jpg" if cfg.ok else None
+        if not ingest.THUMB_CODE.match(code) or path is None or not path.is_file():
+            return PlainTextResponse("no thumbnail", status_code=404)
+        return FileResponse(path, media_type="image/jpeg")
 
     @app.post("/p/{name}/ingest/add")
     def ingest_add(request: Request, name: str, folder: str = Form(""),

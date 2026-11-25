@@ -27,7 +27,11 @@ project's Ingest row shows "done · N videos (M recordings)". 12 new tests (43 i
 proving source files are byte-identical with the same modified time afterwards.
 On the SSD: 29 videos listed, 17 with "also in", none failing the decode check. The first page
 load takes ~6.6 s (ffprobe + decode of 29 videos); later loads ~0.1 s (cached while the app runs).
+Nick's manual test (2 videos added) worked; he asked for a Finder-style thumbnail per video:
+added (one frame 10 % in, 240 px, cached in `<data_dir>/thumbs/`); the first load that builds all
+29 took ~16 s, later loads reuse them.
 **Broke/surprised us:** of two copies, the one in the folder that sorts first is the one listed.
+`uv run app` right after stopping a copy said "port in use" (closing connections); fixed.
 **Next:** Nick runs the 1b manual test; QE reviews the draft PR; then bite 2 (clip picker).
 
 ## 2026-11-24 — Sprint S2 — Bite 1a: app skeleton (start, settings errors, projects)

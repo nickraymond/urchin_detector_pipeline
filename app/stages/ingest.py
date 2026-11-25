@@ -116,6 +116,31 @@ def probe(path: Path) -> dict:
     return out
 
 
+THUMB_CODE = re.compile(r"^[0-9a-f]{6}$")
+
+
+def thumbnail(v: Video, thumbs_dir: Path) -> Path | None:
+    """A 240 px wide JPEG of one frame 10 % into the video, like Finder shows. Written to
+    thumbs_dir (in data_dir, never beside the video); made once, then reused."""
+    out = Path(thumbs_dir) / f"{v.code}.jpg"
+    if out.is_file():
+        return out
+    if v.warning or not v.duration_s:
+        return None
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_name(out.stem + ".tmp.jpg")
+    try:
+        r = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{v.duration_s * 0.1:.2f}",
+                            "-i", str(v.path), "-frames:v", "1", "-vf", "scale=240:-2",
+                            "-q:v", "4", "-y", str(tmp)], capture_output=True, timeout=TIMEOUT_S)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if r.returncode != 0 or not tmp.is_file():
+        return None
+    os.replace(tmp, out)
+    return out
+
+
 def scan(folder: Path) -> list[Video]:
     """Videos under `folder`, one row per distinct video, in recording and chapter order.
     Same file name and same size = the same video (DESIGN D13); the copies go in `also_in`."""

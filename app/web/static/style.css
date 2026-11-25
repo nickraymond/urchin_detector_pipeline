@@ -21,3 +21,4 @@ tr.bad td { background: #fdf0f0; }
 .error-text { color: #c62828; }
 .subfolders { columns: 3; }
 table.videos td, table.videos th { font-size: 14px; padding: 5px 6px; }
+td.thumb img { width: 160px; height: auto; display: block; border-radius: 3px; background: #ddd; }
