@@ -103,18 +103,23 @@ the review stage can be skipped. A test proves source videos are unchanged after
       pasted path). Same name + same size = one video, shown as "also in: <folder>" (Nick 2026-11-24)
 - [x] 1a: dashboard shows every stage and its status (1b fills in Ingest)
 
-**Bite 2 — Clip picker** (split in two PRs, Nick 2026-11-24: 2a player, 2b marks; copies 960 px wide; 2a: PR 5 merged as `9b296cd`, Nick ran the test)
+**Bite 2 — Clip picker** (split in two PRs, Nick 2026-11-24: 2a player, 2b marks; copies 960 px wide; 2a: PR 5 merged as `9b296cd`, 2b: PR 6 merged as `c730e20`, Nick ran both tests)
 - [x] 2a: low-res H.264 playback copy per video, made with ffmpeg into the project folder (GoPro `.LRV` used if present),
       in the background with a progress bar (the small job interface bite 3 reuses)
 - [x] 2a: player with timeline and thumbnail strip (one frame every ~5 s, made from the copy)
-- [~] 2b: in / out marks with `I` / `O`, optional note; adjust and delete; saved to `clips.json`
-- [~] 2b: marked time per video and the number of frames extraction will produce
+- [x] 2b: in / out marks with `I` / `O`, optional note; adjust and delete; saved to `clips.json`
+- [x] 2b: marked time per video and the number of frames extraction will produce
 
-**Bite 3 — Extract frames**
-- [ ] sampling plan (every N seconds inside clips, whole video if none), cap spread evenly, live count
-- [ ] frames pulled from the full-resolution original; named `<video-stem>_<path-code>_<timestamp-ms>.jpg`
-- [ ] blur filter with a slider and example kept / dropped frames; near-duplicate filter
-- [ ] runs in the background with a progress bar; kept + dropped-blurry + dropped-duplicate add up to the live count
+**Bite 3 — Extract frames** (split in two PRs, Nick 2026-11-24: 3a extraction, 3b filters; DESIGN D17)
+- [ ] plan nibble: done 2026-11-24 (measurements in DEV_LOG); Nick approved
+- [ ] 3a: sampling plan (every N seconds inside clips, whole video if none), cap spread evenly, live count
+- [ ] 3a: frames pulled from the full-resolution original; named `<video-stem>_<path-code>_<timestamp-ms>.jpg`,
+      JPEG quality 95 (Pillow); source video and timestamp recorded per frame
+- [ ] 3a: runs in the background with a progress bar (`app/jobs.py`); counts shown
+- [ ] 3b: blur filter per video (drop the blurriest X % of each video, start 10 %) with a slider and example
+      kept / dropped frames; near-duplicate filter (dHash distance to the previous kept frame) with a slider
+- [ ] 3b: dropped frames moved to `dropped/blurry/` and `dropped/duplicate/` (never erased; Apply moves them back
+      and forth); kept + dropped-blurry + dropped-duplicate add up to the live count (or the cap)
 
 **Bite 4 — Review frames**
 - [ ] grid with size slider, full-screen view (`F`), arrow keys

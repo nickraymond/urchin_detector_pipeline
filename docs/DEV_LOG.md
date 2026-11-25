@@ -17,6 +17,16 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S2 — Bite 2 merged; bite 3 planned (session rotates)
+**Branch:** sprint/2-frames-3 (from main `c730e20`)
+**Done:** PR 6 (bite 2b) merged as `c730e20` after QE PASS on `5e52833` and Nick's "ship it".
+Bite 3 plan approved by Nick: split 3a / 3b, blur cut-off per video, dropped frames moved to
+`dropped/` folders (DESIGN D17). Measured on two SSD videos (scratch output only): full-size frame
+0.5 s (4K) / 0.8 s (5.3K) by seek; JPEG q95 save 0.02–0.04 s, 1.5 / 2.0 MB; blur + dHash ~0.03 s.
+**Broke/surprised us:** sharpness scores differ ~5x between videos (why D17 is per video). A running
+app copy serves new templates with old code after a branch switch (500s in Nick's log); restart fixes it.
+**Next:** bite 3a in a fresh builder session (TEAM_RULES 9: this one covered bites 1–2).
+
 ## 2026-11-24 — Sprint S2 — Bite 2b: clip marks (I / O), clips.json, counts
 **Branch:** sprint/2-frames-2b (from main `9b296cd`, after PR 5 merged)
 **Done:** plan approved by Nick. Timeline under the player with clip bands and a playhead
