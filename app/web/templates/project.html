@@ -9,7 +9,7 @@
   {% for s in stages %}
   <tr class="state-{{ s.state | replace(' ', '-') }}">
     <td>{{ loop.index }}</td>
-    <td>{% if s.stage == "ingest" %}<a href="/p/{{ info.name }}/ingest">{{ s.label }}</a>{% elif s.stage == "clips" %}<a href="/p/{{ info.name }}/clips">{{ s.label }}</a>{% else %}{{ s.label }}{% endif %}</td><td>{{ s.state }}</td>
+    <td>{% if s.stage == "ingest" %}<a href="/p/{{ info.name }}/ingest">{{ s.label }}</a>{% elif s.stage == "clips" %}<a href="/p/{{ info.name }}/clips">{{ s.label }}</a>{% elif s.stage == "extract" %}<a href="/p/{{ info.name }}/extract">{{ s.label }}</a>{% else %}{{ s.label }}{% endif %}</td><td>{{ s.state }}</td>
     <td>{{ s.counts or "—" }}</td><td>{{ s.updated }}</td>
   </tr>
   {% endfor %}

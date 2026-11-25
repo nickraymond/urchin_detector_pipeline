@@ -17,6 +17,19 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S2 — Bite 3a: sampling plan, extraction, counts
+**Branch:** sprint/2-frames-3
+**Done:** Nick said to keep working in this session (instead of rotating). `app/stages/extract.py`:
+sample times inside clips (whole video if none), cap spread evenly over all samples; frames
+decoded from the original with ffmpeg and saved by Pillow at JPEG quality 95 as
+`<video-stem>_<path-code>_<ms>.jpg` (spaces in the stem become _); blur score and dHash stored per
+frame with its video and timestamp; temp name first, one database row per frame, so a re-run only
+makes missing frames. Extract page: settings, live count while typing, background job with
+progress, counts, the first 12 frames. 7 new tests (70 in total). Real run on 2 SSD videos
+(scratch project): 44 frames as planned, 3840 px wide, 46 MB, 20 s; blur scores 4.5–584.
+**Broke/surprised us:** nothing.
+**Next:** QE reviews the draft PR; Nick runs the 3a manual test; then bite 3b (filters).
+
 ## 2026-11-24 — Sprint S2 — Bite 2 merged; bite 3 planned (session rotates)
 **Branch:** sprint/2-frames-3 (from main `c730e20`)
 **Done:** PR 6 (bite 2b) merged as `c730e20` after QE PASS on `5e52833` and Nick's "ship it".

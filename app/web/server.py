@@ -27,7 +27,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
 from app.jobs import Jobs
-from app.stages import clips, ingest
+from app.stages import clips, extract, ingest
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
 # Host and origin rule (DESIGN D14): pages answer only to these host names, and a POST is
@@ -254,6 +254,82 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             else:
                 db.set_stage(conn, "clips", "not started")
             return JSONResponse({"clips": saved, "summary": total})
+        return with_project(request, name, work)
+
+    # --- Extract frames (bite 3a) ---
+
+    def extract_plan(info, conn, every: float, cap: int):
+        videos = ingest.added(conn)
+        try:
+            all_clips = clips.load_clips(info["folder"])
+        except clips.ClipError:
+            all_clips = []
+        return extract.sample_plan(videos, all_clips, every, cap)
+
+    def check_settings(every: float, cap: int) -> str:
+        if not (math.isfinite(every) and 0.1 <= every <= 600):
+            return "Seconds between frames must be between 0.1 and 600."
+        if not 1 <= cap <= 100_000:
+            return "The frame cap must be between 1 and 100000."
+        return ""
+
+    @app.get("/p/{name}/extract", response_class=HTMLResponse)
+    def extract_page(request: Request, name: str, error: str = ""):
+        def work(cfg, info, conn):
+            st = info["settings"]
+            samples, live = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
+            frames = [dict(r) for r in conn.execute(
+                "SELECT file, timestamp_ms FROM frames WHERE status = 'kept' "
+                "ORDER BY video, timestamp_ms LIMIT 12")]
+            return templates.TemplateResponse(request, "extract.html", {
+                "cfg": cfg, "info": info, "every": st["seconds_between_samples"],
+                "cap": st["frame_cap"], "live": live, "planned": len(samples),
+                "videos": len(ingest.added(conn)), "counts": extract.counts(conn),
+                "job": jobs.status(f"{info['folder']}:extract") or {}, "frames": frames,
+                "error": error})
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/extract/plan")
+    def extract_plan_json(request: Request, name: str, every: float = 2.0, cap: int = 300):
+        """The live count for the page while settings are typed (reads only)."""
+        def work(cfg, info, conn):
+            problem = check_settings(every, cap)
+            if problem:
+                return JSONResponse({"error": problem}, 400)
+            samples, live = extract_plan(info, conn, every, cap)
+            return JSONResponse({"live": live, "planned": len(samples)})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/extract/start")
+    def extract_start(request: Request, name: str, every: float = Form(2.0),
+                      cap: int = Form(300)):
+        def work(cfg, info, conn):
+            problem = check_settings(every, cap)
+            if problem:
+                return RedirectResponse(f"/p/{name}/extract?" + urlencode({"error": problem}),
+                                        status_code=303)
+            project.update_settings(info["folder"], seconds_between_samples=every, frame_cap=cap)
+            samples, _ = extract_plan(info, conn, every, cap)
+            jobs.submit(f"{info['folder']}:extract",
+                        lambda report: extract.run(info["folder"], samples, report))
+            return RedirectResponse(f"/p/{name}/extract", status_code=303)
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/extract/status")
+    def extract_status(request: Request, name: str):
+        return with_project(request, name, lambda cfg, info, conn: JSONResponse({
+            "job": jobs.status(f"{info['folder']}:extract") or {},
+            "counts": extract.counts(conn)}))
+
+    @app.get("/p/{name}/frames/{file}")
+    def frame_file(request: Request, name: str, file: str):
+        """A frame of this project, by its name in the frames table (never a path)."""
+        def work(cfg, info, conn):
+            known = conn.execute("SELECT 1 FROM frames WHERE file = ?", (file,)).fetchone()
+            path = extract.frames_dir(info["folder"]) / file
+            if not extract.FRAME_NAME.match(file) or not known or not path.is_file():
+                return PlainTextResponse("not found", status_code=404)
+            return FileResponse(path, media_type="image/jpeg")
         return with_project(request, name, work)
 
     @app.get("/p/{name}/clips/status")

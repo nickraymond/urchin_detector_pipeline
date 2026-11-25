@@ -49,3 +49,7 @@ td.thumb img { width: 160px; height: auto; display: block; border-radius: 3px; b
 #clip-table tr.selected td { background: #fff3cf; }
 #clip-table tbody tr { cursor: pointer; }
 #clip-table img.cthumb { width: 96px; display: block; border-radius: 3px; background: #ddd; }
+.extract-form label { margin-right: 18px; }
+.extract-form input[type=number] { width: 90px; }
+.frame-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.frame-grid img { width: 100%; display: block; border-radius: 3px; background: #ddd; }
