@@ -6,13 +6,21 @@
 {% if not videos %}
 <p>No videos in this project yet. <a href="/p/{{ info.name }}/ingest">Add videos on the Ingest page.</a></p>
 {% else %}
+{% if idle %}
+<form method="post" action="/p/{{ info.name }}/clips/prepare" class="prepare">
+  <input type="hidden" name="v" value="{{ current.path_code }}">
+  <button type="submit">Make playback copies ({{ idle }} video{{ "s" if idle != 1 }})</button>
+  <span class="hint">Runs in the background, about a third to half of each video's length.
+    The source videos are only read.</span>
+</form>
+{% endif %}
 <div class="clips-layout">
   <ul class="video-list">
   {% for v in videos %}{% set st = status[v.path_code] %}
     <li class="{{ 'current' if current and v.path_code == current.path_code }}">
       <a href="?v={{ v.path_code }}"><img src="/thumbs/{{ v.path_code }}.jpg" alt="">
       <span>{{ v.path.split('/')[-1] }}</span></a>
-      <span class="job" data-code="{{ v.path_code }}">{% if st.ready %}ready{% elif st.state == 'error' %}<span class="error-text">{{ st.message }}</span>{% else %}{{ st.state or 'waiting' }}{% endif %}</span>
+      <span class="job" data-code="{{ v.path_code }}">{% if st.ready %}ready{% elif st.state == 'error' %}<span class="error-text">{{ st.message }}</span>{% else %}{{ st.state or 'no copy yet' }}{% endif %}</span>
     </li>
   {% endfor %}
   </ul>
@@ -27,7 +35,8 @@
     </div>
     {% else %}
     <div class="progress-box" id="progress" data-code="{{ current.path_code }}">
-      <p>Making the playback copy and thumbnail strip. The page refreshes when it is ready.</p>
+      <p>This video needs a playback copy and thumbnail strip. Once started, the page refreshes
+        when it is ready.</p>
       <progress max="100" value="0"></progress> <span class="hint">waiting</span>
     </div>
     {% endif %}

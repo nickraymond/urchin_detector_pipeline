@@ -35,3 +35,4 @@ td.thumb img { width: 160px; height: auto; display: block; border-radius: 3px; b
 .strip img { width: 120px; flex: none; cursor: pointer; opacity: .75; border: 2px solid transparent; }
 .strip img.here { opacity: 1; border-color: #d49b00; }
 .progress-box progress { width: 60%; }
+.prepare { margin: 8px 0 16px; }

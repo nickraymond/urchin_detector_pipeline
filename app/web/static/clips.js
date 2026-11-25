@@ -28,7 +28,8 @@
   // and reload once the video being viewed is ready.
   const jobs = document.querySelectorAll(".job");
   const box = document.getElementById("progress");
-  if (!box && !Array.from(jobs).some(j => j.textContent.trim() !== "ready")) return;
+  // Nothing to watch until a copy has been started with the button (a POST, D14).
+  if (!Array.from(jobs).some(j => /queued|running|%/.test(j.textContent))) return;
   const page = location.pathname;
   const timer = setInterval(async () => {
     let status;
@@ -40,7 +41,7 @@
     jobs.forEach(j => {
       const st = status[j.dataset.code] || {};
       j.textContent = st.ready ? "ready" : st.state === "error" ? st.message
-        : st.state === "running" ? Math.round(st.percent) + " %" : (st.state || "waiting");
+        : st.state === "running" ? Math.round(st.percent) + " %" : (st.state || "no copy yet");
     });
     if (box) {
       const st = status[box.dataset.code] || {};
@@ -48,7 +49,7 @@
       box.querySelector("progress").value = st.percent || 0;
       const eta = st.eta_s != null ? ", about " + Math.ceil(st.eta_s / 60) + " min left" : "";
       box.querySelector(".hint").textContent = st.state === "error"
-        ? "Error: " + st.message : (st.message || "waiting") + eta;
+        ? "Error: " + st.message : (st.message || st.state || "no copy yet") + eta;
     } else if (Object.values(status).every(st => st.ready)) {
       clearInterval(timer);
     }

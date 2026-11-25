@@ -38,6 +38,19 @@ def ready(project_folder: Path, code: str) -> bool:
     return playback_path(project_folder, code).is_file() and bool(strip_frames(project_folder, code))
 
 
+def strip_filter() -> str:
+    """Thumbnail n is the first frame at or after n * STRIP_EVERY_S seconds (absolute time, so
+    it never drifts from its label; at 29.97 fps it is at most one frame, ~33 ms, late)."""
+    return f"select='gte(t\\,selected_n*{STRIP_EVERY_S})',scale={STRIP_WIDTH}:-2"
+
+
+def codec_of(path: Path) -> str:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                        "stream=codec_name", "-of", "csv=p=0", str(path)],
+                       capture_output=True, text=True, timeout=60)
+    return r.stdout.strip()
+
+
 def _run_ffmpeg(cmd: list[str], duration_s: float, report: Callable[[float, str], None],
                 lo: float, hi: float, what: str) -> None:
     """Run ffmpeg with -progress on stdout; map its position onto lo..hi percent."""
@@ -67,15 +80,17 @@ def make_playback(video: dict, project_folder: Path,
     if not out.is_file():
         tmp = out.with_name(f"{code}.tmp.mp4")
         lrv = ingest.lrv_path(src)
-        if lrv:  # GoPro already made a low-res H.264 proxy: just repackage it, no re-encode
+        if lrv and codec_of(lrv) == "h264":
+            # GoPro already made a low-res H.264 proxy: just repackage it, no re-encode
             cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(lrv), "-map", "0:v:0", "-c", "copy",
                    "-movflags", "+faststart", str(tmp)]
             what = "repackaging the GoPro .LRV file"
         else:
-            cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(src), "-map", "0:v:0", "-an",
-                   "-vf", f"scale={COPY_WIDTH}:-2", "-c:v", "h264_videotoolbox",
+            # A proxy in another codec is still smaller to decode than the original.
+            cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(lrv or src), "-map", "0:v:0", "-an",
+                   "-vf", f"scale='min({COPY_WIDTH},iw)':-2", "-c:v", "h264_videotoolbox",
                    "-b:v", COPY_BITRATE, "-movflags", "+faststart", str(tmp)]
-            what = "making the playback copy"
+            what = "making the playback copy" + (" from the GoPro .LRV file" if lrv else "")
         report(0, what)
         _run_ffmpeg(cmd, duration, report, 0, 90, what)
         os.replace(tmp, out)
@@ -85,11 +100,8 @@ def make_playback(video: dict, project_folder: Path,
         tmp_dir = strip.with_name(code + ".tmp")
         shutil.rmtree(tmp_dir, ignore_errors=True)
         tmp_dir.mkdir(parents=True)
-        # Frame n is at n * STRIP_EVERY_S seconds (fps=1/5 samples the middle of each 5 s
-        # window, so use select on time instead, which starts at 0 s).
-        _run_ffmpeg(["ffmpeg", "-v", "error", "-y", "-i", str(out), "-vf",
-                     f"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,{STRIP_EVERY_S})',"
-                     f"scale={STRIP_WIDTH}:-2", "-fps_mode", "vfr", "-q:v", "5",
+        _run_ffmpeg(["ffmpeg", "-v", "error", "-y", "-i", str(out), "-vf", strip_filter(),
+                     "-fps_mode", "vfr", "-q:v", "5",
                      str(tmp_dir / "%04d.jpg")],
                     duration, report, 90, 100, "making the thumbnail strip")
         shutil.rmtree(strip, ignore_errors=True)

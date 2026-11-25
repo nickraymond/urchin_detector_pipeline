@@ -189,11 +189,6 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     def clips_page(request: Request, name: str, v: str = ""):
         def work(cfg, info, conn):
             videos = ingest.added(conn)
-            for row in videos:  # queue a copy for every video that has none yet, in order
-                if not clips.ready(info["folder"], row["path_code"]):
-                    jobs.submit(f"{info['folder']}:{row['path_code']}",
-                                lambda report, row=row: clips.make_playback(
-                                    row, info["folder"], report))
             current = next((r for r in videos if r["path_code"] == v), videos[0] if videos else None)
             status = clip_status(info, videos)
             strip = (clips.strip_frames(info["folder"], current["path_code"])
@@ -201,7 +196,23 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             return templates.TemplateResponse(request, "clips.html", {
                 "cfg": cfg, "info": info, "videos": videos, "current": current,
                 "status": status, "strip": [p.name for p in strip],
+                # videos with no copy and no job queued or running: what the button starts
+                "idle": sum(1 for st in status.values() if not st["ready"]
+                            and st.get("state") not in ("queued", "running")),
                 "strip_every": clips.STRIP_EVERY_S})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/clips/prepare")
+    def clips_prepare(request: Request, name: str, v: str = Form("")):
+        """Queue a playback copy for every video that has none yet, in order. A POST, so only
+        the app's own page can start this CPU work (D14)."""
+        def work(cfg, info, conn):
+            for row in ingest.added(conn):
+                if not clips.ready(info["folder"], row["path_code"]):
+                    jobs.submit(f"{info['folder']}:{row['path_code']}",
+                                lambda report, row=row: clips.make_playback(
+                                    row, info["folder"], report))
+            return RedirectResponse(f"/p/{name}/clips?" + urlencode({"v": v}), status_code=303)
         return with_project(request, name, work)
 
     @app.get("/p/{name}/clips/status")

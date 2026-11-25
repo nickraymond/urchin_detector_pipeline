@@ -1,6 +1,7 @@
 """S2 bite 2a: background jobs, playback copies, thumbnail strips, clips page.
 Synthetic videos made by ffmpeg at test time; no real footage."""
 
+import re
 import shutil
 import subprocess
 import threading
@@ -55,12 +56,12 @@ def test_jobs_run_report_and_survive_errors():
 # --- playback copy and strip ---
 
 def test_copy_and_strip(tmp_path):
-    src = make_video(tmp_path / "v" / "dive.MP4", seconds=12, size="320x240")
+    src = make_video(tmp_path / "v" / "dive.MP4", seconds=12, size="1280x720")
     before = digest(tmp_path / "v")
     row = {"path": str(src), "path_code": "abc123", "duration_s": 12.0}
     seen = []
     out = clips.make_playback(row, tmp_path / "p", lambda p, m: seen.append(p))
-    assert probe(out) == "h264,960,720"  # scaled to 960 px wide
+    assert probe(out) == "h264,960,540"  # scaled down to 960 px wide
     assert [f.name for f in clips.strip_frames(tmp_path / "p", "abc123")] == [
         "0001.jpg", "0002.jpg", "0003.jpg"]  # one frame at 0, 5 and 10 s
     assert seen and max(seen) <= 100 and clips.ready(tmp_path / "p", "abc123")
@@ -96,8 +97,15 @@ def test_clips_page_copy_player_and_files(tmp_path):
     client.post("/p/p/ingest/add", data={"folder": str(lib), "paths": [str(lib / "a.MP4")]})
     code = ingest.path_code(lib / "a.MP4")
 
-    page = client.get("/p/p/clips").text  # queues the copy
-    assert "Making the playback copy" in page or "<video" in page
+    page = client.get("/p/p/clips").text  # a GET starts nothing (QE finding 2 on PR 5)
+    assert "Make playback copies (1 video)" in page
+    time.sleep(0.5)
+    assert client.get("/p/p/clips/status").json()[code] == {"ready": False}
+    r = client.post("/p/p/clips/prepare", data={"v": code},
+                    headers={"Origin": "http://evil.example"})
+    assert r.status_code == 403  # only the app's own page can start the work (D14)
+    r = client.post("/p/p/clips/prepare", data={"v": code}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == f"/p/p/clips?v={code}"
     assert wait_for(lambda: client.get("/p/p/clips/status").json()[code]["ready"])
     page = client.get("/p/p/clips").text
     assert f'src="/p/p/playback/{code}.mp4"' in page and "/strip/" in page
@@ -109,3 +117,32 @@ def test_clips_page_copy_player_and_files(tmp_path):
                 f"/p/p/strip/{code}/1.jpg", f"/p/p/strip/ffffff/0001.jpg"):
         assert client.get(bad).status_code == 404, bad
     assert "Pick clips</a>" in client.get("/p/p").text
+
+
+def test_strip_times_do_not_drift():
+    """QE finding 1 on PR 5: thumbnail n is at n * 5 s (within one frame), even after 10 min."""
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / "t.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                        "testsrc=size=64x48:rate=30000/1001", "-t", "601", "-pix_fmt", "yuv420p",
+                        str(src)], check=True)
+        r = subprocess.run(["ffmpeg", "-v", "info", "-i", str(src), "-vf",
+                            clips.strip_filter() + ",showinfo", "-fps_mode", "vfr", "-f", "null",
+                            "-"], capture_output=True, text=True)
+    times = [float(x) for x in re.findall(r"pts_time:([0-9.]+)", r.stderr)]
+    assert len(times) == 121
+    assert all(0 <= t - n * clips.STRIP_EVERY_S < 1001 / 30000 + 1e-6 for n, t in enumerate(times))
+
+
+def test_lrv_in_another_codec_is_reencoded(tmp_path):
+    """QE finding 3 on PR 5: only an H.264 .LRV is repackaged as it is."""
+    src = make_video(tmp_path / "v" / "GX010002.MP4", seconds=6, size="320x240")
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x48:rate=10",
+                    "-t", "6", "-c:v", "mpeg4", "-f", "mp4", str(tmp_path / "v" / "GL010002.LRV")],
+                   check=True)
+    assert clips.codec_of(tmp_path / "v" / "GL010002.LRV") == "mpeg4"
+    out = clips.make_playback({"path": str(src), "path_code": "lrv002", "duration_s": 6.0},
+                              tmp_path / "p")
+    assert probe(out) == "h264,64,48"  # from the proxy, H.264, never scaled up
