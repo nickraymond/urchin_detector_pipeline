@@ -174,14 +174,14 @@ One draft PR per bite, about 300 lines each.
       6 frames from at least 2 videos (urchins kept, seconds per frame, tiles vs whole frame); numbers into
       DESIGN §Bench results
 
-**Bite 4 — Run, re-run only what changed, overlap rules**
-- [ ] "Run" labels every kept frame through `app/jobs.py`, with an estimate from the preview (D26); Stop, and
+**Bite 4 — Run, re-run only what changed, overlap rules** (PR 24; QE fixes: ids up to 254, D31)
+- [x] "Run" labels every kept frame through `app/jobs.py`, with an estimate from the preview (D26); Stop, and
       Run again carries on
-- [ ] re-run only what changed: per run unit and frame, by settings key; before Run the page lists the classes
+- [x] re-run only what changed: per run unit and frame, by settings key; before Run the page lists the classes
       that will run and those unchanged; reviewed masks kept and marked "from older settings"
-- [ ] `app/sam/overlap.py` with the rules of D22, unit-tested; a "final class map" toggle in the preview
-- [ ] watch (QE PR 16, PR 19): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27);
-      S5's export images must be upright too
+- [x] `app/sam/overlap.py` with the rules of D22, unit-tested; a "final class map" toggle in the preview
+- [x] watch (QE PR 16, PR 19): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27);
+      S5's export images must be upright too (still open for S5)
 
 **Bite 5 — Large-image viewer on the Labeling page** (Nick, 2026-11-25, SPEC Q16)
 - [ ] clicking a preview frame opens it large on the same page (no new tab), with < > buttons and arrow keys
