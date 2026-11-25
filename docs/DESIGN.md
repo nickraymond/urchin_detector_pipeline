@@ -142,6 +142,12 @@ app/web/templates/label.html  the Labeling page
   become one mask, since tiles cut an area into pieces; prompts stay apart in `sam_raw/`. Files are
   `sam_raw/<frame file name>.json` (with the extension, so a still's `.jpg` and `.png` of one stem never
   share one); each run unit records `classes` ({id: name}), and `sam_raw/class_ids.json` collects them.
+- Prompt preview (as-built, bite 3): `label.preview_frames` picks first / middle / last kept frame by name
+  ("Other frames": 3 at random, D26); `run_preview` is a normal run on those frames (results in `sam_raw/`)
+  and writes the timing to `<project>/sam_preview.json`. The page polls `/labeling/status`, shows seconds per
+  frame, model load, peak process and Apple GPU memory and a Run estimate, and draws each frame at 1600 px
+  (`/labeling/overlay/<file>?hide=`): areas first and faint, objects on top, untagged urchins grey; a toggle per
+  run unit. Counts from older settings say so. Kelp prompts and the minimum area come from the bench below.
 - Images are read through one helper that applies the EXIF orientation (Pillow `ImageOps.exif_transpose`), so
   SAM, the masks and the page all use the same upright image (D27).
 - Tests: a fake predictor stands in for SAM (no torch, no weights, no real frames); synthetic images; the
@@ -213,3 +219,42 @@ most of murky frame 1 missed; the green anemone labelled "sea anemone". SAM 3's 
 loads fully (0 of 309 weights missing): in the demo run the click on frame 1's best urchin
 gave an outline with score 0.887 (box 0.901), 0.7 s (`<data_dir>/sam_test/sam3_tile1008_cutoff0.5/
 result_mps-fallback.json`, run before per-video folders). n = 3 frames from one video; not yet a basis for defaults.
+
+**S3 bite 3, 2026-11-25 — prompt preview bench.** SAM 3, confidence 0.4, Apple GPU, 1008 px tiles with
+20 % overlap above 2000 px. Bench script and data: the builder's scratch folder on the SSD (not in git).
+
+*D10 re-check, prompt "urchin", 9 frames from 5 videos (3 sites).* Frames up to 2000 px are never tiled, so
+"tiles" and "whole" are the same run there.
+
+| Frames | Size | Urchins kept, tiles vs whole | s / frame, tiles vs whole |
+|---|---|---|---|
+| Mendocino Headlands 2025, 2 frames, dense urchin barren | 3840×2160 | 160 vs 43; 210 vs 47 | 28–29 vs 3.6–6.8 |
+| South Wreck 2024, 4 frames from 2 videos, close urchins | 5312×2988 | 23 vs 21; 52 vs 44; 17 vs 19; 42 vs 42 | 49–51 vs 6.7–17 |
+| South Wreck 2021, 3 frames from 3 videos | 1280×960 | 7; 28; 41 (not tiled) | 1.8–4.0 |
+
+Model load 13–15 s. Peak Apple GPU memory: 16.3 GB tiled, **26.7 GB whole-frame** (on the 5312 px frames;
+S4's memory guard should know). Visual check, densest Mendocino frame with tiles: every mask sits on an urchin;
+no masks on water, tape or bare rock; urchins on the far, hazy rock are missed. **D10 holds:** tiles keep 3–4×
+more urchins where they are small and many, and the same number where they are close; the cost is 4–8× the time.
+
+*D24 minimum mask area.* All 580 tiled urchin masks: smallest 948 px, median per frame 2.0k–30k px. The 113
+masks under 2500 px, cropped one by one: all but at most 2 unclear ones are real distant urchins. No small
+false masks appeared, so the minimum is only a floor for specks: **500 px** (below the smallest real mask).
+A larger minimum would drop real far urchins.
+
+*Kelp, D11: 6 restoration-site frames from 2 videos (Caspar South 2025, Fullers 2022), masks per frame.*
+
+| Prompt (kind) | Masks per frame | Seen on the overlays |
+|---|---|---|
+| "kelp stipe" (object) | 0 / 0 / 0 / 0 / 0 / 0 | nothing |
+| "kelp stalk" (object) | 0 / 0 / 0 / 1 / 0 / 0 | one plant's line |
+| "young kelp" (object) | 0 / 0 / 0 / 3 / 6 / 0 | blades of the plants, in pieces; no false masks |
+| "kelp" (object) | 0 / 2 / 0 / 3 / 14 / 0 | same plants, more pieces and overlaps |
+| "kelp" (area) | 0 / 1 / 0 / 1 / 1 / 0 | the kelp plants, tight; misses one dense dark kelp patch |
+| "kelp forest" (area) | 0 / 1 / 1 / 1 / 0 / 0 | one mask covers a large block of open water |
+| "seaweed" (area) | 0 / 0 / 0 / 1 / 1 / 0 | same plants as "kelp" |
+| "algae" (area) | 0 everywhere | nothing |
+
+Two of the 6 frames have no kelp (a dive slate, a sea lion); zero is right there. Defaults: kelp shoot
+"young kelp", kelp (area) "kelp". No prompt gives one mask per plant, so shoot counts will need review (S5).
+n = 6 frames; re-check on more restoration footage when Nick has it.

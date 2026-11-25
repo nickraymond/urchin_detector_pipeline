@@ -32,7 +32,7 @@ def test_default_file_is_valid_with_the_planned_ids_and_order():
     assert names.index("kelp") < names.index("rock/substrate")          # D22: kelp wins
     assert data["settings"] == {"model": "sam3", "confidence": 0.4, "tile_px": 1008,
                                 "tile_overlap": 0.2, "tile_above_px": 2000,
-                                "min_mask_area_px": None}
+                                "min_mask_area_px": 500}
     shoot = next(c for c in data["classes"] if c["name"] == "kelp shoot")
     assert shoot["seg_as"] == "kelp" and shoot["kind"] == "object"
 

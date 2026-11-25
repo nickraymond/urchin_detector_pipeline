@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S3 — Bite 3 bench: kelp prompts, D10 re-check, minimum mask area
+**Branch:** sprint/3-preview (main merged in after PR 21's squash, `c24dba4`)
+**Done:** kelp prompts picked from the overlays of 6 restoration frames: kelp shoot "young kelp", kelp area
+"kelp" ("kelp stipe" found nothing; "kelp forest" covered open water). D10 re-checked on 9 urchin frames from
+5 videos (3 sites): tiles keep 3–4× more urchins on dense 4K frames, the same on close 5.3K frames, at 4–8× the
+time; D10 holds. D24: the smallest of 580 urchin masks is 948 px and the small ones are real, so
+`min_mask_area_px` 500 (a floor for specks). Numbers in DESIGN §Bench results.
+**Broke/surprised us:** whole-frame SAM on 5312 px frames peaked at 26.7 GB Apple GPU memory (tiles 16.3 GB).
+Three Wreck videos are 1280×960, so they are never tiled.
+**Next:** draft PR for bite 3 to QE; then bite 4 (Run, re-run, overlap rules).
+
 ## 2026-11-25 — Sprint S3 — Bites 1–2 built, bite 3 preview in progress; builder rotates
 **Branch:** sprint/3-classes (PR 20, merged `373521d`), sprint/3-sam-runner (PR 21), sprint/3-preview (no PR yet)
 **Done:** bite 1: `classes.yaml` with checks naming the line, Labeling page with edit / Save / Reload, upright
