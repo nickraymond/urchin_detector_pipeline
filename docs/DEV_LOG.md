@@ -17,7 +17,6 @@ what broke, what's next.*
 
 ---
 
-<<<<<<< HEAD
 ## 2026-11-25 — Sprint S2 — Bites 4 (review frames) and 5 (stills + resume) merged
 **Branch:** sprint/2-frames-4 (PR 14), sprint/2-frames-5 (PR 16), sprint/2-frames-45-done (docs only)
 **Done:** Bite 4: `app/stages/review.py`; grid of 640 px copies with a 1–8 per-row slider, arrows,
@@ -32,9 +31,8 @@ on the bite 5 head (notes folder, `s2-demo-run-2026-11-25.md`).
 merge, not rebase; PR 16 was stacked on PR 14 and retargeted after the squash merge.
 S2 Demo re-run on `main` at `4fad379` (after PR 15): 37 kept + 3 blurry + 0 duplicate = 40 = live
 count; D / Z / D; restart kept all four stages and the frame in `rejected/`; 6 stills in review.
-PR 15's description says least blurry on the left; `main` shows most blurry on the left.
 **Next:** Nick's S2 test build; the checklist is `s2-test-build-checklist.md` in the notes folder.
-=======
+
 ## 2026-11-25 — Sprint S2 — Filter rows simplified (Nick's feedback on 3b)
 **Branch:** sprint/2-filter-rows (from main `87310c0`)
 **Done:** Nick found the filter examples too much and their labels confusing ("the sharpest
@@ -51,7 +49,6 @@ check on the scratch project at 30 % / 20: rows of 12 and 14 in order (sharpness
 **Broke/surprised us:** Nick's app on port 8000 was an old copy from the previous builder's
 folder, so he saw no filters at first.
 **Next:** QE reviews the draft PR; the lead merges.
->>>>>>> origin/main
 
 ## 2026-11-25 — Sprint S2 — Bite 3b merged; builder rotates
 **Branch:** sprint/2-frames-3b-done (docs only)
