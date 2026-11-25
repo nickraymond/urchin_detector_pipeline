@@ -30,8 +30,10 @@ def strip_dir(project_folder: Path, code: str) -> Path:
 
 
 def strip_frames(project_folder: Path, code: str) -> list[Path]:
+    """The strip's NNNN.jpg files only: on the SSD macOS also writes a `._NNNN.jpg` shadow
+    file next to each one, which is not an image (seen in Nick's test, 2026-11-24)."""
     d = strip_dir(project_folder, code)
-    return sorted(d.glob("*.jpg")) if d.is_dir() else []
+    return sorted(d.glob("[0-9][0-9][0-9][0-9].jpg")) if d.is_dir() else []
 
 
 def ready(project_folder: Path, code: str) -> bool:

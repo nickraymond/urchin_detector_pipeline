@@ -65,6 +65,9 @@ def test_copy_and_strip(tmp_path):
     assert [f.name for f in clips.strip_frames(tmp_path / "p", "abc123")] == [
         "0001.jpg", "0002.jpg", "0003.jpg"]  # one frame at 0, 5 and 10 s
     assert seen and max(seen) <= 100 and clips.ready(tmp_path / "p", "abc123")
+    # macOS shadow files on the SSD (Nick's test) must not show up as strip images
+    (clips.strip_dir(tmp_path / "p", "abc123") / "._0001.jpg").write_bytes(b"\0" * 4096)
+    assert len(clips.strip_frames(tmp_path / "p", "abc123")) == 3
     assert not list((tmp_path / "p").rglob("*.tmp*"))  # no temporary files left
     assert digest(tmp_path / "v") == before  # SPEC constraint 4
 
