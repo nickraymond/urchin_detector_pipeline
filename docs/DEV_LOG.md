@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S2 — Bites 4 (review frames) and 5 (stills + resume) merged
+**Branch:** sprint/2-frames-4 (PR 14), sprint/2-frames-5 (PR 16), sprint/2-frames-45-done (docs only)
+**Done:** Bite 4: `app/stages/review.py`; grid of 640 px copies with a 1–8 per-row slider, arrows,
+`D` (to `rejected/`), `K`, `Z`; full-screen viewer shared with Extract (`viewer.js`); "Show dropped"
+with `K` = `kept_hand` (D20); Skip and Done. QE Lows fixed: undo keeps a step whose frame Extract
+changed (the hand mark survives a plan change); preview and status counts use the plan. Bite 5:
+still-image folders copied byte for byte into `frames/`, counted apart, skipping clips, extraction
+and filters (D21, Lead call); a truncated JPEG is counted unreadable (QE Medium); Extract shows how
+far a stopped run got and carries on. 94 tests. S2 Demo run end to end in the builder's browser
+on the bite 5 head (notes folder, `s2-demo-run-2026-11-25.md`).
+**Broke/surprised us:** force-push is blocked in builder sessions, so branches take `main` by
+merge, not rebase; PR 16 was stacked on PR 14 and retargeted after the squash merge.
+**Next:** S2 Demo again on `main` after PR 15; then Nick's S2 test build (checklist in the notes folder).
+
 ## 2026-11-25 — Sprint S2 — Bite 3b merged; builder rotates
 **Branch:** sprint/2-frames-3b-done (docs only)
 **Done:** PR 9 (bite 3b) merged by the lead as `1284232`, matching QE's PASS on `5a72243`, under
