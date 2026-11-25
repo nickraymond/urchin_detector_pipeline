@@ -78,3 +78,12 @@ def list_projects(data_dir: Path) -> list[str]:
         return []
     return sorted(p.name for p in top.iterdir()
                   if NAME_RULE.match(p.name) and (p / "project.json").is_file())
+
+
+def update_settings(folder: Path, **changes) -> dict:
+    """Change some of project.json's settings (atomic write); return the new settings."""
+    meta = Path(folder) / "project.json"
+    info = json.loads(meta.read_text())
+    info["settings"] = {**DEFAULT_SETTINGS, **info.get("settings", {}), **changes}
+    write_json_atomic(meta, info)
+    return info["settings"]

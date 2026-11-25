@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Extract frames · {{ info.name }}{% endblock %}
+{% block content %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
+<h1>Extract frames</h1>
+<p class="hint">Frames are taken from the full-size original videos (only read, never changed),
+inside your clips, or across the whole video if it has none. Saved as JPEG quality 95 in
+{{ info.folder }}/frames/.</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if not videos %}
+<p>No videos in this project yet. <a href="/p/{{ info.name }}/ingest">Add videos on the Ingest page.</a></p>
+{% else %}
+{% set running = job.state in ["queued", "running"] %}
+<form method="post" action="/p/{{ info.name }}/extract/start" class="extract-form" id="extract-form"
+      data-plan="/p/{{ info.name }}/extract/plan">
+  <label>One frame every <input name="every" type="number" min="0.1" max="600" step="0.1" value="{{ every }}"> s</label>
+  <label>Frame cap <input name="cap" type="number" min="1" max="100000" step="1" value="{{ cap }}"></label>
+  <p class="totals" id="live">{{ live }} frames from {{ videos }} video{{ "s" if videos != 1 }}{% if live > planned %}
+    → <b>{{ planned }}</b> after the cap, spread evenly across all videos{% endif %}</p>
+  <button type="submit" {% if running %}disabled{% endif %}>Extract frames</button>
+  <span class="hint">About 0.5–0.8 s per frame. Frames already extracted are kept and skipped.</span>
+</form>
+
+<div class="progress-box" id="extract-progress" data-status="/p/{{ info.name }}/extract/status"
+     {% if not running %}hidden{% endif %}>
+  <progress max="100" value="{{ job.percent or 0 }}"></progress> <span class="hint">{{ job.message or "waiting" }}</span>
+</div>
+{% if job.state == "error" %}<p class="error">Extraction stopped: {{ job.message }}</p>{% endif %}
+
+<h2>Frames</h2>
+<p class="totals"><b>{{ counts.kept }}</b> kept{% if counts.dropped_blur or counts.dropped_duplicate %} ·
+  {{ counts.dropped_blur }} dropped as blurry · {{ counts.dropped_duplicate }} dropped as duplicate{% endif %}
+  {% if counts.unplanned %}· {{ counts.unplanned }} from earlier settings set aside in <code>dropped/unplanned/</code>{% endif %}
+  <span class="hint">(the blur and duplicate filters come in the next step)</span></p>
+{% if frames %}
+<div class="frame-grid" id="frame-grid">{% for f in frames[:12] %}
+  <a href="/p/{{ info.name }}/frames/{{ f.file }}" data-i="{{ loop.index0 }}" title="{{ f.file }}"><img src="/p/{{ info.name }}/frames/{{ f.file }}" alt="" loading="lazy"></a>
+{% endfor %}</div>
+<p class="hint">The first {{ frames[:12] | length }} of {{ frames | length }} kept frames. Click one to view it full screen:
+  <b>&larr;</b> <b>&rarr;</b> move through all {{ frames | length }}; click the image to zoom to actual pixels,
+  scroll or pinch to zoom, drag to pan, <b>0</b> fits; <b>Esc</b> closes.</p>
+<div class="viewer" id="viewer" hidden>
+  <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
+  <button class="v-prev" data-v="prev" title="Previous frame (&larr;)">&lsaquo;</button>
+  <img alt="">
+  <button class="v-next" data-v="next" title="Next frame (&rarr;)">&rsaquo;</button>
+  <p class="v-caption"></p>
+</div>
+<script type="application/json" id="frame-list">{{ {"base": "/p/" ~ info.name ~ "/frames/", "frames": frames} | tojson }}</script>
+{% endif %}
+{% endif %}
+<script src="{{ static('extract.js') }}"></script>
+{% endblock %}

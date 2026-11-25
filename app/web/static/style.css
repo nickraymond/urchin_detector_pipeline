@@ -49,3 +49,21 @@ td.thumb img { width: 160px; height: auto; display: block; border-radius: 3px; b
 #clip-table tr.selected td { background: #fff3cf; }
 #clip-table tbody tr { cursor: pointer; }
 #clip-table img.cthumb { width: 96px; display: block; border-radius: 3px; background: #ddd; }
+.extract-form label { margin-right: 18px; }
+.extract-form input[type=number] { width: 90px; }
+.frame-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.frame-grid img { width: 100%; display: block; border-radius: 3px; background: #ddd; }
+.frame-grid a { cursor: zoom-in; }
+.viewer { position: fixed; inset: 0; background: #000; z-index: 10; overflow: hidden; user-select: none; }
+.viewer[hidden] { display: none; }
+.viewer img { position: absolute; left: 0; top: 0; max-width: none; cursor: zoom-in; touch-action: none; }
+.viewer img.zoomed { cursor: grab; }
+.viewer img.zoomed:active { cursor: grabbing; }
+.viewer button { position: absolute; z-index: 1; background: rgba(0, 0, 0, .45); color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+.viewer button:hover { background: rgba(0, 0, 0, .75); }
+.viewer .v-prev, .viewer .v-next { top: 50%; transform: translateY(-50%); font-size: 40px; padding: 10px 16px; }
+.viewer .v-prev { left: 12px; }
+.viewer .v-next { right: 12px; }
+.viewer .v-close { top: 12px; right: 12px; font-size: 16px; padding: 6px 14px; }
+.viewer .v-caption { position: absolute; z-index: 1; bottom: 10px; left: 50%; transform: translateX(-50%); margin: 0; padding: 3px 10px; border-radius: 4px; background: rgba(0, 0, 0, .45); color: #eee; font-size: 14px; white-space: nowrap; }
+body.viewing { overflow: hidden; }

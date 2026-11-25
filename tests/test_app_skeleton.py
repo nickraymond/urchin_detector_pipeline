@@ -177,3 +177,12 @@ def test_port_check_sees_a_running_app():
         s.bind((server.HOST, 0))
         s.listen()
         assert not server.port_free(s.getsockname()[1])
+
+
+def test_static_files_carry_a_version_so_the_browser_never_uses_an_old_copy(tmp_path):
+    import re
+    client = client_for(write_config(tmp_path, tmp_path))
+    page = client.get("/").text
+    url = re.search(r'href="(/static/style\.css\?v=[0-9a-f]{8})"', page).group(1)
+    r = client.get(url)
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"
