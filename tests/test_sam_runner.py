@@ -41,9 +41,20 @@ def test_cut_off_half_at_a_tile_edge_is_dropped_but_whole_one_kept():
     half = det((950, 100, 1008, 200), left)          # cut by the left tile's right edge
     lone = det((1000, 500, 1008, 520), left)         # cut, but nothing else covers it
     kept = tiles.remove_duplicates([half, whole, lone], W, H)
-    assert whole in kept and lone in kept and half not in kept
+    assert sorted(d["box"] for d in kept) == sorted([whole["box"], lone["box"]])
+    assert tiles.area(next(d for d in kept if d["box"] == whole["box"])) == 100 * 100
     # IoU alone would keep both: 58 % of the pixels of one are the other
     assert tiles.iou(half, whole) < 0.6
+
+
+def test_an_object_wider_than_the_overlap_is_unioned_across_the_seam():
+    W, H = 2000, 1000
+    left, right = (0, 0, 1008, 1000), (800, 0, 2000, 1000)
+    a = det((700, 100, 1008, 200), left)             # cut by the left tile's right edge
+    b = det((800, 100, 1300, 200), right)            # cut by the right tile's left edge
+    kept = tiles.remove_duplicates([a, b], W, H)
+    assert len(kept) == 1 and kept[0]["box"] == [700, 100, 1300, 200]
+    assert tiles.area(kept[0]) == 600 * 100
 
 
 def test_iou_duplicates_keep_the_higher_score_per_prompt():
@@ -54,12 +65,13 @@ def test_iou_duplicates_keep_the_higher_score_per_prompt():
 
 
 def test_settings_key_changes_with_prompt_or_setting():
-    unit = {"key": "fish", "prompts": ["fish"]}
+    unit = {"key": "fish", "prompts": ["fish"], "kind": "object"}
     s = classes.parse(classes.DEFAULT_FILE.read_text())["settings"]
     k = results.settings_key(unit, s)
     assert k == results.settings_key(dict(unit), dict(s))
     assert k != results.settings_key({**unit, "prompts": ["fishes"]}, s)
     assert k != results.settings_key(unit, {**s, "confidence": 0.5})
+    assert k != results.settings_key({**unit, "kind": "area"}, s)
 
 
 def test_write_frame_rle_reviewed_masks_and_class_ids(tmp_path):

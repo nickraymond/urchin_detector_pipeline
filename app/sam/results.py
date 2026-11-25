@@ -40,7 +40,8 @@ def raw_path(folder: Path, frame: str) -> Path:
 
 
 def unit_settings(unit: dict, settings: dict) -> dict:
-    return {"prompts": list(unit["prompts"]), **{k: settings.get(k) for k in KEY_SETTINGS}}
+    return {"prompts": list(unit["prompts"]), "kind": unit["kind"],  # kind: areas are unioned
+            **{k: settings.get(k) for k in KEY_SETTINGS}}
 
 
 def settings_key(unit: dict, settings: dict) -> str:

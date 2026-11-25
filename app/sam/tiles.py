@@ -114,9 +114,10 @@ def touches_inner_edge(det: dict, width: int, height: int) -> bool:
 
 def remove_duplicates(dets: list[dict], width: int, height: int,
                       iou_above: float = 0.5, cover: float = 0.5) -> list[dict]:
-    """D23, per prompt: (1) a mask cut off by an inner tile edge is dropped when a mask of the
-    same prompt from another tile, at least as big, covers at least `cover` of it; smallest
-    first, so of two cut-off halves the bigger stays. (2) Then of masks with IoU above
+    """D23, per prompt: (1) a mask cut off by an inner tile edge is merged into a mask of the
+    same prompt from another tile, at least as big, that covers at least `cover` of it: the
+    pieces are unioned (an object wider than the tile overlap is cut in both tiles, and each
+    tile holds only part of it, QE PR 21), smallest first. (2) Then of masks with IoU above
     `iou_above` the higher score stays. Returns the kept detections, highest score first."""
     kept: list[dict] = []
     for prompt in dict.fromkeys(d["prompt"] for d in dets):
@@ -131,6 +132,8 @@ def remove_duplicates(dets: list[dict], width: int, height: int,
             for j, b in enumerate(mine):
                 if (j != i and j not in dropped and b["region"] != a["region"]
                         and area(b) >= area(a) and intersection(a, b) >= need):
+                    merged = union_by_prompt([b, a])[0]
+                    mine[j] = {**merged, "score": b["score"]}
                     dropped.add(i)
                     break
         left = sorted((d for i, d in enumerate(mine) if i not in dropped),
