@@ -26,10 +26,11 @@ FILE_NAME = "classes.yaml"
 USED_FILE = "class_ids.json"
 
 KINDS = ("object", "area")
+MODELS = ("sam3", "sam3.1")
 CLASS_KEYS = ("id", "name", "kind", "prompts", "sam_group", "seg_as")
 # name: (check, help) for the settings block
 SETTINGS = {
-    "model": (lambda v: v in ("sam3", "sam3.1"), "sam3 or sam3.1"),
+    "model": (lambda v: v in MODELS, "sam3 or sam3.1"),
     "confidence": (lambda v: _num(v) and 0 < v <= 1, "a number above 0, at most 1"),
     "tile_px": (lambda v: _int(v) and 256 <= v <= 4096, "a whole number from 256 to 4096"),
     "tile_overlap": (lambda v: _num(v) and 0 <= v < 0.9, "a number from 0 to below 0.9"),
@@ -268,12 +269,57 @@ def save(folder: Path, text: str) -> dict:
 def dump(data: dict) -> str:
     """The same layout as the starting file: settings one per line, one class per line.
     Every piece is written by yaml.safe_dump (D25)."""
+    return "".join(line for line, _ in _dump_lines(data))
+
+
+def _dump_lines(data: dict) -> list[tuple[str, tuple]]:
+    """dump()'s lines, each with where it came from: ("settings", key), ("class", row) or ()."""
     def one(value, flow):
         return yaml.safe_dump(value, sort_keys=False, allow_unicode=True,
                               default_flow_style=flow, width=10_000).strip()
-    settings = "\n".join("  " + line for line in one(data["settings"], False).splitlines())
-    rows = "\n".join("  - " + one(c, True) for c in data["classes"])
-    return f"settings:\n{settings}\nclasses:\n{rows}\n"
+    out: list[tuple[str, tuple]] = [("settings:\n", ())]
+    for k, v in data["settings"].items():
+        out += [("  " + line + "\n", ("settings", k)) for line in one({k: v}, False).splitlines()]
+    out.append(("classes:\n", ()))
+    for i, c in enumerate(data["classes"]):
+        out += [(("  - " if n == 0 else "    ") + line + "\n", ("class", i))
+                for n, line in enumerate(one(c, True).splitlines())]
+    return out
+
+
+# --- The class form (S3 bite 6, SPEC Q17): the page sends {settings, classes} as JSON ---
+
+def form_check(folder: Path, data) -> tuple[str | None, list[dict]]:
+    """The form's data as classes.yaml text, checked with the same checks as a text save.
+    Returns (text, []) when it is fine, else (None, [{"row", "setting", "msg"}]): row is the
+    class's place in the form, setting a settings name, both None for the whole file."""
+    if not (isinstance(data, dict) and isinstance(data.get("settings"), dict)
+            and isinstance(data.get("classes"), list)):
+        return None, [{"row": None, "setting": None,
+                       "msg": "the form sent no settings and classes; reload the page"}]
+    lines = _dump_lines({"settings": data["settings"], "classes": data["classes"]})
+    text = "".join(line for line, _ in lines)
+    try:
+        parse(text, used_ids(folder))
+    except ClassesError as e:
+        out = []
+        for n, msg in e.errors:
+            where = lines[n - 1][1] if n and 0 < n <= len(lines) else ()
+            out.append({"row": where[1] if where[:1] == ("class",) else None,
+                        "setting": where[1] if where[:1] == ("settings",) else None,
+                        "msg": msg})
+        return None, out
+    return text, []
+
+
+def form_save(folder: Path, data) -> list[dict]:
+    """Save the form's classes as classes.yaml if they pass every check; else write nothing
+    and return the problems (form_check)."""
+    text, errors = form_check(folder, data)
+    if errors:
+        return errors
+    save(folder, text)
+    return []
 
 
 def ensure(folder: Path) -> dict:

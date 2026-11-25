@@ -512,6 +512,12 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             "cfg": cfg, "info": info, "cls": cls, "rows": rows, "note": note, "plan": plan,
             "units": units, "preview": prev, "shown": shown,
             "colours": colours, "legend_units": legend_units, "legend_frames": legend_frames,
+            "form": {"settings": data["settings"], "classes": data["classes"],
+                     "used": {str(k): v for k, v in cls["used"].items()},
+                     "next_id": max(ids) + 1, "kinds": list(classes.KINDS),
+                     "models": list(classes.MODELS), "untagged": classes.UNTAGGED_COLOUR,
+                     "palette": classes.PALETTE,
+                     "save": f"/p/{info['name']}/labeling/classes/form"} if data else None,
             "job": jobs.status(f"{info['folder']}:sam") or {},
             "n_label": len(files),
             "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
@@ -535,6 +541,24 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                                          status=400)
             return RedirectResponse(f"/p/{name}/labeling?" + urlencode(
                 {"note": "Saved classes.yaml."}), status_code=303)
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/labeling/classes/form")
+    async def labeling_form(request: Request, name: str, check: str = ""):
+        """The class form (bite 6, SPEC Q17): JSON {settings, classes}. ?check=1 only checks
+        (the form asks after every change); else it saves classes.yaml when every check
+        passes. Answers {"errors": [{row, setting, msg}]}, 400 when there are any."""
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+
+        def work(cfg, info, conn):
+            if check:
+                errors = classes.form_check(info["folder"], body)[1]
+            else:
+                errors = classes.form_save(info["folder"], body)
+            return JSONResponse({"errors": errors}, 400 if errors else 200)
         return with_project(request, name, work)
 
     def sam_busy(info) -> bool:

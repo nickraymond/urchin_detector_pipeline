@@ -113,3 +113,18 @@ a.button { display: inline-block; font-size: 16px; padding: 4px 14px; border: 1p
 .viewer .v-legend button { position: static; background: rgba(255, 255, 255, .92); color: #222; }
 .viewer .v-legend button:hover { background: #fff; }
 .viewer.has-legend .v-caption { top: 12px; bottom: auto; left: 12px; transform: none; max-width: calc(100% - 120px); overflow: hidden; text-overflow: ellipsis; }
+/* Class editor form (S3 bite 6) */
+.cf-table td { vertical-align: top; }
+.cf-table select, .cf-table input { font: inherit; font-size: 14px; }
+.cf-table tr.bad td { background: #fdecea; }
+.chip { display: inline-flex; align-items: center; gap: 2px; margin: 0 4px 4px 0; padding: 1px 2px 1px 8px; border-radius: 12px; background: #e6eef7; font-size: 13px; white-space: nowrap; }
+.chip button { border: 0; background: none; cursor: pointer; font-size: 14px; padding: 0 5px; color: #555; }
+.cf-actions { white-space: nowrap; }
+.cf-actions button { font-size: 13px; padding: 1px 6px; }
+.lock { display: block; color: #666; font-size: 12px; }
+.cf-settings { border: 1px solid #ccc; margin: 10px 0; }
+.cf-settings label { display: grid; grid-template-columns: 210px 110px 1fr; gap: 8px; align-items: center; margin: 4px 0; }
+.cf-settings label.bad { background: #fdecea; }
+.cf-settings small { color: #666; }
+.cf-errors { padding: 8px 8px 8px 28px; }
+pre.yaml { background: #fff; padding: 6px; font-size: 13px; overflow-x: auto; }

@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S3 — Bite 6: class editor form
+**Branch:** sprint/3-class-form (from sprint/3-viewer, bite 5)
+**Done:** the YAML text box is replaced by a form: rows with name, kind, prompt chips, group and "pixels
+count as" drop-downs, ↑ ↓, Remove, "+ Add class" with the next free id, and the SAM settings as labelled
+number fields. Every change is checked on the server with the same checks as classes.yaml; Save is off
+while there is a problem. A fuzz test (1,200 random form inputs) shows no input saves a file that fails
+the checks, and a refused save leaves the file untouched. 168 tests.
+**Broke/surprised us:** leaving a text box redrew the table and dropped the click on the next box; the
+redraw now waits for the focus to move and gives it back.
+**Next:** QE on the bite 5 and 6 PRs.
+
 ## 2026-11-25 — Sprint S3 — Bite 5: large viewer and class legend on the Labeling page
 **Branch:** sprint/3-viewer (from sprint/3-run, PR 24 not merged yet)
 **Done:** clicking a preview frame opens S2's viewer on the page (arrows, Esc, zoom, pan) with the masks;
