@@ -98,4 +98,18 @@ a.button { display: inline-block; font-size: 16px; padding: 4px 14px; border: 1p
 .preview-grid img { width: 100%; display: block; }
 .preview-grid figcaption { font-size: 13px; color: #444; word-break: break-all; }
 .count { display: inline-block; margin-right: 10px; white-space: nowrap; }
-.toggles label { margin-right: 12px; white-space: nowrap; }
+/* Class legend (S3 bite 5): on the Labeling page and along the bottom of the large viewer */
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0; font-size: 14px; }
+.legend .lg-item { display: inline-flex; white-space: nowrap; }
+.legend button { font: inherit; padding: 3px 8px; border: 1px solid #0003; background: #fff; color: #222; cursor: pointer; }
+.legend .lg-class { border-radius: 4px 0 0 4px; }
+.legend .lg-only { border-radius: 0 4px 4px 0; border-left: 0; color: #555; }
+.legend .lg-item.off .lg-class { opacity: .45; text-decoration: line-through; }
+.legend button:disabled { opacity: .5; cursor: default; }
+.legend .lg-note { color: #666; font-size: 13px; }
+.viewer .v-legend { position: absolute; z-index: 1; left: 8px; right: 8px; bottom: 8px; margin: 0; gap: 4px 6px; justify-content: center; padding: 5px 8px; border-radius: 6px; background: rgba(0, 0, 0, .6); color: #eee; font-size: 13px; }
+.viewer .v-legend button { padding: 2px 6px; }
+.viewer .v-legend .lg-note { color: #ccc; }
+.viewer .v-legend button { position: static; background: rgba(255, 255, 255, .92); color: #222; }
+.viewer .v-legend button:hover { background: #fff; }
+.viewer.has-legend .v-caption { top: 12px; bottom: auto; left: 12px; transform: none; max-width: calc(100% - 120px); overflow: hidden; text-overflow: ellipsis; }

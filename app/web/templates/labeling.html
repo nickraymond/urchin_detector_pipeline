@@ -23,16 +23,29 @@
   {{ preview.peak_gpu_gb }} GB Apple GPU{% else %}all 3 frames already had results for these classes{% endif %}.
   {% if preview.seconds_per_frame %}Run on all {{ n_label }} kept frames: about
   {{ ((preview.seconds_per_frame * n_label) / 60) | round(0, 'ceil') | int }} min.{% endif %}</p>
-<p class="toggles" id="toggles"><label><input type="checkbox" id="final-map"> <b>final class map</b></label>
-  (one colour per pixel after the overlap rules) · Show:
-  {% for u in units %}<label><input type="checkbox" value="{{ u.key }}" checked>
-    <span class="swatch" style="background: {{ colours[u.key] }}"></span> {{ u.key }}{% if u.group %} (untagged){% endif %}</label>
-  {% endfor %}</p>
-<div class="preview-grid">
+<div class="legend" id="legend"></div>
+<p class="hint">Click a frame to see it large (&larr; &rarr; move, <b>Esc</b> closes, scroll or click to zoom,
+  drag to pan). Click a class to show or hide its masks, "only" to show that class alone; this applies to the
+  frames here and the large view alike; "final class map" shows one colour per pixel after the overlap
+  rules. Objects (counted things such as urchins) are drawn with a box;
+  areas (kelp, rock) have none.</p>
+<div class="viewer has-legend" id="viewer" hidden>
+  <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
+  <button class="v-prev" data-v="prev" title="Previous frame (&larr;)">&lsaquo;</button>
+  <img alt="">
+  <button class="v-next" data-v="next" title="Next frame (&rarr;)">&rsaquo;</button>
+  <p class="v-caption"></p>
+  <div class="legend v-legend"></div>
+</div>
+<script type="application/json" id="frame-list">{{ {
+  "base": "/p/" ~ info.name ~ "/labeling/overlay/",
+  "units": legend_units,
+  "frames": legend_frames} | tojson }}</script>
+<div class="preview-grid" id="preview-grid">
 {% for f in shown %}
   <figure>
     {% if f.problem %}<p class="error">{{ f.file }}: {{ f.problem }}</p>{% else %}
-    <a href="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}" target="_blank">
+    <a href="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}?size=large" data-file="{{ f.file }}">
       <img class="overlay" data-src="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}"
            src="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}" alt="{{ f.file }}"></a>
     <figcaption>{{ f.file }}{% if f.seconds %} · {{ f.seconds }} s{% endif %}<br>
@@ -100,5 +113,6 @@
   <textarea name="text" class="yaml" rows="{{ [cls.text.count('\n') + 3, 40] | min }}" spellcheck="false">{{ cls.text }}</textarea>
   <p><button>Save</button> <a href="/p/{{ info.name }}/labeling" class="button">Reload from file</a></p>
 </form>
+<script src="{{ static('viewer.js') }}"></script>
 <script src="{{ static('labeling.js') }}"></script>
 {% endblock %}
