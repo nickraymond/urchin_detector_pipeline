@@ -24,7 +24,8 @@ what broke, what's next.*
   (2) Rotated videos would fail every frame: decoding goes through a PPM pipe, so frames come out upright.
   (3) TRACKER 3a items marked [x]. Two tests added; 72 pass.
   Nick asked for an in-page frame viewer (like iPhoto): click a frame to see it large, arrows or < > move
-  through every kept frame, Esc / Close / the background closes it.
+  through every kept frame, Esc or Close leaves. Then full screen (browser Fullscreen API), no frame
+  around the image; click zooms to actual pixels at that point, scroll / pinch zooms, drag pans, 0 fits.
 **Broke:** nothing known.
 **Next:** QE verdict on the new head (new QE session not running yet); Nick's manual test; then bite 3b.
 

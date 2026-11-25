@@ -36,8 +36,9 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
 <div class="frame-grid" id="frame-grid">{% for f in frames[:12] %}
   <a href="/p/{{ info.name }}/frames/{{ f.file }}" data-i="{{ loop.index0 }}" title="{{ f.file }}"><img src="/p/{{ info.name }}/frames/{{ f.file }}" alt="" loading="lazy"></a>
 {% endfor %}</div>
-<p class="hint">The first {{ frames[:12] | length }} of {{ frames | length }} kept frames. Click one to view it large;
-  <b>&larr;</b> <b>&rarr;</b> move through all {{ frames | length }}, <b>Esc</b> closes.</p>
+<p class="hint">The first {{ frames[:12] | length }} of {{ frames | length }} kept frames. Click one to view it full screen:
+  <b>&larr;</b> <b>&rarr;</b> move through all {{ frames | length }}; click the image to zoom to actual pixels,
+  scroll or pinch to zoom, drag to pan, <b>0</b> fits; <b>Esc</b> closes.</p>
 <div class="viewer" id="viewer" hidden>
   <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
   <button class="v-prev" data-v="prev" title="Previous frame (&larr;)">&lsaquo;</button>
