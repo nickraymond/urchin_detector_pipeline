@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
 import uvicorn
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import Response, FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -488,9 +488,13 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         shown = []
         if prev and data:
             for f in prev["files"]:
-                c = label.frame_counts(info["folder"], f, units, data["settings"])
                 ev = next((e for e in prev["frames"] if e["file"] == f), {})
-                shown.append({"file": f, "counts": c, "seconds": ev.get("seconds")})
+                try:  # an unreadable sam_raw file: say so for that frame, keep the page (QE PR 22)
+                    c, problem = label.frame_counts(info["folder"], f, units, data["settings"]), ""
+                except ValueError as e:
+                    c, problem = {}, str(e)
+                shown.append({"file": f, "counts": c, "seconds": ev.get("seconds"),
+                              "problem": problem})
         return templates.TemplateResponse(request, "labeling.html", {
             "cfg": cfg, "info": info, "cls": cls, "rows": rows, "note": note,
             "units": units, "preview": prev, "shown": shown,
@@ -551,14 +555,19 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             jobs.status(f"{info['folder']}:sam") or {}))
 
     @app.get("/p/{name}/labeling/overlay/{file}")
-    def labeling_overlay(request: Request, name: str, file: str, hide: str = ""):
-        """A frame of this project with its saved SAM masks drawn (reads only)."""
+    def labeling_overlay(request: Request, name: str, file: str,
+                         hide: list[str] = Query(default=[])):
+        """A frame of this project with its saved SAM masks drawn (reads only); one `hide`
+        parameter per run unit left out, so a name with a comma works too."""
         def work(cfg, info, conn):
             row = conn.execute("SELECT 1 FROM frames WHERE file = ?", (file,)).fetchone()
             cls = classes.read(info["folder"])
-            data = (label.overlay(info["folder"], file, classes.run_units(
-                cls["data"]["classes"]), set(hide.split(",")))
-                if row and extract.FRAME_NAME.match(file) and cls["data"] else None)
+            try:
+                data = (label.overlay(info["folder"], file, classes.run_units(
+                    cls["data"]["classes"]), set(hide))
+                    if row and extract.FRAME_NAME.match(file) and cls["data"] else None)
+            except ValueError as e:  # unreadable sam_raw file (QE PR 22)
+                return PlainTextResponse(str(e), status_code=404)
             if data is None:
                 return PlainTextResponse("not found", status_code=404)
             return Response(data, media_type="image/jpeg")

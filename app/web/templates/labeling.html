@@ -16,7 +16,7 @@
 </form>
 <p id="sam-job" class="totals" {% if not job.state %}hidden{% endif %}
    data-status="/p/{{ info.name }}/labeling/status" data-state="{{ job.state or '' }}">
-  SAM: <span id="sam-job-text">{{ job.state }}{% if job.message %} — {{ job.message }}{% endif %}</span></p>
+  SAM: <span id="sam-job-text">{{ job.state }}{% if job.message and job.message != job.state %} — {{ job.message }}{% endif %}</span></p>
 {% if preview %}
 <p class="totals">Preview of {{ preview.at | replace('T', ' ') }}: {% if preview.seconds_per_frame %}<b>{{ preview.seconds_per_frame }} s per frame</b>
   (model load {{ preview.load_seconds }} s), peak memory {{ preview.peak_process_gb }} GB process,
@@ -30,13 +30,14 @@
 <div class="preview-grid">
 {% for f in shown %}
   <figure>
+    {% if f.problem %}<p class="error">{{ f.file }}: {{ f.problem }}</p>{% else %}
     <a href="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}" target="_blank">
       <img class="overlay" data-src="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}"
            src="/p/{{ info.name }}/labeling/overlay/{{ f.file | urlencode }}" alt="{{ f.file }}"></a>
     <figcaption>{{ f.file }}{% if f.seconds %} · {{ f.seconds }} s{% endif %}<br>
       {% for u in units %}{% set c = f.counts[u.key] %}<span class="count"><span class="swatch" style="background: {{ colours[u.key] }}"></span>
       {{ u.key }}: {% if c.masks is none %}not run{% else %}{{ c.masks }}{% if c.older %} (older settings){% endif %}{% endif %}</span>
-      {% endfor %}</figcaption>
+      {% endfor %}</figcaption>{% endif %}
   </figure>
 {% endfor %}
 </div>
