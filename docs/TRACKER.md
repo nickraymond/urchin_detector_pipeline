@@ -1,7 +1,7 @@
 # TRACKER.md — Sprint Ladder & Rules
 
 *The agent entry point. Newest state lives here.*
-*Last updated: 2026-11-24 · Owner/gate: **Nick***
+*Last updated: 2026-11-25 · Owner/gate: **Nick***
 
 ---
 
@@ -142,6 +142,7 @@ a folder of still images: they appear in frame review.
 ### S3 — SAM on single frames  `[ ]`
 **Goal:** spec stage 5 without job control: class settings file, prompt preview, tiling, overlap rules.
 - [ ] `classes.yaml` loaded and shown in the UI
+- [ ] urchins: one SAM prompt, "urchin"; its masks are saved as urchins with no type yet (D18)
 - [ ] kelp: try prompts for kelp shoot (object) and kelp (area) on frames from a restoration-site
       video; prompts are untested (DESIGN D11)
 - [ ] prompt preview on 3 sample frames with masks drawn per class
@@ -168,12 +169,14 @@ start 2 minutes ahead with "Keep laptop awake" on, wait, read the summary page.
 **Goal:** spec stage 6 and all outputs; the spec's acceptance criteria pass on Nick's videos.
 - [ ] label review page: class change, delete mask, add a missed object by click or box, accept
       frame, split check, fully-checked flags, running totals
+- [ ] urchin type: `P` / `R` tags the selected urchin purple or red; a frame with an untagged
+      urchin cannot be accepted; running totals count purple and red separately (D18)
 - [ ] export: `export/images/`, `detector_coco.json`, `seg_masks/` + `classes.json`, `splits/`
       (by site and dive date), `frame_metrics.csv`
 - [ ] export checks shown in the UI (COCO load, mask sizes and ids)
 - [ ] `THIRD_PARTY_LICENSES` file with the SAM License text
 - [ ] README: setup, SAM access steps, 10-minute walkthrough
-**Demo (Nick):** review 5 frames, add one missed urchin by clicking it, press "Export". The Export
+**Demo (Nick):** review 5 frames, tag their urchins with `P` / `R`, add one missed urchin by clicking it, press "Export". The Export
 page shows the COCO load check PASS, mask sizes matching their images, and `frame_metrics.csv`
 values matching those 5 frames. All acceptance boxes in `docs/source/mvp_spec.md` are ticked.
 **Needs:** S4; answers to SPEC Q9, Q11.

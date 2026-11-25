@@ -1,7 +1,7 @@
 # SPEC.md — urchin_detector_pipeline
 
 *What Nick wants. Stable reference — agents skim this; changes require Nick's approval.*
-*Last updated: 2026-11-24*
+*Last updated: 2026-11-25*
 
 ## Goal
 
@@ -139,3 +139,8 @@ Answered (Nick, chat 2026-11-24):
 - Q10 (part). Blur and duplicate filters start from adjustable guesses (D12).
 - Q13. No internet assets: every page is served from the laptop (D12).
 - SAM is tested on the laptop before any tool code (D3). Job control is a standalone module (D4).
+
+Answered (Nick, chat 2026-11-25):
+- Q15. Urchin type: SAM finds one class, "urchin" (it cannot tell purple from red; S1, D10).
+  In label review, `P` or `R` tags each urchin purple or red. A frame cannot be accepted while
+  it has an untagged urchin. Exports still have separate purple urchin and red urchin classes (D18).
