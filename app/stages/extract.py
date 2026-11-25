@@ -146,17 +146,20 @@ def filter_frames(rows: list[dict], blur_percent: float, duplicate_distance: int
          fewer than duplicate_distance bits -> 'dropped_duplicate' (0 = off). Blur runs first,
          so a blurry frame never anchors a duplicate check.
     Returns {"status": {file: new status}, "distance": {file: bits differing from the
-    previous kept frame}} (no distance for a video's first kept frame or a blurry one)."""
+    previous kept frame}} (no distance for a video's first kept frame or a blurry one),
+    "drop_at": {file: the lowest blur_percent at which that frame is dropped as blurry}}."""
     by_video: dict[str, list[dict]] = {}
     for r in rows:
         if r["status"] in FILTERED:
             by_video.setdefault(r["video"], []).append(r)
-    status, distance = {}, {}
+    status, distance, drop_at = {}, {}, {}
     for video, frames in by_video.items():
         frames.sort(key=lambda r: r["timestamp_ms"])
         by_blur = sorted(frames, key=lambda r: (r["blur_score"] or 0.0, r["timestamp_ms"]))
         n_blur = int(len(frames) * blur_percent / 100 + 1e-9)
         blurry = {r["file"] for r in by_blur[:n_blur]}
+        for k, r in enumerate(by_blur):  # the k+1 blurriest go once len * p / 100 >= k + 1
+            drop_at[r["file"]] = 100 * (k + 1) / len(frames)
         anchor = None
         for r in frames:
             if r["file"] in blurry:
@@ -169,7 +172,7 @@ def filter_frames(rows: list[dict], blur_percent: float, duplicate_distance: int
                     continue
             status[r["file"]] = "kept"
             anchor = r
-    return {"status": status, "distance": distance}
+    return {"status": status, "distance": distance, "drop_at": drop_at}
 
 
 def frame_rows(conn: sqlite3.Connection) -> list[dict]:
@@ -180,9 +183,11 @@ def frame_rows(conn: sqlite3.Connection) -> list[dict]:
 
 def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: int) -> dict:
     """What Apply would do, read only: the counts, and every frame each filter would drop, in
-    one row per filter (Nick 2026-11-25): blurry frames from most to least blurry, duplicates
-    from least to most unique (fewest bits differing from the last kept frame first), so the
-    first frames a filter drops stay on the left and a stronger setting adds frames on the right."""
+    one row per filter (Nick 2026-11-25), so the first frames a filter drops stay on the left
+    and a stronger setting adds frames on the right. Blurry frames in the order the blur slider
+    drops them (the blur cut is per video, so by the setting at which each one goes, then most
+    blurry first); duplicates from least to most unique (fewest bits differing from the last
+    kept frame first; the duplicate chain can re-anchor, so that order is close, not exact)."""
     rows = frame_rows(conn)
     result = filter_frames(rows, blur_percent, duplicate_distance)
     new = result["status"]
@@ -201,7 +206,8 @@ def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: i
     dups = [r for r in rows if new.get(r["file"]) == "dropped_duplicate"]
     return {
         "counts": c,
-        "blur_dropped": [ex(r) for r in sorted(blurry, key=lambda r: r["blur_score"] or 0)],
+        "blur_dropped": [ex(r) for r in sorted(blurry, key=lambda r: (
+            result["drop_at"][r["file"]], r["blur_score"] or 0))],
         "dup_dropped": [ex(r) for r in sorted(dups, key=lambda r: result["distance"][r["file"]])],
     }
 

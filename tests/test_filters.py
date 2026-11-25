@@ -107,6 +107,20 @@ def test_preview_lists_every_dropped_frame_in_order(tmp_path):
     assert _where(proj) == {r["file"]: "frames" for r in rows}     # preview moved nothing
 
 
+def test_a_stronger_blur_setting_only_adds_frames_on_the_right(tmp_path):
+    """QE PR 15: the cut is per video, so raw sharpness order could put a newly dropped frame
+    in the middle of the row; the row follows the setting at which each frame goes."""
+    rows = [frame(f"a_aaaaaa_{i}.jpg", t=i, blur=10 * (i + 1)) for i in range(5)]  # 10..50
+    rows += [frame(f"b_bbbbbb_{i}.jpg", video="/v/b.MP4", t=i, blur=100 + i) for i in range(10)]
+    proj, conn = _project(tmp_path, rows)
+    before = []
+    for pct in range(0, 51):
+        row = [e["file"] for e in extract.preview(conn, pct, 0)["blur_dropped"]]
+        assert row[:len(before)] == before, pct
+        before = row
+    assert len(before) == 7  # 2 of a's 5 and 5 of b's 10 at 50 %
+
+
 def test_a_stop_mid_apply_is_repaired(tmp_path):
     rows = [frame("a_aaaaaa_0.jpg", t=0, blur=1), frame("a_aaaaaa_1.jpg", t=1, blur=50)]
     proj, conn = _project(tmp_path, rows)
