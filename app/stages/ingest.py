@@ -18,7 +18,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from app import db
+from app import db, images
 from app.stages.extract import blur_score, dhash
 
 VIDEO_EXT = {".mp4", ".mov"}
@@ -283,6 +283,7 @@ def add_stills(conn: sqlite3.Connection, folder: Path, frames_dir: Path) -> dict
             # decode the whole copy: verify() alone passes a truncated JPEG (QE PR 16)
             with Image.open(tmp) as im:
                 im.load()
+                im = images.upright(im)  # scores of the image as shown (D27)
                 blur, h = blur_score(im.convert("RGB")), dhash(im)
         except Exception:  # Pillow raises many types for a damaged file
             tmp.unlink(missing_ok=True)

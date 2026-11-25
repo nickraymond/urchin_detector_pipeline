@@ -88,3 +88,8 @@ form.inline { display: inline; }
 .review-grid a.st-kept_hand .r-label { background: #2e7d32; }
 .state-skipped td:nth-child(3) { color: #888; font-style: italic; }
 button.small { font-size: 12px; padding: 1px 8px; margin-left: 8px; }
+/* Labeling page (S3) */
+.swatch { display: inline-block; width: 18px; height: 18px; border-radius: 3px; vertical-align: middle; border: 1px solid #0003; }
+table.classes td, table.classes th { font-size: 14px; padding: 5px 8px; }
+textarea.yaml { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: 14px; box-sizing: border-box; }
+a.button { display: inline-block; font-size: 16px; padding: 4px 14px; border: 1px solid #888; border-radius: 3px; background: #eee; color: #222; text-decoration: none; }

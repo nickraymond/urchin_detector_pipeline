@@ -12,9 +12,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from PIL import Image
-
-from app import db
+from app import db, images
 from app.stages import extract
 
 SHOWN = ("kept", "kept_hand")                                   # the default list
@@ -114,22 +112,25 @@ def finish(conn: sqlite3.Connection, state: str) -> None:
 
 
 THUMB_WIDTH = 640  # one per row on a wide screen still looks sharp enough; the viewer has full size
+# Upright copies (D27). The S2 copies in framethumbs/ showed a still with EXIF orientation
+# sideways and are never read again, so they cannot be served stale.
+THUMB_DIR = "framethumbs/upright"
 
 
 def thumbnail(folder: Path, file: str) -> Path | None:
-    """A 640 px wide copy of a frame for the grid, cached in <project>/framethumbs/ (a GET may
+    """A 640 px wide copy of a frame for the grid, cached in <project>/framethumbs/upright/ (a GET may
     write a cache, D14a). The whole frame, scaled down, never cropped (spec §4). A frame's file
-    never changes under the same name, so the cache is never stale. None if the file is gone."""
+    never changes under the same name, so the cache is never stale. Upright by EXIF (D27). None if the file is gone."""
     src = extract.find_file(folder, file)
-    out = Path(folder) / "framethumbs" / file
+    out = Path(folder) / THUMB_DIR / file
     if out.is_file():
         return out
     if src is None:
         return None
     out.parent.mkdir(parents=True, exist_ok=True)
-    with Image.open(src) as im:
-        im.thumbnail((THUMB_WIDTH, THUMB_WIDTH * 4))
-        tmp = out.with_name(out.name + ".tmp")
-        im.convert("RGB").save(tmp, format="JPEG", quality=85)
+    im = images.open_upright(src)  # a rotated still must not show sideways (D27)
+    im.thumbnail((THUMB_WIDTH, THUMB_WIDTH * 4))
+    tmp = out.with_name(out.name + ".tmp")
+    im.convert("RGB").save(tmp, format="JPEG", quality=85)
     tmp.replace(out)
     return out

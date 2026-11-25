@@ -28,6 +28,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
 from app.jobs import Jobs
+from app.sam import classes
 from app.stages import clips, extract, ingest, review
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
@@ -470,6 +471,42 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             except review.ReviewError as e:
                 return PlainTextResponse(str(e), status_code=400)
             return RedirectResponse(f"/p/{name}", status_code=303)
+        return with_project(request, name, work)
+
+    # --- SAM labeling (S3): classes.yaml (bite 1, D25) ---
+
+    def labeling_page_for(request, cfg, info, conn, text=None, errors=None, note="",
+                          status=200):
+        cls = classes.read(info["folder"])
+        if text is not None:  # a refused save: show what was typed, with its problems
+            cls = {**cls, "text": text, "errors": errors or []}
+        data = cls["data"]
+        rows = [{**c, "colour": classes.colour(c["id"])} for c in data["classes"]] if data else []
+        ids = [c["id"] for c in rows] + list(cls["used"]) + [0]
+        return templates.TemplateResponse(request, "labeling.html", {
+            "cfg": cfg, "info": info, "cls": cls, "rows": rows, "note": note,
+            "units": classes.run_units(data["classes"]) if data else [],
+            "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
+            "kept": review.summary(conn), "refused": text is not None}, status_code=status)
+
+    @app.get("/p/{name}/labeling", response_class=HTMLResponse)
+    def labeling_page(request: Request, name: str, note: str = ""):
+        """Reads classes.yaml every time, so Reload shows edits made in a text editor."""
+        return with_project(request, name, lambda cfg, info, conn: labeling_page_for(
+            request, cfg, info, conn, note=note))
+
+    @app.post("/p/{name}/labeling/classes")
+    def labeling_save(request: Request, name: str, text: str = Form("")):
+        """Check the edited classes.yaml and save it; on a problem nothing is written and the
+        page shows the typed text with each problem's line."""
+        def work(cfg, info, conn):
+            try:
+                classes.save(info["folder"], text)
+            except classes.ClassesError as e:
+                return labeling_page_for(request, cfg, info, conn, text=text, errors=e.errors,
+                                         status=400)
+            return RedirectResponse(f"/p/{name}/labeling?" + urlencode(
+                {"note": "Saved classes.yaml."}), status_code=303)
         return with_project(request, name, work)
 
     @app.get("/p/{name}/framethumbs/{file}")

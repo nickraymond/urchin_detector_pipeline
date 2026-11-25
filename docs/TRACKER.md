@@ -142,7 +142,7 @@ stages where you left them, and the deleted frame is in the project's `rejected/
 a folder of still images: they appear in frame review.
 **Needs:** S1 (done).
 
-### S3 — SAM on single frames  `[ ]`
+### S3 — SAM on single frames  `[~]`
 **Goal:** spec stage 5 without job control: class settings file, prompt preview, tiling, overlap rules.
 Design: DESIGN §Planned for S3; Lead calls D22–D27 (they answer SPEC Q2 and the SAM part of Q10).
 One draft PR per bite, about 300 lines each.
