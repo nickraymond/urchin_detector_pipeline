@@ -40,15 +40,20 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
 
     @app.middleware("http")
-    async def same_origin_posts_only(request: Request, call_next):
+    async def same_origin_only(request: Request, call_next):
+        response = None
         if request.method not in ("GET", "HEAD"):
             source = request.headers.get("origin") or request.headers.get("referer") or ""
             parts = urlsplit(source)
             if parts.scheme != "http" or parts.netloc != request.headers.get("host"):
-                return PlainTextResponse(
+                response = PlainTextResponse(
                     "Refused: this action can only come from the app's own pages "
                     f"(got origin {source or 'none'!r}).", status_code=403)
-        return await call_next(request)
+        response = response or await call_next(request)
+        # Other web pages in the browser may not embed anything this app serves, e.g. a
+        # thumbnail or frame in an <img> (D14).
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        return response
 
     # Added last so it runs first: a request with a foreign Host never reaches a page.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)

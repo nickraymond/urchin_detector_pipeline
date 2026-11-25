@@ -178,3 +178,28 @@ def test_thumbnails_made_in_data_dir_and_served(library, tmp_path):
     for bad in ("zzzzzz", "..%2Fx", "abcdef"):
         assert client.get(f"/thumbs/{bad}.jpg").status_code == 404
     assert digest(library) == before  # nothing written beside the videos
+
+
+def test_no_other_site_may_embed_responses(library, tmp_path):
+    """QE nit 1 on PR 4: Cross-Origin-Resource-Policy on every response, images included."""
+    data = tmp_path / "data"
+    data.mkdir()
+    client = client_for(write_config(tmp_path, data, roots=[str(library / "dive")]))
+    client.post("/projects", data={"name": "p"})
+    client.get("/p/p/ingest")
+    code = ingest.path_code(library / "dive" / "GX010042.MP4")
+    for r in (client.get("/"), client.get(f"/thumbs/{code}.jpg"), client.get("/static/style.css"),
+              client.get("/thumbs/zzzzzz.jpg"),
+              client.post("/projects", data={"name": "q"}, headers={"Origin": "http://e.x"})):
+        assert r.headers["cross-origin-resource-policy"] == "same-origin"
+
+
+def test_thumbnail_rebuilt_when_video_changes(tmp_path):
+    """QE nit 2 on PR 4: a replaced video at the same path gets a new thumbnail."""
+    video = make_video(tmp_path / "v" / "a.MP4", seconds=1)
+    thumbs = tmp_path / "thumbs"
+    first = ingest.thumbnail(ingest.scan(tmp_path / "v")[0], thumbs).read_bytes()
+    make_video(video, seconds=2, size="128x96")
+    ingest._probe_cache.clear()
+    second = ingest.thumbnail(ingest.scan(tmp_path / "v")[0], thumbs).read_bytes()
+    assert first != second

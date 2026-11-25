@@ -121,9 +121,15 @@ THUMB_CODE = re.compile(r"^[0-9a-f]{6}$")
 
 def thumbnail(v: Video, thumbs_dir: Path) -> Path | None:
     """A 240 px wide JPEG of one frame 10 % into the video, like Finder shows. Written to
-    thumbs_dir (in data_dir, never beside the video); made once, then reused."""
+    thumbs_dir (in data_dir, never beside the video); made once, then reused until the video
+    at that path changes (size or modified time, kept in <code>.key)."""
     out = Path(thumbs_dir) / f"{v.code}.jpg"
-    if out.is_file():
+    key_file = out.with_suffix(".key")
+    try:
+        key = f"{v.size} {v.path.stat().st_mtime_ns}"
+    except OSError:
+        return out if out.is_file() else None
+    if out.is_file() and key_file.is_file() and key_file.read_text() == key:
         return out
     if v.warning or not v.duration_s:
         return None
@@ -138,6 +144,7 @@ def thumbnail(v: Video, thumbs_dir: Path) -> Path | None:
     if r.returncode != 0 or not tmp.is_file():
         return None
     os.replace(tmp, out)
+    key_file.write_text(key)
     return out
 
 
