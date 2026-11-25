@@ -93,3 +93,9 @@ button.small { font-size: 12px; padding: 1px 8px; margin-left: 8px; }
 table.classes td, table.classes th { font-size: 14px; padding: 5px 8px; }
 textarea.yaml { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: 14px; box-sizing: border-box; }
 a.button { display: inline-block; font-size: 16px; padding: 4px 14px; border: 1px solid #888; border-radius: 3px; background: #eee; color: #222; text-decoration: none; }
+.preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 10px; }
+.preview-grid figure { margin: 0; background: #fff; padding: 6px; }
+.preview-grid img { width: 100%; display: block; }
+.preview-grid figcaption { font-size: 13px; color: #444; word-break: break-all; }
+.count { display: inline-block; margin-right: 10px; white-space: nowrap; }
+.toggles label { margin-right: 12px; white-space: nowrap; }

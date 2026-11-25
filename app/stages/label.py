@@ -24,6 +24,7 @@ from app.stages import extract
 MODELS = {"sam3": ("facebook/sam3", "sam3.pt"),           # D10
           "sam3.1": ("facebook/sam3.1", "sam3.1_multiplex.pt")}
 LABELED = ("kept", "kept_hand")
+PREDICTOR: str | None = None  # tests set a fake ("module:Class"); None = real SAM
 
 
 class LabelError(RuntimeError):
@@ -52,6 +53,7 @@ def run(folder: Path, files: list[str], report, stop: threading.Event | None = N
     as app/jobs.py expects. Returns {"frames": [per-frame events], "load_seconds"}.
     Raises LabelError on a failure, classes.ClassesError if classes.yaml has problems."""
     folder = Path(folder)
+    predictor = predictor or PREDICTOR
     cfg = classes.ensure(folder)
     settings = cfg["settings"]
     units = [{**u, "classes": {str(k): v for k, v in u["classes"].items()}}
@@ -112,3 +114,102 @@ def run(folder: Path, files: list[str], report, stop: threading.Event | None = N
                          f"{len(frames)} frames (those are saved). Log: {log_path}\n{tail}")
     job_path.unlink(missing_ok=True)
     return out
+
+
+# --- Prompt preview (bite 3, D26) ---
+
+PREVIEW_FILE = "sam_preview.json"
+PREVIEW_WIDTH = 1600  # overlay width on the page; the frame itself is never changed
+
+
+def preview_frames(files: list[str], other: bool = False, rng=None) -> list[str]:
+    """D26: first, middle and last kept frame by name; "Other frames" picks 3 at random."""
+    if other:
+        import random
+        return sorted((rng or random).sample(files, min(3, len(files))))
+    if len(files) <= 3:
+        return list(files)
+    return [files[0], files[len(files) // 2], files[-1]]
+
+
+def run_preview(folder: Path, files: list[str], report, **kw) -> dict:
+    """Label the preview frames (results go to sam_raw/ like any run, so Run later skips
+    them) and save the numbers the page shows in sam_preview.json."""
+    folder = Path(folder)
+    out = run(folder, files, report, **kw)
+    done = [e for e in out["frames"] if not e.get("skipped")]
+    summary = {"files": files, "at": datetime.now().isoformat(timespec="seconds"),
+               "load_seconds": out["load_seconds"], "frames": out["frames"],
+               "seconds_per_frame": round(sum(e["seconds"] for e in done) / len(done), 1)
+               if done else None,
+               "peak_process_gb": max((e["peak_process_gb"] for e in done), default=None),
+               "peak_gpu_gb": max((e["peak_gpu_gb"] for e in done), default=None)}
+    tmp = folder / (PREVIEW_FILE + ".tmp")
+    tmp.write_text(json.dumps(summary, indent=1))
+    os.replace(tmp, folder / PREVIEW_FILE)
+    return summary
+
+
+def read_preview(folder: Path) -> dict | None:
+    p = Path(folder) / PREVIEW_FILE
+    try:
+        return json.loads(p.read_text()) if p.is_file() else None
+    except ValueError:
+        return None
+
+
+def frame_counts(folder: Path, frame: str, units: list[dict], settings: dict) -> dict:
+    """{unit key: {"masks": n or None (not run), "older": bool}} for the current classes;
+    older = saved with other settings than the current ones."""
+    from app.sam import results
+    saved = (results.read(folder, frame) or {}).get("units", {})
+    out = {}
+    for u in units:
+        s = saved.get(u["key"])
+        out[u["key"]] = {"masks": None if s is None else len(s["masks"]),
+                         "older": s is not None
+                         and s["settings_key"] != results.settings_key(u, settings)}
+    return out
+
+
+def unit_colour(unit: dict) -> str:
+    """A group's masks have no class until tagged: grey (D22 rule 7); else the class colour."""
+    return classes.UNTAGGED_COLOUR if unit["group"] else classes.colour(next(iter(unit["classes"])))
+
+
+def overlay(folder: Path, frame: str, units: list[dict], hidden: set[str]) -> bytes | None:
+    """The frame (upright, D27) scaled to PREVIEW_WIDTH with the saved masks of the shown
+    units drawn on it: areas first and fainter, objects on top. JPEG bytes; None if missing."""
+    import io
+
+    import numpy as np
+    from PIL import Image, ImageColor, ImageDraw
+
+    from app import images
+    from app.sam import results
+    path = extract.find_file(folder, frame)
+    raw = results.read(folder, frame)
+    if path is None or raw is None:
+        return None
+    im = images.open_upright(path).convert("RGB")
+    s = min(1.0, PREVIEW_WIDTH / im.width)
+    im = im.resize((round(im.width * s), round(im.height * s)))
+    layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    order = sorted((u for u in units if u["key"] not in hidden and u["key"] in raw["units"]),
+                   key=lambda u: u["kind"] != "area")
+    for u in order:
+        rgb = ImageColor.getrgb(unit_colour(u))
+        alpha = 90 if u["kind"] == "area" else 150
+        for m in raw["units"][u["key"]]["masks"]:
+            x0, y0, x1, y1 = m["box"]
+            crop = results.decode(m["rle"])[y0:y1, x0:x1]
+            bx0, by0 = round(x0 * s), round(y0 * s)
+            size = (max(1, round(x1 * s) - bx0), max(1, round(y1 * s) - by0))
+            mask = Image.fromarray(crop.astype(np.uint8) * 255).resize(size)
+            layer.paste(Image.new("RGBA", size, (*rgb, alpha)), (bx0, by0), mask)
+            if u["kind"] == "object":
+                draw.rectangle([bx0, by0, bx0 + size[0], by0 + size[1]], outline=(*rgb, 255))
+    out = io.BytesIO()
+    Image.alpha_composite(im.convert("RGBA"), layer).convert("RGB").save(out, "JPEG", quality=85)
+    return out.getvalue()
