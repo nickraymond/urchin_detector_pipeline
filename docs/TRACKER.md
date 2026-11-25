@@ -84,7 +84,7 @@ before any tool code is written. This is a test, not the tool: keep it small and
 device, seconds per frame and memory. A failed run still produces the page, with the error shown.
 **Needs:** S0; Nick logged in to Hugging Face (done 2026-11-24); the SSD plugged in.
 
-### S2 — Frames (ingest, clips, extract, review; no SAM)  `[x]`  (demo passed: Nick 2026-11-25 12:09 PM, builder chat: "the demo passes"; last PR 15 merged as `4fad379`)
+### S2 — Frames (ingest, clips, extract, review; no SAM)  `[x]`  (demo passed: Nick 2026-11-25 12:09 PM, builder chat: "the demo passes"; last code PR 15 merged as `4fad379`, docs PR 17 as `106f867`)
 **Goal:** spec stages 1–4 work in the browser on Nick's ReefCheck videos. Design: DESIGN §Planned for S2.
 One draft PR per bite; each bite ends with something Nick can click.
 Every item of `docs/source/mvp_spec.md` §Stage details 1–4 belongs to the matching bite, including:
