@@ -21,7 +21,12 @@ SIDECAR_EXT = {".lrv", ".thm"}  # GoPro low-res proxy and thumbnail: never liste
 # GoPro names: G + H/X/L (encoding) + 2-digit chapter + 4-digit recording number, e.g. GX010123.
 GOPRO = re.compile(r"^G([HXL])(\d{2})(\d{4})$", re.IGNORECASE)
 TIMEOUT_S = 60
+MAX_VIDEOS = 200  # per page load; a bigger folder would hang the page (bite 3 adds background jobs)
 _probe_cache: dict[tuple, dict] = {}  # (path, size, mtime) -> probe result; saves re-reading
+
+
+class IngestError(ValueError):
+    """A problem the user can fix; the message says how."""
 
 
 @dataclass
@@ -85,7 +90,7 @@ def probe(path: Path) -> dict:
     if key in _probe_cache:
         return _probe_cache[key]
     out: dict = {"warning": ""}
-    r = None
+    r, tool = None, "ffprobe"
     try:
         r = subprocess.run(
             ["ffprobe", "-v", "error", "-select_streams", "v:0", "-print_format", "json",
@@ -98,6 +103,7 @@ def probe(path: Path) -> dict:
                    height=stream.get("height"),
                    fps=round(float(num) / float(den), 3) if float(den or 0) else None,
                    duration_s=float(info["format"]["duration"]))
+        tool = "ffmpeg"
         d = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-frames:v", "1",
                             "-f", "null", "-"], capture_output=True, text=True, timeout=TIMEOUT_S)
         if d.returncode != 0:
@@ -105,7 +111,7 @@ def probe(path: Path) -> dict:
                               f"{(d.stderr.strip().splitlines() or ['no message'])[-1]}")
     except (subprocess.TimeoutExpired, OSError, ValueError, KeyError) as e:
         msg = (r.stderr.strip() if r is not None and r.stderr else "") or str(e)
-        out["warning"] = f"ffprobe cannot read this video: {msg[:200]}"
+        out["warning"] = f"{tool} cannot read this video: {msg[:200]}"
     _probe_cache[key] = out
     return out
 
@@ -113,8 +119,12 @@ def probe(path: Path) -> dict:
 def scan(folder: Path) -> list[Video]:
     """Videos under `folder`, one row per distinct video, in recording and chapter order.
     Same file name and same size = the same video (DESIGN D13); the copies go in `also_in`."""
+    found = find_videos(folder)
+    if len(found) > MAX_VIDEOS:
+        raise IngestError(f"{folder} holds {len(found)} videos, more than {MAX_VIDEOS} at once. "
+                          "Open one of its subfolders instead.")
     by_key: dict[tuple[str, int], Video] = {}
-    for p in find_videos(folder):
+    for p in found:
         try:
             size = p.stat().st_size
         except OSError:
@@ -134,6 +144,12 @@ def added(conn: sqlite3.Connection) -> list[dict]:
         "SELECT * FROM videos ORDER BY recording, chapter")]
 
 
+def added_keys(conn: sqlite3.Connection) -> dict[tuple[str, int], str]:
+    """(file name, size) -> path of every video in the project: the D13 identity."""
+    return {(Path(r["path"]).name, r["size_bytes"]): r["path"]
+            for r in conn.execute("SELECT path, size_bytes FROM videos")}
+
+
 def update_status(conn: sqlite3.Connection) -> None:
     n, recs = conn.execute("SELECT COUNT(*), COUNT(DISTINCT recording) FROM videos").fetchone()
     if n:
@@ -144,9 +160,17 @@ def update_status(conn: sqlite3.Connection) -> None:
 
 
 def add(conn: sqlite3.Connection, videos: list[Video]) -> int:
-    """Add videos to the project (only the database; the files are not touched)."""
-    rows = [(str(v.path), v.code, v.recording, v.chapter, v.duration_s, v.size, v.width,
-             v.height, v.fps, v.codec, v.warning) for v in videos if not v.warning]
+    """Add videos to the project (only the database; the files are not touched). A video
+    whose file name and size are already in the project, from any folder, is skipped (D13):
+    one dive must never end up in both the training and the test split."""
+    keys = added_keys(conn)
+    rows = []
+    for v in videos:
+        if v.warning or (v.path.name, v.size) in keys:
+            continue
+        keys[(v.path.name, v.size)] = str(v.path)
+        rows.append((str(v.path), v.code, v.recording, v.chapter, v.duration_s, v.size, v.width,
+                     v.height, v.fps, v.codec, v.warning))
     conn.executemany("INSERT OR IGNORE INTO videos (path, path_code, recording, chapter, "
                      "duration_s, size_bytes, width, height, fps, codec, warning) "
                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)

@@ -42,7 +42,9 @@ app/web/static/          one CSS file, small plain JavaScript files
 - Ingest (as-built, bite 1b): the scan re-reads the folder on each page load; ffprobe results are
   kept in memory per (path, size, modified time) while the app runs. Only videos the scan of the
   posted folder found can be added, never a path typed into the form. A video that fails the
-  one-frame decode check cannot be added.
+  one-frame decode check cannot be added. A video whose file name and size are already in the
+  project, from any folder, is not added again (D13). At most 200 videos are read per page load;
+  a bigger folder asks for a subfolder until bite 3's background jobs exist.
 - Video work goes through the installed `ffmpeg` / `ffprobe` as subprocesses; no extra video library.
 - Blur score (variance of Laplacian) and near-duplicate hash use numpy / scipy / Pillow, already installed.
 - Long steps run in the background behind one small interface (start, progress, done / error) so

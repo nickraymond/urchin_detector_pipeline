@@ -118,11 +118,19 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             else:
                 subfolders = sorted(p for p in here.iterdir()
                                     if p.is_dir() and not p.name.startswith("."))
-                videos = ingest.scan(here)
+                try:
+                    videos = ingest.scan(here)
+                except ingest.IngestError as e:
+                    error = str(e)
+            keys = ingest.added_keys(conn)
             return templates.TemplateResponse(request, "ingest.html", {
                 "cfg": cfg, "info": info, "here": here, "error": error,
                 "subfolders": subfolders, "videos": videos, "added": ingest.added(conn),
-                "added_paths": {r["path"] for r in ingest.added(conn)}})
+                "added_paths": set(keys.values()),
+                # a copy of this video from another folder is already in the project (D13)
+                "added_elsewhere": {str(v.path): keys[(v.path.name, v.size)] for v in videos
+                                    if (v.path.name, v.size) in keys
+                                    and keys[(v.path.name, v.size)] != str(v.path)}})
         return with_project(request, name, work)
 
     @app.post("/p/{name}/ingest/add")
@@ -131,7 +139,11 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         def work(cfg, info, conn):
             # Only videos the scan of this folder found can be added, never an arbitrary path.
             picked = set(paths)
-            ingest.add(conn, [v for v in ingest.scan(Path(folder)) if str(v.path) in picked])
+            try:
+                videos = ingest.scan(Path(folder))
+            except ingest.IngestError:
+                videos = []
+            ingest.add(conn, [v for v in videos if str(v.path) in picked])
             return RedirectResponse(ingest_url(name, folder), status_code=303)
         return with_project(request, name, work)
 

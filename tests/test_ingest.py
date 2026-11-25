@@ -115,3 +115,46 @@ def test_ingest_folder_box_and_errors(library, tmp_path):
     r = client.post("/p/p/ingest/add", data={"folder": str(library), "paths": ["x"]},
                     headers={"Origin": "http://evil.example"})
     assert r.status_code == 403  # the host and origin rule covers ingest too (D14)
+
+
+def test_same_video_from_two_folders_added_once(library, tmp_path):
+    """QE finding 1 on PR 4: D13 holds across scans, not only within one."""
+    data = tmp_path / "data"
+    data.mkdir()
+    client = client_for(write_config(tmp_path, data, roots=[str(library)]))
+    client.post("/projects", data={"name": "p"})
+    name = "Site-25-08-29-1230-Diver-c2.MP4"
+    for sub in ("site", "copy"):
+        folder = str(library / sub)
+        client.post("/p/p/ingest/add", data={"folder": folder, "paths": [f"{folder}/{name}"]})
+    assert "1 video (1 recording)" in client.get("/p/p").text
+    page = client.get("/p/p/ingest?" + urlencode({"folder": str(library / "copy")})).text
+    assert "added (other folder)" in page and 'name="paths"' not in page
+
+
+def test_big_folder_refused_with_hint(library, tmp_path, monkeypatch):
+    """QE finding 2 on PR 4: a huge folder must not hang the page."""
+    monkeypatch.setattr(ingest, "MAX_VIDEOS", 2)
+    with pytest.raises(ingest.IngestError, match="Open one of its subfolders"):
+        ingest.scan(library)
+    data = tmp_path / "data"
+    data.mkdir()
+    client = client_for(write_config(tmp_path, data, roots=[str(library)]))
+    client.post("/projects", data={"name": "p"})
+    page = client.get("/p/p/ingest").text
+    assert "more than 2 at once" in page and "dive/" in page
+
+
+def test_decode_timeout_names_ffmpeg(library, monkeypatch):
+    """QE nit 3 on PR 4: a decode timeout must not blame ffprobe."""
+    real_run = ingest.subprocess.run
+
+    def fake_run(cmd, **kw):
+        if cmd[0] == "ffmpeg":
+            raise ingest.subprocess.TimeoutExpired(cmd, 60)
+        return real_run(cmd, **kw)
+
+    monkeypatch.setattr(ingest.subprocess, "run", fake_run)
+    monkeypatch.setattr(ingest, "_probe_cache", {})
+    warning = ingest.probe(library / "dive" / "GX010042.MP4")["warning"]
+    assert warning.startswith("ffmpeg cannot read")

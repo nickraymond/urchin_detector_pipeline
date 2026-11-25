@@ -12,6 +12,10 @@ in two folders count as one video.</p>
 </form>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
+{% if here and subfolders and error %}
+<ul class="subfolders">{% for d in subfolders %}
+  <li><a href="?folder={{ d | string | urlencode }}">{{ d.name }}/</a></li>{% endfor %}</ul>
+{% endif %}
 {% if here and not error %}
 <p class="crumbs">Folder: <strong>{{ here }}</strong>
   {% if here.parent != here %} · <a href="?folder={{ here.parent | urlencode }}">up one folder</a>{% endif %}</p>
@@ -31,8 +35,8 @@ in two folders count as one video.</p>
     <th>Codec</th><th>Size</th><th>Notes</th></tr></thead>
   <tbody>
   {% for v in videos %}
-  <tr class="{% if v.warning %}bad{% elif v.path | string in added_paths %}added{% endif %}">
-    <td>{% if v.path | string in added_paths %}added{% else %}
+  <tr class="{% if v.warning %}bad{% elif v.path | string in added_paths or v.path | string in added_elsewhere %}added{% endif %}">
+    <td>{% if v.path | string in added_paths %}added{% elif v.path | string in added_elsewhere %}<span class="hint" title="{{ added_elsewhere[v.path | string] }}">added (other folder)</span>{% else %}
       <input type="checkbox" name="paths" value="{{ v.path }}" {% if v.warning %}disabled{% endif %}>{% endif %}</td>
     <td>{{ v.path.name }}{% if v.recording.split('/')[-1] != v.path.stem %}
       <br><span class="hint">recording {{ v.recording.split('/')[-1] }}, chapter {{ v.chapter }}</span>{% endif %}</td>
