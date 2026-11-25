@@ -17,6 +17,19 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S2 — Bite 1a: app skeleton (start, settings errors, projects)
+**Branch:** sprint/2-frames
+**Done:** bite 1 plan approved by Nick, split into 1a (skeleton) and 1b (ingest); same-name,
+same-size videos will count as one. `uv run app` serves on 127.0.0.1:8000 and opens the dashboard.
+Settings problems show as a red box in the browser and the settings file is re-read on every
+page load. Projects: create / open / list under `<data_dir>/projects/`, with `project.json` and
+`state.sqlite`; the project page lists the six stages. 14 new tests (31 in total) pass.
+**Broke/surprised us:** FastAPI form posts need `python-multipart` (Apache-2.0), which the
+plan did not list. The SSD's video folder holds 46 videos but only 29 distinct ones: 17 are
+copies in a second folder. No GoPro-named files there, so chapter grouping can only be tested on
+made-up names.
+**Next:** Nick runs the 1a manual test; QE reviews the draft PR; then bite 1b (ingest).
+
 ## 2026-11-24 — Sprint S2 — Plan written (planning lead)
 **Branch:** sprint/2-frames
 **Done:** S1 merged to main as `a362495` (QE PASS on `db29464`; Nick ran the demo). S2 plan

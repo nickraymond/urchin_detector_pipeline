@@ -92,14 +92,16 @@ applied; grid from 8 per row down to 1 (default 6); thumbnails never cropped, cl
 the review stage can be skipped. A test proves source videos are unchanged after every stage
 (SPEC constraint 4).
 
-**Bite 1 — Skeleton + ingest**
-- [ ] plan nibble: re-read the prior art (SPEC §Background) and say what is reused
-- [ ] `uv run app` starts the app on `127.0.0.1` and opens the dashboard; a missing or wrong
+**Bite 1 — Skeleton + ingest** (split in two PRs, Nick 2026-11-24: 1a skeleton, 1b ingest)
+- [x] plan nibble: re-read the prior art (SPEC §Background) and say what is reused (Nick approved 2026-11-24)
+- [~] 1a: `uv run app` starts the app on `127.0.0.1` and opens the dashboard; a missing or wrong
       `config.local.toml` path shows a clear message, not a stack trace
-- [ ] create / open a project under `<data_dir>/projects/<name>/` (`project.json`, `state.sqlite`)
-- [ ] ingest: list videos under `video_roots` with duration, resolution, fps, codec, size (ffprobe);
-      skip sidecar (`.LRV`, `.THM`) and `._` files; group GoPro chapters; warn if a video cannot be read
-- [ ] dashboard shows every stage and its status
+- [~] 1a: create / open a project under `<data_dir>/projects/<name>/` (`project.json`, `state.sqlite`)
+- [ ] 1b: ingest: list videos under `video_roots` with duration, resolution, fps, codec, size (ffprobe);
+      skip sidecar (`.LRV`, `.THM`) and `._` files; group GoPro chapters; warn if a video cannot be read.
+      Pick files or a folder (the app's own folder browser, starting at `video_roots`, plus a
+      pasted path). Same name + same size = one video, shown as "also in: <folder>" (Nick 2026-11-24)
+- [~] 1a: dashboard shows every stage and its status (1b fills in Ingest)
 
 **Bite 2 — Clip picker**
 - [ ] low-res H.264 playback copy per video, made with ffmpeg into the project folder (GoPro `.LRV` used if present)

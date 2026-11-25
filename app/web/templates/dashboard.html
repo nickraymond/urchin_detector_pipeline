@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if cfg.ok %}
+<h1>Projects</h1>
+{% if projects %}
+<ul class="projects">{% for p in projects %}<li><a href="/p/{{ p }}">{{ p }}</a></li>{% endfor %}</ul>
+{% else %}
+<p>No projects yet in {{ cfg.data_dir }}/projects.</p>
+{% endif %}
+<h2>New project</h2>
+<form method="post" action="/projects">
+  <input name="name" value="{{ name }}" placeholder="e.g. reefcheck_2025" required>
+  <button type="submit">Create</button>
+  <p class="hint">{{ name_help }} The folder is made under {{ cfg.data_dir }}/projects/.</p>
+</form>
+{% endif %}
+{% endblock %}
