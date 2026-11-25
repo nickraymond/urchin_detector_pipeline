@@ -17,6 +17,24 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S2 — Bite 3a merged; bite 3b: blur and duplicate filters
+**Branch:** sprint/2-frames-3b (from main `f9f14b2`, after PR 7 merged)
+**Done:** PR 7 (bite 3a) merged as `f9f14b2` after QE PASS on `5a3d96d` and Nick's word. Bite 3b
+plan approved by Nick. `extract.py`: a pure filter rule (per video, blur first, then duplicates
+against the last kept frame), a read-only preview with examples at each cut-off, and Apply,
+which moves files between `frames/`, `dropped/blurry/` and `dropped/duplicate/` (never erasing)
+and repairs a file left in the wrong folder by a stop. Extract applies the saved values at its
+end and never decodes a frame already in one of those folders (QE PR 7 watch item). Extract
+page: two sliders with live counts, example frames (click opens the viewer), Apply. 8 new tests
+(82 in total). Browser check on the scratch copy of 44 real frames: 30 % / 20 bits gave
+18 + 12 + 14 = 44 and the folders held 18 / 12 / 14 files; Extract again decoded nothing;
+0 % / 0 brought all 44 back.
+**Broke/surprised us:** with the default duplicate value an older test's synthetic video lost a
+frame as a duplicate (its frames look alike), so that test turns the filters off. Example
+frames are full-size 4K files and take a moment to appear.
+QE PASS-with-nits on `845ec27`: rebased on main, decision renumbered D19 (D18 is the urchin type from PR 8), a non-integer duplicate value now gets 400.
+**Next:** QE reviews the draft PR; Nick runs the 3b manual test; then bite 4 (review frames).
+
 ## 2026-11-25 — Sprint S2 — Bite 3a: QE findings fixed
 **Branch:** sprint/2-frames-3 (PR 7, still a draft)
 **Done:** QE PASS-with-nits at c182fa2 had three findings. (1) Frames from earlier settings stayed `kept`
@@ -55,23 +73,6 @@ Bite 3 plan approved by Nick: split 3a / 3b, blur cut-off per video, dropped fra
 **Broke/surprised us:** sharpness scores differ ~5x between videos (why D17 is per video). A running
 app copy serves new templates with old code after a branch switch (500s in Nick's log); restart fixes it.
 **Next:** bite 3a in a fresh builder session (TEAM_RULES 9: this one covered bites 1–2).
-
-## 2026-11-25 — Sprint S2 — Bite 3a merged; bite 3b: blur and duplicate filters
-**Branch:** sprint/2-frames-3b (from main `f9f14b2`, after PR 7 merged)
-**Done:** PR 7 (bite 3a) merged as `f9f14b2` after QE PASS on `5a3d96d` and Nick's word. Bite 3b
-plan approved by Nick. `extract.py`: a pure filter rule (per video, blur first, then duplicates
-against the last kept frame), a read-only preview with examples at each cut-off, and Apply,
-which moves files between `frames/`, `dropped/blurry/` and `dropped/duplicate/` (never erasing)
-and repairs a file left in the wrong folder by a stop. Extract applies the saved values at its
-end and never decodes a frame already in one of those folders (QE PR 7 watch item). Extract
-page: two sliders with live counts, example frames (click opens the viewer), Apply. 8 new tests
-(82 in total). Browser check on the scratch copy of 44 real frames: 30 % / 20 bits gave
-18 + 12 + 14 = 44 and the folders held 18 / 12 / 14 files; Extract again decoded nothing;
-0 % / 0 brought all 44 back.
-**Broke/surprised us:** with the default duplicate value an older test's synthetic video lost a
-frame as a duplicate (its frames look alike), so that test turns the filters off. Example
-frames are full-size 4K files and take a moment to appear.
-**Next:** QE reviews the draft PR; Nick runs the 3b manual test; then bite 4 (review frames).
 
 ## 2026-11-24 — Sprint S2 — Bite 2b: clip marks (I / O), clips.json, counts
 **Branch:** sprint/2-frames-2b (from main `9b296cd`, after PR 5 merged)
