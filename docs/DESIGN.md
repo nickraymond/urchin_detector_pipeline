@@ -84,6 +84,51 @@ app/web/static/          one CSS file, small plain JavaScript files
   page actions through FastAPI's test client, checked against the database and files on disk.
   No real footage in tests.
 
+### Planned for S3 (SAM on single frames) — lead's plan 2026-11-25 (CLAUDE.md rule 7); becomes as-built as bites land
+
+```
+app/sam/default_classes.yaml  the starting class list, copied into a project on first use
+app/sam/classes.py            load, check and save a project's classes.yaml
+app/sam/worker.py             SAM in its own process (D9): load the model once per job, take frames + prompts,
+                              return masks; reuses app/sam_test/device_patch.py unchanged
+app/sam/tiles.py              tile layout (moved from app/sam_test/tiles.py), merge to frame coordinates,
+                              tile-edge duplicates (D23)
+app/sam/results.py            read / write sam_raw/<frame>.json; settings key per run unit; what must re-run
+app/sam/overlap.py            overlap rules (D22); pure numpy, no torch, so tests stay fast
+app/stages/label.py           preview and run: pick frames, drive the worker through app/jobs.py, save per frame
+app/web/templates/label.html  the Labeling page
+```
+
+- `classes.yaml` (per project, next to `project.json`). Settings plus a list of classes. Each class has a fixed
+  `id` (append-only, never renumbered or reused, D6; 0 = unknown), `name`, `kind` (`object` or `area`), one or
+  more `prompts`, and optionally `sam_group` (classes in one group share one SAM run and its masks carry no
+  class id until tagged: purple and red urchin, group `urchin`, D18) and `seg_as` (the area class whose id its
+  pixels get in the class map: kelp shoot → kelp, D22). A **run unit** is a `sam_group`, or a class with none.
+  Starting ids: 1 purple urchin, 2 red urchin, 3 sea star, 4 sunflower sea star, 5 anemone, 6 fish,
+  7 rock/substrate, 8 kelp shoot, 9 kelp (D6 order, then D11). The file lists kelp before rock/substrate
+  (D22). Prompts for kelp shoot and kelp are untested; bite 3 tries them. Settings: `confidence` 0.4 (spec),
+  `tile_px` 1008 (D10), `tile_overlap` 0.2 and `tile_above_px` 2000 (spec), `min_mask_area_px` (set in bite 3, D24).
+- Checks before any save or run: unique ids and names; an id already used in `sam_raw/` keeps its name;
+  every class has a kind and at least one prompt; classes of one `sam_group` are objects with the same prompts;
+  `seg_as` names an area class. An error names the line and nothing is saved.
+- `sam_raw/<frame stem>.json`, written atomically after each frame, also when nothing is found: frame name,
+  upright width and height, model, and per run unit: `settings_key` (hash of model, prompts, confidence, tile
+  settings, minimum area), the settings and prompts themselves, time taken, and `masks` — each with `prompt`,
+  `score`, `box` [x0, y0, x1, y1] in frame pixels, `area`, the mask as COCO RLE of the full frame (pycocotools,
+  already a dependency), `class_id` (null inside a `sam_group`), `reviewed` (false until S5) and
+  `from_older_settings`.
+- Re-run rule (SPEC Q7): a run unit runs on a frame only if its saved `settings_key` differs or is missing.
+  On a re-run its unreviewed masks are replaced; reviewed ones stay, marked `from_older_settings`. A class
+  removed from `classes.yaml` keeps its saved results (not shown; back if the class returns). Before Run the
+  page lists which classes will run and which are unchanged.
+- SAM runs in one worker process per job (D9, D26), queued through `app/jobs.py` so only one SAM job runs at a
+  time (two runs on the GPU triple the time, S1). Run frames in name order; a stop or quit loses at most the
+  frame in progress, and Run again carries on. No pause, schedule or limits yet: that is S4.
+- Images are read through one helper that applies the EXIF orientation (Pillow `ImageOps.exif_transpose`), so
+  SAM, the masks and the page all use the same upright image (D27).
+- Tests: a fake predictor stands in for SAM (no torch, no weights, no real frames); synthetic images; the
+  builder runs real SAM in the browser for the self-test and the bench numbers.
+
 ## Decision log
 
 | # | Date | Decision | Rationale |
@@ -113,6 +158,12 @@ app/web/static/          one CSS file, small plain JavaScript files
 | D19a | 2026-11-25 | Addition to D19: the filter preview shows one row per filter with every frame it would drop, blurry frames by the blur setting at which each is dropped (the cut is per video), then most blurry first, so a stronger blur setting only adds frames on the right; duplicates least unique first (fewest bits differing from the last kept frame), where a stronger setting can also add frames mid-row because the frame each is compared with changes. The kept examples that spec §3 and TRACKER 3b mention are removed, at Nick's request. | Nick, builder chat 2026-11-25: "Too complicated, too much being show"; he asked for one sorted row per filter, then chose this left-to-right order. |
 | D20 | 2026-11-25 | **Lead call** (planning lead, CLAUDE.md rule 4): frame review (bite 4) shows kept frames by default. A "Show dropped" toggle adds blurry, duplicate and rejected frames, each with a label naming its status. `K` on any of them gives it the new status `kept_hand` (home `frames/`); `D` moves a frame to `rejected/`; `Z` undoes. This amends D19: the filters leave `kept_hand` frames out (not in `FILTERED`), so the next Apply or Extract never drops them again; a `kept_hand` frame anchors the duplicate check like any kept frame; the kept count includes it. The counts become kept (with `kept_hand`) + dropped blurry + dropped duplicate + rejected = the live count (or the cap); rejected frames outside the current plan stay in `rejected/` and are counted separately. **Lead call** (planning lead, QE PR 14): a `kept_hand` frame that a new plan leaves out is set aside like `kept` under D17a (to `dropped/unplanned/`) and comes back as `kept_hand` if a later plan asks for it again. | The spec gives review both `D` delete and `K` keep (`docs/source/mvp_spec.md` §4); `K` only does something if non-kept frames can be seen. The filters are starting guesses (D12), so rescuing a wrongly dropped frame by hand is cheaper than re-tuning a slider. Kept-only by default keeps the normal pass fast. Nick can reverse this. |
 | D21 | 2026-11-25 | **Lead call (planning lead)**, bite 5: still images are copied byte for byte into `frames/` as `<stem>_<path code>_0.<jpg|png>` (originals only read), counted apart from the extract plan, and skip clips, extraction and the filters; they join at frame review. | Spec §Stage details 1 (stills join at frame review); SPEC constraints 4 and 5. Review's `D` moves files, so working on the originals in place would move a source. Lead's reply to the builder, 2026-11-25. |
+| D22 | 2026-11-25 | **Lead call** (planning lead, SPEC Q2): overlap rules, applied when results are shown or exported; `sam_raw/` stays raw. (1) Two object masks with IoU > 0.5, from any prompts or classes: keep the higher score and flag it for review (spec §5). (2) Several prompts of one area class: union. (3) Two area classes on one pixel: the one listed first in `classes.yaml` wins; the starting file lists kelp before rock/substrate. (4) Objects sit on top of areas (spec); two objects that overlap less than that: the higher score takes the shared pixels. (5) A kelp shoot's pixels count as kelp in the class map and cover (`seg_as: kelp`); the shoot stays a counted object for the detector. (6) Pixels no class claims = unknown, id 0. (7) An untagged urchin shows as "urchin (untagged)" and is never exported (D18). | The spec gives rules 1, 4 and 6; the rest are gaps. Kelp on top of rock: kelp grows on rock, and kelp cover is the number the packet reports. Kelp shoot as kelp: the segmenter measures cover, the detector counts shoots, so shoot pixels would otherwise be missing from kelp cover. All of it is a settings-file field or one function; Nick can reverse it. |
+| D23 | 2026-11-25 | **Lead call** (planning lead): tiling for frames wider than 2000 px: 1008 px tiles, 20 % overlap (spec, D10); SAM's image encoder runs once per tile and every prompt reuses it. Masks move to frame coordinates. Tile-edge duplicates: a mask that touches an inner tile edge is dropped when a mask of the same prompt from a neighbouring tile covers at least half of it; then masks of one prompt with IoU > 0.5 keep the higher score. The builder may change the rule in bite 2's plan if the preview shows it fails; QE checks. | Spec §5 says duplicates across tile edges are removed but not how. S1 counted urchins without removing them. A cut-off half urchin overlaps its whole twin by far less than IoU 0.5, so IoU alone would keep both. |
+| D24 | 2026-11-25 | **Lead call** (planning lead, SPEC Q10, SAM part): confidence 0.4 (spec); inference resolution = full resolution in 1008 px tiles, frames up to 2000 px wide whole (SAM scales them to 1008 px). Minimum mask area: no guess; bite 3 measures the areas of real and false masks on the preview frames and the builder proposes a value in its PR, which the lead logs here. Memory guard: S4 (spec puts it under job control); S3 records peak process and Apple GPU memory per preview run so S4 can set it. | Measure, don't guess (CLAUDE.md value 3). D10 rests on n = 3 frames from one video: bite 3 re-checks it on at least 6 frames from at least 2 videos (urchins kept and seconds per frame, tiles vs whole frame). |
+| D25 | 2026-11-25 | **Lead call** (planning lead): the Labeling page shows `classes.yaml` as a table and edits it in the browser (text box, Save, checked before an atomic write). Editing the file in a text editor and pressing Reload also works. PyYAML becomes a direct dependency once its licence is read from PyPI metadata (it is already installed through `sam3`). | SPEC constraint 7: every stage has a browser UI, and the terminal is only for starting the app. |
+| D26 | 2026-11-25 | **Lead call** (planning lead): preview frames = 3 kept frames spread over the kept list (first, middle, last by name); "Other frames" picks 3 at random. Preview and Run each start one SAM worker process through `app/jobs.py`; the page shows the time per frame from the preview and an estimate for Run (seconds per frame × frames). | Spec §5 asks for 3 sample frames without saying which. A real estimate with warm-up and rolling average is S4 (spec, job control). |
+| D27 | 2026-11-25 | **Lead call** (planning lead, QE PR 16 watch): still images stay byte-for-byte copies (D21); every place that reads pixels applies the EXIF orientation, and `sam_raw/` records the upright size. | Turning stills upright at ingest would break D21's byte-for-byte copy; one helper keeps SAM, masks and pages on the same image. |
 
 ## Bench / test results
 

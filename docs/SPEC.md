@@ -93,9 +93,13 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
 
 - Q2. Overlap rules for area-vs-area (kelp vs rock) and for several prompts of one class; and
   which segmenter class a kelp shoot's pixels get (kelp is the obvious candidate; not decided).
+  **Lead call D22 (2026-11-25):** areas listed first in `classes.yaml` win (kelp over rock); prompts of one
+  area class are unioned; kelp-shoot pixels count as kelp. Nick can reverse it.
 - Q9. CVAT export format for fine outline fixes, and whether fixes are imported back.
 - Q10. Defaults still open: minimum mask area, inference resolution, memory guard, and the
   tuned blur and duplicate values (S2 starts from the guesses in DESIGN D12).
+  **SAM part, Lead call D24 (2026-11-25):** confidence 0.4, full resolution in 1008 px tiles; minimum mask
+  area measured in S3's preview; memory guard moves to S4. Nick can reverse it.
 - Q11. "Largest object %" by mask or by box; the id for unknown; which frames count as
   "accepted" for export.
 - Q12. Does SAM 3.1 run on the M1 Max? **Answered in S1 (2026-11-24): yes, SAM 3.1 and SAM 3
