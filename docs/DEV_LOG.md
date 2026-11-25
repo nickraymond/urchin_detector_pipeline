@@ -17,6 +17,14 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S2 — Bite 3b merged; builder rotates
+**Branch:** sprint/2-frames-3b-done (docs only)
+**Done:** PR 9 (bite 3b) merged by the lead as `1284232`, matching QE's PASS on `5a72243`, under
+the new working rules (PR 10, `36b499f`). TRACKER 3b items marked done.
+**Broke/surprised us:** Nick did not run the 3b manual test before the merge; under the new rules
+it moves into the S2 test build (the four filter steps in PR 9's description).
+**Next:** bite 4 (review frames) by the next builder session; handoff note in the session notes.
+
 ## 2026-11-25 — Sprint S2 — Bite 3a merged; bite 3b: blur and duplicate filters
 **Branch:** sprint/2-frames-3b (from main `f9f14b2`, after PR 7 merged)
 **Done:** PR 7 (bite 3a) merged as `f9f14b2` after QE PASS on `5a3d96d` and Nick's word. Bite 3b
