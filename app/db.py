@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS frames (
 CREATE TABLE IF NOT EXISTS stage_status (
     stage TEXT PRIMARY KEY, state TEXT NOT NULL, counts TEXT NOT NULL DEFAULT '',
     updated TEXT NOT NULL DEFAULT (datetime('now', 'localtime')));
+CREATE TABLE IF NOT EXISTS stills (
+    path TEXT PRIMARY KEY, name TEXT NOT NULL, size_bytes INTEGER NOT NULL, file TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS review_actions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, frame TEXT NOT NULL, old_status TEXT NOT NULL,
     new_status TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')));
