@@ -53,3 +53,15 @@ td.thumb img { width: 160px; height: auto; display: block; border-radius: 3px; b
 .extract-form input[type=number] { width: 90px; }
 .frame-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
 .frame-grid img { width: 100%; display: block; border-radius: 3px; background: #ddd; }
+.frame-grid a { cursor: zoom-in; }
+.viewer { position: fixed; inset: 0; background: rgba(0, 0, 0, .92); z-index: 10; display: flex; align-items: center; justify-content: center; }
+.viewer[hidden] { display: none; }
+.viewer img { max-width: calc(100vw - 140px); max-height: calc(100vh - 80px); object-fit: contain; }
+.viewer button { background: rgba(255, 255, 255, .12); color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+.viewer button:hover { background: rgba(255, 255, 255, .3); }
+.viewer .v-prev, .viewer .v-next { position: absolute; top: 50%; transform: translateY(-50%); font-size: 40px; padding: 10px 16px; }
+.viewer .v-prev { left: 12px; }
+.viewer .v-next { right: 12px; }
+.viewer .v-close { position: absolute; top: 12px; right: 12px; font-size: 16px; padding: 6px 14px; }
+.viewer .v-caption { position: absolute; bottom: 8px; left: 0; right: 0; margin: 0; text-align: center; color: #ddd; font-size: 14px; }
+body.viewing { overflow: hidden; }

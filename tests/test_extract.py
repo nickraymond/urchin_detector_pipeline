@@ -111,6 +111,10 @@ def test_extract_page_start_progress_and_frames(tmp_path):
     assert client.get("/p/p/extract/status").json()["counts"]["kept"] == 3
     page = client.get("/p/p/extract").text
     assert "<b>3</b> kept" in page and 'value="1.0"' in page  # settings saved to project.json
+    assert 'id="viewer"' in page and page.count('data-i="') == 3  # in-page viewer (Nick)
+    import json, re
+    listed = json.loads(re.search(r'id="frame-list">(.*?)</script>', page).group(1))
+    assert [f["t"] for f in listed["frames"]] == [0.0, 1.0, 2.0]
     code = ingest.path_code(lib / "a.MP4")
     r = client.get(f"/p/p/frames/a_{code}_0.jpg")
     assert r.status_code == 200 and r.content[:2] == b"\xff\xd8"

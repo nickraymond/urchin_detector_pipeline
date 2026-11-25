@@ -278,9 +278,10 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         def work(cfg, info, conn):
             st = info["settings"]
             samples, live = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
-            frames = [dict(r) for r in conn.execute(
-                "SELECT file, timestamp_ms FROM frames WHERE status = 'kept' "
-                "ORDER BY video, timestamp_ms LIMIT 12")]
+            # every kept frame, for the viewer's arrows; the grid shows the first 12
+            frames = [{"file": r[0], "video": Path(r[1]).name, "t": r[2] / 1000}
+                      for r in conn.execute("SELECT file, video, timestamp_ms FROM frames "
+                                            "WHERE status = 'kept' ORDER BY video, timestamp_ms")]
             return templates.TemplateResponse(request, "extract.html", {
                 "cfg": cfg, "info": info, "every": st["seconds_between_samples"],
                 "cap": st["frame_cap"], "live": live, "planned": len(samples),
