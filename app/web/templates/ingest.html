@@ -11,6 +11,7 @@ in two folders count as one video.</p>
   <button type="submit">Open folder</button>
 </form>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if note %}<p class="totals">{{ note }}</p>{% endif %}
 
 {% if here and subfolders and error %}
 <ul class="subfolders">{% for d in subfolders %}
@@ -55,6 +56,18 @@ in two folders count as one video.</p>
 </table>
 </form>
 {% else %}<p>No .MP4 or .MOV videos here.</p>{% endif %}
+
+<h2>Still images in this folder and its subfolders ({{ stills }})</h2>
+{% if stills %}
+<form method="post" action="/p/{{ info.name }}/ingest/stills">
+  <input type="hidden" name="folder" value="{{ here }}">
+  <p>{{ stills_new }} of {{ stills }} .JPG / .PNG images are not in the project yet.
+  <button type="submit" {% if not stills_new or stills > max_stills %}disabled{% endif %}>Add {{ stills_new }} still images</button></p>
+  <p class="hint">They are copied, unchanged, into the project's frames folder (the originals are only
+  read), skip clips and extraction, and appear in Review frames.{% if stills > max_stills %}
+  More than {{ max_stills }} at once: open a subfolder.{% endif %}</p>
+</form>
+{% else %}<p class="hint">No .JPG or .PNG images here.</p>{% endif %}
 {% endif %}
 
 <h2>In this project ({{ added | length }})</h2>
@@ -72,4 +85,6 @@ in two folders count as one video.</p>
   </tr>{% endfor %}</tbody>
 </table>
 {% else %}<p class="hint">No videos added yet.</p>{% endif %}
+{% if stills_added %}<p class="totals">{{ stills_added }} still images in this project
+  (<a href="/p/{{ info.name }}/review">Review frames</a>).</p>{% endif %}
 {% endblock %}

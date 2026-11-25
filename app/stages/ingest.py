@@ -1,6 +1,7 @@
 """Stage 1, ingest: find videos in a folder (and its subfolders), read their details with
 ffprobe, check one frame decodes, group GoPro chapters, and add picked videos to a project.
-Spec §Stage details 1. Source videos are only ever read (SPEC constraint 4).
+Bite 5: folders of still images (JPEG / PNG) too; they skip clips and extraction and join at
+frame review. Spec §Stage details 1. Sources are only ever read (SPEC constraint 4).
 """
 
 from __future__ import annotations
@@ -9,14 +10,20 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from PIL import Image
+
 from app import db
+from app.stages.extract import blur_score, dhash
 
 VIDEO_EXT = {".mp4", ".mov"}
+STILL_EXT = {".jpg": ".jpg", ".jpeg": ".jpg", ".png": ".png"}  # still image -> its copy's suffix
+MAX_STILLS = 2000  # per add: copying is done at once, while the page waits
 SIDECAR_EXT = {".lrv", ".thm"}  # GoPro low-res proxy and thumbnail: never listed as videos
 # GoPro names: G + H/X/L (encoding) + 2-digit chapter + 4-digit recording number, e.g. GX010123.
 GOPRO = re.compile(r"^G([HXL])(\d{2})(\d{4})$", re.IGNORECASE)
@@ -62,16 +69,26 @@ def recording_of(path: Path) -> tuple[str, int]:
     return path.stem, 1
 
 
-def find_videos(folder: Path) -> list[Path]:
-    """Every .MP4 / .MOV under `folder`, skipping macOS `._` files, sidecars and hidden folders."""
+def find_files(folder: Path, suffixes) -> list[Path]:
+    """Files with these suffixes under `folder`, skipping macOS `._` files and hidden folders."""
     found = []
     for root, dirs, files in os.walk(folder):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
         for f in sorted(files):
             p = Path(root) / f
-            if not f.startswith(".") and p.suffix.lower() in VIDEO_EXT:
+            if not f.startswith(".") and p.suffix.lower() in suffixes:
                 found.append(p)
     return found
+
+
+def find_videos(folder: Path) -> list[Path]:
+    """Every .MP4 / .MOV under `folder` (sidecars have other suffixes, so never listed)."""
+    return find_files(folder, VIDEO_EXT)
+
+
+def find_stills(folder: Path) -> list[Path]:
+    """Every .JPG / .JPEG / .PNG under `folder`."""
+    return find_files(folder, STILL_EXT)
 
 
 def lrv_path(path: Path) -> Path | None:
@@ -192,9 +209,11 @@ def added_keys(conn: sqlite3.Connection) -> dict[tuple[str, int], str]:
 
 def update_status(conn: sqlite3.Connection) -> None:
     n, recs = conn.execute("SELECT COUNT(*), COUNT(DISTINCT recording) FROM videos").fetchone()
-    if n:
-        db.set_stage(conn, "ingest", "done", f"{n} video{'s' * (n != 1)} "
-                     f"({recs} recording{'s' * (recs != 1)})")
+    stills = conn.execute("SELECT COUNT(*) FROM stills").fetchone()[0]
+    parts = ([f"{n} video{'s' * (n != 1)} ({recs} recording{'s' * (recs != 1)})"] if n else []) \
+        + ([f"{stills} still image{'s' * (stills != 1)}"] if stills else [])
+    if parts:
+        db.set_stage(conn, "ingest", "done", ", ".join(parts))
     else:
         db.set_stage(conn, "ingest", "not started")
 
@@ -222,3 +241,58 @@ def remove(conn: sqlite3.Connection, path: str) -> None:
     """Take a video out of the project. The video file itself is never touched."""
     conn.execute("DELETE FROM videos WHERE path = ?", (path,))
     update_status(conn)
+
+
+# --- Still images (bite 5) ---
+
+def still_name(path: Path) -> str:
+    """The copy's name in frames/: <stem>_<path-code>_0<.jpg | .png>, the frame naming rule with
+    timestamp 0, so two stills of the same name in different folders never collide."""
+    stem = re.sub(r"[^A-Za-z0-9_-]", "_", Path(path).stem)
+    return f"{stem}_{path_code(path)}_0{STILL_EXT[Path(path).suffix.lower()]}"
+
+
+def added_stills(conn: sqlite3.Connection) -> dict[tuple[str, int], str]:
+    """(file name, size) -> source path of every still in the project (the D13 identity)."""
+    return {(r[0], r[1]): r[2] for r in conn.execute("SELECT name, size_bytes, path FROM stills")}
+
+
+def add_stills(conn: sqlite3.Connection, folder: Path, frames_dir: Path) -> dict:
+    """Copy every still image under `folder` into frames/ (byte for byte; the source is only
+    read) and add it as a kept frame with no timestamp. A still whose name and size are already
+    in the project is skipped; one that Pillow cannot read is skipped and counted. File first,
+    then its rows, so a stop in between leaves at most a copy that the next add replaces.
+    Returns {added, skipped, unreadable}."""
+    found = find_stills(folder)
+    if len(found) > MAX_STILLS:
+        raise IngestError(f"{folder} holds {len(found)} still images, more than {MAX_STILLS} "
+                          "at once. Open one of its subfolders instead.")
+    have = added_stills(conn)
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    out = {"added": 0, "skipped": 0, "unreadable": 0}
+    for p in found:
+        size = p.stat().st_size
+        if (p.name, size) in have:
+            out["skipped"] += 1
+            continue
+        try:
+            with Image.open(p) as im:
+                im.verify()
+        except Exception:  # Pillow raises many types for a damaged file
+            out["unreadable"] += 1
+            continue
+        name = still_name(p)
+        tmp = frames_dir / (name + ".tmp")
+        shutil.copyfile(p, tmp)
+        os.replace(tmp, frames_dir / name)
+        with Image.open(frames_dir / name) as im:
+            blur, h = blur_score(im.convert("RGB")), dhash(im)
+        conn.execute("INSERT OR REPLACE INTO stills (path, name, size_bytes, file) "
+                     "VALUES (?, ?, ?, ?)", (str(p), p.name, size, name))
+        conn.execute("INSERT OR REPLACE INTO frames (file, video, timestamp_ms, blur_score, hash, "
+                     "status) VALUES (?, ?, NULL, ?, ?, 'kept')", (name, str(p), blur, h))
+        conn.commit()
+        have[(p.name, size)] = str(p)
+        out["added"] += 1
+    update_status(conn)
+    return out

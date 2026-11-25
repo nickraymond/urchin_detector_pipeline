@@ -26,7 +26,13 @@ from app import db
 
 JPEG_QUALITY = 95          # spec: quality >= 95
 BLUR_WIDTH = 1024          # blur is scored on a 1024 px wide grey copy, so 4K and 5.3K compare
-FRAME_NAME = re.compile(r"^[A-Za-z0-9_-]+_[0-9a-f]{6}_\d+\.jpg$")
+FRAME_NAME = re.compile(r"^[A-Za-z0-9_-]+_[0-9a-f]{6}_\d+\.(jpg|png)$")  # .png: a still (bite 5)
+
+
+def is_still(row) -> bool:
+    """A still image added on the Ingest page (bite 5): a frame with no timestamp. Stills skip
+    extraction and the filters and are counted apart from the plan."""
+    return row["timestamp_ms"] is None
 
 
 def frames_dir(project_folder: Path) -> Path:
@@ -154,7 +160,7 @@ def filter_frames(rows: list[dict], blur_percent: float, duplicate_distance: int
     two feed the examples on the page."""
     by_video: dict[str, list[dict]] = {}
     for r in rows:
-        if r["status"] in FILTERED or r["status"] == "kept_hand":
+        if (r["status"] in FILTERED or r["status"] == "kept_hand") and not is_still(r):
             by_video.setdefault(r["video"], []).append(r)
     status, pairs, ranked = {}, [], {}
     for video, frames in by_video.items():
@@ -207,7 +213,7 @@ def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: i
     c = {k: 0 for k in ("kept", "kept_hand", "dropped_blur", "dropped_duplicate", "rejected")}
     for r in rows:
         st = result["status"].get(r["file"], r["status"])
-        if st in c:
+        if st in c and not is_still(r):
             c[st] += 1
     c["total"] = sum(c.values())
     c["kept"] += c["kept_hand"]           # the kept count includes frames kept by hand (D20)
@@ -247,11 +253,14 @@ def counts(conn: sqlite3.Connection, planned: set[str] | None = None) -> dict:
     """Frames per status. 'kept' includes 'kept_hand' (also given on its own); 'total' =
     kept + dropped blurry + dropped duplicate + rejected = the plan (D20). Given the planned
     file names, rejected frames outside the plan are counted apart, as 'rejected_unplanned',
-    and left out of the total."""
+    and left out of the total. Still images are counted apart too: 'stills' (kept, also by
+    hand) and 'stills_rejected'."""
     out = {"kept": 0, "kept_hand": 0, "dropped_blur": 0, "dropped_duplicate": 0,
-           "rejected": 0, "unplanned": 0}
-    for file, st in conn.execute("SELECT file, status FROM frames"):
-        if st == "rejected" and planned is not None and file not in planned:
+           "rejected": 0, "unplanned": 0, "stills": 0, "stills_rejected": 0}
+    for file, st, ms in conn.execute("SELECT file, status, timestamp_ms FROM frames"):
+        if ms is None:                      # a still image: not part of the plan (bite 5)
+            st = "stills_rejected" if st == "rejected" else "stills"
+        elif st == "rejected" and planned is not None and file not in planned:
             st = "rejected_unplanned"
         out[st] = out.get(st, 0) + 1
     out["kept"] += out["kept_hand"]
@@ -283,7 +292,8 @@ def run(project_folder: Path, samples: list[dict],
     conn = db.connect(Path(project_folder) / "state.sqlite")  # own connection: runs in a thread
     try:
         db.set_stage(conn, "extract", "in progress", f"0 of {len(samples)} frames")
-        status = dict(conn.execute("SELECT file, status FROM frames"))
+        status = dict(conn.execute("SELECT file, status FROM frames "
+                                   "WHERE timestamp_ms IS NOT NULL"))  # stills are not extracted
         planned, new = set(), 0
         for i, s in enumerate(samples):
             v = s["video"]
@@ -314,6 +324,8 @@ def run(project_folder: Path, samples: list[dict],
                 conn.commit()
                 new += 1
             report(100 * (i + 1) / len(samples), f"frame {i + 1} of {len(samples)}")
+            # the dashboard shows how far a run got, also after the app was quit mid-run
+            db.set_stage(conn, "extract", "in progress", f"{i + 1} of {len(samples)} frames")
         for name, st in status.items():
             if st in (*FILTERED, "kept_hand") and name not in planned:
                 move_home(project_folder, name, "unplanned")

@@ -46,7 +46,8 @@
     at = (i + frames.length) % frames.length;  // wraps around at both ends
     const f = frames[at];
     img.src = base + encodeURIComponent(f.file);
-    caption.textContent = (at + 1) + " of " + frames.length + " · " + f.video + " at " + fmt(f.t) +
+    caption.textContent = (at + 1) + " of " + frames.length + " · " + f.video +
+      (f.t == null ? " (still image)" : " at " + fmt(f.t)) +
       (f.label ? " · " + f.label : "");
     document.dispatchEvent(new CustomEvent("viewer:show", {detail: {i: at}}));
     if (viewer.hidden) {

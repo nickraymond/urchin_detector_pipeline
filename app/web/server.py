@@ -127,7 +127,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return f"/p/{name}/ingest?" + urlencode({"folder": folder})
 
     @app.get("/p/{name}/ingest", response_class=HTMLResponse)
-    def ingest_page(request: Request, name: str, folder: str = ""):
+    def ingest_page(request: Request, name: str, folder: str = "", note: str = ""):
         def work(cfg, info, conn):
             start = folder.strip() or next((str(r) for r in cfg.video_roots if r.is_dir()), "")
             here = Path(start).expanduser() if start else None
@@ -145,10 +145,15 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                     error = str(e)
             for v in videos:
                 ingest.thumbnail(v, cfg.data_dir / "thumbs")
+            stills = ingest.find_stills(here) if here is not None and here.is_dir() else []
+            have = ingest.added_stills(conn)
             keys = ingest.added_keys(conn)
             return templates.TemplateResponse(request, "ingest.html", {
                 "cfg": cfg, "info": info, "here": here, "error": error,
                 "subfolders": subfolders, "videos": videos, "added": ingest.added(conn),
+                "stills": len(stills), "stills_new": sum(
+                    1 for p in stills if (p.name, p.stat().st_size) not in have),
+                "stills_added": len(have), "max_stills": ingest.MAX_STILLS, "note": note,
                 "added_paths": set(keys.values()),
                 # a copy of this video from another folder is already in the project (D13)
                 "added_elsewhere": {str(v.path): keys[(v.path.name, v.size)] for v in videos
@@ -178,6 +183,27 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 videos = []
             ingest.add(conn, [v for v in videos if str(v.path) in picked])
             return RedirectResponse(ingest_url(name, folder), status_code=303)
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/ingest/stills")
+    def ingest_stills(request: Request, name: str, folder: str = Form("")):
+        """Copy the still images under this folder into the project (bite 5). Only a folder
+        that exists; the images are only read."""
+        def work(cfg, info, conn):
+            here = Path(folder)
+            if not folder or not here.is_dir():
+                note = f"Folder not found: {folder}."
+            else:
+                try:
+                    n = ingest.add_stills(conn, here, extract.frames_dir(info["folder"]))
+                    note = (f"Added {n['added']} still images" +
+                            (f"; {n['skipped']} were already in the project" if n["skipped"] else "") +
+                            (f"; {n['unreadable']} could not be read and were left out"
+                             if n["unreadable"] else "") + ". They are in Review frames.")
+                except ingest.IngestError as e:
+                    note = str(e)
+            return RedirectResponse(ingest_url(name, folder) + "&" + urlencode({"note": note}),
+                                    status_code=303)
         return with_project(request, name, work)
 
     @app.post("/p/{name}/ingest/remove")
@@ -317,13 +343,15 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             blur, dup = filter_settings(info)
             samples, live = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
             # every kept frame, for the viewer's arrows; the grid shows the first 12
-            frames = review.frames(conn)  # kept, also by hand (D20)
+            # kept frames, also by hand (D20); still images are not extracted (bite 5)
+            frames = [f for f in review.frames(conn) if f["t"] is not None]
             return templates.TemplateResponse(request, "extract.html", {
                 "cfg": cfg, "info": info, "every": st["seconds_between_samples"],
                 "cap": st["frame_cap"], "live": live, "planned": len(samples),
                 "videos": len(ingest.added(conn)), "counts": extract.counts(conn, planned_names(samples)),
                 "job": jobs.status(f"{info['folder']}:extract") or {}, "frames": frames,
-                "blur": blur, "dup": dup, "error": error})
+                "blur": blur, "dup": dup, "error": error,
+                "stage": next(s for s in db.stage_statuses(conn) if s["stage"] == "extract")})
         return with_project(request, name, work)
 
     @app.get("/p/{name}/extract/filter")
@@ -456,7 +484,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             path = extract.home(info["folder"], row[0]) / file if ok else None
             if not ok or not path.is_file():
                 return PlainTextResponse("not found", status_code=404)
-            return FileResponse(path, media_type="image/jpeg")
+            return FileResponse(path, media_type="image/png" if file.endswith(".png")
+                                else "image/jpeg")
         return with_project(request, name, work)
 
     @app.get("/p/{name}/clips/status")

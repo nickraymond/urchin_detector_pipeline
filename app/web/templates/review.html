@@ -8,7 +8,7 @@ This stage is optional: Skip leaves every kept frame as it is.</p>
 {% if busy %}<p class="error">Extraction is running; review when it has finished.</p>{% endif %}
 <p class="totals" id="review-counts"><b>{{ counts.kept }}</b> kept{% if counts.kept_hand %} ({{ counts.kept_hand }} by hand){% endif %}
   · {{ counts.rejected }} rejected · {{ counts.dropped_blur }} dropped as blurry · {{ counts.dropped_duplicate }} dropped as duplicate
-  = {{ counts.total }}{% if counts.rejected_unplanned %} · {{ counts.rejected_unplanned }} rejected from earlier settings{% endif %}
+  = {{ counts.total }}{% if counts.stills or counts.stills_rejected %} · still images: {{ counts.stills }} kept, {{ counts.stills_rejected }} rejected{% endif %}{% if counts.rejected_unplanned %} · {{ counts.rejected_unplanned }} rejected from earlier settings{% endif %}
   · stage: {{ stage.state }}</p>
 <div class="review-bar">
   <label>Per row <input id="per-row" type="range" min="1" max="8" step="1" value="6"> <output id="per-row-out">6</output></label>

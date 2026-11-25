@@ -31,7 +31,8 @@ def frames(conn: sqlite3.Connection, show_dropped: bool = False) -> list[dict]:
     """The frames to review, by video then time: {file, video (name), t, status, label}."""
     shown = SHOWN_ALL if show_dropped else SHOWN
     marks = ",".join("?" * len(shown))
-    return [{"file": f, "video": Path(v or "").name, "t": (ms or 0) / 1000, "status": st,
+    return [{"file": f, "video": Path(v or "").name, "t": None if ms is None else ms / 1000,
+             "status": st,
              "label": LABELS[st]}
             for f, v, ms, st in conn.execute(
                 f"SELECT file, video, timestamp_ms, status FROM frames WHERE status IN ({marks}) "

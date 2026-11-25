@@ -60,6 +60,15 @@ app/web/static/          one CSS file, small plain JavaScript files
   in `<project>/framethumbs/` (a GET writing a cache, D14a); the full-screen viewer is shared
   with the Extract page (`static/viewer.js`). The dashboard row and the page have Skip; the page
   has Done.
+- Stills and resume (as-built, bite 5): the Ingest page also lists the `.JPG` / `.JPEG` / `.PNG`
+  images under the open folder; "Add still images" copies them byte for byte into `frames/` as
+  `<stem>_<path code>_0.<jpg|png>` (originals only read), records them in a `stills` table (path,
+  name, size; same name + size = already added, as D13) and adds each as a `kept` frame with no
+  timestamp. A frame with no timestamp is a still: Extract and the filters never touch it, and the
+  counts show stills apart from the plan; review treats it like any frame. Resume: every stage
+  keeps its state on disk (`state.sqlite`, `clips.json`, files); Extract writes "k of N frames" to
+  the dashboard after each frame, and after a stop or a quit its page says how far it got and
+  that pressing Extract carries on without decoding finished frames again.
 - Video work goes through the installed `ffmpeg` / `ffprobe` as subprocesses; no extra video library.
 - Blur score (variance of Laplacian) and near-duplicate hash use numpy / scipy / Pillow, already installed.
 - Long steps run in the background behind one small interface (start, progress, done / error) so
