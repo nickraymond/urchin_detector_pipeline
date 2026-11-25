@@ -155,20 +155,21 @@ def filter_frames(rows: list[dict], blur_percent: float, duplicate_distance: int
       2. then, in time order, a frame whose hash differs from the previous *kept* frame by
          fewer than duplicate_distance bits -> 'dropped_duplicate' (0 = off). Blur runs first,
          so a blurry frame never anchors a duplicate check.
-    Returns {"status": {file: new status}, "ranked": {video: (blur-dropped, others)}, each
-    list nearest the cut-off first, "pairs": [(file, previous kept file, distance)]}; the last
-    two feed the examples on the page."""
+    Returns {"status": {file: new status}, "distance": {file: bits differing from the
+    previous kept frame}} (no distance for a video's first kept frame or a blurry one),
+    "drop_at": {file: the lowest blur_percent at which that frame is dropped as blurry}}."""
     by_video: dict[str, list[dict]] = {}
     for r in rows:
         if (r["status"] in FILTERED or r["status"] == "kept_hand") and not is_still(r):
             by_video.setdefault(r["video"], []).append(r)
-    status, pairs, ranked = {}, [], {}
+    status, distance, drop_at = {}, {}, {}
     for video, frames in by_video.items():
         frames.sort(key=lambda r: r["timestamp_ms"])
         by_blur = sorted((r for r in frames if r["status"] != "kept_hand"), key=lambda r: (r["blur_score"] or 0.0, r["timestamp_ms"]))
         n_blur = int(len(by_blur) * blur_percent / 100 + 1e-9)
         blurry = {r["file"] for r in by_blur[:n_blur]}
-        ranked[video] = (by_blur[:n_blur][::-1], by_blur[n_blur:])  # nearest the cut-off first
+        for k, r in enumerate(by_blur):  # the k+1 blurriest go once len * p / 100 >= k + 1
+            drop_at[r["file"]] = 100 * (k + 1) / len(by_blur)
         anchor = None
         for r in frames:
             if r["status"] == "kept_hand":
@@ -178,14 +179,13 @@ def filter_frames(rows: list[dict], blur_percent: float, duplicate_distance: int
                 status[r["file"]] = "dropped_blur"
                 continue
             if anchor is not None:
-                d = hash_distance(r["hash"], anchor["hash"])
-                pairs.append((r["file"], anchor["file"], d))
+                d = distance[r["file"]] = hash_distance(r["hash"], anchor["hash"])
                 if d < duplicate_distance:
                     status[r["file"]] = "dropped_duplicate"
                     continue
             status[r["file"]] = "kept"
             anchor = r
-    return {"status": status, "ranked": ranked, "pairs": pairs}
+    return {"status": status, "distance": distance, "drop_at": drop_at}
 
 
 def frame_rows(conn: sqlite3.Connection) -> list[dict]:
@@ -194,25 +194,20 @@ def frame_rows(conn: sqlite3.Connection) -> list[dict]:
                                   "FROM frames")]
 
 
-def _round_robin(lists: list[list], n: int) -> list:
-    """Up to n items, taking the first of each list, then the second of each, and so on."""
-    out = []
-    for i in range(max((len(x) for x in lists), default=0)):
-        out += [x[i] for x in lists if i < len(x)]
-    return out[:n]
-
-
 def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: int,
-            n: int = 3, planned: set[str] | None = None) -> dict:
-    """What Apply would do, read only: the counts, plus examples at each cut-off: the frames
-    just dropped and just kept by blur (nearest each video's cut-off) and the duplicate pairs
-    nearest the distance cut-off on both sides, each with the kept frame it was compared to."""
+            planned: set[str] | None = None) -> dict:
+    """What Apply would do, read only: the counts, and every frame each filter would drop, in
+    one row per filter (Nick 2026-11-25). Blurry frames in the order the blur slider drops them
+    (the cut is per video, so by the setting at which each one goes, then most blurry first): a
+    stronger setting only adds frames on the right. Duplicates from least to most unique (fewest
+    bits differing from the last kept frame first); the frame each one is compared with changes
+    with the setting, so a stronger setting can also add frames mid-row."""
     rows = frame_rows(conn)
-    info = {r["file"]: r for r in rows}
     result = filter_frames(rows, blur_percent, duplicate_distance)
+    new = result["status"]
     c = {k: 0 for k in ("kept", "kept_hand", "dropped_blur", "dropped_duplicate", "rejected")}
     for r in rows:
-        st = result["status"].get(r["file"], r["status"])
+        st = new.get(r["file"], r["status"])
         if st == "rejected" and planned is not None and r["file"] not in planned:
             continue                      # rejected outside the plan: counted apart (D20)
         if st in c and not is_still(r):
@@ -220,21 +215,17 @@ def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: i
     c["total"] = sum(c.values())
     c["kept"] += c["kept_hand"]           # the kept count includes frames kept by hand (D20)
 
-    def ex(file, **more):
-        r = info[file]
-        return {"file": file, "video": Path(r["video"]).name, "t": r["timestamp_ms"] / 1000,
-                "blur": r["blur_score"], "status": r["status"], **more}
+    def ex(r):
+        return {"file": r["file"], "video": Path(r["video"]).name, "t": r["timestamp_ms"] / 1000,
+                "blur": r["blur_score"], "distance": result["distance"].get(r["file"])}
 
-    ranked = list(result["ranked"].values())
-    pairs = result["pairs"]
-    dup_drop = sorted((p for p in pairs if p[2] < duplicate_distance), key=lambda p: -p[2])
-    dup_keep = sorted((p for p in pairs if p[2] >= duplicate_distance), key=lambda p: p[2])
+    blurry = [r for r in rows if new.get(r["file"]) == "dropped_blur"]
+    dups = [r for r in rows if new.get(r["file"]) == "dropped_duplicate"]
     return {
         "counts": c,
-        "blur_dropped": [ex(r["file"]) for r in _round_robin([d for d, _ in ranked], n)],
-        "blur_kept": [ex(r["file"]) for r in _round_robin([k for _, k in ranked], n)],
-        "dup_dropped": [ex(f, match=ex(a), distance=d) for f, a, d in dup_drop[:n]],
-        "dup_kept": [ex(f, match=ex(a), distance=d) for f, a, d in dup_keep[:n]],
+        "blur_dropped": [ex(r) for r in sorted(blurry, key=lambda r: (
+            result["drop_at"][r["file"]], r["blur_score"] or 0))],
+        "dup_dropped": [ex(r) for r in sorted(dups, key=lambda r: result["distance"][r["file"]])],
     }
 
 

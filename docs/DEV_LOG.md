@@ -17,6 +17,7 @@ what broke, what's next.*
 
 ---
 
+<<<<<<< HEAD
 ## 2026-11-25 — Sprint S2 — Bites 4 (review frames) and 5 (stills + resume) merged
 **Branch:** sprint/2-frames-4 (PR 14), sprint/2-frames-5 (PR 16), sprint/2-frames-45-done (docs only)
 **Done:** Bite 4: `app/stages/review.py`; grid of 640 px copies with a 1–8 per-row slider, arrows,
@@ -29,7 +30,28 @@ far a stopped run got and carries on. 94 tests. S2 Demo run end to end in the bu
 on the bite 5 head (notes folder, `s2-demo-run-2026-11-25.md`).
 **Broke/surprised us:** force-push is blocked in builder sessions, so branches take `main` by
 merge, not rebase; PR 16 was stacked on PR 14 and retargeted after the squash merge.
-**Next:** S2 Demo again on `main` after PR 15; then Nick's S2 test build (checklist in the notes folder).
+S2 Demo re-run on `main` at `4fad379` (after PR 15): 37 kept + 3 blurry + 0 duplicate = 40 = live
+count; D / Z / D; restart kept all four stages and the frame in `rejected/`; 6 stills in review.
+PR 15's description says least blurry on the left; `main` shows most blurry on the left.
+**Next:** Nick's S2 test build; the checklist is `s2-test-build-checklist.md` in the notes folder.
+=======
+## 2026-11-25 — Sprint S2 — Filter rows simplified (Nick's feedback on 3b)
+**Branch:** sprint/2-filter-rows (from main `87310c0`)
+**Done:** Nick found the filter examples too much and their labels confusing ("the sharpest
+frames dropped"). Now one row per filter showing every frame it would drop, scrolling sideways; click
+opens the viewer. Order (Nick's second look): most blurry and least unique (fewest bits
+differing from the last kept frame) on the left. The blur row follows the setting at which each
+frame drops, so a stronger blur only adds on the right (QE); the duplicate row can still gain
+frames mid-row.
+After PR 14 (bite 4) merged: main merged in, `kept_hand` kept (never ranked by blur, still a
+duplicate anchor), and the rows load the 640 px `/framethumbs/` copies; the viewer still opens
+the full-size frame. 89 tests. The kept-side and paired examples are gone. Browser
+check on the scratch project at 30 % / 20: rows of 12 and 14 in order (sharpness 4 → 141,
+11 → 19 bits). 82 tests.
+**Broke/surprised us:** Nick's app on port 8000 was an old copy from the previous builder's
+folder, so he saw no filters at first.
+**Next:** QE reviews the draft PR; the lead merges.
+>>>>>>> origin/main
 
 ## 2026-11-25 — Sprint S2 — Bite 3b merged; builder rotates
 **Branch:** sprint/2-frames-3b-done (docs only)

@@ -86,17 +86,40 @@ def test_apply_moves_back_and_forth_and_counts_add_up(tmp_path):
     assert c["kept"] == 10 and len(list(extract.frames_dir(proj).glob("*.jpg"))) == 10
 
 
-def test_preview_examples_sit_at_the_cut_offs(tmp_path):
-    rows = [frame(f"a_aaaaaa_{i}.jpg", t=i, blur=10 + i, h=f"{(1 << i) - 1:016x}")
-            for i in range(8)]
+def test_preview_lists_every_dropped_frame_in_order(tmp_path):
+    """Nick 2026-11-25: one row per filter, everything it drops; most blurry and least unique
+    on the left, so a stronger setting adds frames on the right."""
+    rows = [frame("a_aaaaaa_0.jpg", t=0, blur=50, h="0000000000000000"),
+            frame("a_aaaaaa_1.jpg", t=1, blur=5),                        # blurriest of a
+            frame("a_aaaaaa_2.jpg", t=2, blur=60, h="0000000000000001"),  # 1 bit from a_0
+            frame("a_aaaaaa_3.jpg", t=3, blur=70, h="0000000000000007"),  # 3 bits from a_0
+            frame("b_bbbbbb_0.jpg", video="/v/b.MP4", t=0, blur=20),     # blurriest of b
+            frame("b_bbbbbb_1.jpg", video="/v/b.MP4", t=1, blur=100, h="0000000000000000"),
+            frame("b_bbbbbb_2.jpg", video="/v/b.MP4", t=2, blur=110, h="0000000000000003"),
+            frame("b_bbbbbb_3.jpg", video="/v/b.MP4", t=3, blur=120, h="00000000000000ff")]
     proj, conn = _project(tmp_path, rows)
-    p = extract.preview(conn, 25, 3)
-    assert [e["blur"] for e in p["blur_dropped"]] == [11, 10]      # sharpest dropped first
-    assert [e["blur"] for e in p["blur_kept"]] == [12, 13, 14]     # blurriest kept first
-    assert all(e["distance"] < 3 for e in p["dup_dropped"])
-    assert all(e["distance"] >= 3 for e in p["dup_kept"])
-    assert all(e["match"]["file"] for e in p["dup_dropped"] + p["dup_kept"])
+    p = extract.preview(conn, 25, 4)
+    assert [e["blur"] for e in p["blur_dropped"]] == [5, 20]               # most blurry first
+    assert [(e["file"], e["distance"]) for e in p["dup_dropped"]] == [
+        ("a_aaaaaa_2.jpg", 1), ("b_bbbbbb_2.jpg", 2), ("a_aaaaaa_3.jpg", 3)]  # least unique first
+    assert p["counts"] == {"kept": 3, "kept_hand": 0, "dropped_blur": 2, "dropped_duplicate": 3,
+                           "rejected": 0, "total": 8}
     assert _where(proj) == {r["file"]: "frames" for r in rows}     # preview moved nothing
+
+
+def test_a_stronger_blur_setting_only_adds_frames_on_the_right(tmp_path):
+    """QE PR 15: the cut is per video, so raw sharpness order could put a newly dropped frame
+    in the middle of the row; the row follows the setting at which each frame goes."""
+    rows = [frame(f"a_aaaaaa_{i}.jpg", t=i, blur=10 * (i + 1)) for i in range(5)]  # 10..50
+    rows += [frame(f"b_bbbbbb_{i}.jpg", video="/v/b.MP4", t=i, blur=100 + i) for i in range(10)]
+    rows.append(frame("a_aaaaaa_9.jpg", t=9, blur=1, status="kept_hand"))  # never ranked (D20)
+    proj, conn = _project(tmp_path, rows)
+    before = []
+    for pct in range(0, 51):
+        row = [e["file"] for e in extract.preview(conn, pct, 0)["blur_dropped"]]
+        assert row[:len(before)] == before, pct
+        before = row
+    assert len(before) == 7  # 2 of a's 5 and 5 of b's 10 at 50 %
 
 
 def test_a_stop_mid_apply_is_repaired(tmp_path):
@@ -153,7 +176,8 @@ def test_filter_routes(tmp_path):
     a = client.get("/p/p/extract/filter?blur=50&dup=0").json()
     assert a["counts"] == {"kept": 3, "kept_hand": 0, "dropped_blur": 3, "dropped_duplicate": 0, "rejected": 0,
                            "total": 6}
-    assert len(a["blur_dropped"]) == 3 and len(a["blur_kept"]) == 3
+    assert len(a["blur_dropped"]) == 3 and a["dup_dropped"] == []
+    assert [e["blur"] for e in a["blur_dropped"]] == sorted(e["blur"] for e in a["blur_dropped"])
     for bad in ("blur=51&dup=0", "blur=nan&dup=0", "blur=10&dup=4.5", "blur=10&dup=abc"):
         assert client.get(f"/p/p/extract/filter?{bad}").status_code == 400, bad
     assert sorted(p.name for p in folder.rglob("*.jpg")) == files_before  # preview reads only
