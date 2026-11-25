@@ -85,6 +85,12 @@ device, seconds per frame and memory. A failed run still produces the page, with
 ### S2 — Frames (ingest, clips, extract, review; no SAM)  `[ ]`
 **Goal:** spec stages 1–4 work in the browser on Nick's ReefCheck videos. Design: DESIGN §Planned for S2.
 One draft PR per bite; each bite ends with something Nick can click.
+Every item of `docs/source/mvp_spec.md` §Stage details 1–4 belongs to the matching bite, including:
+ingest takes picked files or a folder (with subfolders), not only `video_roots`; default sampling
+every 2 s and cap 300; JPEG quality ≥ 95; counts add up to the live count, or to the cap if the cap
+applied; grid from 8 per row down to 1 (default 6); thumbnails never cropped, click for full size;
+the review stage can be skipped. A test proves source videos are unchanged after every stage
+(SPEC constraint 4).
 
 **Bite 1 — Skeleton + ingest**
 - [ ] plan nibble: re-read the prior art (SPEC §Background) and say what is reused
@@ -103,7 +109,7 @@ One draft PR per bite; each bite ends with something Nick can click.
 
 **Bite 3 — Extract frames**
 - [ ] sampling plan (every N seconds inside clips, whole video if none), cap spread evenly, live count
-- [ ] frames pulled from the full-resolution original; named `<video-name>_<path-code>_<timestamp-ms>.jpg`
+- [ ] frames pulled from the full-resolution original; named `<video-stem>_<path-code>_<timestamp-ms>.jpg`
 - [ ] blur filter with a slider and example kept / dropped frames; near-duplicate filter
 - [ ] runs in the background with a progress bar; kept + dropped-blurry + dropped-duplicate add up to the live count
 
@@ -118,7 +124,8 @@ One draft PR per bite; each bite ends with something Nick can click.
 **Demo (Nick):** `uv run app`, browser opens `http://127.0.0.1:8000`. Pick 2 ReefCheck videos, mark
 a clip with `I`/`O`, extract: the kept and dropped counts add up to the preview count. Delete one
 frame with `D`, undo with `Z`, delete it again. Quit and restart: the dashboard shows the four
-stages where you left them, and the deleted frame is in the project's `rejected/` folder.
+stages where you left them, and the deleted frame is in the project's `rejected/` folder. Then add
+a folder of still images: they appear in frame review.
 **Needs:** S1 (done).
 
 ### S3 — SAM on single frames  `[ ]`
