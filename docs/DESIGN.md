@@ -125,6 +125,15 @@ app/web/templates/label.html  the Labeling page
 - SAM runs in one worker process per job (D9, D26), queued through `app/jobs.py` so only one SAM job runs at a
   time (two runs on the GPU triple the time, S1). Run frames in name order; a stop or quit loses at most the
   frame in progress, and Run again carries on. No pause, schedule or limits yet: that is S4.
+- Classes (as-built, bite 1): `app/sam/classes.py`. A page load only reads: a project without
+  `classes.yaml` shows the starting file, and the first Save (or, from bite 2, Run) copies it in.
+  Save writes `yaml.safe_dump` pieces in the starting file's layout (settings one per line, one class
+  per line); comments are not kept. "An id used in `sam_raw/` keeps its name" reads
+  `sam_raw/class_ids.json` (`{id: name}` of every class with results), which the SAM runner keeps
+  up to date (bite 2); a name with results also keeps its id. Unknown keys and settings are errors
+  (typos). Colours come from a fixed palette by id; untagged urchins are grey. The upright helper is
+  `app/images.py`; review-grid copies moved to `<project>/framethumbs/upright/`, so the sideways S2
+  copies are never served again.
 - Images are read through one helper that applies the EXIF orientation (Pillow `ImageOps.exif_transpose`), so
   SAM, the masks and the page all use the same upright image (D27).
 - Tests: a fake predictor stands in for SAM (no torch, no weights, no real frames); synthetic images; the
