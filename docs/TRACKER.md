@@ -155,6 +155,8 @@ One draft PR per bite, about 300 lines each.
 - [ ] checks before any save or run (ids append-only, D6; groups; `seg_as`); errors name the line
 - [ ] Labeling page: classes table with colours, edit `classes.yaml` in the browser, Reload (D25);
       dashboard row "SAM labeling"; PyYAML a direct dependency with its licence read
+- [ ] one EXIF-orientation helper for every pixel read (D27); fix the review-grid thumbnails, which show a
+      rotated still sideways today (QE PR 19)
 
 **Bite 2 — SAM runner and results files**
 - [ ] SAM in its own worker process (D9), reusing `app/sam_test/device_patch.py`; one model load per job
@@ -178,7 +180,8 @@ One draft PR per bite, about 300 lines each.
 - [ ] re-run only what changed: per run unit and frame, by settings key; before Run the page lists the classes
       that will run and those unchanged; reviewed masks kept and marked "from older settings"
 - [ ] `app/sam/overlap.py` with the rules of D22, unit-tested; a "final class map" toggle in the preview
-- [ ] watch (QE PR 16): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27)
+- [ ] watch (QE PR 16, PR 19): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27);
+      S5's export images must be upright too
 
 **Demo (Nick):** same start command, a project of about 5 kept frames. On the Labeling page press "Preview":
 3 frames show coloured masks per class, with counts and seconds per frame; "final class map" shows one colour
