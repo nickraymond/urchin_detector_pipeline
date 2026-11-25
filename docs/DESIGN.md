@@ -9,7 +9,8 @@ S1 (a test, not the tool): `uv run sam-test --video <file>` → `app/sam_test/ru
 frames with ffmpeg into `<data_dir>/sam_test/frames/`, then starts `app/sam_test/worker.py` as a
 separate process for each attempt (Apple GPU → Apple GPU with CPU fallback → CPU, stopping at
 the first that works). Each worker writes `result_<attempt>.json` after every step;
-`report.py` turns them into `<data_dir>/sam_test/report.html` with the overlays embedded.
+`report.py` turns them into `<data_dir>/sam_test/<model>_tile<N>_cutoff<C>/report.html` with
+the overlays embedded, plus an all-runs page `<data_dir>/sam_test/report.html`.
 
 ## Key designs
 
@@ -30,6 +31,7 @@ the first that works). Each worker writes `result_<attempt>.json` after every st
 | D7 | 2026-11-24 | Pin PyTorch to 2.10.0 (the version in Meta's sam3 readme), Python 3.12. | torch 2.15.0 aborts on the Apple GPU on macOS 14.6 (`MPSNDArray arrayViewWithShape:strides:` unrecognized selector) on a plain Conv2d; 2.8.0–2.14.0 pass the same test (S1 test, 2026-11-24). |
 | D8 | 2026-11-24 | Run Meta's SAM 3 code unmodified; apply small run-time fixes in `app/sam_test/device_patch.py`: stub the triton-only `edt` module, build two caches on the chosen device instead of `"cuda"`, replace the fused bfloat16 `_addmm_activation` with float32 linear + activation (its bfloat16 output gave NaN scores on MPS and a dtype error on CPU), skip empty point/box encodes and `pin_memory` off-CUDA. Other missing ops use PyTorch's CPU fallback; the report lists which. | Smallest change that runs; Meta's files stay untouched and upgradeable. Each fix is from a failure seen in the S1 smoke test. |
 | D9 | 2026-11-24 | The SAM test runs each attempt in its own worker process. | The Apple GPU can abort the whole process (seen with torch 2.15.0); the parent must still write the report. |
+| D10 | 2026-11-24 | The S1 test defaults to SAM 3 (`facebook/sam3`, `sam3.pt`), 1008 px tiles, and the prompt "urchin" in place of "sea urchin". | SAM 3 gives the same text results as SAM 3.1, and its click/box model loads (3.1 lacks all 309 of those weights). "urchin" kept far more urchins (Bench results). Nick, chat 2026-11-24. n = 3 frames; to re-check in S3's prompt preview. |
 
 ## Bench / test results
 

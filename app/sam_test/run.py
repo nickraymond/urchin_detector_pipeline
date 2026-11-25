@@ -1,11 +1,12 @@
-"""S1 SAM test: does SAM 3.1 run on this laptop, how fast, with how much memory.
+"""S1 SAM test: does SAM 3 / 3.1 run on this laptop, how fast, with how much memory.
 
     uv run sam-test --video "/path/to/video.MP4"
 
 Pulls 3 frames from the video (read-only), then runs SAM in a separate worker process per
 attempt (Apple GPU, Apple GPU with CPU fallback, CPU), stopping at the first that works.
-A crash in the worker cannot take the report down with it. Writes and opens
-<data_dir>/sam_test/report.html.
+A crash in the worker cannot take the report down with it. Each setting combination gets
+<data_dir>/sam_test/<model>_tile<N>_cutoff<C>/report.html; <data_dir>/sam_test/report.html
+lists all runs.
 """
 
 from __future__ import annotations
@@ -21,7 +22,8 @@ from pathlib import Path
 
 from app.sam_test import report
 
-PROMPTS = ["sea urchin", "purple sea urchin", "red sea urchin", "sea star",
+# "urchin" instead of "sea urchin": far more urchins kept in S1 (DESIGN D10).
+PROMPTS = ["urchin", "purple sea urchin", "red sea urchin", "sea star",
            "sunflower sea star", "sea anemone", "fish"]
 MODELS = {"sam3.1": ("facebook/sam3.1", "sam3.1_multiplex.pt"),
           "sam3": ("facebook/sam3", "sam3.pt")}
@@ -91,9 +93,10 @@ def run_attempt(name: str, job: dict, out_dir: Path) -> dict:
 
 
 def main(argv=None) -> None:
-    ap = argparse.ArgumentParser(description="S1: test SAM 3.1 on this laptop")
+    ap = argparse.ArgumentParser(description="S1: test SAM 3 / 3.1 on this laptop")
     ap.add_argument("--video", required=True, type=Path, help="one ReefCheck video (read-only)")
-    ap.add_argument("--model", choices=list(MODELS), default="sam3.1")
+    # SAM 3 by default: same text results as 3.1, and its click model loads (DESIGN D10)
+    ap.add_argument("--model", choices=list(MODELS), default="sam3")
     ap.add_argument("--attempts", default="mps,mps-fallback,cpu",
                     help="tried in order; stops at the first that works")
     ap.add_argument("--all", action="store_true", help="run every attempt, even after a success")

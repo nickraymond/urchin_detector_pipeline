@@ -112,6 +112,9 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   weapons, nuclear or espionage use. The `LICENSE` in `facebook/sam3.1` on Hugging Face is
   word-for-word the same text, and so is the one in `facebook/sam3` (compared 2026-11-24).
   Results of the S1 runs: DESIGN, Bench / test results.
+  S1 outcome (2026-11-24): SAM 3 and SAM 3.1 both run on the Apple GPU (torch 2.10.0, run-time
+  fixes, CPU fallback on); Nick chose SAM 3 with the prompt "urchin" as the S1 defaults (D10).
+  Open for S3: mid-range urchins in hazy water are mostly missed at any tile size.
 - Q13. May the UI load assets from the internet (a CDN)? The planning lead's reading of
   constraint 1 is no; Nick to confirm.
 

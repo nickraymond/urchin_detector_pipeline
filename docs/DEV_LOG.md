@@ -35,7 +35,9 @@ The Hugging Face `LICENSE` for `facebook/sam3.1` matches the GitHub one word for
 Then (Nick approved the download): SAM 3 gives the same text results as 3.1, but its click
 model works (clean urchin outline from one click). The prompt word "urchin" finds far more than
 "sea urchin" (DESIGN, Bench results). Added `--prompts`. Licence of `facebook/sam3` = GitHub text.
-**Next:** Nick picks the defaults (model, prompt words, tile size) and runs the S1 demo.
+Nick chose SAM 3 + "urchin" as defaults and to close S1 (D10). Smaller crops do not help
+mid-range urchins (504 → 4, 336 → 2, 252 → 0 kept on one hazy patch).
+**Next:** Nick runs the S1 demo; QE reviews the draft PR; then S2 plan.
 
 ## 2026-11-24 — Sprint S0 — Spec review edits, QE fixes, SAM test sprint added
 **Branch:** sprint/0-scaffold

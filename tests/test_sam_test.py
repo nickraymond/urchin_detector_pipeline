@@ -113,3 +113,8 @@ def test_report_flags_missing_click_weights(tmp_path):
              click_test={"error": "x", "traceback": ""})
     text = report.write_report(tmp_path, "c.MP4", "sam3.1", ["fish"], [r]).read_text()
     assert "missing 40 of 50" in text
+
+
+def test_defaults_are_sam3_and_urchin():
+    assert run.PROMPTS[0] == "urchin" and "sea urchin" not in run.PROMPTS
+    assert run.MODELS["sam3"] == ("facebook/sam3", "sam3.pt")
