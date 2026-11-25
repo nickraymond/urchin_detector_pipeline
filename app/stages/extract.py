@@ -9,6 +9,7 @@ quality 95 save and both scores ~0.06 s.
 
 from __future__ import annotations
 
+import io
 import os
 import re
 import sqlite3
@@ -29,6 +30,12 @@ FRAME_NAME = re.compile(r"^[A-Za-z0-9_-]+_[0-9a-f]{6}_\d+\.jpg$")
 
 def frames_dir(project_folder: Path) -> Path:
     return Path(project_folder) / "frames"
+
+
+def unplanned_dir(project_folder: Path) -> Path:
+    """Frames from an earlier plan that the current settings no longer ask for. Moved here,
+    never erased; they come back if the settings ask for them again (QE PR 7)."""
+    return Path(project_folder) / "dropped" / "unplanned"
 
 
 def frame_name(video_path: str, code: str, t: float) -> str:
@@ -63,15 +70,18 @@ def sample_plan(videos: list[dict], all_clips: list[dict], every_s: float,
     return samples, live
 
 
-def grab(video_path: str, t: float, width: int, height: int) -> Image.Image:
-    """One full-resolution frame at t seconds, decoded by ffmpeg to raw RGB (nothing written)."""
+def grab(video_path: str, t: float) -> Image.Image:
+    """One full-resolution frame at t seconds, decoded by ffmpeg to a PPM image on a pipe
+    (nothing written). The PPM header carries the size, so a video with rotation metadata (a
+    phone, an upright GoPro) comes out upright with its width and height swapped (QE PR 7)."""
     r = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", video_path,
-                        "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                        "-frames:v", "1", "-f", "image2pipe", "-c:v", "ppm", "-"],
                        capture_output=True, timeout=120)
-    if r.returncode != 0 or len(r.stdout) != width * height * 3:
+    if r.returncode != 0 or not r.stdout.startswith(b"P6"):
         raise RuntimeError(f"ffmpeg could not read a frame at {t:.2f} s of {video_path}: "
                            f"{r.stderr.decode(errors='replace').strip()[-300:] or 'no data'}")
-    return Image.frombytes("RGB", (width, height), r.stdout)
+    with Image.open(io.BytesIO(r.stdout)) as im:
+        return im.convert("RGB")
 
 
 def blur_score(im: Image.Image) -> float:
@@ -90,9 +100,9 @@ def dhash(im: Image.Image) -> str:
 
 def counts(conn: sqlite3.Connection) -> dict:
     rows = conn.execute("SELECT status, COUNT(*) FROM frames GROUP BY status").fetchall()
-    out = {"kept": 0, "dropped_blur": 0, "dropped_duplicate": 0, "rejected": 0}
+    out = {"kept": 0, "dropped_blur": 0, "dropped_duplicate": 0, "rejected": 0, "unplanned": 0}
     out.update({r[0]: r[1] for r in rows})
-    out["total"] = sum(out.values())
+    out["total"] = sum(v for k, v in out.items() if k != "unplanned")  # frames in the plan
     return out
 
 
@@ -100,22 +110,30 @@ def run(project_folder: Path, samples: list[dict],
         report: Callable[[float, str], None] = lambda p, m: None) -> int:
     """Extract every sample not yet on disk; returns how many were new. Each frame is written
     to a temporary name, then its database row, so a stop mid-run loses at most that frame and
-    the next run carries on (resume)."""
+    the next run carries on (resume). Frames kept from an earlier plan that this plan does not
+    ask for move to dropped/unplanned/ with status 'unplanned'; a planned frame found there
+    moves back. Frames a later stage dropped or rejected are left as they are."""
     folder = frames_dir(project_folder)
+    aside = unplanned_dir(project_folder)
     folder.mkdir(parents=True, exist_ok=True)
     conn = db.connect(Path(project_folder) / "state.sqlite")  # own connection: runs in a thread
     try:
         db.set_stage(conn, "extract", "in progress", f"0 of {len(samples)} frames")
-        done = {r[0] for r in conn.execute("SELECT file FROM frames")}
-        new = 0
+        status = dict(conn.execute("SELECT file, status FROM frames"))
+        planned, new = set(), 0
         for i, s in enumerate(samples):
             v = s["video"]
             name = frame_name(v["path"], v["path_code"], s["t"])
-            if name not in done or not (folder / name).is_file():
+            planned.add(name)
+            if status.get(name) == "unplanned" and (aside / name).is_file():
+                os.replace(aside / name, folder / name)
+                conn.execute("UPDATE frames SET status='kept' WHERE file=?", (name,))
+                conn.commit()
+            elif name not in status or not (folder / name).is_file():
                 if not Path(v["path"]).is_file():
                     raise FileNotFoundError(f"Video not found: {v['path']}. Plug in the SSD "
                                             "and press Extract again; finished frames are kept.")
-                im = grab(v["path"], s["t"], v["width"], v["height"])
+                im = grab(v["path"], s["t"])
                 tmp = folder / (name + ".tmp")
                 im.save(tmp, format="JPEG", quality=JPEG_QUALITY)
                 os.replace(tmp, folder / name)
@@ -125,6 +143,13 @@ def run(project_folder: Path, samples: list[dict],
                 conn.commit()
                 new += 1
             report(100 * (i + 1) / len(samples), f"frame {i + 1} of {len(samples)}")
+        for name, st in status.items():
+            if st == "kept" and name not in planned:
+                if (folder / name).is_file():
+                    aside.mkdir(parents=True, exist_ok=True)
+                    os.replace(folder / name, aside / name)
+                conn.execute("UPDATE frames SET status='unplanned' WHERE file=?", (name,))
+                conn.commit()
         c = counts(conn)
         db.set_stage(conn, "extract", "done", f"{c['kept']} frames")
         return new

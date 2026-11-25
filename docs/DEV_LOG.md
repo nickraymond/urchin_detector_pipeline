@@ -17,6 +17,15 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S2 — Bite 3a: QE findings fixed
+**Branch:** sprint/2-frames-3 (PR 7, still a draft)
+**Done:** QE PASS-with-nits at c182fa2 had three findings. (1) Frames from earlier settings stayed `kept`
+  (12 kept for a plan of 3): they now move to `dropped/unplanned/` and come back if asked for again (D17a).
+  (2) Rotated videos would fail every frame: decoding goes through a PPM pipe, so frames come out upright.
+  (3) TRACKER 3a items marked [x]. Two tests added; 72 pass.
+**Broke:** nothing known.
+**Next:** QE verdict on the new head (new QE session not running yet); Nick's manual test; then bite 3b.
+
 ## 2026-11-24 — Sprint S2 — Bite 3a: sampling plan, extraction, counts
 **Branch:** sprint/2-frames-3
 **Done:** Nick said to keep working in this session (instead of rotating). `app/stages/extract.py`:

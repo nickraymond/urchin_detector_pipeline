@@ -30,6 +30,7 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
 <h2>Frames</h2>
 <p class="totals"><b>{{ counts.kept }}</b> kept{% if counts.dropped_blur or counts.dropped_duplicate %} ·
   {{ counts.dropped_blur }} dropped as blurry · {{ counts.dropped_duplicate }} dropped as duplicate{% endif %}
+  {% if counts.unplanned %}· {{ counts.unplanned }} from earlier settings set aside in <code>dropped/unplanned/</code>{% endif %}
   <span class="hint">(the blur and duplicate filters come in the next step)</span></p>
 {% if frames %}
 <div class="frame-grid">{% for f in frames %}

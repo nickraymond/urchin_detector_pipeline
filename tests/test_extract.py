@@ -118,3 +118,51 @@ def test_extract_page_start_progress_and_frames(tmp_path):
         assert client.get(f"/p/p/frames/{bad}").status_code == 404, bad
     assert "3 frames" in client.get("/p/p").text
     assert digest(lib) == before
+
+
+def _project(tmp_path):
+    proj = tmp_path / "p"
+    proj.mkdir()
+    db.connect(proj / "state.sqlite", create=True).close()
+    return proj
+
+
+def test_new_settings_set_earlier_frames_aside_and_bring_them_back(tmp_path):
+    """QE PR 7 finding 1: kept always equals the current plan; nothing is erased."""
+    src = make_video(tmp_path / "v" / "dive.MP4", seconds=10, size="160x120")
+    row = {"path": str(src), "path_code": "abc123", "duration_s": 10.0}
+    proj = _project(tmp_path)
+    conn = sqlite3.connect(proj / "state.sqlite")
+    kept = lambda: sorted(r[0] for r in conn.execute("SELECT file FROM frames WHERE status='kept'"))
+
+    every5, _ = extract.sample_plan([row], [], 5.0, 300)   # 0, 5
+    every2, _ = extract.sample_plan([row], [], 2.0, 300)   # 0, 2, 4, 6, 8
+    cap3, _ = extract.sample_plan([row], [], 2.0, 3)       # 0, 4, 8
+    assert extract.run(proj, every5) == 2
+    assert extract.run(proj, every2) == 4                  # 0 reused, 5 set aside
+    assert kept() == sorted(extract.frame_name(src, "abc123", s["t"]) for s in every2)
+    assert (extract.unplanned_dir(proj) / "dive_abc123_5000.jpg").is_file()
+    assert extract.run(proj, cap3) == 0
+    c = extract.counts(conn)
+    assert c["kept"] == 3 and c["unplanned"] == 3 and c["total"] == 3
+    assert sorted(p.name for p in extract.frames_dir(proj).glob("*.jpg")) == kept()
+    assert extract.run(proj, every5) == 0                  # 5 s comes back, not re-extracted
+    assert kept() == ["dive_abc123_0.jpg", "dive_abc123_5000.jpg"]
+    assert len(list(extract.unplanned_dir(proj).glob("*.jpg"))) == 4
+
+
+def test_rotated_video_comes_out_upright(tmp_path):
+    """QE PR 7 finding 2: a video with rotation metadata (phone, upright GoPro) decodes with
+    width and height swapped; the frame must be saved, not fail."""
+    flat = make_video(tmp_path / "flat.MP4", seconds=2, size="320x240")
+    rot = tmp_path / "v" / "upright.MP4"
+    rot.parent.mkdir()
+    import subprocess
+    subprocess.run(["ffmpeg", "-v", "error", "-display_rotation", "90", "-i", str(flat),
+                    "-c", "copy", "-y", str(rot)], check=True)
+    row = {"path": str(rot), "path_code": "abc123", "duration_s": 2.0, "width": 320,
+           "height": 240}
+    proj = _project(tmp_path)
+    assert extract.run(proj, [{"video": row, "t": 1.0}]) == 1
+    with Image.open(extract.frames_dir(proj) / "upright_abc123_1000.jpg") as im:
+        assert im.size == (240, 320)
