@@ -17,6 +17,14 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S2 — Plan written (planning lead)
+**Branch:** sprint/2-frames
+**Done:** S1 merged to main as `a362495` (QE PASS on `db29464`; Nick ran the demo). S2 plan
+approved by Nick: five bites in TRACKER, planned design in DESIGN, D12. Kelp and kelp shoot are
+starting classes again (D11). SPEC Q1, Q6, Q13 and part of Q10 answered.
+**Broke/surprised us:** the S1 demo video had almost no urchins but did have kelp.
+**Next:** S2 bite 1, plan nibble — Nick gate.
+
 ## 2026-11-24 — Sprint S1 — SAM test runner built; Apple GPU works with run-time fixes
 **Branch:** sprint/1-sam-test
 **Done:** plan approved by Nick. `pyproject.toml` (uv, Python 3.12, torch 2.10.0, Meta's sam3

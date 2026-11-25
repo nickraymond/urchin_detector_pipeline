@@ -87,15 +87,14 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
 - Hand-editing mask outlines; colour correction of frames.
 - Panoptic export; tracking individual animals; kelp growth rates in cm/day.
 - Multi-user, cloud, login.
-- Kelp and kelp shoot classes, until Nick has reference images (then a settings change).
 
 ## Open questions (flag, don't guess)
 
-- Q2. Overlap rules for area-vs-area and for several prompts of one class.
-- Q6. Which sprint carries "Suggest clips" and "Pre-screen with SAM".
+- Q2. Overlap rules for area-vs-area (kelp vs rock) and for several prompts of one class; and
+  which segmenter class a kelp shoot's pixels get (kelp is the obvious candidate; not decided).
 - Q9. CVAT export format for fine outline fixes, and whether fixes are imported back.
-- Q10. Defaults: blur threshold, hash distance, minimum mask area, inference resolution,
-  tile size, memory guard.
+- Q10. Defaults still open: minimum mask area, inference resolution, memory guard, and the
+  tuned blur and duplicate values (S2 starts from the guesses in DESIGN D12).
 - Q11. "Largest object %" by mask or by box; the id for unknown; which frames count as
   "accepted" for export.
 - Q12. Does SAM 3.1 run on the M1 Max? **Answered in S1 (2026-11-24): yes, SAM 3.1 and SAM 3
@@ -116,14 +115,12 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   S1 outcome (2026-11-24): SAM 3 and SAM 3.1 both run on the Apple GPU (torch 2.10.0, run-time
   fixes, CPU fallback on); Nick chose SAM 3 with the prompt "urchin" as the S1 defaults (D10).
   Open for S3: mid-range urchins in hazy water are mostly missed at any tile size.
-- Q13. May the UI load assets from the internet (a CDN)? The planning lead's reading of
-  constraint 1 is no; Nick to confirm.
 
 Answered (Nick, chat 2026-11-24):
 - Repo name stays `urchin_detector_pipeline`; the repo is public.
 - Project data lives on the SSD; source code in git (DESIGN D1).
 - Laptop is an Apple M1 Max, 32 GB. Agents may view real frames.
-- Q1. Kelp and kelp shoot wait for reference images; adding them later is a settings change (D5).
+- Q1. Kelp shoot (object) and kelp (area) are starting classes again (D11, replaces D5).
 - Q3. The live count is before the filters; kept + dropped add up to it.
 - Q4. Frame names carry a short code from the video's path; the chapter rule is GoPro-only.
 - Q5. No limit on the number of videos; splits go by site and dive date.
@@ -138,4 +135,7 @@ Answered (Nick, chat 2026-11-24):
   urchins as "purple to red to almost black"; nobody has re-read the manual for this yet,
   so re-read it before the class list is extended. Crowned urchin waits for
   footage that clearly shows it. One broad "sea star" class plus "sunflower sea star".
+- Q6. "Suggest clips" and "Pre-screen with SAM" are left out of S2; decide after S3 (D12).
+- Q10 (part). Blur and duplicate filters start from adjustable guesses (D12).
+- Q13. No internet assets: every page is served from the laptop (D12).
 - SAM is tested on the laptop before any tool code (D3). Job control is a standalone module (D4).

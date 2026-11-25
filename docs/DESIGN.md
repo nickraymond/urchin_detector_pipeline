@@ -18,6 +18,39 @@ the overlays embedded, plus an all-runs page `<data_dir>/sam_test/report.html`.
   run-time changes it needs off-CUDA and lists every one on the report page (D8).
 - One process per attempt, so a hard crash in the Apple GPU driver still leaves a report (D9).
 
+### Planned for S2 (frames) — approved by Nick 2026-11-24; becomes as-built as bites land
+
+```
+app/config.py            read config.local.toml; stop with a clear message if a path is missing
+app/project.py           create / open a project folder under <data_dir>/projects/<name>/
+app/db.py                the project's state.sqlite: tables and small read / write helpers
+app/stages/ingest.py     find videos and image folders; read details with ffprobe
+app/stages/clips.py      playback copies, thumbnail strip, load / save clips.json
+app/stages/extract.py    plan the samples, pull frames with ffmpeg, blur and duplicate filters
+app/stages/review.py     keep / delete (move to rejected/) / undo
+app/web/server.py        the web pages and their actions (FastAPI)
+app/web/templates/       plain HTML pages
+app/web/static/          one CSS file, small plain JavaScript files
+```
+
+- Stage modules are plain functions that take a project and return data; the web layer only
+  calls them, so they are tested without a browser.
+- The server listens on `127.0.0.1` only. Pages load nothing from the internet (D12).
+- Video work goes through the installed `ffmpeg` / `ffprobe` as subprocesses; no extra video library.
+- Blur score (variance of Laplacian) and near-duplicate hash use numpy / scipy / Pillow, already installed.
+- Long steps run in the background behind one small interface (start, progress, done / error) so
+  the S4 job-control module can replace it without touching the stages.
+- Data: `project.json` (name, created, format version, settings: seconds between samples, frame
+  cap, blur threshold, duplicate distance, JPEG quality); `clips.json` (list of
+  `{video, start_s, end_s, note}`); `state.sqlite` tables `videos` (path, path code, recording,
+  chapter, duration, size, fps, codec), `frames` (file, video, timestamp ms, blur score, hash,
+  status), `stage_status` (stage, state, counts), `review_actions` (undo history).
+- Frame status values: `kept`, `dropped_blur`, `dropped_duplicate`, `rejected`. Path code: 8
+  characters made from the video's full path.
+- Tests: synthetic videos made by ffmpeg at test time and synthetic images; temporary folders;
+  page actions through FastAPI's test client, checked against the database and files on disk.
+  No real footage in tests.
+
 ## Decision log
 
 | # | Date | Decision | Rationale |
@@ -32,6 +65,8 @@ the overlays embedded, plus an all-runs page `<data_dir>/sam_test/report.html`.
 | D8 | 2026-11-24 | Run Meta's SAM 3 code unmodified; apply small run-time fixes in `app/sam_test/device_patch.py`: stub the triton-only `edt` module, build two caches on the chosen device instead of `"cuda"`, replace the fused bfloat16 `_addmm_activation` with float32 linear + activation (its bfloat16 output gave NaN scores on MPS and a dtype error on CPU), skip empty point/box encodes and `pin_memory` off-CUDA. Other missing ops use PyTorch's CPU fallback; the report lists which. | Smallest change that runs; Meta's files stay untouched and upgradeable. Each fix is from a failure seen in the S1 smoke test. |
 | D9 | 2026-11-24 | The SAM test runs each attempt in its own worker process. | The Apple GPU can abort the whole process (seen with torch 2.15.0); the parent must still write the report. |
 | D10 | 2026-11-24 | The S1 test defaults to SAM 3 (`facebook/sam3`, `sam3.pt`), 1008 px tiles, and the prompt "urchin" in place of "sea urchin". | SAM 3 gives the same text results as SAM 3.1, and its click/box model loads (3.1 lacks all 309 of those weights). "urchin" kept far more urchins (Bench results). Nick, chat 2026-11-24. n = 3 frames; to re-check in S3's prompt preview. |
+| D11 | 2026-11-24 | Kelp is back in the starting classes: kelp shoot (object) and kelp (area). This replaces D5. | The restoration-site videos show kelp (seen in the S1 demo run), so reference frames exist. Prompts are untested; S3 tries them. Nick, chat 2026-11-24. |
+| D12 | 2026-11-24 | S2 stack: FastAPI on `127.0.0.1`, plain HTML and plain JavaScript, no internet assets; ffmpeg / ffprobe as subprocesses; a low-res H.264 playback copy for scrubbing. Starting filter values: drop the blurriest 10% of sampled frames; a small hash distance for duplicates; both adjustable in the UI. "Suggest clips" and "Pre-screen with SAM" are left out of S2. | Boring and debuggable; browser playback of 4K HEVC is unverified; the filter values are starting guesses to tune on real footage, not measurements. Nick approved the S2 plan, chat 2026-11-24. |
 
 ## Bench / test results
 
