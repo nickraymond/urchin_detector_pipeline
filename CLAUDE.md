@@ -37,7 +37,7 @@ any older step in this repo's docs, skills or prompts.
    successor lead sessions. Nick merges these himself: changes to `CLAUDE.md`,
    TRACKER's Rules for Agents, anything
    under `.claude/`, `docs/PROMPTS.md`; changes to SPEC's hard constraints; and
-   changes to the spec's scope.
+   changes to the spec's goal or scope.
 4. **Gaps in the spec are Lead calls.** The lead decides within the spec's
    intent, logs each call in DESIGN's decision log as "Lead call", and lists
    them in the next test build's note. Nick can reverse any of them.
@@ -49,6 +49,13 @@ any older step in this repo's docs, skills or prompts.
    TRACKER item. The lead starts and rotates builder and QE sessions.
 7. **Sprint plans:** the lead writes them from the spec and QE reviews them.
    Nick sees a plan only if it would change the spec.
+8. **Finished sessions are archived (Nick, 2026-11-25).** When a builder, QE or
+   lead session rotates (handoff written, successor started) or finishes its
+   last ticket, the planning lead archives it at once; the lead's own successor
+   archives it. Before archiving, check that its worktree has no uncommitted
+   work and that its PRs are merged or closed; if not, keep it and say why in
+   the handoff. Never archive a session whose worktree a live session still
+   uses. Archiving can be undone; deleting a session is never done.
 
 Team rules (`~/Documents/GitHub/nereus-software-engineering-team/TEAM_RULES.md`)
 still apply: QE before ready, approvals read at the source, never make it up.
