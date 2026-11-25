@@ -495,12 +495,18 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                     c, problem = {}, str(e)
                 shown.append({"file": f, "counts": c, "seconds": ev.get("seconds"),
                               "problem": problem})
+        files = label.frames_to_label(conn)
+        try:
+            plan = (label.run_plan(info["folder"], files, units, data["settings"], prev)
+                    if data else None)
+        except ValueError:
+            plan = None
         return templates.TemplateResponse(request, "labeling.html", {
-            "cfg": cfg, "info": info, "cls": cls, "rows": rows, "note": note,
+            "cfg": cfg, "info": info, "cls": cls, "rows": rows, "note": note, "plan": plan,
             "units": units, "preview": prev, "shown": shown,
             "colours": {u["key"]: label.unit_colour(u) for u in units},
             "job": jobs.status(f"{info['folder']}:sam") or {},
-            "n_label": len(label.frames_to_label(conn)),
+            "n_label": len(files),
             "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
             "kept": review.summary(conn), "refused": text is not None}, status_code=status)
 
@@ -549,6 +555,41 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "?" + urlencode({"note": note}) if note else ""), status_code=303)
         return with_project(request, name, work)
 
+    sam_stops: dict[str, threading.Event] = {}
+
+    @app.post("/p/{name}/labeling/run")
+    def labeling_run(request: Request, name: str):
+        """Label every kept frame (D26): units whose results are current are skipped, so Run
+        after a Stop, a quit or a class change does only what is missing (SPEC Q7)."""
+        def work(cfg, info, conn):
+            note = ""
+            files = label.frames_to_label(conn)
+            try:
+                classes.ensure(info["folder"])
+            except classes.ClassesError:
+                note = "classes.yaml has problems (listed below); fix them first."
+            if not note and not files:
+                note = "No kept frames to label. Extract frames or add still images first."
+            if not note and (sam_busy(info) or extract_busy(info)):
+                note = "Another job is running; press Run when it has finished."
+            if not note:
+                stop = sam_stops[str(info["folder"])] = threading.Event()
+                jobs.submit(f"{info['folder']}:sam", lambda report: label.run_all(
+                    info["folder"], files, report, stop=stop))
+            return RedirectResponse(f"/p/{name}/labeling" + (
+                "?" + urlencode({"note": note}) if note else ""), status_code=303)
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/labeling/stop")
+    def labeling_stop(request: Request, name: str):
+        """Stop the running Run; finished frames are saved and Run carries on later."""
+        def work(cfg, info, conn):
+            ev = sam_stops.get(str(info["folder"]))
+            if ev is not None and sam_busy(info):
+                ev.set()
+            return RedirectResponse(f"/p/{name}/labeling", status_code=303)
+        return with_project(request, name, work)
+
     @app.get("/p/{name}/labeling/status")
     def labeling_status(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: JSONResponse(
@@ -556,7 +597,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     @app.get("/p/{name}/labeling/overlay/{file}")
     def labeling_overlay(request: Request, name: str, file: str,
-                         hide: list[str] = Query(default=[])):
+                         hide: list[str] = Query(default=[]), map: str = ""):
         """A frame of this project with its saved SAM masks drawn (reads only); one `hide`
         parameter per run unit left out, so a name with a comma works too."""
         def work(cfg, info, conn):
@@ -564,7 +605,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             cls = classes.read(info["folder"])
             try:
                 data = (label.overlay(info["folder"], file, classes.run_units(
-                    cls["data"]["classes"]), set(hide))
+                    cls["data"]["classes"]), set(hide),
+                    class_list=cls["data"]["classes"] if map else None)
                     if row and extract.FRAME_NAME.match(file) and cls["data"] else None)
             except ValueError as e:  # unreadable sam_raw file (QE PR 22)
                 return PlainTextResponse(str(e), status_code=404)

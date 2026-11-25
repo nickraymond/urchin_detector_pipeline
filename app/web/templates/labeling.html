@@ -3,7 +3,7 @@
 {% block content %}
 <p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
 <h1>SAM labeling</h1>
-<p class="hint">Frames to label: {{ kept }}. Run comes in the next step of this sprint.</p>
+<p class="hint">Frames to label: {{ kept }}.</p>
 {% if note %}<p class="totals">{{ note }}</p>{% endif %}
 
 <h2>Preview</h2>
@@ -23,7 +23,8 @@
   {{ preview.peak_gpu_gb }} GB Apple GPU{% else %}all 3 frames already had results for these classes{% endif %}.
   {% if preview.seconds_per_frame %}Run on all {{ n_label }} kept frames: about
   {{ ((preview.seconds_per_frame * n_label) / 60) | round(0, 'ceil') | int }} min.{% endif %}</p>
-<p class="toggles" id="toggles">Show:
+<p class="toggles" id="toggles"><label><input type="checkbox" id="final-map"> <b>final class map</b></label>
+  (one colour per pixel after the overlap rules) · Show:
   {% for u in units %}<label><input type="checkbox" value="{{ u.key }}" checked>
     <span class="swatch" style="background: {{ colours[u.key] }}"></span> {{ u.key }}{% if u.group %} (untagged){% endif %}</label>
   {% endfor %}</p>
@@ -41,6 +42,28 @@
   </figure>
 {% endfor %}
 </div>
+{% endif %}
+
+<h2>Run</h2>
+<p class="hint">Labels every kept frame. A class runs only on frames where it has no results yet or its
+  prompts or settings changed; the others stay as they are. Stop keeps every finished frame, and Run
+  carries on from there.</p>
+{% if plan %}
+<p class="totals" id="run-plan">{% set will = plan.units | dictsort | selectattr(1) | list %}
+  {% if will %}Will run: {% for k, n in will %}<b>{{ k }}</b> ({{ n }} frame{{ "s" if n != 1 }}){{ ", " if not loop.last }}{% endfor %}.
+  {% else %}Nothing to run: every class is current on all {{ plan.total }} frames.{% endif %}
+  {% set same = plan.units | dictsort | rejectattr(1) | list %}
+  {% if same and will %}Unchanged: {% for k, n in same %}{{ k }}{{ ", " if not loop.last }}{% endfor %}.{% endif %}
+  {% if will %}{{ plan.frames }} of {{ plan.total }} frames have work{% if plan.estimate_s %}, about
+  {{ ((plan.estimate_s) / 60) | round(0, 'ceil') | int }} min (from the preview's time per frame){% else %}; press Preview first for a time estimate{% endif %}.{% endif %}</p>
+{% if plan.unreadable %}<p class="error">These results files cannot be read; move them aside in
+  <code>sam_raw/</code> and they are labeled again: {{ plan.unreadable | join(", ") }}</p>{% endif %}
+{% endif %}
+<form method="post" action="/p/{{ info.name }}/labeling/run" class="inline">
+  <button {% if job.state in ("queued", "running") or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
+</form>
+{% if job.state in ("queued", "running") %}
+<form method="post" action="/p/{{ info.name }}/labeling/stop" class="inline"><button>Stop</button></form>
 {% endif %}
 
 <h2>Classes</h2>

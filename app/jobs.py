@@ -57,8 +57,9 @@ class Jobs:
                           eta_s=round(eta) if eta is not None else None)
 
             try:
-                fn(report)
-                self._set(key, state="done", percent=100.0, message="done", eta_s=0)
+                result = fn(report)  # a job may return its final message
+                self._set(key, state="done", percent=100.0, eta_s=0,
+                          message=result if isinstance(result, str) else "done")
             except Exception as e:  # a failed job must never stop the worker
                 traceback.print_exc()
                 self._set(key, state="error", message=f"{type(e).__name__}: {e}")

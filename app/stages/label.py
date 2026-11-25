@@ -116,6 +116,43 @@ def run(folder: Path, files: list[str], report, stop: threading.Event | None = N
     return out
 
 
+# --- Run on every kept frame (bite 4, D26) ---
+
+def run_plan(folder: Path, files: list[str], units: list[dict], settings: dict,
+             preview: dict | None = None) -> dict:
+    """What Run will do (SPEC Q7): per run unit, on how many frames it runs (its settings key
+    differs or is missing); frames with any work; unreadable sam_raw files; an estimate from
+    the preview's seconds per frame, scaled by the share of units that run (D26)."""
+    from app.sam import results
+    todo = {u["key"]: 0 for u in units}
+    frames, unreadable = 0, []
+    for f in files:
+        try:
+            run_units = results.to_run(folder, f, units, settings)
+        except ValueError:
+            unreadable.append(f)
+            continue
+        for u in run_units:
+            todo[u["key"]] += 1
+        frames += bool(run_units)
+    spf = (preview or {}).get("seconds_per_frame")
+    work = sum(todo.values()) / len(units) if units else 0
+    return {"units": todo, "frames": frames, "total": len(files), "unreadable": unreadable,
+            "estimate_s": round(spf * work) if spf else None}
+
+
+def run_all(folder: Path, files: list[str], report, stop: threading.Event | None = None,
+            **kw) -> str:
+    """Run: label every kept frame, skipping units whose results are current, so a stopped
+    or crashed Run carries on where it ended. Returns the job's final message."""
+    out = run(folder, files, report, stop=stop, **kw)
+    done = sum(1 for e in out["frames"] if not e.get("skipped"))
+    seen = len(out["frames"])
+    if out.get("stopped"):
+        return f"stopped after {seen} of {len(files)} frames; Run carries on from there"
+    return f"labeled {done} frames, {seen - done} already current"
+
+
 # --- Prompt preview (bite 3, D26) ---
 
 PREVIEW_FILE = "sam_preview.json"
@@ -177,9 +214,12 @@ def unit_colour(unit: dict) -> str:
     return classes.UNTAGGED_COLOUR if unit["group"] else classes.colour(next(iter(unit["classes"])))
 
 
-def overlay(folder: Path, frame: str, units: list[dict], hidden: set[str]) -> bytes | None:
+def overlay(folder: Path, frame: str, units: list[dict], hidden: set[str],
+            class_list: list[dict] | None = None) -> bytes | None:
     """The frame (upright, D27) scaled to PREVIEW_WIDTH with the saved masks of the shown
-    units drawn on it: areas first and fainter, objects on top. JPEG bytes; None if missing."""
+    units drawn on it: areas first and fainter, objects on top. With class_list: the final
+    class map instead (D22, app/sam/overlap.py), one colour per pixel. JPEG bytes; None if
+    missing."""
     import io
 
     import numpy as np
@@ -194,6 +234,12 @@ def overlay(folder: Path, frame: str, units: list[dict], hidden: set[str]) -> by
     im = images.open_upright(path).convert("RGB")
     s = min(1.0, PREVIEW_WIDTH / im.width)
     im = im.resize((round(im.width * s), round(im.height * s)))
+    if class_list is not None:
+        layer = class_map_layer(raw, class_list, im.size)
+        out = io.BytesIO()
+        Image.alpha_composite(im.convert("RGBA"), layer).convert("RGB").save(out, "JPEG",
+                                                                             quality=85)
+        return out.getvalue()
     layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
     order = sorted((u for u in units if u["key"] not in hidden and u["key"] in raw["units"]),
@@ -213,3 +259,19 @@ def overlay(folder: Path, frame: str, units: list[dict], hidden: set[str]) -> by
     out = io.BytesIO()
     Image.alpha_composite(im.convert("RGBA"), layer).convert("RGB").save(out, "JPEG", quality=85)
     return out.getvalue()
+
+
+def class_map_layer(raw: dict, class_list: list[dict], size: tuple[int, int]):
+    """The class map as a see-through colour layer of `size`: one colour per class id,
+    untagged urchins grey, unknown clear."""
+    import numpy as np
+    from PIL import Image, ImageColor
+
+    from app.sam import overlap
+    small = np.array(Image.fromarray(overlap.class_map(raw, class_list)).resize(
+        size, Image.NEAREST))
+    lut = np.zeros((256, 4), np.uint8)
+    for c in class_list:
+        lut[c["id"]] = (*ImageColor.getrgb(classes.colour(c["id"])), 140)
+    lut[overlap.UNTAGGED] = (*ImageColor.getrgb(classes.UNTAGGED_COLOUR), 140)
+    return Image.fromarray(lut[small], "RGBA")
