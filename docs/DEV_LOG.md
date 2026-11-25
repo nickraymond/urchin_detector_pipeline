@@ -32,7 +32,10 @@ scores on the Apple GPU (fixed, CPU and GPU now agree). Added `--tile` and `--cu
 per setting combination and an all-runs index page. SAM 3.1 at 504 px tiles: 233 s per frame,
 finds urchins only in patches and calls many urchins "sea anemone" (DESIGN, Bench results).
 The Hugging Face `LICENSE` for `facebook/sam3.1` matches the GitHub one word for word.
-**Next:** Nick downloads `facebook/sam3` (`sam3.pt`); run the same settings on SAM 3 and compare.
+Then (Nick approved the download): SAM 3 gives the same text results as 3.1, but its click
+model works (clean urchin outline from one click). The prompt word "urchin" finds far more than
+"sea urchin" (DESIGN, Bench results). Added `--prompts`. Licence of `facebook/sam3` = GitHub text.
+**Next:** Nick picks the defaults (model, prompt words, tile size) and runs the S1 demo.
 
 ## 2026-11-24 — Sprint S0 — Spec review edits, QE fixes, SAM test sprint added
 **Branch:** sprint/0-scaffold

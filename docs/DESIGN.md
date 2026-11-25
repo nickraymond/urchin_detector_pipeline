@@ -45,3 +45,18 @@ Source: `<data_dir>/sam_test/sam3.1_tile504_cutoff0.5/result_mps-fallback.json`.
 Model load 8.7 s. Only `aten::_assert_async` fell back to the CPU. The SAM 3.1 checkpoint
 supplies none of the 309 weights of the click/box model, so the click test is not valid with
 3.1. Visual check of the frame-2 overlay: most urchins missed; the one real anemone not labelled.
+
+**S1, 2026-11-24 — SAM 3 (`sam3.pt`), same frames and set-up.** Sources: run folders
+`sam3_tile504_cutoff0.5/` and `sam3_tile1008_cutoff0.5_own-prompts/` under `<data_dir>/sam_test/`.
+
+| Run | s / frame (tiles) | Urchins kept, frames 1 / 2 / 3 (tiles, duplicates at tile edges not removed) |
+|---|---|---|
+| SAM 3, 504 px tiles, S1 prompt list | 233 | "sea urchin" 6 / 139 / 20 — same patchy result as SAM 3.1 |
+| SAM 3, 1008 px tiles, prompt "urchin" | 53 | 5 / 283 / 156; whole frame (3.7 s) 0 / 21 / 19 |
+
+Prompt wording matters more than model or tile size: on one 1000 px patch of frame 2,
+"urchin" kept 39 (score ≥ 0.5), "sea urchin" 0, "purple sea urchin" 0, "black sea urchin" 0.
+Visual check, frame 2 with "urchin": most urchins on the near rock marked; distant ones and
+most of murky frame 1 missed; the green anemone labelled "sea anemone". SAM 3's click model
+loads fully (0 of 309 weights missing): one click on a large urchin gave a clean outline,
+score 0.95, 0.7 s. n = 3 frames from one video; not yet a basis for defaults.

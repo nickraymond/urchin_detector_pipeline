@@ -110,7 +110,8 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   the repo's `LICENSE` is the "SAM License", last updated 19 Nov 2025: royalty-free, allows
   commercial use and changes; copies passed on must carry the licence; no ITAR, military,
   weapons, nuclear or espionage use. The `LICENSE` in `facebook/sam3.1` on Hugging Face is
-  word-for-word the same text (compared 2026-11-24).
+  word-for-word the same text, and so is the one in `facebook/sam3` (compared 2026-11-24).
+  Results of the S1 runs: DESIGN, Bench / test results.
 - Q13. May the UI load assets from the internet (a CDN)? The planning lead's reading of
   constraint 1 is no; Nick to confirm.
 

@@ -101,6 +101,7 @@ def main(argv=None) -> None:
                     help="tile size in frame pixels for the 'tiles' mode (SAM resizes each to 1008)")
     ap.add_argument("--cutoff", type=float, default=0.5,
                     help="keep objects with a score at or above this (0-1)")
+    ap.add_argument("--prompts", help="comma-separated text prompts (default: the S1 list)")
     ap.add_argument("--click", help="x,y in frame-1 pixels for the click test (default: auto)")
     ap.add_argument("--config", type=Path, default=Path("config.local.toml"))
     ap.add_argument("--no-open", action="store_true", help="do not open the report")
@@ -111,10 +112,13 @@ def main(argv=None) -> None:
     top = load_data_dir(args.config) / "sam_test"
     frames = extract_frames(args.video, top / "frames")
     # each setting combination gets its own folder, so runs can be compared side by side
-    out_dir = top / f"{args.model}_tile{args.tile}_cutoff{args.cutoff:g}"
+    prompts = [p.strip().lower() for p in args.prompts.split(",") if p.strip()] if args.prompts \
+        else PROMPTS
+    out_dir = top / f"{args.model}_tile{args.tile}_cutoff{args.cutoff:g}" \
+        f"{'' if prompts == PROMPTS else '_own-prompts'}"
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_id, ckpt = MODELS[args.model]
-    job = {"model": args.model, "repo_id": repo_id, "checkpoint": ckpt, "prompts": PROMPTS,
+    job = {"model": args.model, "repo_id": repo_id, "checkpoint": ckpt, "prompts": prompts,
            "frames": [str(p) for p in frames], "out_dir": str(out_dir), "click": args.click,
            "tile": args.tile, "cutoff": args.cutoff}
 
@@ -128,7 +132,7 @@ def main(argv=None) -> None:
         if "not in the Hugging Face cache" in str(results[-1].get("error")):
             break  # a missing download is not a device problem; other attempts would fail too
 
-    page = report.write_report(out_dir, args.video.name, args.model, PROMPTS, results,
+    page = report.write_report(out_dir, args.video.name, args.model, prompts, results,
                                settings={"tile": args.tile, "cutoff": args.cutoff})
     report.write_index(top)
     print(f"\nreport: {page}\nall runs: {top / 'report.html'}")
