@@ -122,7 +122,7 @@ def test_stills_through_the_ingest_and_review_pages(tmp_path):
     page = client.get("/p/p/ingest", params={"folder": str(src)}).text
     assert "Still images in this folder and its subfolders (4)" in page   # broken one listed
     r = client.post("/p/p/ingest/stills", data={"folder": str(src)})
-    assert "Added 3 still images" in r.text and "1 could not be read" in r.text
+    assert "Added 3 still images" in r.text and "1 could not be read and was left out" in r.text
     assert "3 still images in this project" in r.text
     assert client.post("/p/p/ingest/stills", data={"folder": str(tmp_path / "nope")}
                        ).status_code == 200                               # a message, no crash

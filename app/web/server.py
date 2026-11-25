@@ -196,9 +196,13 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             else:
                 try:
                     n = ingest.add_stills(conn, here, extract.frames_dir(info["folder"]))
-                    note = (f"Added {n['added']} still images" +
-                            (f"; {n['skipped']} were already in the project" if n["skipped"] else "") +
-                            (f"; {n['unreadable']} could not be read and were left out"
+                    def many(k, one, more):  # "1 was", "2 were" (QE nit, PR 16)
+                        return f"{n[k]} {one if n[k] == 1 else more}"
+                    note = (f"Added {many('added', 'still image', 'still images')}" +
+                            (f"; {many('skipped', 'was', 'were')} already in the project"
+                             if n["skipped"] else "") +
+                            (f"; {many('unreadable', 'could not be read and was',
+                                       'could not be read and were')} left out"
                              if n["unreadable"] else "") + ". They are in Review frames.")
                 except ingest.IngestError as e:
                     note = str(e)
