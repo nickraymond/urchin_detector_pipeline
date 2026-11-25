@@ -1,6 +1,7 @@
 # SPEC.md — urchin_detector_pipeline
 
-*What Nick wants. Stable reference — agents skim this; changes require Nick's approval.*
+*What Nick wants. Stable reference — agents skim this. Changes to the goal, scope or hard constraints
+need Nick's approval and his own merge; recording his answers and verified facts does not (CLAUDE.md, rule 3).*
 *Last updated: 2026-11-25*
 
 ## Goal
