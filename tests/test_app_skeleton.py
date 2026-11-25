@@ -169,3 +169,11 @@ def test_missing_database_is_an_error_not_recreated(setup):
     r = client.get("/p/p")
     assert r.status_code == 404 and "Project database missing" in r.text
     assert not (data / "projects" / "p" / "state.sqlite").exists()
+
+
+def test_port_check_sees_a_running_app():
+    import socket
+    with socket.socket() as s:
+        s.bind((server.HOST, 0))
+        s.listen()
+        assert not server.port_free(s.getsockname()[1])

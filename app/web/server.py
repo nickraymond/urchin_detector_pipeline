@@ -14,16 +14,17 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
+from app.stages import ingest
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
 # Host and origin rule (DESIGN D14): pages answer only to these host names, and a POST is
@@ -39,15 +40,20 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
 
     @app.middleware("http")
-    async def same_origin_posts_only(request: Request, call_next):
+    async def same_origin_only(request: Request, call_next):
+        response = None
         if request.method not in ("GET", "HEAD"):
             source = request.headers.get("origin") or request.headers.get("referer") or ""
             parts = urlsplit(source)
             if parts.scheme != "http" or parts.netloc != request.headers.get("host"):
-                return PlainTextResponse(
+                response = PlainTextResponse(
                     "Refused: this action can only come from the app's own pages "
                     f"(got origin {source or 'none'!r}).", status_code=403)
-        return await call_next(request)
+        response = response or await call_next(request)
+        # Other web pages in the browser may not embed anything this app serves, e.g. a
+        # thumbnail or frame in an <img> (D14).
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        return response
 
     # Added last so it runs first: a request with a foreign Host never reaches a page.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
@@ -79,28 +85,100 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                              status=500)
         return RedirectResponse(f"/p/{name}", status_code=303)
 
-    @app.get("/p/{name}", response_class=HTMLResponse)
-    def project_page(request: Request, name: str):
+    def with_project(request: Request, name: str, work):
+        """Open the project, run work(cfg, info, conn), always close the database.
+        Settings or project problems go back to the dashboard with the message."""
         cfg = config.load(config_path)
         if not cfg.ok:
             return dashboard(request, status=503)
         try:
             info = project.open_project(cfg.data_dir, name)
             conn = db.connect(info["folder"] / "state.sqlite")
-            try:
-                stages = db.stage_statuses(conn)
-            finally:
-                conn.close()
         except (project.ProjectError, OSError, sqlite3.Error) as e:
             return dashboard(request, error=str(e), status=404)
-        return templates.TemplateResponse(request, "project.html", {
-            "cfg": cfg, "info": info, "stages": stages})
+        try:
+            return work(cfg, info, conn)
+        finally:
+            conn.close()
+
+    @app.get("/p/{name}", response_class=HTMLResponse)
+    def project_page(request: Request, name: str):
+        return with_project(request, name, lambda cfg, info, conn: templates.TemplateResponse(
+            request, "project.html", {"cfg": cfg, "info": info,
+                                      "stages": db.stage_statuses(conn)}))
+
+    def ingest_url(name: str, folder: str) -> str:
+        return f"/p/{name}/ingest?" + urlencode({"folder": folder})
+
+    @app.get("/p/{name}/ingest", response_class=HTMLResponse)
+    def ingest_page(request: Request, name: str, folder: str = ""):
+        def work(cfg, info, conn):
+            start = folder.strip() or next((str(r) for r in cfg.video_roots if r.is_dir()), "")
+            here = Path(start).expanduser() if start else None
+            error, subfolders, videos = "", [], []
+            if here is None:
+                error = "No video folder found. Paste a folder path below."
+            elif not here.is_dir():
+                error = f"Folder not found: {here}. Check the path, or plug in the SSD."
+            else:
+                subfolders = sorted(p for p in here.iterdir()
+                                    if p.is_dir() and not p.name.startswith("."))
+                try:
+                    videos = ingest.scan(here)
+                except ingest.IngestError as e:
+                    error = str(e)
+            for v in videos:
+                ingest.thumbnail(v, cfg.data_dir / "thumbs")
+            keys = ingest.added_keys(conn)
+            return templates.TemplateResponse(request, "ingest.html", {
+                "cfg": cfg, "info": info, "here": here, "error": error,
+                "subfolders": subfolders, "videos": videos, "added": ingest.added(conn),
+                "added_paths": set(keys.values()),
+                # a copy of this video from another folder is already in the project (D13)
+                "added_elsewhere": {str(v.path): keys[(v.path.name, v.size)] for v in videos
+                                    if (v.path.name, v.size) in keys
+                                    and keys[(v.path.name, v.size)] != str(v.path)}})
+        return with_project(request, name, work)
+
+    @app.get("/thumbs/{code}.jpg")
+    def thumb(code: str):
+        """Video thumbnails made by the ingest page; only names like 3fa9c1.jpg, only from
+        <data_dir>/thumbs/ (no path from the request reaches the disk)."""
+        cfg = config.load(config_path)
+        path = cfg.data_dir / "thumbs" / f"{code}.jpg" if cfg.ok else None
+        if not ingest.THUMB_CODE.match(code) or path is None or not path.is_file():
+            return PlainTextResponse("no thumbnail", status_code=404)
+        return FileResponse(path, media_type="image/jpeg")
+
+    @app.post("/p/{name}/ingest/add")
+    def ingest_add(request: Request, name: str, folder: str = Form(""),
+                   paths: list[str] = Form([])):
+        def work(cfg, info, conn):
+            # Only videos the scan of this folder found can be added, never an arbitrary path.
+            picked = set(paths)
+            try:
+                videos = ingest.scan(Path(folder))
+            except ingest.IngestError:
+                videos = []
+            ingest.add(conn, [v for v in videos if str(v.path) in picked])
+            return RedirectResponse(ingest_url(name, folder), status_code=303)
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/ingest/remove")
+    def ingest_remove(request: Request, name: str, folder: str = Form(""), path: str = Form("")):
+        def work(cfg, info, conn):
+            ingest.remove(conn, path)
+            return RedirectResponse(ingest_url(name, folder), status_code=303)
+        return with_project(request, name, work)
 
     return app
 
 
 def port_free(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        # Same option uvicorn uses: connections of an app copy that just stopped (TIME_WAIT,
+        # ~30 s on macOS) must not count as "in use"; a running app still does.
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind((HOST, port))
             return True

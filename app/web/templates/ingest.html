@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Ingest · {{ info.name }}{% endblock %}
+{% block content %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
+<h1>Ingest: pick videos</h1>
+<p class="hint">Videos are only read, never changed or moved. Files with the same name and size
+in two folders count as one video.</p>
+
+<form method="get" action="/p/{{ info.name }}/ingest" class="folder">
+  <input name="folder" value="{{ here or '' }}" size="70" placeholder="paste a folder path">
+  <button type="submit">Open folder</button>
+</form>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+{% if here and subfolders and error %}
+<ul class="subfolders">{% for d in subfolders %}
+  <li><a href="?folder={{ d | string | urlencode }}">{{ d.name }}/</a></li>{% endfor %}</ul>
+{% endif %}
+{% if here and not error %}
+<p class="crumbs">Folder: <strong>{{ here }}</strong>
+  {% if here.parent != here %} · <a href="?folder={{ here.parent | urlencode }}">up one folder</a>{% endif %}</p>
+{% if subfolders %}
+<ul class="subfolders">{% for d in subfolders %}
+  <li><a href="?folder={{ d | string | urlencode }}">{{ d.name }}/</a></li>{% endfor %}</ul>
+{% endif %}
+
+<h2>Videos in this folder and its subfolders ({{ videos | length }})</h2>
+{% if videos %}
+<form method="post" action="/p/{{ info.name }}/ingest/add">
+<input type="hidden" name="folder" value="{{ here }}">
+<p><button type="button" onclick="document.querySelectorAll('input[name=paths]:not(:disabled)').forEach(b => b.checked = true)">Tick all</button>
+   <button type="submit">Add ticked videos to project</button></p>
+<table class="videos">
+  <thead><tr><th></th><th></th><th>Video</th><th>Folder</th><th>Length</th><th>Resolution</th><th>fps</th>
+    <th>Codec</th><th>Size</th><th>Notes</th></tr></thead>
+  <tbody>
+  {% for v in videos %}
+  <tr class="{% if v.warning %}bad{% elif v.path | string in added_paths or v.path | string in added_elsewhere %}added{% endif %}">
+    <td>{% if v.path | string in added_paths %}added{% elif v.path | string in added_elsewhere %}<span class="hint" title="{{ added_elsewhere[v.path | string] }}">added (other folder)</span>{% else %}
+      <input type="checkbox" name="paths" value="{{ v.path }}" {% if v.warning %}disabled{% endif %}>{% endif %}</td>
+    <td class="thumb">{% if not v.warning %}<img src="/thumbs/{{ v.code }}.jpg" alt="" loading="lazy">{% endif %}</td>
+    <td>{{ v.path.name }}{% if v.recording.split('/')[-1] != v.path.stem %}
+      <br><span class="hint">recording {{ v.recording.split('/')[-1] }}, chapter {{ v.chapter }}</span>{% endif %}</td>
+    <td class="hint">{{ v.path.parent.relative_to(here) if v.path.parent != here else "." }}</td>
+    <td>{% if v.duration_s %}{{ "%d:%02d" | format(v.duration_s // 60, v.duration_s % 60) }}{% endif %}</td>
+    <td>{% if v.width %}{{ v.width }}×{{ v.height }}{% endif %}</td>
+    <td>{{ v.fps or "" }}</td><td>{{ v.codec }}</td>
+    <td>{{ "%.0f MB" | format(v.size / 1e6) }}</td>
+    <td>{% if v.warning %}<span class="error-text">{{ v.warning }}</span>{% endif %}
+      {% if v.also_in %}<span class="hint">also in: {% for f in v.also_in %}{{ f | replace(here | string ~ "/", "") }}{{ ", " if not loop.last }}{% endfor %}</span>{% endif %}
+      {% if v.has_lrv %}<span class="hint">has .LRV</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</form>
+{% else %}<p>No .MP4 or .MOV videos here.</p>{% endif %}
+{% endif %}
+
+<h2>In this project ({{ added | length }})</h2>
+{% if added %}
+<table class="videos">
+  <thead><tr><th></th><th>Video</th><th>Length</th><th>Resolution</th><th>Code</th><th></th></tr></thead>
+  <tbody>{% for a in added %}
+  <tr><td class="thumb"><img src="/thumbs/{{ a.path_code }}.jpg" alt="" loading="lazy"></td><td>{{ a.path }}</td>
+    <td>{{ "%d:%02d" | format(a.duration_s // 60, a.duration_s % 60) }}</td>
+    <td>{{ a.width }}×{{ a.height }}</td><td>{{ a.path_code }}</td>
+    <td><form method="post" action="/p/{{ info.name }}/ingest/remove">
+      <input type="hidden" name="folder" value="{{ here or '' }}">
+      <input type="hidden" name="path" value="{{ a.path }}">
+      <button type="submit" title="Takes it out of the project; the video file is not touched">Remove</button></form></td>
+  </tr>{% endfor %}</tbody>
+</table>
+{% else %}<p class="hint">No videos added yet.</p>{% endif %}
+{% endblock %}
