@@ -50,6 +50,16 @@ app/web/static/          one CSS file, small plain JavaScript files
   a bigger folder asks for a subfolder until bite 3's background jobs exist.
   Each video gets a thumbnail (one frame 10 % in, 240 px wide) in `<data_dir>/thumbs/<path code>.jpg`,
   served only as `/thumbs/<6 hex>.jpg` from that folder (Nick's request on PR 4).
+- Review (as-built, bite 4, D20): `app/stages/review.py`. `D` / `K` / `Z` post JSON to
+  `/p/<name>/review/act`; each change moves the file first, then its row, and adds one
+  `review_actions` row; `Z` removes the newest row and puts the frame back, or, if Extract or
+  the filters changed that frame since, moves nothing and says so. `D` on a rejected frame and `K` on
+  a kept one change nothing and add no undo step. `rejected` has a home folder, `rejected/`. A
+  `kept_hand` frame that a new plan leaves out is set aside in `dropped/unplanned/` like a kept one
+  and comes back `kept_hand` (its last review action says so). The grid shows 640 px copies cached
+  in `<project>/framethumbs/` (a GET writing a cache, D14a); the full-screen viewer is shared
+  with the Extract page (`static/viewer.js`). The dashboard row and the page have Skip; the page
+  has Done.
 - Video work goes through the installed `ffmpeg` / `ffprobe` as subprocesses; no extra video library.
 - Blur score (variance of Laplacian) and near-duplicate hash use numpy / scipy / Pillow, already installed.
 - Long steps run in the background behind one small interface (start, progress, done / error) so

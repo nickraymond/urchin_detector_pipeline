@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Review frames · {{ info.name }}{% endblock %}
+{% block content %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
+<h1>Review frames</h1>
+<p class="hint">Delete moves a frame to <code>{{ info.folder }}/rejected/</code>; nothing is erased.
+This stage is optional: Skip leaves every kept frame as it is.</p>
+{% if busy %}<p class="error">Extraction is running; review when it has finished.</p>{% endif %}
+<p class="totals" id="review-counts"><b>{{ counts.kept }}</b> kept{% if counts.kept_hand %} ({{ counts.kept_hand }} by hand){% endif %}
+  · {{ counts.rejected }} rejected · {{ counts.dropped_blur }} dropped as blurry · {{ counts.dropped_duplicate }} dropped as duplicate
+  = {{ counts.total }}{% if counts.rejected_unplanned %} · {{ counts.rejected_unplanned }} rejected from earlier settings{% endif %}
+  · stage: {{ stage.state }}</p>
+<div class="review-bar">
+  <label>Per row <input id="per-row" type="range" min="1" max="8" step="1" value="6"> <output id="per-row-out">6</output></label>
+  <label><input type="checkbox" id="show-dropped" {% if dropped %}checked{% endif %}
+    data-href="/p/{{ info.name }}/review{% if not dropped %}?dropped=1{% endif %}"> Show dropped (blurry, duplicate, rejected)</label>
+  <form method="post" action="/p/{{ info.name }}/review/finish" class="inline">
+    <button name="state" value="done">Done reviewing</button>
+    <button name="state" value="skipped">Skip this stage</button>
+  </form>
+</div>
+<p class="hint keys"><b>&larr;</b> <b>&rarr;</b> <b>&uarr;</b> <b>&darr;</b> move · <b>D</b> delete ·
+  <b>K</b> keep · <b>Z</b> undo · <b>F</b> or click: full screen (the same keys work there; <b>Esc</b> closes)</p>
+<p class="review-msg" id="review-msg" role="status"></p>
+<div class="viewer" id="viewer" hidden>
+  <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
+  <button class="v-prev" data-v="prev" title="Previous frame (&larr;)">&lsaquo;</button>
+  <img alt="">
+  <button class="v-next" data-v="next" title="Next frame (&rarr;)">&rsaquo;</button>
+  <p class="v-caption"></p>
+</div>
+<script type="application/json" id="frame-list">{{ {"base": "/p/" ~ info.name ~ "/frames/",
+  "thumbs": "/p/" ~ info.name ~ "/framethumbs/", "act": "/p/" ~ info.name ~ "/review/act",
+  "frames": frames} | tojson }}</script>
+{% if frames %}
+<div class="review-grid" id="review-grid"></div>
+{% else %}
+<p>No frames to review yet. <a href="/p/{{ info.name }}/extract">Extract frames first.</a></p>
+{% endif %}
+<script src="{{ static('viewer.js') }}"></script>
+<script src="{{ static('review.js') }}"></script>
+{% endblock %}

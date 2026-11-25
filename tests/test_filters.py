@@ -151,7 +151,7 @@ def test_filter_routes(tmp_path):
     files_before = sorted(p.name for p in folder.rglob("*.jpg"))
 
     a = client.get("/p/p/extract/filter?blur=50&dup=0").json()
-    assert a["counts"] == {"kept": 3, "dropped_blur": 3, "dropped_duplicate": 0, "rejected": 0,
+    assert a["counts"] == {"kept": 3, "kept_hand": 0, "dropped_blur": 3, "dropped_duplicate": 0, "rejected": 0,
                            "total": 6}
     assert len(a["blur_dropped"]) == 3 and len(a["blur_kept"]) == 3
     for bad in ("blur=51&dup=0", "blur=nan&dup=0", "blur=10&dup=4.5", "blur=10&dup=abc"):
