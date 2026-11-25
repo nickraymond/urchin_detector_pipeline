@@ -102,8 +102,8 @@ def test_preview_lists_every_dropped_frame_in_order(tmp_path):
     assert [e["blur"] for e in p["blur_dropped"]] == [5, 20]               # most blurry first
     assert [(e["file"], e["distance"]) for e in p["dup_dropped"]] == [
         ("a_aaaaaa_2.jpg", 1), ("b_bbbbbb_2.jpg", 2), ("a_aaaaaa_3.jpg", 3)]  # least unique first
-    assert p["counts"] == {"kept": 3, "dropped_blur": 2, "dropped_duplicate": 3, "rejected": 0,
-                           "total": 8}
+    assert p["counts"] == {"kept": 3, "kept_hand": 0, "dropped_blur": 2, "dropped_duplicate": 3,
+                           "rejected": 0, "total": 8}
     assert _where(proj) == {r["file"]: "frames" for r in rows}     # preview moved nothing
 
 
@@ -112,6 +112,7 @@ def test_a_stronger_blur_setting_only_adds_frames_on_the_right(tmp_path):
     in the middle of the row; the row follows the setting at which each frame goes."""
     rows = [frame(f"a_aaaaaa_{i}.jpg", t=i, blur=10 * (i + 1)) for i in range(5)]  # 10..50
     rows += [frame(f"b_bbbbbb_{i}.jpg", video="/v/b.MP4", t=i, blur=100 + i) for i in range(10)]
+    rows.append(frame("a_aaaaaa_9.jpg", t=9, blur=1, status="kept_hand"))  # never ranked (D20)
     proj, conn = _project(tmp_path, rows)
     before = []
     for pct in range(0, 51):
@@ -173,7 +174,7 @@ def test_filter_routes(tmp_path):
     files_before = sorted(p.name for p in folder.rglob("*.jpg"))
 
     a = client.get("/p/p/extract/filter?blur=50&dup=0").json()
-    assert a["counts"] == {"kept": 3, "dropped_blur": 3, "dropped_duplicate": 0, "rejected": 0,
+    assert a["counts"] == {"kept": 3, "kept_hand": 0, "dropped_blur": 3, "dropped_duplicate": 0, "rejected": 0,
                            "total": 6}
     assert len(a["blur_dropped"]) == 3 and a["dup_dropped"] == []
     assert [e["blur"] for e in a["blur_dropped"]] == sorted(e["blur"] for e in a["blur_dropped"])

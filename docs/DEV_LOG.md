@@ -24,7 +24,10 @@ frames dropped"). Now one row per filter showing every frame it would drop, scro
 opens the viewer. Order (Nick's second look): most blurry and least unique (fewest bits
 differing from the last kept frame) on the left. The blur row follows the setting at which each
 frame drops, so a stronger blur only adds on the right (QE); the duplicate row can still gain
-frames mid-row. The kept-side and paired examples are gone. Browser
+frames mid-row.
+After PR 14 (bite 4) merged: main merged in, `kept_hand` kept (never ranked by blur, still a
+duplicate anchor), and the rows load the 640 px `/framethumbs/` copies; the viewer still opens
+the full-size frame. 89 tests. The kept-side and paired examples are gone. Browser
 check on the scratch project at 30 % / 20: rows of 12 and 14 in order (sharpness 4 → 141,
 11 → 19 bits). 82 tests.
 **Broke/surprised us:** Nick's app on port 8000 was an old copy from the previous builder's

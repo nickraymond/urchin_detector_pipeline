@@ -54,7 +54,7 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
   <button class="v-next" data-v="next" title="Next frame (&rarr;)">&rsaquo;</button>
   <p class="v-caption"></p>
 </div>
-<script type="application/json" id="frame-list">{{ {"base": "/p/" ~ info.name ~ "/frames/", "frames": frames} | tojson }}</script>
+<script type="application/json" id="frame-list">{{ {"base": "/p/" ~ info.name ~ "/frames/", "thumbs": "/p/" ~ info.name ~ "/framethumbs/", "frames": frames} | tojson }}</script>
 {% if frames %}
 <div class="frame-grid" id="frame-grid">{% for f in frames[:12] %}
   <a href="/p/{{ info.name }}/frames/{{ f.file }}" data-i="{{ loop.index0 }}" title="{{ f.file }}"><img src="/p/{{ info.name }}/frames/{{ f.file }}" alt="" loading="lazy"></a>
@@ -64,5 +64,6 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
   scroll or pinch to zoom, drag to pan, <b>0</b> fits; <b>Esc</b> closes.</p>
 {% endif %}
 {% endif %}
+<script src="{{ static('viewer.js') }}"></script>
 <script src="{{ static('extract.js') }}"></script>
 {% endblock %}

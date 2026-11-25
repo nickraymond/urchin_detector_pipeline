@@ -39,10 +39,13 @@ def unplanned_dir(project_folder: Path) -> Path:
     return Path(project_folder) / "dropped" / "unplanned"
 
 
-# Each frame status and the folder its file lives in. 'rejected' (bite 4) is left alone here.
-HOMES = {"kept": "frames", "dropped_blur": "dropped/blurry",
-         "dropped_duplicate": "dropped/duplicate", "unplanned": "dropped/unplanned"}
+# Each frame status and the folder its file lives in. 'kept_hand' (kept by hand in frame review,
+# D20) and 'rejected' (deleted in frame review) are set only by review; the filters leave them alone.
+HOMES = {"kept": "frames", "kept_hand": "frames", "dropped_blur": "dropped/blurry",
+         "dropped_duplicate": "dropped/duplicate", "unplanned": "dropped/unplanned",
+         "rejected": "rejected"}
 FILTERED = ("kept", "dropped_blur", "dropped_duplicate")  # the statuses the filters choose between
+KEPT = ("kept", "kept_hand")                               # both count as kept (D20)
 
 
 def home(project_folder: Path, status: str) -> Path:
@@ -140,7 +143,8 @@ def hash_distance(a: str | None, b: str | None) -> int:
 def filter_frames(rows: list[dict], blur_percent: float, duplicate_distance: int) -> dict:
     """The filter rule, pure (no files, no decoding). rows: frames with file, video,
     timestamp_ms, blur_score, hash, status. Only frames whose status is in FILTERED take part;
-    'rejected' and 'unplanned' frames are left alone. Per video:
+    'rejected' and 'unplanned' frames are left alone, and so are 'kept_hand' frames (kept by
+    hand in review, D20), which still anchor the duplicate check like any kept frame. Per video:
       1. blur: the blurriest blur_percent % of its frames (rounded down) -> 'dropped_blur';
       2. then, in time order, a frame whose hash differs from the previous *kept* frame by
          fewer than duplicate_distance bits -> 'dropped_duplicate' (0 = off). Blur runs first,
@@ -150,18 +154,21 @@ def filter_frames(rows: list[dict], blur_percent: float, duplicate_distance: int
     "drop_at": {file: the lowest blur_percent at which that frame is dropped as blurry}}."""
     by_video: dict[str, list[dict]] = {}
     for r in rows:
-        if r["status"] in FILTERED:
+        if r["status"] in FILTERED or r["status"] == "kept_hand":
             by_video.setdefault(r["video"], []).append(r)
     status, distance, drop_at = {}, {}, {}
     for video, frames in by_video.items():
         frames.sort(key=lambda r: r["timestamp_ms"])
-        by_blur = sorted(frames, key=lambda r: (r["blur_score"] or 0.0, r["timestamp_ms"]))
-        n_blur = int(len(frames) * blur_percent / 100 + 1e-9)
+        by_blur = sorted((r for r in frames if r["status"] != "kept_hand"), key=lambda r: (r["blur_score"] or 0.0, r["timestamp_ms"]))
+        n_blur = int(len(by_blur) * blur_percent / 100 + 1e-9)
         blurry = {r["file"] for r in by_blur[:n_blur]}
         for k, r in enumerate(by_blur):  # the k+1 blurriest go once len * p / 100 >= k + 1
-            drop_at[r["file"]] = 100 * (k + 1) / len(frames)
+            drop_at[r["file"]] = 100 * (k + 1) / len(by_blur)
         anchor = None
         for r in frames:
+            if r["status"] == "kept_hand":
+                anchor = r                      # kept by hand: never changed, still an anchor
+                continue
             if r["file"] in blurry:
                 status[r["file"]] = "dropped_blur"
                 continue
@@ -181,7 +188,8 @@ def frame_rows(conn: sqlite3.Connection) -> list[dict]:
                                   "FROM frames")]
 
 
-def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: int) -> dict:
+def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: int,
+            planned: set[str] | None = None) -> dict:
     """What Apply would do, read only: the counts, and every frame each filter would drop, in
     one row per filter (Nick 2026-11-25). Blurry frames in the order the blur slider drops them
     (the cut is per video, so by the setting at which each one goes, then most blurry first): a
@@ -191,12 +199,15 @@ def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: i
     rows = frame_rows(conn)
     result = filter_frames(rows, blur_percent, duplicate_distance)
     new = result["status"]
-    c = {k: 0 for k in ("kept", "dropped_blur", "dropped_duplicate", "rejected")}
+    c = {k: 0 for k in ("kept", "kept_hand", "dropped_blur", "dropped_duplicate", "rejected")}
     for r in rows:
         st = new.get(r["file"], r["status"])
+        if st == "rejected" and planned is not None and r["file"] not in planned:
+            continue                      # rejected outside the plan: counted apart (D20)
         if st in c:
             c[st] += 1
     c["total"] = sum(c.values())
+    c["kept"] += c["kept_hand"]           # the kept count includes frames kept by hand (D20)
 
     def ex(r):
         return {"file": r["file"], "video": Path(r["video"]).name, "t": r["timestamp_ms"] / 1000,
@@ -225,12 +236,28 @@ def apply_filters(conn: sqlite3.Connection, project_folder: Path, blur_percent: 
     return counts(conn)
 
 
-def counts(conn: sqlite3.Connection) -> dict:
-    rows = conn.execute("SELECT status, COUNT(*) FROM frames GROUP BY status").fetchall()
-    out = {"kept": 0, "dropped_blur": 0, "dropped_duplicate": 0, "rejected": 0, "unplanned": 0}
-    out.update({r[0]: r[1] for r in rows})
-    out["total"] = sum(v for k, v in out.items() if k != "unplanned")  # frames in the plan
+def counts(conn: sqlite3.Connection, planned: set[str] | None = None) -> dict:
+    """Frames per status. 'kept' includes 'kept_hand' (also given on its own); 'total' =
+    kept + dropped blurry + dropped duplicate + rejected = the plan (D20). Given the planned
+    file names, rejected frames outside the plan are counted apart, as 'rejected_unplanned',
+    and left out of the total."""
+    out = {"kept": 0, "kept_hand": 0, "dropped_blur": 0, "dropped_duplicate": 0,
+           "rejected": 0, "unplanned": 0}
+    for file, st in conn.execute("SELECT file, status FROM frames"):
+        if st == "rejected" and planned is not None and file not in planned:
+            st = "rejected_unplanned"
+        out[st] = out.get(st, 0) + 1
+    out["kept"] += out["kept_hand"]
+    out["total"] = (out["kept"] + out["dropped_blur"] + out["dropped_duplicate"]
+                    + out["rejected"])
     return out
+
+
+def last_review_status(conn: sqlite3.Connection, name: str) -> str | None:
+    """The status frame review last gave this frame, or None."""
+    row = conn.execute("SELECT new_status FROM review_actions WHERE frame = ? "
+                       "ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+    return row[0] if row else None
 
 
 def run(project_folder: Path, samples: list[dict],
@@ -241,7 +268,8 @@ def run(project_folder: Path, samples: list[dict],
     the next run carries on (resume). Frames kept from an earlier plan that this plan does not
     ask for move to dropped/unplanned/ with status 'unplanned'; a planned frame found there
     moves back. A planned frame whose file sits in its status folder (kept or dropped) is never
-    decoded again. Rejected frames (bite 4) are left as they are. At the end the saved blur and
+    decoded again. Rejected frames (bite 4) are left as they are, also outside the plan; a frame
+    kept by hand that leaves the plan is set aside like a kept one, and comes back kept by hand. At the end the saved blur and
     duplicate filters are applied, so kept + blurry + duplicate add up to the plan (bite 3b)."""
     folder = frames_dir(project_folder)
     folder.mkdir(parents=True, exist_ok=True)
@@ -260,8 +288,8 @@ def run(project_folder: Path, samples: list[dict],
             elif st is not None and find_file(project_folder, name) is not None:
                 # already extracted: bring it home (back from dropped/unplanned/, or repair a
                 # stop between a move and its database update), never decode it again
-                if st == "unplanned":
-                    st = "kept"
+                if st == "unplanned":   # back in the plan; a frame kept by hand stays so (D20)
+                    st = "kept_hand" if last_review_status(conn, name) == "kept_hand" else "kept"
                 move_home(project_folder, name, st)
                 conn.execute("UPDATE frames SET status = ? WHERE file = ?", (st, name))
                 conn.commit()
@@ -280,7 +308,7 @@ def run(project_folder: Path, samples: list[dict],
                 new += 1
             report(100 * (i + 1) / len(samples), f"frame {i + 1} of {len(samples)}")
         for name, st in status.items():
-            if st in FILTERED and name not in planned:
+            if st in (*FILTERED, "kept_hand") and name not in planned:
                 move_home(project_folder, name, "unplanned")
                 conn.execute("UPDATE frames SET status='unplanned' WHERE file=?", (name,))
                 conn.commit()
