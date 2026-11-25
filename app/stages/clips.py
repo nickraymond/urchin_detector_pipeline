@@ -167,16 +167,26 @@ def check_clips(video_clips: list[dict], duration_s: float) -> list[dict]:
         if start < 0 or end > duration_s + 0.05:
             raise ClipError(f"Clip {_fmt(start)}–{_fmt(end)} is outside the video "
                             f"(0:00–{_fmt(duration_s)}).")
-        if end <= start:
-            raise ClipError(f"Clip end {_fmt(end)} must come after its start {_fmt(start)}.")
+        # Messages say what to do next (Nick's test, 2026-11-24: "end must come after start"
+        # was not clear when start and end were the same moment).
+        if end == start:
+            raise ClipError(f"This clip would be 0 s long: start and end are both {_fmt(start)}. "
+                            "Play or step the video forward, then press O (or Set end here).")
+        if end < start:
+            raise ClipError(f"This clip would end ({_fmt(end)}) before it starts "
+                            f"({_fmt(start)}). Set the end to a later time, or the start to an "
+                            "earlier one.")
         if end - start < MIN_CLIP_S:
-            raise ClipError(f"Clip {_fmt(start)}–{_fmt(end)} is shorter than {MIN_CLIP_S} s.")
+            raise ClipError(f"This clip is only {end - start:.1f} s long; a clip must be at "
+                            f"least {MIN_CLIP_S} s. Move the video further before pressing O.")
         out.append({"start_s": start, "end_s": min(end, round(duration_s, 2)), "note": note})
     out.sort(key=lambda c: c["start_s"])
     for a, b in zip(out, out[1:]):
         if b["start_s"] < a["end_s"]:
-            raise ClipError(f"Clip {_fmt(b['start_s'])}–{_fmt(b['end_s'])} overlaps clip "
-                            f"{_fmt(a['start_s'])}–{_fmt(a['end_s'])}. Adjust or delete one.")
+            raise ClipError(f"Clips can't share time: {_fmt(b['start_s'])}–{_fmt(b['end_s'])} "
+                            f"overlaps the clip {_fmt(a['start_s'])}–{_fmt(a['end_s'])}. Mark "
+                            "outside it, or change that clip with Set start here / Set end "
+                            "here, or delete it.")
     return out
 
 

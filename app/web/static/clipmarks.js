@@ -44,8 +44,10 @@
       const tr = document.createElement("tr");
       tr.innerHTML = "<td>" + (i + 1) + "</td><td>" + fmt(c.start_s) + "</td><td>" + fmt(c.end_s) +
         "</td><td>" + (c.end_s - c.start_s).toFixed(1) + " s</td><td><input maxlength='200'></td><td>" +
-        "<button data-a='go'>Go to</button> <button data-a='start'>Start = now</button> " +
-        "<button data-a='end'>End = now</button> <button data-a='del'>Delete</button></td>";
+        "<button data-a='go' title='Jump the video to where this clip starts'>Go to</button> " +
+        "<button data-a='start' title='Move this clip&#39;s start to the video&#39;s current time'>Set start here</button> " +
+        "<button data-a='end' title='Move this clip&#39;s end to the video&#39;s current time'>Set end here</button> " +
+        "<button data-a='del' title='Remove this clip'>Delete</button></td>";
       const note = tr.querySelector("input");
       note.value = c.note;
       note.placeholder = "note, e.g. dense purple urchins";

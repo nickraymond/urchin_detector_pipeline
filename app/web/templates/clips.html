@@ -53,6 +53,8 @@
       <thead><tr><th>#</th><th>Start</th><th>End</th><th>Length</th><th>Note</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
+    <p class="hint">To fix a clip: move the video to the right moment, then press <b>Set start here</b> or
+      <b>Set end here</b> on that clip's row. <b>Go to</b> jumps to the clip's start.</p>
     <p class="hint" id="no-clips">No clips yet: this whole video will be used. Press I and O to mark one.</p>
     <script type="application/json" id="clip-data">{{ {"video": current.path_code, "duration": current.duration_s,
       "clips": clips, "every": every, "save": "/p/" ~ info.name ~ "/clips/save"} | tojson }}</script>

@@ -158,8 +158,9 @@ def test_clip_rules():
                             {"start_s": 1, "end_s": 5.5}], 60)
     assert [(c["start_s"], c["end_s"]) for c in ok] == [(1, 5.5), (20, 30)]  # sorted
     assert ok[1]["note"] == "dense"
-    for bad, why in [([{"start_s": 5, "end_s": 4}], "after its start"),
-                     ([{"start_s": 5, "end_s": 5.2}], "shorter than"),
+    for bad, why in [([{"start_s": 5, "end_s": 4}], "before it starts"),
+                     ([{"start_s": 45.5, "end_s": 45.5}], "0 s long: start and end are both 0:45.5"),
+                     ([{"start_s": 5, "end_s": 5.2}], "only 0.2 s long"),
                      ([{"start_s": -1, "end_s": 4}], "outside the video"),
                      ([{"start_s": 50, "end_s": 70}], "outside the video"),
                      ([{"start_s": 1, "end_s": 10}, {"start_s": 9, "end_s": 12}], "overlaps"),
@@ -214,7 +215,7 @@ def test_save_page(tmp_path):
     assert "1 clip, 0:02 marked" in client.get("/p/p").text
     r = client.post("/p/p/clips/save", json={"video": code, "clips": [
         {"start_s": 4, "end_s": 2}]})
-    assert r.status_code == 400 and "must come after" in r.json()["error"]
+    assert r.status_code == 400 and "before it starts" in r.json()["error"]
     assert client.post("/p/p/clips/save", json={"video": "ffffff", "clips": []}).status_code == 404
     r = client.post("/p/p/clips/save", json={"video": code, "clips": []},
                     headers={"Origin": "http://evil.example"})
