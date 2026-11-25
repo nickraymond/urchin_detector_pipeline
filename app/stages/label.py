@@ -175,10 +175,13 @@ def run_all(folder: Path, files: list[str], report, stop: threading.Event | None
     or crashed Run carries on where it ended. Returns the job's final message."""
     out = run(folder, files, report, stop=stop, **kw)
     done = sum(1 for e in out["frames"] if not e.get("skipped"))
+    bad = [e["file"] for e in out["frames"] if e.get("unreadable")]
     seen = len(out["frames"])
+    note = (f"; {len(bad)} not labeled, their sam_raw file cannot be read (move it aside and "
+            f"Run again): {', '.join(bad)}" if bad else "")
     if out.get("stopped"):
-        return f"stopped after {seen} of {len(files)} frames; Run carries on from there"
-    return f"labeled {done} frames, {seen - done} already current"
+        return f"stopped after {seen} of {len(files)} frames; Run carries on from there" + note
+    return f"labeled {done} frames, {seen - done - len(bad)} already current" + note
 
 
 # --- Prompt preview (bite 3, D26) ---

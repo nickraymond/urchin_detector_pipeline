@@ -26,6 +26,7 @@ FILE_NAME = "classes.yaml"
 USED_FILE = "class_ids.json"
 
 KINDS = ("object", "area")
+MAX_ID = 254  # the class map is one byte per pixel and 255 marks an untagged urchin (QE PR 24)
 CLASS_KEYS = ("id", "name", "kind", "prompts", "sam_group", "seg_as")
 # name: (check, help) for the settings block
 SETTINGS = {
@@ -162,9 +163,9 @@ def _check_classes(classes: list, lines: list[dict], used: dict[int, str]) -> li
             if k not in CLASS_KEYS:
                 errs.append((line(i, k), f"unknown key {k!r}; known: " + ", ".join(CLASS_KEYS)))
         cid, name = c.get("id"), c.get("name")
-        if not _int(cid) or cid < 1:
-            errs.append((line(i, "id"), f"id must be a whole number, 1 or more (0 means "
-                         f"unknown); got {cid!r}"))
+        if not _int(cid) or not 1 <= cid <= MAX_ID:
+            errs.append((line(i, "id"), f"id must be a whole number from 1 to {MAX_ID} (0 means "
+                         f"unknown, 255 an untagged urchin in the class map); got {cid!r}"))
         elif cid in ids:
             errs.append((line(i, "id"), f"id {cid} is used twice (also line {line(ids[cid])})"))
         else:

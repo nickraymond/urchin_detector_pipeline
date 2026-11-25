@@ -55,3 +55,17 @@ def test_classes_not_in_the_file_are_left_out():
                "sea star": [mask((0, 0, 10, 10), class_id=42)]})   # tag of a removed class
     assert overlap.objects(r, CLASSES) == []
     assert (overlap.class_map(r, CLASSES) == 0).all()
+
+
+def test_d31_a_reviewed_mask_beats_a_fresher_higher_score():
+    """QE PR 24 / D31: after a re-run, a reviewed purple urchin and a fresh untagged duplicate
+    with a higher score clash; the reviewed one is kept and flagged, so its tag survives."""
+    reviewed = {**mask((10, 10, 30, 30), 0.6, class_id=1), "reviewed": True,
+                "from_older_settings": True}
+    fresh = mask((11, 10, 30, 30), 0.95)
+    objs = overlap.objects(raw(urchin=[fresh, reviewed]), CLASSES)
+    assert [(o["mask"]["score"], o["flag"]) for o in objs] == [(0.6, True)]
+    assert (overlap.class_map(raw(urchin=[fresh, reviewed]), CLASSES)[10:30, 10:30] == 1).all()
+    # two unreviewed (or two reviewed) still go by score
+    both = [{**reviewed, "score": 0.6}, {**fresh, "reviewed": True, "class_id": 2}]
+    assert [o["mask"]["class_id"] for o in overlap.objects(raw(urchin=both), CLASSES)] == [2]

@@ -127,7 +127,11 @@ def main(job: dict) -> None:
     emit(event="loaded", seconds=round(time.perf_counter() - t, 1))
     n = len(job["frames"])
     for i, fr in enumerate(job["frames"], 1):
-        todo = results.to_run(folder, fr["file"], units, settings)
+        try:
+            todo = results.to_run(folder, fr["file"], units, settings)
+        except ValueError as e:  # an unreadable sam_raw file: leave the frame, go on (QE PR 24)
+            emit(event="frame", i=i, n=n, file=fr["file"], skipped=True, unreadable=str(e))
+            continue
         if not todo:
             emit(event="frame", i=i, n=n, file=fr["file"], skipped=True)
             continue

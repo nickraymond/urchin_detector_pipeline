@@ -1,7 +1,8 @@
 """Overlap rules (Lead call D22), applied when results are shown or exported; sam_raw/ stays raw.
 
 1. Two object masks with IoU > 0.5, from any prompts or classes: the higher score is kept and
-   flagged for review; the other is left out.
+   flagged for review; the other is left out. D31: a reviewed mask beats an unreviewed one
+   whatever the scores (spec: reviewed masks are never silently replaced).
 2. Several prompts of one area class: their pixels are unioned.
 3. Two area classes on one pixel: the class listed first in classes.yaml wins.
 4. Objects sit on top of areas; where two kept objects overlap, the higher score takes the pixels.
@@ -31,7 +32,7 @@ def _rle(m: dict) -> dict:
 
 
 def objects(raw: dict, class_list: list[dict]) -> list[dict]:
-    """The object masks of the current classes after rule 1, lowest score first. Each is
+    """The object masks of the current classes after rule 1 (and D31), lowest score first. Each is
     {"unit", "mask", "paint" (class-map value), "flag" (True: won an IoU > 0.5 clash)}."""
     by_id = {c["id"]: c for c in class_list}
     found = []
@@ -49,19 +50,20 @@ def objects(raw: dict, class_list: list[dict]) -> list[dict]:
             else:
                 paint = cid
             found.append({"unit": u["key"], "mask": m, "paint": paint, "flag": False})
-    found.sort(key=lambda o: -o["mask"]["score"])
+    # D31: a reviewed mask beats an unreviewed one whatever the scores; else the higher score
+    found.sort(key=lambda o: (not o["mask"].get("reviewed"), -o["mask"]["score"]))
     if len(found) > 1:
         rles = [_rle(o["mask"]) for o in found]
         iou = np.asarray(mask_utils.iou(rles, rles, [0] * len(rles)))
         kept: list[int] = []
-        for i in range(len(found)):            # highest score first
+        for i in range(len(found)):            # reviewed first, then highest score
             clash = [k for k in kept if iou[i, k] > IOU_SAME]
             if clash:
                 found[clash[0]]["flag"] = True
             else:
                 kept.append(i)
         found = [found[k] for k in kept]
-    return found[::-1]
+    return sorted(found, key=lambda o: o["mask"]["score"])   # rule 4: the higher score paints last
 
 
 def class_map(raw: dict, class_list: list[dict]) -> np.ndarray:
