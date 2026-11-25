@@ -142,7 +142,8 @@ a folder of still images: they appear in frame review.
 ### S3 — SAM on single frames  `[ ]`
 **Goal:** spec stage 5 without job control: class settings file, prompt preview, tiling, overlap rules.
 - [ ] `classes.yaml` loaded and shown in the UI
-- [ ] urchins: one SAM prompt, "urchin"; its masks are saved as urchins with no type yet (D18)
+- [ ] urchins: one SAM prompt, "urchin", shared in `classes.yaml` by purple and red urchin; its masks
+      are saved as urchins with no type (no class id) until tagged; changing it re-runs both classes (D18)
 - [ ] kelp: try prompts for kelp shoot (object) and kelp (area) on frames from a restoration-site
       video; prompts are untested (DESIGN D11)
 - [ ] prompt preview on 3 sample frames with masks drawn per class
