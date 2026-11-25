@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S3 — Bites 1–2 built, bite 3 preview in progress; builder rotates
+**Branch:** sprint/3-classes (PR 20, merged `373521d`), sprint/3-sam-runner (PR 21), sprint/3-preview (no PR yet)
+**Done:** bite 1: `classes.yaml` with checks naming the line, Labeling page with edit / Save / Reload, upright
+EXIF helper (review thumbnails fixed). Bite 2: SAM worker process, `sam_raw/<frame file>.json`, tile-edge
+duplicates (D23, cut pieces unioned after QE), area masks one per prompt, re-run by settings key. Bite 3 code:
+Preview on 3 frames with toggles, counts, s per frame and peak memory; ran with real SAM in the browser
+(65 s per 4K frame, 12.8 GB Apple GPU). 132 tests.
+**Broke/surprised us:** the bench frames from 3 videos showed urchins on 2 frames only; "kelp stipe" found
+nothing on 6 restoration frames. macOS `._` files appear in `sam_raw/` on the exFAT SSD.
+**Next:** bite 3's kelp prompts, D10 re-check on more urchin frames, D24 minimum area, PR (handoff note in the notes folder).
+
 ## 2026-11-25 — Sprint S3 — Plan
 **Branch:** sprint/3-plan (docs only)
 **Done:** planning lead wrote the S3 plan (CLAUDE.md rule 7): four bites in TRACKER (classes, SAM runner and
