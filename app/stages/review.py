@@ -68,20 +68,23 @@ def act(conn: sqlite3.Connection, folder: Path, file: str, key: str) -> dict:
 
 
 def undo(conn: sqlite3.Connection, folder: Path) -> dict:
-    """Undo the last review action: the frame goes back to its old status and folder, and the
-    step leaves the history. If Extract or the filters changed the frame since, nothing moves;
-    the step is dropped and the message says so. {} if there is nothing to undo."""
-    last = conn.execute("SELECT id, frame, old_status, new_status FROM review_actions "
-                        "ORDER BY id DESC LIMIT 1").fetchone()
-    if last is None:
+    """Undo the newest review action that can still be undone: its frame goes back to its old
+    status and folder, and the step leaves the history. A step whose frame Extract changed
+    since (e.g. a kept-by-hand frame set aside by a new plan) is skipped and kept: it is what
+    brings that frame back kept by hand (QE PR 14). {} if there is no step at all; an error if
+    every step's frame changed since."""
+    steps = conn.execute("SELECT id, frame, old_status, new_status FROM review_actions "
+                         "ORDER BY id DESC").fetchall()
+    if not steps:
         return {}
-    aid, file, old, new = last
-    row = conn.execute("SELECT status FROM frames WHERE file = ?", (file,)).fetchone()
+    for aid, file, old, new in steps:
+        row = conn.execute("SELECT status FROM frames WHERE file = ?", (file,)).fetchone()
+        if row is not None and row[0] == new:
+            break
+    else:
+        raise ReviewError("Nothing to undo: the frames of the earlier steps were changed "
+                          "since by Extract.")
     conn.execute("DELETE FROM review_actions WHERE id = ?", (aid,))
-    if row is None or row[0] != new:
-        conn.commit()
-        raise ReviewError(f"{file} changed since that step (now {row[0] if row else 'gone'}); "
-                          "nothing undone.")
     _set(conn, folder, file, old)
     conn.commit()
     mark_progress(conn)

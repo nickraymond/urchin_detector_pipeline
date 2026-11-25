@@ -197,7 +197,7 @@ def _round_robin(lists: list[list], n: int) -> list:
 
 
 def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: int,
-            n: int = 3) -> dict:
+            n: int = 3, planned: set[str] | None = None) -> dict:
     """What Apply would do, read only: the counts, plus examples at each cut-off: the frames
     just dropped and just kept by blur (nearest each video's cut-off) and the duplicate pairs
     nearest the distance cut-off on both sides, each with the kept frame it was compared to."""
@@ -207,6 +207,8 @@ def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: i
     c = {k: 0 for k in ("kept", "kept_hand", "dropped_blur", "dropped_duplicate", "rejected")}
     for r in rows:
         st = result["status"].get(r["file"], r["status"])
+        if st == "rejected" and planned is not None and r["file"] not in planned:
+            continue                      # rejected outside the plan: counted apart (D20)
         if st in c:
             c[st] += 1
     c["total"] = sum(c.values())
