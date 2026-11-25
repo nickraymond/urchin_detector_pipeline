@@ -132,12 +132,21 @@ def load_clips(project_folder: Path) -> list[dict]:
     path = clips_path(project_folder)
     if not path.is_file():
         return []
+    fix = "Restore it from a backup, or move it aside to start the clip list again."
     try:
         data = json.loads(path.read_text())
     except (json.JSONDecodeError, OSError) as e:
-        raise ClipError(f"{path} cannot be read ({e}). Restore it from a backup, or move it "
-                        "aside to start the clip list again.") from e
-    return data["clips"] if isinstance(data, dict) else data
+        raise ClipError(f"{path} cannot be read ({e}). {fix}") from e
+    items = data.get("clips") if isinstance(data, dict) else None
+    ok = isinstance(items, list) and all(
+        isinstance(c, dict) and isinstance(c.get("video"), str)
+        and all(isinstance(c.get(k), (int, float)) and not isinstance(c.get(k), bool)
+                and math.isfinite(c[k]) for k in ("start_s", "end_s"))
+        for c in items)
+    if not ok:
+        raise ClipError(f"{path} cannot be read (not a list of clips with video, start_s and "
+                        f"end_s). {fix}")
+    return items
 
 
 def _fmt(t: float) -> str:
@@ -152,6 +161,8 @@ def check_clips(video_clips: list[dict], duration_s: float) -> list[dict]:
             start, end = round(float(c["start_s"]), 2), round(float(c["end_s"]), 2)
         except (KeyError, TypeError, ValueError) as e:
             raise ClipError(f"A clip needs a start and an end time in seconds ({e}).") from e
+        if not (math.isfinite(start) and math.isfinite(end)):
+            raise ClipError("A clip's start and end must be real numbers of seconds.")
         note = str(c.get("note") or "").strip()[:MAX_NOTE]
         if start < 0 or end > duration_s + 0.05:
             raise ClipError(f"Clip {_fmt(start)}–{_fmt(end)} is outside the video "
@@ -177,7 +188,7 @@ def save_video_clips(project_folder: Path, video_path: str, duration_s: float,
     data = {"clips": others + [{"video": video_path, **c} for c in checked]}
     path = clips_path(project_folder)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    tmp.write_text(json.dumps(data, indent=2, allow_nan=False) + "\n")
     os.replace(tmp, path)
     return checked
 

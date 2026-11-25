@@ -223,3 +223,28 @@ def test_save_page(tmp_path):
     client.post("/p/p/clips/save", json={"video": code, "clips": []})
     assert "not started" in client.get("/p/p").text
     assert digest(lib) == before
+
+
+def test_bad_numbers_and_bad_file_never_lock_the_page(tmp_path):
+    """QE findings 1 and 2 on PR 6: NaN is refused; a wrongly shaped clips.json gives the
+    'cannot be read' message on the page (200), never a 500."""
+    lib = tmp_path / "videos"
+    make_video(lib / "a.MP4", seconds=6)
+    data = tmp_path / "data"
+    data.mkdir()
+    client = client_for(write_config(tmp_path, data, roots=[str(lib)]))
+    client.post("/projects", data={"name": "p"})
+    client.post("/p/p/ingest/add", data={"folder": str(lib), "paths": [str(lib / "a.MP4")]})
+    code = ingest.path_code(lib / "a.MP4")
+    for bad in ("NaN", "Infinity", "-Infinity"):
+        r = client.post("/p/p/clips/save", headers={"Content-Type": "application/json"},
+                        content=f'{{"video": "{code}", "clips": [{{"start_s": {bad}, "end_s": 3}}]}}')
+        assert r.status_code == 400 and "real numbers" in r.json()["error"]
+    assert not (data / "projects" / "p" / "clips.json").exists()
+    for content in ('{"x": 1}', '[]', '{"clips": [{"video": "/a", "start_s": NaN, "end_s": 1}]}',
+                    '{"clips": [{"start_s": 1, "end_s": 2}]}', '{"clips": "no"}'):
+        (data / "projects" / "p" / "clips.json").write_text(content)
+        r = client.get("/p/p/clips")
+        assert r.status_code == 200 and "cannot be read" in r.text, content
+        r = client.post("/p/p/clips/save", json={"video": code, "clips": []})
+        assert r.status_code == 400 and "cannot be read" in r.json()["error"]
