@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S3 — Bite 4: Run, Stop, re-run only what changed, overlap rules
+**Branch:** sprint/3-run (PR 24)
+**Done:** Run on every kept frame with Stop and carry-on; the page lists the classes that will run and those
+unchanged; `app/sam/overlap.py` (D22) with a "final class map" toggle. Self-test with real SAM on 8 4K frames:
+Stop at frame 2, Run carried on; a new class ran alone, and the other classes' results stayed unchanged.
+**Broke/surprised us:** the first estimate (preview s/frame × the share of units) said 1 min for one new class;
+it took 3 min 43 s, because reading, tiling and image encoding cost about 21 s per frame however few units run.
+The estimate is now a fixed cost per frame plus a per-unit cost.
+Nick's feedback on the Labeling page (viewer, mask legend, class editor) is captured separately.
+**Next:** QE on PR 24; then Nick's feedback items.
+
 ## 2026-11-25 — Sprint S3 — Bite 3 bench: kelp prompts, D10 re-check, minimum mask area
 **Branch:** sprint/3-preview (main merged in after PR 21's squash, `c24dba4`)
 **Done:** kelp prompts picked from the overlays of 6 restoration frames: kelp shoot "young kelp", kelp area
