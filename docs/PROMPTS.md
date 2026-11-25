@@ -17,13 +17,11 @@ Run /agent-entry. We're starting Sprint S<N>.
 Read docs/TRACKER.md cover to cover, skim docs/SPEC.md and docs/DESIGN.md,
 and read the top 3 entries of docs/DEV_LOG.md before doing anything else.
 
-Then: create branch sprint/<N>-<name>, and give me your PLAN for the first
-bite of S<N> — nibble 1 only. Throwaway exploration is fine, but change no
-files and write no production code until I approve the plan.
+Then work through S<N>'s bites in order under "How this team works" in
+CLAUDE.md: plan at the top of each draft PR, code + tests, self-test in the
+browser, QE, the lead merges. Don't wait for me between bites.
 
-Remember: ~300 LoC bites, I run the manual tests (give me copy-pastable
-commands), and this sprint is not done until I've run its demo from the
-TRACKER and it passes.
+This sprint is done when I've run its test build (the TRACKER Demo) and it passes.
 ```
 
 ## 2 — Resume mid-sprint
@@ -31,8 +29,8 @@ TRACKER and it passes.
 ```
 Run /agent-entry. We're mid-Sprint S<N> on branch sprint/<N>-<name>.
 Do the full read ritual, then check the branch diff against the TRACKER
-state and the top DEV_LOG entry, tell me exactly where the last session
-stopped and which nibble we're in, and wait for my go before continuing.
+state and the top DEV_LOG entry, note where the last session
+stopped and which nibble you're in, then carry on.
 ```
 
 ## 3 — Sprint close-out (demo already passed)
@@ -40,8 +38,7 @@ stopped and which nibble we're in, and wait for my go before continuing.
 ```
 Sprint S<N> demo passed on my end. Close it out: mark S<N> done in
 TRACKER.md, append the DEV_LOG entry, add any DESIGN.md decisions made
-this sprint, open the PR with the demo commands in the description,
-and show me the diff of all doc changes before committing.
+this sprint, and open the PR with the demo commands in the description.
 ```
 
 ## 4 — Capture a task without acting on it

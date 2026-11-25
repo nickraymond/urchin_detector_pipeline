@@ -11,16 +11,18 @@
    `docs/SPEC.md` and `docs/DESIGN.md`. Read the top ~3 entries of
    `docs/DEV_LOG.md`.
 2. **Take small code bites.** One TODO at a time, target ~300 LoC. If SPEC.md
-   is too thin to inform the bite, stop and ask Nick.
-3. **Four nibbles per bite:**
-   1. **Plan** — throwaway code ok; change no files. *Gate: Nick approves.*
-   2. **Code + unit tests** — flag Nick on substantial plan changes.
-   3. **Manual tests** — Nick runs them; provide copy-pastable CLI.
-   4. **Open PR.**
+   is too thin to inform the bite, the planning lead makes a Lead call
+   (CLAUDE.md, "How this team works"); Nick is asked only about the items listed there.
+3. **Four nibbles per bite (no Nick gate in any of them):**
+   1. **Plan** — at the top of the draft PR; QE checks it against SPEC / TRACKER / DESIGN.
+   2. **Code + unit tests.**
+   3. **Self-test** — the builder runs the bite in the browser and writes in the PR what it saw.
+   4. **PR to QE** — the planning lead merges on QE PASS.
 4. **Feature branch for all new work** — `sprint/<n>-<name>`, PR to `main`. Never
    commit to main.
-5. **Every sprint ends with a live demo Nick can run** — exact commands in
-   the sprint's Demo section and the PR description.
+5. **Every sprint ends with one test build Nick runs** — the sprint's Demo
+   section, handed over by the lead with a click-through checklist and the
+   sprint's Lead calls. His feedback becomes TRACKER items.
 6. **End of every session:** DEV_LOG.md entry (newest on top); DESIGN.md updated
    on any architecture/decision change.
 7. **Facts carry sources; unknowns get flagged, not guessed.**

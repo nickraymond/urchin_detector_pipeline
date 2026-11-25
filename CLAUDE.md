@@ -17,6 +17,40 @@ Docs map — read per the ritual, don't skip it:
 Layout: `app/` = the labeling tool (web UI, worker, one module per stage) · `tests/` ·
 `docs/source/` = Nick's full MVP spec · data lives outside git (see `config.example.toml`).
 
+## How this team works (Nick, 2026-11-25: approved all 7 changes)
+
+Nick wrote the spec. The team works from it on its own and brings him working
+things to test; he gives feedback on what he can click. This section wins over
+any older step in this repo's docs, skills or prompts.
+
+1. **Plans need no approval from Nick.** The builder writes the bite's plan at the
+   top of its draft PR; QE checks it against SPEC, TRACKER and DESIGN; the builder
+   carries on.
+2. **Nick tests once per sprint.** At the end of each sprint the lead hands him one
+   test build (the sprint's Demo in TRACKER) with a click-through checklist. A
+   sprint may add at most one mid-sprint check, only when how a page looks needs
+   his eye. His feedback becomes TRACKER items. Builders test each bite
+   themselves in the browser and say in the PR what they saw.
+3. **The planning lead merges** any PR with a QE PASS on its exact head
+   (squash, `--match-head-commit`) and checks `main` afterwards. Nick merges
+   these himself: changes to this section, TRACKER's Rules for Agents, anything
+   under `.claude/`, `docs/PROMPTS.md`; changes to SPEC's hard constraints; and
+   changes to the spec's scope.
+4. **Gaps in the spec are Lead calls.** The lead decides within the spec's
+   intent, logs each call in DESIGN's decision log as "Lead call", and lists
+   them in the next test build's note. Nick can reverse any of them.
+5. **Nick is asked only about:** a change to or contradiction of the spec or a
+   hard constraint; anything that sends data off the laptop; a new model or
+   library whose licence is not verified; money; hardware. Questions are saved
+   up and sent together, each with a recommendation.
+6. **No "confirm" or "wait for my go" steps.** Sessions take the next open
+   TRACKER item. The lead starts and rotates builder and QE sessions.
+7. **Sprint plans:** the lead writes them from the spec and QE reviews them.
+   Nick sees a plan only if it would change the spec.
+
+Team rules (`~/Documents/GitHub/nereus-software-engineering-team/TEAM_RULES.md`)
+still apply: QE before ready, approvals read at the source, never make it up.
+
 ## Engineering values (apply to every bite)
 
 1. **Boring, debuggable engineering.** Small modules, explicit control flow,

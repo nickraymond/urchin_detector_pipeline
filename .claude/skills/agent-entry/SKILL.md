@@ -17,20 +17,22 @@ You are working under this repo's agent discipline. OWNER (the human gate) is:
 3. Skim `docs/SPEC.md` and `docs/DESIGN.md`.
 4. Read the top ~3 entries of `docs/DEV_LOG.md`.
 5. Identify the single active TODO (first `[~]`, else first `[ ]` whose
-   dependencies are met). Confirm it with OWNER before starting.
+   dependencies are met). Start it; do not wait for confirmation.
+6. Read "How this team works" in `CLAUDE.md`: it wins over any older step here.
 
 ## How work happens
 
 - **Bites:** ~300 LoC target, one TODO at a time. If SPEC.md is too thin to
-  inform the bite, STOP and ask OWNER — do not invent requirements.
-- **Nibbles (four, gated):**
-  1. **Plan** — explore, write throwaway code, change no files. Present the
-     plan. **Wait for OWNER's explicit approval.**
-  2. **Code + unit tests** — flag OWNER if the plan must substantially change.
-  3. **Manual tests** — OWNER runs them; provide copy-pastable CLI commands.
-  4. **Open PR** — description includes the demo commands.
+  inform the bite, ask the planning lead for a Lead call — do not invent
+  requirements. OWNER is asked only about the items in `CLAUDE.md`.
+- **Nibbles (four, no OWNER gate):**
+  1. **Plan** — at the top of the draft PR; QE checks it against the docs.
+  2. **Code + unit tests.**
+  3. **Self-test** — run the bite in the browser; write in the PR what you saw.
+  4. **PR to QE** — the planning lead merges on QE PASS.
 - **Branch:** all new work on `sprint/<n>-<name>`. Never commit to main.
-- **Demo:** a sprint is not done until OWNER runs its live demo successfully.
+- **Demo:** a sprint is not done until OWNER runs its test build (the sprint's
+  Demo, handed over by the lead) successfully.
 
 ## On session end — always
 
