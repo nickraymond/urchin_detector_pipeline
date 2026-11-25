@@ -8,6 +8,12 @@ Meta's code assumes an NVIDIA GPU (code read of facebookresearch/sam3 @ 31cb7e6)
      the same cache is filled lazily on the input's device if we skip it.
   3. `TransformerDecoder.__init__` builds a coordinate cache with device="cuda"
      (sam3/model/decoder.py:303).
+  4. The ViT MLP uses a fused bfloat16 `aten::_addmm_activation` (sam3/perflib/fused.py) and
+     relies on CUDA autocast to cast back; off-CUDA its output reaches float32 layers.
+  5. Text-only prompts encode an empty point/box list; MPS asserts on zero-size tensors
+     (sam3/model/geometry_encoders.py).
+  6. `_encode_boxes` calls `pin_memory()`, which on a Mac pins to the Apple GPU and breaks
+     CPU and MPS runs alike.
 
 Every change made here is recorded in CHANGES so the report can show it.
 """

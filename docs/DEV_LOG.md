@@ -21,7 +21,7 @@ what broke, what's next.*
 **Branch:** sprint/1-sam-test
 **Done:** plan approved by Nick. `pyproject.toml` (uv, Python 3.12, torch 2.10.0, Meta's sam3
 pinned at `31cb7e6`). `app/sam_test/`: frame pull, one worker process per attempt, report page
-with overlays embedded, click and box test. 9 unit tests on synthetic images. Smoke test with
+with overlays embedded, click and box test. 9 unit tests on synthetic images (13 by the end of S1). Smoke test with
 untrained weights: text, click and box prompts run on the Apple GPU (~2.3 s per 1008 px image).
 Dry run on a real video: frames extracted; report shows the "download the weights" error.
 **Broke/surprised us:** torch 2.15.0 aborts on the Apple GPU on macOS 14.6 → pinned 2.10.0 (D7).

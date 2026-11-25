@@ -98,15 +98,16 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   tile size, memory guard.
 - Q11. "Largest object %" by mask or by box; the id for unknown; which frames count as
   "accepted" for export.
-- Q12. Does SAM 3.1 run on the M1 Max? **Partly answered in S1 (2026-11-24); the run with real
-  weights is still to do.** Facts, from `facebookresearch/sam3` @ `31cb7e6` (read 2026-11-24):
-  the readme lists Python 3.12+, PyTorch 2.7+ and a CUDA 12.6+ GPU and installs torch 2.10.0;
+- Q12. Does SAM 3.1 run on the M1 Max? **Answered in S1 (2026-11-24): yes, SAM 3.1 and SAM 3
+  both run on the Apple GPU with real weights (outcome at the end of this item).** Facts,
+  from `facebookresearch/sam3` @ `31cb7e6` (read 2026-11-24): the readme lists Python 3.12+, PyTorch 2.7+ and a CUDA 12.6+ GPU and installs torch 2.10.0;
   the code never mentions MPS. Its image path needs run-time fixes to build off-CUDA (see
   DESIGN D8). With those, PyTorch 2.10.0 and CPU fallback on, a text, click and box prompt ran
   end to end on the Apple GPU with *untrained* weights, about 2.3 s per 1008 px image (smoke
   test, 2026-11-24). PyTorch 2.15.0 aborts on the Apple GPU on macOS 14.6 (D7). The 3.1 release
   notes (`RELEASE_SAM3p1.md`) document video use only; the image builder loads `sam3.pt` by
-  default, so whether `sam3.1_multiplex.pt` loads into the image model is still open. Licence:
+  default. S1 answer: `sam3.1_multiplex.pt` loads into the image model's detector (only an unused
+  neck level is missing) but supplies none of the 309 click/box weights. Licence:
   the repo's `LICENSE` is the "SAM License", last updated 19 Nov 2025: royalty-free, allows
   commercial use and changes; copies passed on must carry the licence; no ITAR, military,
   weapons, nuclear or espionage use. The `LICENSE` in `facebook/sam3.1` on Hugging Face is

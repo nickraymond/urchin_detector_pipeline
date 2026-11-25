@@ -130,8 +130,9 @@ def write_report(out_dir: Path, video_name: str, model: str, prompts: list[str],
 def write_index(top: Path) -> Path:
     """<data_dir>/sam_test/report.html: one row per run folder, linking to its report."""
     rows = []
-    for page in sorted(top.glob("*/report.html")):
+    for page in sorted(top.rglob("*/report.html")):
         run = page.parent
+        name = run.relative_to(top).as_posix()
         for res in sorted(run.glob("result_*.json")):
             r = json.loads(res.read_text())
             if r.get("status") != "ok":
@@ -142,8 +143,8 @@ def write_index(top: Path) -> Path:
                 for p, n in f["tiles"]["masks"].items():
                     totals[p] = totals.get(p, 0) + n
             found = ", ".join(f"{p}: {n}" for p, n in totals.items() if n) or "nothing"
-            rows.append(f'<tr><td><a href="{html.escape(run.name)}/report.html">'
-                        f"{html.escape(run.name)}</a></td><td>{html.escape(r['attempt'])}</td>"
+            rows.append(f'<tr><td><a href="{html.escape(name)}/report.html">'
+                        f"{html.escape(name)}</a></td><td>{html.escape(r['attempt'])}</td>"
                         f"<td>{_mean([f['tiles']['seconds'] for f in frames])}</td>"
                         f"<td>{html.escape(found)}</td></tr>")
     body = ("<h1>S1 SAM test: all runs</h1><p>Objects found in 'tiles' mode, summed over the "

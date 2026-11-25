@@ -6,10 +6,10 @@
 ## System topology
 
 S1 (a test, not the tool): `uv run sam-test --video <file>` → `app/sam_test/run.py` pulls 3
-frames with ffmpeg into `<data_dir>/sam_test/frames/`, then starts `app/sam_test/worker.py` as a
+frames with ffmpeg into `<data_dir>/sam_test/frames/<video>/`, then starts `app/sam_test/worker.py` as a
 separate process for each attempt (Apple GPU → Apple GPU with CPU fallback → CPU, stopping at
 the first that works). Each worker writes `result_<attempt>.json` after every step;
-`report.py` turns them into `<data_dir>/sam_test/<model>_tile<N>_cutoff<C>/report.html` with
+`report.py` turns them into `<data_dir>/sam_test/<video>/<model>_tile<N>_cutoff<C>/report.html` with
 the overlays embedded, plus an all-runs page `<data_dir>/sam_test/report.html`.
 
 ## Key designs
@@ -60,5 +60,6 @@ Prompt wording matters more than model or tile size: on one 1000 px patch of fra
 "urchin" kept 39 (score ≥ 0.5), "sea urchin" 0, "purple sea urchin" 0, "black sea urchin" 0.
 Visual check, frame 2 with "urchin": most urchins on the near rock marked; distant ones and
 most of murky frame 1 missed; the green anemone labelled "sea anemone". SAM 3's click model
-loads fully (0 of 309 weights missing): one click on a large urchin gave a clean outline,
-score 0.95, 0.7 s. n = 3 frames from one video; not yet a basis for defaults.
+loads fully (0 of 309 weights missing): in the demo run the click on frame 1's best urchin
+gave an outline with score 0.887 (box 0.901), 0.7 s (`<data_dir>/sam_test/sam3_tile1008_cutoff0.5/
+result_mps-fallback.json`, run before per-video folders). n = 3 frames from one video; not yet a basis for defaults.

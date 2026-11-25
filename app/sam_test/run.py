@@ -4,14 +4,15 @@
 
 Pulls 3 frames from the video (read-only), then runs SAM in a separate worker process per
 attempt (Apple GPU, Apple GPU with CPU fallback, CPU), stopping at the first that works.
-A crash in the worker cannot take the report down with it. Each setting combination gets
-<data_dir>/sam_test/<model>_tile<N>_cutoff<C>/report.html; <data_dir>/sam_test/report.html
+A crash in the worker cannot take the report down with it. Each video and setting combination
+gets <data_dir>/sam_test/<video>/<model>_tile<N>_cutoff<C>/report.html; <data_dir>/sam_test/report.html
 lists all runs.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -39,6 +40,13 @@ def load_data_dir(config_path: Path) -> Path:
     if not data_dir:
         sys.exit(f"{config_path} has no data_dir. Set it to a folder outside the repo.")
     return Path(data_dir)
+
+
+def video_code(video: Path) -> str:
+    """Folder name for one video: a short, safe stem plus 6 hex of its full path, so two videos
+    with the same name or length never share frames or results."""
+    stem = "".join(c if c.isalnum() or c in "-_" else "_" for c in video.stem)[:40]
+    return f"{stem}_{hashlib.sha1(str(video.resolve()).encode()).hexdigest()[:6]}"
 
 
 def extract_frames(video: Path, out_dir: Path, count: int = 3) -> list[Path]:
@@ -113,11 +121,12 @@ def main(argv=None) -> None:
     if not 100 <= args.tile <= 4000 or not 0 < args.cutoff < 1:
         sys.exit("--tile must be 100-4000 px and --cutoff between 0 and 1")
     top = load_data_dir(args.config) / "sam_test"
-    frames = extract_frames(args.video, top / "frames")
-    # each setting combination gets its own folder, so runs can be compared side by side
+    code = video_code(args.video)
+    frames = extract_frames(args.video, top / "frames" / code)
+    # one folder per video and setting combination, so runs can be compared side by side
     prompts = [p.strip().lower() for p in args.prompts.split(",") if p.strip()] if args.prompts \
         else PROMPTS
-    out_dir = top / f"{args.model}_tile{args.tile}_cutoff{args.cutoff:g}" \
+    out_dir = top / code / f"{args.model}_tile{args.tile}_cutoff{args.cutoff:g}" \
         f"{'' if prompts == PROMPTS else '_own-prompts'}"
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_id, ckpt = MODELS[args.model]

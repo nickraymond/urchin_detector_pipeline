@@ -76,7 +76,8 @@ before any tool code is written. This is a test, not the tool: keep it small and
 - [x] if SAM 3.1 will not run: try `facebook/sam3` the same way, then stop and report the options
       (SAM 3, CPU only, another machine). Time box: one working day.
 **Outcome (2026-11-24):** both run on the Apple GPU; defaults are SAM 3 + "urchin" (DESIGN D10, Bench results).
-**Demo (Nick):** `uv run sam-test --video "<one ReefCheck video>"` runs the test and opens
+**Demo (Nick):** after `uvx hf download facebook/sam3 sam3.pt config.json LICENSE` (once),
+`uv run sam-test --video "<one ReefCheck video>"` runs the test and opens
 `report.html` in the browser: 3 frames with coloured masks on the urchins, and a table showing
 device, seconds per frame and memory. A failed run still produces the page, with the error shown.
 **Needs:** S0; Nick logged in to Hugging Face (done 2026-11-24); the SSD plugged in.

@@ -96,15 +96,21 @@ def test_missing_config_gives_fix_hint(tmp_path):
         run.load_data_dir(tmp_path / "nope.toml")
 
 
+def test_video_code_differs_for_same_name_in_two_folders(tmp_path):
+    a, b = tmp_path / "x" / "dive 1.MP4", tmp_path / "y" / "dive 1.MP4"
+    assert run.video_code(a) != run.video_code(b)
+    assert run.video_code(a).startswith("dive_1_") and run.video_code(a) == run.video_code(a)
+
+
 def test_index_lists_each_run_with_totals(tmp_path):
-    run_dir = tmp_path / "sam3_tile504_cutoff0.5"
-    run_dir.mkdir()
+    run_dir = tmp_path / "clipA_abc123" / "sam3_tile504_cutoff0.5"
+    run_dir.mkdir(parents=True)
     r = _fake_result(run_dir)
     (run_dir / "result_mps.json").write_text(json.dumps(r))
     report.write_report(run_dir, "clip.MP4", "sam3", ["fish"], [r], {"tile": 504, "cutoff": 0.5})
     assert "504 px tiles" in (run_dir / "report.html").read_text()
     text = report.write_index(tmp_path).read_text()
-    assert "sam3_tile504_cutoff0.5/report.html" in text and "fish: 5" in text
+    assert "clipA_abc123/sam3_tile504_cutoff0.5/report.html" in text and "fish: 5" in text
 
 
 def test_report_flags_missing_click_weights(tmp_path):
