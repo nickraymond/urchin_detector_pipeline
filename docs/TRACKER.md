@@ -223,4 +223,6 @@ values matching those 5 frames. All acceptance boxes in `docs/source/mvp_spec.md
 ## Icebox (captured, not scheduled)
 
 - "Suggest clips" and "Pre-screen with SAM" buttons: left out of S2; decide after S3 (a tiled SAM pass costs about a minute per frame).
+- Re-check the kelp prompts (D29) and urchin defaults on more restoration-site footage once the full pipeline
+  works and more video is available (Nick, 2026-11-25: only the SSD's videos for now).
 - Later MVP milestones (train, quantize, bench test, quality gate, bake-off, Iridium packet): not this repo's Build 1.
