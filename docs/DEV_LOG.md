@@ -26,6 +26,8 @@ what broke, what's next.*
   Nick asked for an in-page frame viewer (like iPhoto): click a frame to see it large, arrows or < > move
   through every kept frame, Esc or Close leaves. Then full screen (browser Fullscreen API), no frame
   around the image; click zooms to actual pixels at that point, scroll / pinch zooms, drag pans, 0 fits.
+  Nick did not see the changes: the browser kept old saved copies of the scripts. Script and style
+  links now carry a content hash (`?v=`) and /static answers `Cache-Control: no-cache`.
 **Broke:** nothing known.
 **Next:** QE verdict on the new head (new QE session not running yet); Nick's manual test; then bite 3b.
 

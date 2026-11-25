@@ -49,5 +49,5 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
 <script type="application/json" id="frame-list">{{ {"base": "/p/" ~ info.name ~ "/frames/", "frames": frames} | tojson }}</script>
 {% endif %}
 {% endif %}
-<script src="/static/extract.js"></script>
+<script src="{{ static('extract.js') }}"></script>
 {% endblock %}

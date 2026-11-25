@@ -8,6 +8,7 @@ config.local.toml only needs a browser reload, not a restart.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import math
 import re
 import socket
@@ -38,6 +39,16 @@ WEB = Path(__file__).parent
 templates = Jinja2Templates(directory=WEB / "templates")
 
 
+def static_url(name: str) -> str:
+    """/static/<name>?v=<content hash>: the address changes whenever the file does, so the
+    browser never keeps using an old saved copy of a script or the stylesheet (Nick 2026-11-25)."""
+    data = (WEB / "static" / name).read_bytes()
+    return f"/static/{name}?v={hashlib.sha1(data).hexdigest()[:8]}"
+
+
+templates.env.globals["static"] = static_url
+
+
 def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     app = FastAPI(title="Urchin labeling tool", docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
@@ -56,6 +67,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         # Other web pages in the browser may not embed anything this app serves, e.g. a
         # thumbnail or frame in an <img> (D14).
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"  # ask the app before reusing a copy
         return response
 
     # Added last so it runs first: a request with a foreign Host never reaches a page.
