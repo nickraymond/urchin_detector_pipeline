@@ -66,6 +66,8 @@ def test_yaml_syntax_error_names_the_line():
     ("{id: 2, name: red urchin, kind: object", "{id: 2, name: red urchin, kind: area",
      "must be objects"),
     ("seg_as: kelp}", "seg_as: rock}", "seg_as must name an area class"),
+    ("seg_as: kelp}", "seg_as: [kelp]}", "seg_as must be the name of an area class"),
+    ("seg_as: kelp}", "seg_as: {a: b}}", "seg_as must be the name of an area class"),
     ("{id: 6, name: fish,", "{id: 0, name: fish,", "0 means unknown"),
     ("{id: 6, name: fish,", "{id: 6, name: Kelp,", "is used twice"),
     ("prompts: [fish]}", "prompts: []}", "prompts must be a list"),
@@ -138,6 +140,13 @@ def test_labeling_page_shows_edits_saves_and_refuses(tmp_path):
     (folder / "classes.yaml").write_text(DEFAULT.replace("confidence: 0.4", "confidence: 2"))
     page = client.get("/p/p/labeling").text
     assert "cannot be used yet" in page and "Line 5: confidence must be" in page
+    # a list where a name belongs: a message with the line, not a server error (QE PR 20)
+    listed = DEFAULT.replace("seg_as: kelp}", "seg_as: [kelp]}")
+    r = client.post("/p/p/labeling/classes", data={"text": listed})
+    assert r.status_code == 400 and "Line 20: seg_as must be the name" in r.text
+    (folder / "classes.yaml").write_text(listed)
+    page = client.get("/p/p/labeling")
+    assert page.status_code == 200 and "Line 20: seg_as must be the name" in page.text
 
 
 # --- EXIF orientation (D27) ---

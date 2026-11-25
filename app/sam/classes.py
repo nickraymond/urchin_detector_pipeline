@@ -215,7 +215,10 @@ def _check_classes(classes: list, lines: list[dict], used: dict[int, str]) -> li
         if isinstance(c, dict) and c.get("seg_as") is not None:
             if c.get("kind") != "object":
                 errs.append((line(i, "seg_as"), "only an object class can have seg_as"))
-            if c["seg_as"] not in areas:
+            if not isinstance(c["seg_as"], str):
+                errs.append((line(i, "seg_as"), f"seg_as must be the name of an area class, "
+                             f"like kelp (got {c['seg_as']!r})"))
+            elif c["seg_as"] not in areas:
                 errs.append((line(i, "seg_as"), f"seg_as must name an area class in this file "
                              f"(got {c['seg_as']!r})"))
     return errs
