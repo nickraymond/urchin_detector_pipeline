@@ -147,6 +147,7 @@ Each stage resumes where it left off and can be re-run without redoing earlier s
 
 - Per frame, with the same zoom slider and full-screen view: image with colored masks by class; a toggle to show objects only, areas only, or the final per-pixel class map.
 - Click a mask to select it. Searchable class picker to change its class; `X` deletes it; `Enter` accepts the frame.
+- **Urchin type** (2026-11-25): SAM runs one prompt, "urchin", because it cannot tell purple from red. `P` / `R` tags the selected urchin purple or red; a frame cannot be accepted while it has an untagged urchin. Exports keep the two classes purple urchin and red urchin.
 - **Split check:** per frame, mark whether touching urchins were separated correctly. Frames marked "no" still count for cover but are left out of detector training.
 - **Fully checked flag:** per frame and class, record that the reviewer looked for that class. Training skips a class on frames never checked for it, so classes added later don't turn old frames into false "background".
 - Running totals per class (objects and frames), so the user knows when a class has enough examples (target 150–200 objects per class).
