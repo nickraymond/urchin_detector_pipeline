@@ -3,6 +3,8 @@
 {% block content %}
 <p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
 <h1>Pick clips</h1>
+<p class="hint">Mark the useful stretches of each video; extraction takes frames only from them
+(a video with no clips is used whole).</p>
 {% if not videos %}
 <p>No videos in this project yet. <a href="/p/{{ info.name }}/ingest">Add videos on the Ingest page.</a></p>
 {% else %}
@@ -14,12 +16,19 @@
     The source videos are only read.</span>
 </form>
 {% endif %}
+{% if clip_error %}<p class="error">{{ clip_error }}</p>{% endif %}
+<p class="totals" id="totals">{{ summary.clips }} clip{{ "s" if summary.clips != 1 }} ·
+  {{ "%d:%02d" | format(summary.marked_s // 60, summary.marked_s % 60) }} marked ·
+  about {{ summary.frames }} frames at one every {{ every | round(1) }} s
+  <span class="hint">(before the blur and duplicate filters; Extract caps the total at {{ cap }})</span></p>
 <div class="clips-layout">
   <ul class="video-list">
   {% for v in videos %}{% set st = status[v.path_code] %}
     <li class="{{ 'current' if current and v.path_code == current.path_code }}">
       <a href="?v={{ v.path_code }}"><img src="/thumbs/{{ v.path_code }}.jpg" alt="">
       <span>{{ v.path.split('/')[-1] }}</span></a>
+      {% set sv = summary.videos[v.path_code] %}
+      <span class="hint counts" data-code="{{ v.path_code }}">{% if sv.clips %}{{ sv.clips }} clip{{ "s" if sv.clips != 1 }}, {{ "%d:%02d" | format(sv.marked_s // 60, sv.marked_s % 60) }}{% else %}whole video{% endif %} · {{ sv.frames }} frames</span><br>
       <span class="job" data-code="{{ v.path_code }}">{% if st.ready %}ready{% elif st.state == 'error' %}<span class="error-text">{{ st.message }}</span>{% else %}{{ st.state or 'no copy yet' }}{% endif %}</span>
     </li>
   {% endfor %}
@@ -30,9 +39,23 @@
     <video id="video" controls preload="auto" src="/p/{{ info.name }}/playback/{{ current.path_code }}.mp4"></video>
     <p class="hint">Time <strong id="now">0:00.0</strong> of {{ "%d:%02d" | format(current.duration_s // 60, current.duration_s % 60) }} ·
       playback copy (960 px); frames are always taken from the original. Click a thumbnail to jump there.</p>
+    <div class="timeline" id="timeline" title="Click to jump; coloured bands are your clips">
+      <div class="playhead" id="playhead"></div><div class="pending" id="pending" hidden></div>
+    </div>
+    <p class="hint keys"><b>I</b> = clip starts here · <b>O</b> = clip ends here · <b>Space</b> play / pause ·
+      <b>←</b> <b>→</b> 1 s · <b>Shift</b> + <b>←</b> <b>→</b> 5 s</p>
+    <p class="error" id="clip-msg" hidden></p>
     <div class="strip" id="strip" data-every="{{ strip_every }}">
       {% for f in strip %}<img src="/p/{{ info.name }}/strip/{{ current.path_code }}/{{ f }}" data-t="{{ loop.index0 * strip_every }}" title="{{ '%d:%02d' | format((loop.index0 * strip_every) // 60, (loop.index0 * strip_every) % 60) }}" alt="">{% endfor %}
     </div>
+    <h3>Clips in this video</h3>
+    <table class="videos" id="clip-table">
+      <thead><tr><th>#</th><th>Start</th><th>End</th><th>Length</th><th>Note</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="hint" id="no-clips">No clips yet: this whole video will be used. Press I and O to mark one.</p>
+    <script type="application/json" id="clip-data">{{ {"video": current.path_code, "duration": current.duration_s,
+      "clips": clips, "every": every, "save": "/p/" ~ info.name ~ "/clips/save"} | tojson }}</script>
     {% else %}
     <div class="progress-box" id="progress" data-code="{{ current.path_code }}">
       <p>This video needs a playback copy and thumbnail strip. Once started, the page refreshes
@@ -43,5 +66,6 @@
   </section>
 </div>
 <script src="/static/clips.js"></script>
+<script src="/static/clipmarks.js"></script>
 {% endif %}
 {% endblock %}

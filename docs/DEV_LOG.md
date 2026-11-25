@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S2 — Bite 2b: clip marks (I / O), clips.json, counts
+**Branch:** sprint/2-frames-2b (from main `9b296cd`, after PR 5 merged)
+**Done:** plan approved by Nick. Timeline under the player with clip bands and a playhead
+(click to jump); keys I / O / Space / arrows (Shift = 5 s), ignored while typing a note; clip list
+with note, Go to, Start = now, End = now, Delete; every change saved at once to `clips.json`
+(atomic). Server checks each video's clips: order, overlap, at least 0.5 s, inside the video.
+Counts per video and in total at one frame every 2 s (whole video when unmarked); Pick clips row
+on the project page shows "N clips, M:SS marked". 4 new tests (61 in total). Browser check with
+real key presses on a real video: I at 0:05, O at 0:15 made the clip; an overlapping clip was
+refused with its message; a note survived a reload; Delete returned the video to "whole video".
+**Broke/surprised us:** Nick's 2a test found an empty strip: macOS writes `._` shadow files next
+to every file on the SSD (fixed in PR 5).
+**Next:** QE reviews the draft PR; Nick runs the 2b manual test; then bite 3 (extract frames).
+
 ## 2026-11-24 — Sprint S2 — Bite 2a: playback copies and player
 **Branch:** sprint/2-frames-2a (from main `4d11e30`)
 **Done:** bite 2 plan approved by Nick: split 2a (player) / 2b (marks), copies 960 px wide.

@@ -193,8 +193,17 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             status = clip_status(info, videos)
             strip = (clips.strip_frames(info["folder"], current["path_code"])
                      if current and status[current["path_code"]]["ready"] else [])
+            every = info["settings"]["seconds_between_samples"]
+            try:
+                all_clips, clip_error = clips.load_clips(info["folder"]), ""
+            except clips.ClipError as e:
+                all_clips, clip_error = [], str(e)
+            mine = [c for c in all_clips if current and c["video"] == current["path"]]
             return templates.TemplateResponse(request, "clips.html", {
                 "cfg": cfg, "info": info, "videos": videos, "current": current,
+                "clips": mine, "clip_error": clip_error, "every": every,
+                "cap": info["settings"]["frame_cap"],
+                "summary": clips.summary(videos, all_clips, every),
                 "status": status, "strip": [p.name for p in strip],
                 # videos with no copy and no job queued or running: what the button starts
                 "idle": sum(1 for st in status.values() if not st["ready"]
@@ -213,6 +222,37 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                                 lambda report, row=row: clips.make_playback(
                                     row, info["folder"], report))
             return RedirectResponse(f"/p/{name}/clips?" + urlencode({"v": v}), status_code=303)
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/clips/save")
+    async def clips_save(request: Request, name: str):
+        """Replace one video's clips: JSON {video: <path code>, clips: [{start_s, end_s, note}]}.
+        Answers the checked clips and new counts, or 400 with a message to show."""
+        try:
+            body = await request.json()
+            code, new = str(body["video"]), list(body["clips"])
+        except (ValueError, KeyError, TypeError):
+            return JSONResponse({"error": "Bad request: expected {video, clips}."}, 400)
+
+        def work(cfg, info, conn):
+            videos = ingest.added(conn)
+            video = next((r for r in videos if r["path_code"] == code), None)
+            if video is None:
+                return JSONResponse({"error": "That video is not in this project."}, 404)
+            try:
+                saved = clips.save_video_clips(info["folder"], video["path"],
+                                               video["duration_s"], new)
+                total = clips.summary(videos, clips.load_clips(info["folder"]),
+                                      info["settings"]["seconds_between_samples"])
+            except clips.ClipError as e:
+                return JSONResponse({"error": str(e)}, 400)
+            if total["clips"]:
+                db.set_stage(conn, "clips", "done", f"{total['clips']} clip"
+                             f"{'s' * (total['clips'] != 1)}, "
+                             f"{int(total['marked_s'] // 60)}:{int(total['marked_s'] % 60):02d} marked")
+            else:
+                db.set_stage(conn, "clips", "not started")
+            return JSONResponse({"clips": saved, "summary": total})
         return with_project(request, name, work)
 
     @app.get("/p/{name}/clips/status")

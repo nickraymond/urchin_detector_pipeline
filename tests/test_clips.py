@@ -149,3 +149,77 @@ def test_lrv_in_another_codec_is_reencoded(tmp_path):
     out = clips.make_playback({"path": str(src), "path_code": "lrv002", "duration_s": 6.0},
                               tmp_path / "p")
     assert probe(out) == "h264,64,48"  # from the proxy, H.264, never scaled up
+
+
+# --- clip marks and clips.json (bite 2b) ---
+
+def test_clip_rules():
+    ok = clips.check_clips([{"start_s": 20, "end_s": 30, "note": " dense "},
+                            {"start_s": 1, "end_s": 5.5}], 60)
+    assert [(c["start_s"], c["end_s"]) for c in ok] == [(1, 5.5), (20, 30)]  # sorted
+    assert ok[1]["note"] == "dense"
+    for bad, why in [([{"start_s": 5, "end_s": 4}], "after its start"),
+                     ([{"start_s": 5, "end_s": 5.2}], "shorter than"),
+                     ([{"start_s": -1, "end_s": 4}], "outside the video"),
+                     ([{"start_s": 50, "end_s": 70}], "outside the video"),
+                     ([{"start_s": 1, "end_s": 10}, {"start_s": 9, "end_s": 12}], "overlaps"),
+                     ([{"start_s": "x", "end_s": 3}], "start and an end")]:
+        with pytest.raises(clips.ClipError, match=why):
+            clips.check_clips(bad, 60)
+
+
+def test_counts_and_whole_video():
+    assert clips.frames_in(10, 2) == 5 and clips.frames_in(10.5, 2) == 6
+    assert clips.frames_in(0, 2) == 0
+    videos = [{"path": "/a.MP4", "path_code": "aaaaaa", "duration_s": 60.0},
+              {"path": "/b.MP4", "path_code": "bbbbbb", "duration_s": 9.0}]
+    marks = [{"video": "/a.MP4", "start_s": 0, "end_s": 10, "note": ""},
+             {"video": "/a.MP4", "start_s": 20, "end_s": 25, "note": ""}]
+    s = clips.summary(videos, marks, 2.0)
+    assert s["videos"]["aaaaaa"] == {"clips": 2, "marked_s": 15.0, "frames": 8}
+    assert s["videos"]["bbbbbb"] == {"clips": 0, "marked_s": 0, "frames": 5}  # whole video
+    assert (s["clips"], s["frames"]) == (2, 13)
+
+
+def test_clips_json_saved_per_video(tmp_path):
+    clips.save_video_clips(tmp_path, "/a.MP4", 60, [{"start_s": 1, "end_s": 4}])
+    clips.save_video_clips(tmp_path, "/b.MP4", 60, [{"start_s": 2, "end_s": 8, "note": "x"}])
+    clips.save_video_clips(tmp_path, "/a.MP4", 60, [{"start_s": 10, "end_s": 14}])
+    saved = clips.load_clips(tmp_path)
+    assert {(c["video"], c["start_s"]) for c in saved} == {("/a.MP4", 10), ("/b.MP4", 2)}
+    assert not list(tmp_path.glob("*.tmp"))
+    with pytest.raises(clips.ClipError, match="overlaps"):
+        clips.save_video_clips(tmp_path, "/a.MP4", 60,
+                               [{"start_s": 1, "end_s": 5}, {"start_s": 4, "end_s": 6}])
+    assert len(clips.load_clips(tmp_path)) == 2  # a refused save changes nothing
+    (tmp_path / "clips.json").write_text("{half")
+    with pytest.raises(clips.ClipError, match="cannot be read"):
+        clips.load_clips(tmp_path)
+
+
+def test_save_page(tmp_path):
+    lib = tmp_path / "videos"
+    make_video(lib / "a.MP4", seconds=6)
+    before = digest(lib)
+    data = tmp_path / "data"
+    data.mkdir()
+    client = client_for(write_config(tmp_path, data, roots=[str(lib)]))
+    client.post("/projects", data={"name": "p"})
+    client.post("/p/p/ingest/add", data={"folder": str(lib), "paths": [str(lib / "a.MP4")]})
+    code = ingest.path_code(lib / "a.MP4")
+
+    r = client.post("/p/p/clips/save", json={"video": code, "clips": [
+        {"start_s": 1, "end_s": 3, "note": "urchins"}]})
+    assert r.status_code == 200 and r.json()["summary"]["frames"] == 1
+    assert "1 clip, 0:02 marked" in client.get("/p/p").text
+    r = client.post("/p/p/clips/save", json={"video": code, "clips": [
+        {"start_s": 4, "end_s": 2}]})
+    assert r.status_code == 400 and "must come after" in r.json()["error"]
+    assert client.post("/p/p/clips/save", json={"video": "ffffff", "clips": []}).status_code == 404
+    r = client.post("/p/p/clips/save", json={"video": code, "clips": []},
+                    headers={"Origin": "http://evil.example"})
+    assert r.status_code == 403
+    assert clips.load_clips(data / "projects" / "p")[0]["note"] == "urchins"
+    client.post("/p/p/clips/save", json={"video": code, "clips": []})
+    assert "not started" in client.get("/p/p").text
+    assert digest(lib) == before

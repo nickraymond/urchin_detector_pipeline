@@ -36,3 +36,11 @@ td.thumb img { width: 160px; height: auto; display: block; border-radius: 3px; b
 .strip img.here { opacity: 1; border-color: #d49b00; }
 .progress-box progress { width: 60%; }
 .prepare { margin: 8px 0 16px; }
+.totals { font-size: 16px; background: #fff; padding: 8px 12px; border-left: 4px solid #1f4e5f; }
+.timeline { position: relative; height: 22px; background: #e4e8ea; margin: 8px 0 2px; cursor: pointer; border-radius: 3px; }
+.timeline .band { position: absolute; top: 0; bottom: 0; background: #2e7d32; opacity: .65; }
+.timeline .playhead { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #c62828; z-index: 2; }
+.timeline .pending { position: absolute; top: 0; bottom: 0; width: 3px; background: #d49b00; z-index: 1; }
+.keys b { background: #eee; border: 1px solid #ccc; border-radius: 3px; padding: 0 4px; font-weight: 600; }
+#clip-table input { width: 100%; font-size: 14px; }
+#clip-table button { font-size: 13px; padding: 2px 6px; }
