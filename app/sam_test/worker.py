@@ -167,8 +167,8 @@ def main(job: dict) -> None:
                 draw_overlay(image, found, palette).save(out / overlay, quality=90)
                 counts = {p: sum(d["prompt"] == p for d in found) for p in names}
                 entry[mode] = {"seconds": secs, "tiles": n, "masks": counts, "overlay": overlay}
-                if i == 0 and mode == "whole":
-                    frame1_found = found
+                if i == 0:  # click target: best urchin on frame 1, whole or tiles
+                    frame1_found += found
                 print(f"{entry['name']} {mode}: {secs} s, {sum(counts.values())} masks",
                       file=sys.stderr)
             R["frames_done"].append(entry)
