@@ -45,3 +45,7 @@ td.thumb img { width: 160px; height: auto; display: block; border-radius: 3px; b
 #clip-table input { width: 100%; box-sizing: border-box; font-size: 14px; }
 #clip-table td:last-child { white-space: nowrap; }
 #clip-table button { font-size: 13px; padding: 2px 6px; }
+.timeline .band.selected { background: #d49b00; opacity: .95; outline: 2px solid #8a6500; z-index: 1; }
+#clip-table tr.selected td { background: #fff3cf; }
+#clip-table tbody tr { cursor: pointer; }
+#clip-table img.cthumb { width: 96px; display: block; border-radius: 3px; background: #ddd; }

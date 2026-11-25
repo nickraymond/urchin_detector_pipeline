@@ -50,14 +50,15 @@
     </div>
     <h3>Clips in this video</h3>
     <table class="videos" id="clip-table">
-      <thead><tr><th>#</th><th>Start</th><th>End</th><th>Length</th><th>Note</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>First frame</th><th>Start</th><th>End</th><th>Length</th><th>Note</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
     <p class="hint">To fix a clip: move the video to the right moment, then press <b>Set start here</b> or
-      <b>Set end here</b> on that clip's row. <b>Go to</b> jumps to the clip's start.</p>
+      <b>Set end here</b> on that clip's row. <b>Go to</b> jumps to the clip's start.
+      Click a green band or a row to see which is which: both light up.</p>
     <p class="hint" id="no-clips">No clips yet: this whole video will be used. Press I and O to mark one.</p>
     <script type="application/json" id="clip-data">{{ {"video": current.path_code, "duration": current.duration_s,
-      "clips": clips, "every": every, "save": "/p/" ~ info.name ~ "/clips/save"} | tojson }}</script>
+      "clips": clips, "every": every, "frame": "/p/" ~ info.name ~ "/frame/" ~ current.path_code ~ ".jpg", "save": "/p/" ~ info.name ~ "/clips/save"} | tojson }}</script>
     {% else %}
     <div class="progress-box" id="progress" data-code="{{ current.path_code }}">
       <p>This video needs a playback copy and thumbnail strip. Once started, the page refreshes

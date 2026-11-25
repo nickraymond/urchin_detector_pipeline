@@ -249,3 +249,27 @@ def test_bad_numbers_and_bad_file_never_lock_the_page(tmp_path):
         assert r.status_code == 200 and "cannot be read" in r.text, content
         r = client.post("/p/p/clips/save", json={"video": code, "clips": []})
         assert r.status_code == 400 and "cannot be read" in r.json()["error"]
+
+
+def test_clip_row_thumbnail_at_exact_time(tmp_path):
+    """Nick's request on PR 6: a picture of each clip's first frame, new when trimmed."""
+    lib = tmp_path / "videos"
+    make_video(lib / "a.MP4", seconds=6, size="320x240")
+    data = tmp_path / "data"
+    data.mkdir()
+    client = client_for(write_config(tmp_path, data, roots=[str(lib)]))
+    client.post("/projects", data={"name": "p"})
+    client.post("/p/p/ingest/add", data={"folder": str(lib), "paths": [str(lib / "a.MP4")]})
+    code = ingest.path_code(lib / "a.MP4")
+    assert client.get(f"/p/p/frame/{code}.jpg?t=1").status_code == 404  # no copy yet
+    client.post("/p/p/clips/prepare", data={"v": code})
+    assert wait_for(lambda: client.get("/p/p/clips/status").json()[code]["ready"])
+
+    one, two = client.get(f"/p/p/frame/{code}.jpg?t=1.0"), client.get(f"/p/p/frame/{code}.jpg?t=4.2")
+    assert one.status_code == two.status_code == 200 and one.content[:2] == b"\xff\xd8"
+    assert one.content != two.content  # a trimmed start shows a different picture
+    folder = data / "projects" / "p" / "clipthumbs" / code
+    assert sorted(p.name for p in folder.glob("[0-9]*.jpg")) == ["00001000.jpg", "00004200.jpg"]
+    for bad in ("t=-1", "t=99", "t=nan", "t=x"):
+        assert client.get(f"/p/p/frame/{code}.jpg?{bad}").status_code in (404, 422), bad
+    assert client.get("/p/p/frame/ffffff.jpg?t=1").status_code == 404

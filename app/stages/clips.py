@@ -113,6 +113,27 @@ def make_playback(video: dict, project_folder: Path,
     return out
 
 
+def frame_at(project_folder: Path, code: str, t: float, duration_s: float) -> Path | None:
+    """A 160 px picture of the playback copy at time t (to 0.1 s), for a clip's row: made once
+    with ffmpeg into <project>/clipthumbs/<code>/, then reused (a cache, D14a)."""
+    copy = playback_path(project_folder, code)
+    if not copy.is_file() or not math.isfinite(t) or not 0 <= t <= duration_s + 0.05:
+        return None
+    t = min(round(t, 1), max(0.0, duration_s - 0.05))
+    out = Path(project_folder) / "clipthumbs" / code / f"{round(t * 1000):08d}.jpg"
+    if out.is_file():
+        return out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_name(out.stem + ".tmp.jpg")
+    r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", str(copy),
+                        "-frames:v", "1", "-vf", f"scale={STRIP_WIDTH}:-2", "-q:v", "5", str(tmp)],
+                       capture_output=True, timeout=60)
+    if r.returncode != 0 or not tmp.is_file():
+        return None
+    os.replace(tmp, out)
+    return out
+
+
 # --- clips.json: the stretches of each video to extract from (bite 2b) ---
 
 MIN_CLIP_S = 0.5

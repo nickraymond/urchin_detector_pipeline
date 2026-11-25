@@ -27,6 +27,10 @@ Counts per video and in total at one frame every 2 s (whole video when unmarked)
 on the project page shows "N clips, M:SS marked". 4 new tests (61 in total). Browser check with
 real key presses on a real video: I at 0:05, O at 0:15 made the clip; an overlapping clip was
 refused with its message; a note survived a reload; Delete returned the video to "whole video".
+From Nick's manual test: clearer refusal messages and button names (Set start here / Set end
+here, hover hints); a clip's band and its row light up together when either is clicked; each row
+shows the clip's first frame (made from the copy at that time, cached in `clipthumbs/`), which
+changes when the start is trimmed. 63 tests.
 **Broke/surprised us:** Nick's 2a test found an empty strip: macOS writes `._` shadow files next
 to every file on the SSD (fixed in PR 5).
 **Next:** QE reviews the draft PR; Nick runs the 2b manual test; then bite 3 (extract frames).

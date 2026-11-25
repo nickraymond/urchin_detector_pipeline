@@ -274,6 +274,17 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     def playback(request: Request, name: str, code: str):
         return project_file(request, name, code, lambda f: clips.playback_path(f, code))
 
+    @app.get("/p/{name}/frame/{code}.jpg")
+    def frame(request: Request, name: str, code: str, t: float = 0.0):
+        """One picture of a video's playback copy at time t: the thumbnail on a clip's row."""
+        def work(cfg, info, conn):
+            video = next((r for r in ingest.added(conn) if r["path_code"] == code), None)
+            path = clips.frame_at(info["folder"], code, t, video["duration_s"] or 0) if video else None
+            if path is None:
+                return PlainTextResponse("not found", status_code=404)
+            return FileResponse(path, media_type="image/jpeg")
+        return with_project(request, name, work)
+
     @app.get("/p/{name}/strip/{code}/{file}")
     def strip(request: Request, name: str, code: str, file: str):
         if not strip_file.match(file):
