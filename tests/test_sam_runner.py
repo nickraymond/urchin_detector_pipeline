@@ -1,0 +1,167 @@
+"""S3 bite 2: tiles + tile-edge duplicates (D23), sam_raw files and the re-run rule, and the
+SAM worker process driven with a fake predictor (tests/fake_sam.py). Synthetic images only."""
+
+import json
+import threading
+
+import numpy as np
+import pytest
+from PIL import Image, ImageDraw
+
+from app.sam import classes, results, tiles
+from app.stages import label
+from tests.fake_sam import COLOURS
+
+FAKE = "tests.fake_sam:FakePredictor"
+
+
+def det(box, region, prompt="urchin", score=0.9):
+    x0, y0, x1, y1 = box
+    return {"prompt": prompt, "score": score, "box": list(box), "region": region,
+            "mask": np.ones((y1 - y0, x1 - x0), bool)}
+
+
+def test_old_tiles_import_still_works():
+    from app.sam_test.tiles import tile_grid
+    assert tile_grid is tiles.tile_grid
+
+
+def test_from_region_moves_mask_to_frame_coordinates():
+    m = np.zeros((100, 100), bool)
+    m[10:20, 30:35] = True
+    d = tiles.from_region(m, 0.8, "urchin", (500, 200, 600, 300))
+    assert d["box"] == [530, 210, 535, 220] and d["mask"].shape == (10, 5)
+    assert tiles.from_region(np.zeros((4, 4), bool), 0.9, "x", (0, 0, 4, 4)) is None
+
+
+def test_cut_off_half_at_a_tile_edge_is_dropped_but_whole_one_kept():
+    W, H = 2000, 1000
+    left, right = (0, 0, 1008, 1000), (800, 0, 2000, 1000)
+    whole = det((950, 100, 1050, 200), right)        # inside the right tile
+    half = det((950, 100, 1008, 200), left)          # cut by the left tile's right edge
+    lone = det((1000, 500, 1008, 520), left)         # cut, but nothing else covers it
+    kept = tiles.remove_duplicates([half, whole, lone], W, H)
+    assert whole in kept and lone in kept and half not in kept
+    # IoU alone would keep both: 58 % of the pixels of one are the other
+    assert tiles.iou(half, whole) < 0.6
+
+
+def test_iou_duplicates_keep_the_higher_score_per_prompt():
+    a = det((0, 0, 10, 10), (0, 0, 100, 100), score=0.5)
+    b = det((1, 0, 11, 10), (0, 0, 100, 100), score=0.7)
+    c = det((1, 0, 11, 10), (0, 0, 100, 100), prompt="fish", score=0.6)
+    assert tiles.remove_duplicates([a, b, c], 100, 100) == [b, c]
+
+
+def test_settings_key_changes_with_prompt_or_setting():
+    unit = {"key": "fish", "prompts": ["fish"]}
+    s = classes.parse(classes.DEFAULT_FILE.read_text())["settings"]
+    k = results.settings_key(unit, s)
+    assert k == results.settings_key(dict(unit), dict(s))
+    assert k != results.settings_key({**unit, "prompts": ["fishes"]}, s)
+    assert k != results.settings_key(unit, {**s, "confidence": 0.5})
+
+
+def test_write_frame_rle_reviewed_masks_and_class_ids(tmp_path):
+    units = classes.run_units(classes.parse(classes.DEFAULT_FILE.read_text())["classes"])
+    urchin, fish = units[0], next(u for u in units if u["key"] == "fish")
+    s = classes.parse(classes.DEFAULT_FILE.read_text())["settings"]
+    d = det((2, 3, 6, 5), (0, 0, 20, 10))
+    data = results.write_frame(tmp_path, "f.jpg", 20, 10, s, {
+        "urchin": {"unit": urchin, "seconds": 1.0, "dets": [d]},
+        "fish": {"unit": fish, "seconds": 0.5, "dets": []}})              # zero masks saved too
+    m = data["units"]["urchin"]["masks"][0]
+    assert m["class_id"] is None and m["area"] == 8 and m["box"] == [2, 3, 6, 5]
+    full = results.decode(m["rle"])
+    assert full.shape == (10, 20) and full.sum() == 8 and full[3:5, 2:6].all()
+    assert data["units"]["fish"]["masks"] == []
+    assert results.to_run(tmp_path, "f.jpg", units, s) == [u for u in units
+                                                           if u["key"] not in ("urchin", "fish")]
+    assert json.loads((tmp_path / "sam_raw" / "class_ids.json").read_text()) == {
+        "1": "purple urchin", "2": "red urchin", "6": "fish"}
+    # a re-run replaces unreviewed masks and keeps reviewed ones, marked as older
+    raw = results.read(tmp_path, "f.jpg")
+    raw["units"]["urchin"]["masks"][0]["reviewed"] = True
+    results.raw_path(tmp_path, "f.jpg").write_text(json.dumps(raw))
+    data = results.write_frame(tmp_path, "f.jpg", 20, 10, {**s, "confidence": 0.5}, {
+        "urchin": {"unit": urchin, "seconds": 1.0, "dets": [det((10, 0, 12, 2), (0, 0, 20, 10))]}})
+    masks = data["units"]["urchin"]["masks"]
+    assert [(m["reviewed"], m["from_older_settings"]) for m in masks] == [(True, True),
+                                                                          (False, False)]
+    assert data["units"]["fish"]["masks"] == []                           # other units untouched
+    # the classes check now holds those ids to their names (D6)
+    with pytest.raises(classes.ClassesError):
+        classes.save(tmp_path, classes.DEFAULT_FILE.read_text().replace("name: fish,",
+                                                                        "name: fishes,"))
+
+
+def synthetic_frame(path, size=(2600, 1200)):
+    """Two urchins (one straddling the first tile seam), a sea star, a kelp band."""
+    im = Image.new("RGB", size, (10, 60, 90))
+    d = ImageDraw.Draw(im)
+    d.rectangle((0, 1000, size[0], size[1]), fill=COLOURS["kelp"])
+    d.ellipse((960, 300, 1060, 400), fill=COLOURS["urchin"])   # across x = 1008
+    d.ellipse((200, 200, 260, 260), fill=COLOURS["urchin"])
+    d.ellipse((2000, 500, 2100, 600), fill=COLOURS["sea star"])
+    im.save(path)
+    return path
+
+
+def project_with_frames(tmp_path, n=2):
+    folder = tmp_path / "p"
+    (folder / "frames").mkdir(parents=True)
+    for i in range(n):
+        synthetic_frame(folder / "frames" / f"v_aaaaaa_{i}.png")
+    return folder, [f"v_aaaaaa_{i}.png" for i in range(n)]
+
+
+def test_worker_process_labels_frames_with_tiles_and_skips_done_units(tmp_path):
+    folder, files = project_with_frames(tmp_path)
+    seen = []
+    out = label.run(folder, files, lambda p, m: seen.append((p, m)), predictor=FAKE)
+    assert [e["i"] for e in out["frames"]] == [1, 2] and seen[-1][0] == 100
+    raw = results.read(folder, files[0])
+    assert (raw["width"], raw["height"]) == (2600, 1200)
+    counts = {k: len(u["masks"]) for k, u in raw["units"].items()}
+    assert counts["urchin"] == 2                       # the seam urchin counted once (D23)
+    assert counts["sea star"] == 1 and counts["kelp"] == 1 and counts["fish"] == 0
+    assert len(counts) == 8                            # every unit saved, also with no masks
+    assert (folder / "classes.yaml").is_file()        # copied in on first use
+    # same settings again: nothing re-runs
+    again = label.run(folder, files, lambda p, m: None, predictor=FAKE)
+    assert all(e.get("skipped") for e in again["frames"])
+    # a changed prompt re-runs that unit only
+    text = (folder / "classes.yaml").read_text().replace("prompts: [fish]", "prompts: [rock]")
+    classes.save(folder, text)
+    before = results.read(folder, files[0])["units"]["urchin"]["run_at"]
+    third = label.run(folder, files[:1], lambda p, m: None, predictor=FAKE)
+    assert list(third["frames"][0]["masks"]) == ["fish"]
+    assert results.read(folder, files[0])["units"]["urchin"]["run_at"] == before
+
+
+def test_kelp_area_and_min_mask_area(tmp_path):
+    folder, files = project_with_frames(tmp_path, n=1)
+    text = classes.DEFAULT_FILE.read_text().replace("min_mask_area_px: null",
+                                                    "min_mask_area_px: 5000")
+    classes.save(folder, text)
+    label.run(folder, files, lambda p, m: None, predictor=FAKE)
+    raw = results.read(folder, files[0])
+    assert len(raw["units"]["urchin"]["masks"]) == 1   # the 60 px urchin is below 5000 px
+    assert raw["units"]["kelp"]["masks"][0]["class_id"] == 9
+
+
+def test_a_failing_worker_reports_and_keeps_finished_frames(tmp_path):
+    folder, files = project_with_frames(tmp_path, n=1)
+    (folder / "frames" / "bad.png").write_bytes(b"not an image")
+    with pytest.raises(label.LabelError) as e:
+        label.run(folder, files + ["bad.png"], lambda p, m: None, predictor=FAKE)
+    assert "after 1 of 2 frames" in str(e.value) and "Log:" in str(e.value)
+    assert results.read(folder, files[0]) is not None
+
+
+def test_stop_ends_the_worker(tmp_path):
+    folder, files = project_with_frames(tmp_path, n=1)
+    stop = threading.Event()
+    stop.set()
+    out = label.run(folder, files, lambda p, m: None, stop=stop, predictor=FAKE)
+    assert out["stopped"]
