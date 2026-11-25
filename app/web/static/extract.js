@@ -193,9 +193,9 @@
       " duplicate" + (c.rejected ? " + " + c.rejected + " rejected" : "") + " = " + c.total;
     box.replaceChildren();
     list = [];
-    row("Dropped as blurry", "least blurry", "most blurry", a.blur_dropped,
+    row("Dropped as blurry", "most blurry", "least blurry", a.blur_dropped,
         f => "sharpness " + Math.round(f.blur));
-    row("Dropped as duplicates", "most unique", "least unique", a.dup_dropped,
+    row("Dropped as duplicates", "least unique", "most unique", a.dup_dropped,
         f => f.distance + " of 64 bits differ");
   }
   async function update() {

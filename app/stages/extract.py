@@ -180,8 +180,9 @@ def frame_rows(conn: sqlite3.Connection) -> list[dict]:
 
 def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: int) -> dict:
     """What Apply would do, read only: the counts, and every frame each filter would drop, in
-    one row per filter (Nick 2026-11-25): blurry frames from least to most blurry, duplicates
-    from most to least unique (most bits differing from the last kept frame first)."""
+    one row per filter (Nick 2026-11-25): blurry frames from most to least blurry, duplicates
+    from least to most unique (fewest bits differing from the last kept frame first), so the
+    first frames a filter drops stay on the left and a stronger setting adds frames on the right."""
     rows = frame_rows(conn)
     result = filter_frames(rows, blur_percent, duplicate_distance)
     new = result["status"]
@@ -200,8 +201,8 @@ def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: i
     dups = [r for r in rows if new.get(r["file"]) == "dropped_duplicate"]
     return {
         "counts": c,
-        "blur_dropped": [ex(r) for r in sorted(blurry, key=lambda r: -(r["blur_score"] or 0))],
-        "dup_dropped": [ex(r) for r in sorted(dups, key=lambda r: -result["distance"][r["file"]])],
+        "blur_dropped": [ex(r) for r in sorted(blurry, key=lambda r: r["blur_score"] or 0)],
+        "dup_dropped": [ex(r) for r in sorted(dups, key=lambda r: result["distance"][r["file"]])],
     }
 
 

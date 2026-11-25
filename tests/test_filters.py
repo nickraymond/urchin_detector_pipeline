@@ -87,8 +87,8 @@ def test_apply_moves_back_and_forth_and_counts_add_up(tmp_path):
 
 
 def test_preview_lists_every_dropped_frame_in_order(tmp_path):
-    """Nick 2026-11-25: one row per filter, everything it drops; blur from least to most
-    blurry, duplicates from most to least unique."""
+    """Nick 2026-11-25: one row per filter, everything it drops; most blurry and least unique
+    on the left, so a stronger setting adds frames on the right."""
     rows = [frame("a_aaaaaa_0.jpg", t=0, blur=50, h="0000000000000000"),
             frame("a_aaaaaa_1.jpg", t=1, blur=5),                        # blurriest of a
             frame("a_aaaaaa_2.jpg", t=2, blur=60, h="0000000000000001"),  # 1 bit from a_0
@@ -99,9 +99,9 @@ def test_preview_lists_every_dropped_frame_in_order(tmp_path):
             frame("b_bbbbbb_3.jpg", video="/v/b.MP4", t=3, blur=120, h="00000000000000ff")]
     proj, conn = _project(tmp_path, rows)
     p = extract.preview(conn, 25, 4)
-    assert [e["blur"] for e in p["blur_dropped"]] == [20, 5]               # least blurry first
+    assert [e["blur"] for e in p["blur_dropped"]] == [5, 20]               # most blurry first
     assert [(e["file"], e["distance"]) for e in p["dup_dropped"]] == [
-        ("a_aaaaaa_3.jpg", 3), ("b_bbbbbb_2.jpg", 2), ("a_aaaaaa_2.jpg", 1)]  # most unique first
+        ("a_aaaaaa_2.jpg", 1), ("b_bbbbbb_2.jpg", 2), ("a_aaaaaa_3.jpg", 3)]  # least unique first
     assert p["counts"] == {"kept": 3, "dropped_blur": 2, "dropped_duplicate": 3, "rejected": 0,
                            "total": 8}
     assert _where(proj) == {r["file"]: "frames" for r in rows}     # preview moved nothing
@@ -162,8 +162,7 @@ def test_filter_routes(tmp_path):
     assert a["counts"] == {"kept": 3, "dropped_blur": 3, "dropped_duplicate": 0, "rejected": 0,
                            "total": 6}
     assert len(a["blur_dropped"]) == 3 and a["dup_dropped"] == []
-    assert [e["blur"] for e in a["blur_dropped"]] == sorted(
-        (e["blur"] for e in a["blur_dropped"]), reverse=True)
+    assert [e["blur"] for e in a["blur_dropped"]] == sorted(e["blur"] for e in a["blur_dropped"])
     for bad in ("blur=51&dup=0", "blur=nan&dup=0", "blur=10&dup=4.5", "blur=10&dup=abc"):
         assert client.get(f"/p/p/extract/filter?{bad}").status_code == 400, bad
     assert sorted(p.name for p in folder.rglob("*.jpg")) == files_before  # preview reads only
