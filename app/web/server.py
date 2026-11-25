@@ -8,6 +8,7 @@ config.local.toml only needs a browser reload, not a restart.
 from __future__ import annotations
 
 import argparse
+import re
 import socket
 import sqlite3
 import sys
@@ -18,13 +19,14 @@ from urllib.parse import urlencode, urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
-from app.stages import ingest
+from app.jobs import Jobs
+from app.stages import clips, ingest
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
 # Host and origin rule (DESIGN D14): pages answer only to these host names, and a POST is
@@ -170,6 +172,62 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             ingest.remove(conn, path)
             return RedirectResponse(ingest_url(name, folder), status_code=303)
         return with_project(request, name, work)
+
+    jobs = Jobs()
+    app.state.jobs = jobs
+    strip_file = re.compile(r"^\d{4}\.jpg$")
+
+    def clip_status(info, videos) -> dict:
+        out = {}
+        for v in videos:
+            code = v["path_code"]
+            st = jobs.status(f"{info['folder']}:{code}") or {}
+            out[code] = {**st, "ready": clips.ready(info["folder"], code)}
+        return out
+
+    @app.get("/p/{name}/clips", response_class=HTMLResponse)
+    def clips_page(request: Request, name: str, v: str = ""):
+        def work(cfg, info, conn):
+            videos = ingest.added(conn)
+            for row in videos:  # queue a copy for every video that has none yet, in order
+                if not clips.ready(info["folder"], row["path_code"]):
+                    jobs.submit(f"{info['folder']}:{row['path_code']}",
+                                lambda report, row=row: clips.make_playback(
+                                    row, info["folder"], report))
+            current = next((r for r in videos if r["path_code"] == v), videos[0] if videos else None)
+            status = clip_status(info, videos)
+            strip = (clips.strip_frames(info["folder"], current["path_code"])
+                     if current and status[current["path_code"]]["ready"] else [])
+            return templates.TemplateResponse(request, "clips.html", {
+                "cfg": cfg, "info": info, "videos": videos, "current": current,
+                "status": status, "strip": [p.name for p in strip],
+                "strip_every": clips.STRIP_EVERY_S})
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/clips/status")
+    def clips_status(request: Request, name: str):
+        return with_project(request, name, lambda cfg, info, conn: JSONResponse(
+            clip_status(info, ingest.added(conn))))
+
+    def project_file(request, name, code, path_of):
+        """Serve a file of one of the project's own videos; codes not in the project get 404."""
+        def work(cfg, info, conn):
+            codes = {r["path_code"] for r in ingest.added(conn)}
+            path = path_of(info["folder"]) if code in codes else None
+            if path is None or not path.is_file():
+                return PlainTextResponse("not found", status_code=404)
+            return FileResponse(path)  # answers Range requests, so the player can seek
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/playback/{code}.mp4")
+    def playback(request: Request, name: str, code: str):
+        return project_file(request, name, code, lambda f: clips.playback_path(f, code))
+
+    @app.get("/p/{name}/strip/{code}/{file}")
+    def strip(request: Request, name: str, code: str, file: str):
+        if not strip_file.match(file):
+            return PlainTextResponse("not found", status_code=404)
+        return project_file(request, name, code, lambda f: clips.strip_dir(f, code) / file)
 
     return app
 

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Pick clips · {{ info.name }}{% endblock %}
+{% block content %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
+<h1>Pick clips</h1>
+{% if not videos %}
+<p>No videos in this project yet. <a href="/p/{{ info.name }}/ingest">Add videos on the Ingest page.</a></p>
+{% else %}
+<div class="clips-layout">
+  <ul class="video-list">
+  {% for v in videos %}{% set st = status[v.path_code] %}
+    <li class="{{ 'current' if current and v.path_code == current.path_code }}">
+      <a href="?v={{ v.path_code }}"><img src="/thumbs/{{ v.path_code }}.jpg" alt="">
+      <span>{{ v.path.split('/')[-1] }}</span></a>
+      <span class="job" data-code="{{ v.path_code }}">{% if st.ready %}ready{% elif st.state == 'error' %}<span class="error-text">{{ st.message }}</span>{% else %}{{ st.state or 'waiting' }}{% endif %}</span>
+    </li>
+  {% endfor %}
+  </ul>
+  <section class="player">
+    <h2>{{ current.path.split('/')[-1] }}</h2>
+    {% if status[current.path_code].ready %}
+    <video id="video" controls preload="auto" src="/p/{{ info.name }}/playback/{{ current.path_code }}.mp4"></video>
+    <p class="hint">Time <strong id="now">0:00.0</strong> of {{ "%d:%02d" | format(current.duration_s // 60, current.duration_s % 60) }} ·
+      playback copy (960 px); frames are always taken from the original. Click a thumbnail to jump there.</p>
+    <div class="strip" id="strip" data-every="{{ strip_every }}">
+      {% for f in strip %}<img src="/p/{{ info.name }}/strip/{{ current.path_code }}/{{ f }}" data-t="{{ loop.index0 * strip_every }}" title="{{ '%d:%02d' | format((loop.index0 * strip_every) // 60, (loop.index0 * strip_every) % 60) }}" alt="">{% endfor %}
+    </div>
+    {% else %}
+    <div class="progress-box" id="progress" data-code="{{ current.path_code }}">
+      <p>Making the playback copy and thumbnail strip. The page refreshes when it is ready.</p>
+      <progress max="100" value="0"></progress> <span class="hint">waiting</span>
+    </div>
+    {% endif %}
+  </section>
+</div>
+<script src="/static/clips.js"></script>
+{% endif %}
+{% endblock %}
