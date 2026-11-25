@@ -129,6 +129,7 @@ the review stage can be skipped. A test proves source videos are unchanged after
 **Bite 4 — Review frames**
 - [ ] grid with size slider, full-screen view (`F`), arrow keys
 - [ ] `D` delete (moves the file to `rejected/`), `K` keep, `Z` undo
+- [ ] "Show dropped" toggle: blurry, duplicate and rejected frames with their status; `K` makes them `kept_hand`, which the filters leave alone (D20)
 
 **Bite 5 — Stills + resume**
 - [ ] ingest also accepts folders of still images; they skip clips and extraction
