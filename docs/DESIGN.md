@@ -134,6 +134,14 @@ app/web/templates/label.html  the Labeling page
   (typos). Colours come from a fixed palette by id; untagged urchins are grey. The upright helper is
   `app/images.py`; review-grid copies moved to `<project>/framethumbs/upright/`, so the sideways S2
   copies are never served again.
+- SAM runner (as-built, bite 2): `app/stages/label.py` `run()` starts `python -m app.sam.worker <job.json>`
+  (one process and one model load per call; the app itself never imports torch) and reads its
+  progress lines (`@@ {json}` on stdout); the worker's other output goes to `<project>/sam_logs/run-<time>.log`.
+  A frame is tiled when its longer side is above `tile_above_px`. Object masks: tile-edge rule then IoU
+  (D23, `app/sam/tiles.py`), then the minimum area. Area masks (rock, kelp): all pieces of one prompt
+  become one mask, since tiles cut an area into pieces; prompts stay apart in `sam_raw/`. Files are
+  `sam_raw/<frame file name>.json` (with the extension, so a still's `.jpg` and `.png` of one stem never
+  share one); each run unit records `classes` ({id: name}), and `sam_raw/class_ids.json` collects them.
 - Images are read through one helper that applies the EXIF orientation (Pillow `ImageOps.exif_transpose`), so
   SAM, the masks and the page all use the same upright image (D27).
 - Tests: a fake predictor stands in for SAM (no torch, no weights, no real frames); synthetic images; the
