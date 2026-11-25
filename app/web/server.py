@@ -286,10 +286,31 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             return "The frame cap must be between 1 and 100000."
         return ""
 
+    def filter_settings(info) -> tuple[float, int]:
+        st = {**project.DEFAULT_SETTINGS, **info["settings"]}  # older projects lack blur_percent
+        return st["blur_percent"], st["duplicate_distance"]
+
+    def check_filters(blur: str, dup: str) -> tuple[str, float, int]:
+        """(problem, blur, dup): the slider values as numbers, or a message (400, not 422)."""
+        try:
+            b, d = float(blur), float(dup)
+        except ValueError:
+            return "The filter values must be numbers.", 0.0, 0
+        if not (math.isfinite(b) and 0 <= b <= 50):
+            return "The blur filter must be between 0 and 50 %.", 0.0, 0
+        if not (d.is_integer() and 0 <= d <= 64):
+            return "The duplicate filter must be a whole number from 0 to 64.", 0.0, 0
+        return "", b, int(d)
+
+    def extract_busy(info) -> bool:
+        return (jobs.status(f"{info['folder']}:extract") or {}).get("state") in ("queued",
+                                                                                 "running")
+
     @app.get("/p/{name}/extract", response_class=HTMLResponse)
     def extract_page(request: Request, name: str, error: str = ""):
         def work(cfg, info, conn):
             st = info["settings"]
+            blur, dup = filter_settings(info)
             samples, live = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
             # every kept frame, for the viewer's arrows; the grid shows the first 12
             frames = [{"file": r[0], "video": Path(r[1]).name, "t": r[2] / 1000}
@@ -300,7 +321,32 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "cap": st["frame_cap"], "live": live, "planned": len(samples),
                 "videos": len(ingest.added(conn)), "counts": extract.counts(conn),
                 "job": jobs.status(f"{info['folder']}:extract") or {}, "frames": frames,
-                "error": error})
+                "blur": blur, "dup": dup, "error": error})
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/extract/filter")
+    def extract_filter_preview(request: Request, name: str, blur: str = "10", dup: str = "4"):
+        """What Apply would do with these slider values: counts and examples (reads only)."""
+        def work(cfg, info, conn):
+            problem, b, d = check_filters(blur, dup)
+            if problem:
+                return JSONResponse({"error": problem}, 400)
+            return JSONResponse(extract.preview(conn, b, d))
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/extract/filter")
+    def extract_filter_apply(request: Request, name: str, blur: str = Form("10"),
+                             dup: str = Form("4")):
+        """Apply the filters: move files between frames/ and dropped/, save the values."""
+        def work(cfg, info, conn):
+            problem, b, d = check_filters(blur, dup)
+            if not problem and extract_busy(info):
+                problem = "Extraction is running; apply the filters when it has finished."
+            if not problem:
+                project.update_settings(info["folder"], blur_percent=b, duplicate_distance=d)
+                extract.apply_filters(conn, info["folder"], b, d)
+            return RedirectResponse(f"/p/{name}/extract" + (
+                "?" + urlencode({"error": problem}) if problem else ""), status_code=303)
         return with_project(request, name, work)
 
     @app.get("/p/{name}/extract/plan")
@@ -324,8 +370,9 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                                         status_code=303)
             project.update_settings(info["folder"], seconds_between_samples=every, frame_cap=cap)
             samples, _ = extract_plan(info, conn, every, cap)
+            blur, dup = filter_settings(info)
             jobs.submit(f"{info['folder']}:extract",
-                        lambda report: extract.run(info["folder"], samples, report))
+                        lambda report: extract.run(info["folder"], samples, report, blur, dup))
             return RedirectResponse(f"/p/{name}/extract", status_code=303)
         return with_project(request, name, work)
 
@@ -337,11 +384,13 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     @app.get("/p/{name}/frames/{file}")
     def frame_file(request: Request, name: str, file: str):
-        """A frame of this project, by its name in the frames table (never a path)."""
+        """A kept or filtered-out frame of this project, by its name in the frames table (never
+        a path), from the folder of its status."""
         def work(cfg, info, conn):
-            known = conn.execute("SELECT 1 FROM frames WHERE file = ?", (file,)).fetchone()
-            path = extract.frames_dir(info["folder"]) / file
-            if not extract.FRAME_NAME.match(file) or not known or not path.is_file():
+            row = conn.execute("SELECT status FROM frames WHERE file = ?", (file,)).fetchone()
+            ok = extract.FRAME_NAME.match(file) and row and row[0] in extract.FILTERED
+            path = extract.home(info["folder"], row[0]) / file if ok else None
+            if not ok or not path.is_file():
                 return PlainTextResponse("not found", status_code=404)
             return FileResponse(path, media_type="image/jpeg")
         return with_project(request, name, work)

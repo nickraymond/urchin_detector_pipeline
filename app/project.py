@@ -15,8 +15,9 @@ FORMAT_VERSION = 1
 NAME_RULE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 NAME_HELP = "Use 1-64 letters, digits, - or _, starting with a letter or digit."
 # Starting values; the extract stage (bite 3) makes them adjustable. Spec §Stage details 3,
-# DESIGN D12. blur_threshold None = start at the 10th-percentile score of the sampled frames.
-DEFAULT_SETTINGS = {"seconds_between_samples": 2.0, "frame_cap": 300, "blur_threshold": None,
+# DESIGN D12, D17: blur_percent = drop the blurriest X % of each video's frames (it replaced
+# blur_threshold); duplicate_distance = drop a frame when fewer than N of 64 hash bits differ.
+DEFAULT_SETTINGS = {"seconds_between_samples": 2.0, "frame_cap": 300, "blur_percent": 10,
                     "duplicate_distance": 4, "jpeg_quality": 95}
 
 
@@ -85,5 +86,6 @@ def update_settings(folder: Path, **changes) -> dict:
     meta = Path(folder) / "project.json"
     info = json.loads(meta.read_text())
     info["settings"] = {**DEFAULT_SETTINGS, **info.get("settings", {}), **changes}
+    info["settings"].pop("blur_threshold", None)  # replaced by blur_percent (D17)
     write_json_atomic(meta, info)
     return info["settings"]

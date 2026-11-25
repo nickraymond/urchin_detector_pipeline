@@ -27,18 +27,26 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
 </div>
 {% if job.state == "error" %}<p class="error">Extraction stopped: {{ job.message }}</p>{% endif %}
 
+<h2>Filters</h2>
+<p class="hint">Dropped frames are moved, never erased, to <code>dropped/blurry/</code> and
+<code>dropped/duplicate/</code>; Apply with other values moves them back. Extract applies the saved values at its end.</p>
+<form method="post" action="/p/{{ info.name }}/extract/filter" class="filter-form" id="filter-form"
+      data-preview="/p/{{ info.name }}/extract/filter">
+  <label>Blur: drop the blurriest <input name="blur" type="range" min="0" max="50" step="1" value="{{ blur }}">
+    <output>{{ blur }}</output> % of each video's frames</label>
+  <label>Duplicates: drop a frame when fewer than <input name="dup" type="range" min="0" max="32" step="1" value="{{ dup }}">
+    <output>{{ dup }}</output> of 64 hash bits differ from the last kept frame (0 = off)</label>
+  <p class="totals" id="filter-counts">{{ counts.kept }} kept + {{ counts.dropped_blur }} blurry +
+    {{ counts.dropped_duplicate }} duplicate{% if counts.rejected %} + {{ counts.rejected }} rejected{% endif %} = {{ counts.total }}</p>
+  <button type="submit" {% if running %}disabled{% endif %}>Apply</button>
+  <span class="hint">The counts and examples follow the sliders; files move only when you press Apply.</span>
+  <div id="filter-examples" class="examples"></div>
+</form>
+
 <h2>Frames</h2>
-<p class="totals"><b>{{ counts.kept }}</b> kept{% if counts.dropped_blur or counts.dropped_duplicate %} ·
-  {{ counts.dropped_blur }} dropped as blurry · {{ counts.dropped_duplicate }} dropped as duplicate{% endif %}
-  {% if counts.unplanned %}· {{ counts.unplanned }} from earlier settings set aside in <code>dropped/unplanned/</code>{% endif %}
-  <span class="hint">(the blur and duplicate filters come in the next step)</span></p>
-{% if frames %}
-<div class="frame-grid" id="frame-grid">{% for f in frames[:12] %}
-  <a href="/p/{{ info.name }}/frames/{{ f.file }}" data-i="{{ loop.index0 }}" title="{{ f.file }}"><img src="/p/{{ info.name }}/frames/{{ f.file }}" alt="" loading="lazy"></a>
-{% endfor %}</div>
-<p class="hint">The first {{ frames[:12] | length }} of {{ frames | length }} kept frames. Click one to view it full screen:
-  <b>&larr;</b> <b>&rarr;</b> move through all {{ frames | length }}; click the image to zoom to actual pixels,
-  scroll or pinch to zoom, drag to pan, <b>0</b> fits; <b>Esc</b> closes.</p>
+<p class="totals"><b>{{ counts.kept }}</b> kept · {{ counts.dropped_blur }} dropped as blurry ·
+  {{ counts.dropped_duplicate }} dropped as duplicate
+  {% if counts.unplanned %}· {{ counts.unplanned }} from earlier settings set aside in <code>dropped/unplanned/</code>{% endif %}</p>
 <div class="viewer" id="viewer" hidden>
   <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
   <button class="v-prev" data-v="prev" title="Previous frame (&larr;)">&lsaquo;</button>
@@ -47,6 +55,13 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
   <p class="v-caption"></p>
 </div>
 <script type="application/json" id="frame-list">{{ {"base": "/p/" ~ info.name ~ "/frames/", "frames": frames} | tojson }}</script>
+{% if frames %}
+<div class="frame-grid" id="frame-grid">{% for f in frames[:12] %}
+  <a href="/p/{{ info.name }}/frames/{{ f.file }}" data-i="{{ loop.index0 }}" title="{{ f.file }}"><img src="/p/{{ info.name }}/frames/{{ f.file }}" alt="" loading="lazy"></a>
+{% endfor %}</div>
+<p class="hint">The first {{ frames[:12] | length }} of {{ frames | length }} kept frames. Click one to view it full screen:
+  <b>&larr;</b> <b>&rarr;</b> move through all {{ frames | length }}; click the image to zoom to actual pixels,
+  scroll or pinch to zoom, drag to pan, <b>0</b> fits; <b>Esc</b> closes.</p>
 {% endif %}
 {% endif %}
 <script src="{{ static('extract.js') }}"></script>
