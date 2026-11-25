@@ -22,7 +22,9 @@ what broke, what's next.*
 **Done:** Nick found the filter examples too much and their labels confusing ("the sharpest
 frames dropped"). Now one row per filter showing every frame it would drop, scrolling sideways; click
 opens the viewer. Order (Nick's second look): most blurry and least unique (fewest bits
-differing from the last kept frame) on the left, so a stronger setting adds frames on the right. The kept-side and paired examples are gone. Browser
+differing from the last kept frame) on the left. The blur row follows the setting at which each
+frame drops, so a stronger blur only adds on the right (QE); the duplicate row can still gain
+frames mid-row. The kept-side and paired examples are gone. Browser
 check on the scratch project at 30 % / 20: rows of 12 and 14 in order (sharpness 4 → 141,
 11 → 19 bits). 82 tests.
 **Broke/surprised us:** Nick's app on port 8000 was an old copy from the previous builder's

@@ -183,11 +183,11 @@ def frame_rows(conn: sqlite3.Connection) -> list[dict]:
 
 def preview(conn: sqlite3.Connection, blur_percent: float, duplicate_distance: int) -> dict:
     """What Apply would do, read only: the counts, and every frame each filter would drop, in
-    one row per filter (Nick 2026-11-25), so the first frames a filter drops stay on the left
-    and a stronger setting adds frames on the right. Blurry frames in the order the blur slider
-    drops them (the blur cut is per video, so by the setting at which each one goes, then most
-    blurry first); duplicates from least to most unique (fewest bits differing from the last
-    kept frame first; the duplicate chain can re-anchor, so that order is close, not exact)."""
+    one row per filter (Nick 2026-11-25). Blurry frames in the order the blur slider drops them
+    (the cut is per video, so by the setting at which each one goes, then most blurry first): a
+    stronger setting only adds frames on the right. Duplicates from least to most unique (fewest
+    bits differing from the last kept frame first); the frame each one is compared with changes
+    with the setting, so a stronger setting can also add frames mid-row."""
     rows = frame_rows(conn)
     result = filter_frames(rows, blur_percent, duplicate_distance)
     new = result["status"]
