@@ -174,3 +174,11 @@ def test_review_thumbnail_of_a_rotated_still_is_upright(tmp_path):
     out = review.thumbnail(proj, "s_aaaaaa_0.jpg")
     assert Image.open(out).size == (640, 1280)                           # portrait, 640 px wide
     assert out.parent == proj / "framethumbs" / "upright"
+
+
+def test_ids_stay_below_the_untagged_value():
+    """QE PR 24: the class map is one byte per pixel and 255 marks an untagged urchin."""
+    for bad in (255, 300):
+        with pytest.raises(classes.ClassesError, match="from 1 to 254"):
+            classes.parse(DEFAULT.replace("id: 6, name: fish", f"id: {bad}, name: fish"))
+    classes.parse(DEFAULT.replace("id: 6, name: fish", "id: 254, name: fish"))

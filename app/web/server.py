@@ -519,6 +519,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                      "palette": classes.PALETTE,
                      "save": f"/p/{info['name']}/labeling/classes/form"} if data else None,
             "job": jobs.status(f"{info['folder']}:sam") or {},
+            "can_stop": sam_busy(info) and str(info["folder"]) in sam_stops,  # a Run, not a Preview
             "n_label": len(files),
             "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
             "kept": review.summary(conn), "refused": text is not None}, status_code=status)
@@ -579,6 +580,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             if not note and (sam_busy(info) or extract_busy(info)):
                 note = "Another job is running; preview when it has finished."
             if not note:
+                sam_stops.pop(str(info["folder"]), None)  # Stop is for a Run only (QE PR 24)
                 picks = label.preview_frames(files, other=bool(other))
                 jobs.submit(f"{info['folder']}:sam", lambda report: label.run_preview(
                     info["folder"], picks, report))

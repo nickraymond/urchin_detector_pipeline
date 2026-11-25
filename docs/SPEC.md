@@ -149,3 +149,9 @@ Answered (Nick, chat 2026-11-25):
 - Q15. Urchin type: SAM finds one class, "urchin" (it cannot tell purple from red; S1, D10).
   In label review, `P` or `R` tags each urchin purple or red. A frame cannot be accepted while
   it has an untagged urchin. Exports still have separate purple urchin and red urchin classes (D18).
+- Q16. Viewing images large is the same everywhere in the app: clicking a frame opens it large on the
+  same page (never a new tab), with < > buttons and arrow keys to move through the page's frames, Esc to
+  close, and zoom and pan (S2's frame viewer). Pages that show masks add a class legend along the bottom
+  of the viewer, where clicking a class shows or hides its masks.
+- Q17. Classes are edited in a form (rows, choices and buttons, like Roboflow or Edge Impulse), not by
+  typing YAML in a text box, which invites entry errors. `classes.yaml` stays the file on disk.
