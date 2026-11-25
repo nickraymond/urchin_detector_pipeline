@@ -126,14 +126,14 @@ the review stage can be skipped. A test proves source videos are unchanged after
       (QE PR 7 watch: `extract.run` must not re-decode a planned frame whose file sits in `dropped/blurry/`
       or `dropped/duplicate/`, nor set it back to kept)
 
-**Bite 4 — Review frames**
-- [ ] grid with size slider, full-screen view (`F`), arrow keys
-- [ ] `D` delete (moves the file to `rejected/`), `K` keep, `Z` undo
-- [ ] "Show dropped" toggle: blurry, duplicate and rejected frames with their status; `K` makes them `kept_hand`, which the filters leave alone (D20)
+**Bite 4 — Review frames** (PR 14 merged as `ee8f8e3` after QE PASS on `b4c956f`; DESIGN D20)
+- [x] grid with size slider, full-screen view (`F`), arrow keys
+- [x] `D` delete (moves the file to `rejected/`), `K` keep, `Z` undo
+- [x] "Show dropped" toggle: blurry, duplicate and rejected frames with their status; `K` makes them `kept_hand`, which the filters leave alone (D20)
 
-**Bite 5 — Stills + resume**
-- [ ] ingest also accepts folders of still images; they skip clips and extraction
-- [ ] each stage resumes where it left off and can be re-run without redoing earlier stages
+**Bite 5 — Stills + resume** (PR 16 merged as `537f9ff` after QE PASS on `82116e7`; DESIGN D21)
+- [x] ingest also accepts folders of still images; they skip clips and extraction
+- [x] each stage resumes where it left off and can be re-run without redoing earlier stages
 
 **Demo (Nick):** `uv run app`, browser opens `http://127.0.0.1:8000`. Pick 2 ReefCheck videos, mark
 a clip with `I`/`O`, extract: the kept and dropped counts add up to the preview count. Delete one

@@ -17,6 +17,22 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S2 — Bites 4 (review frames) and 5 (stills + resume) merged
+**Branch:** sprint/2-frames-4 (PR 14), sprint/2-frames-5 (PR 16), sprint/2-frames-45-done (docs only)
+**Done:** Bite 4: `app/stages/review.py`; grid of 640 px copies with a 1–8 per-row slider, arrows,
+`D` (to `rejected/`), `K`, `Z`; full-screen viewer shared with Extract (`viewer.js`); "Show dropped"
+with `K` = `kept_hand` (D20); Skip and Done. QE Lows fixed: undo keeps a step whose frame Extract
+changed (the hand mark survives a plan change); preview and status counts use the plan. Bite 5:
+still-image folders copied byte for byte into `frames/`, counted apart, skipping clips, extraction
+and filters (D21, Lead call); a truncated JPEG is counted unreadable (QE Medium); Extract shows how
+far a stopped run got and carries on. 94 tests. S2 Demo run end to end in the builder's browser
+on the bite 5 head (notes folder, `s2-demo-run-2026-11-25.md`).
+**Broke/surprised us:** force-push is blocked in builder sessions, so branches take `main` by
+merge, not rebase; PR 16 was stacked on PR 14 and retargeted after the squash merge.
+S2 Demo re-run on `main` at `4fad379` (after PR 15): 37 kept + 3 blurry + 0 duplicate = 40 = live
+count; D / Z / D; restart kept all four stages and the frame in `rejected/`; 6 stills in review.
+**Next:** Nick's S2 test build; the checklist is `s2-test-build-checklist.md` in the notes folder.
+
 ## 2026-11-25 — Sprint S2 — Filter rows simplified (Nick's feedback on 3b)
 **Branch:** sprint/2-filter-rows (from main `87310c0`)
 **Done:** Nick found the filter examples too much and their labels confusing ("the sharpest
