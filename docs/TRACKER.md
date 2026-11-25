@@ -110,16 +110,16 @@ the review stage can be skipped. A test proves source videos are unchanged after
 - [x] 2b: in / out marks with `I` / `O`, optional note; adjust and delete; saved to `clips.json`
 - [x] 2b: marked time per video and the number of frames extraction will produce
 
-**Bite 3 — Extract frames** (split in two PRs, Nick 2026-11-24: 3a extraction, 3b filters; DESIGN D17)
+**Bite 3 — Extract frames** (split in two PRs, Nick 2026-11-24: 3a extraction, 3b filters; DESIGN D17; 3a: PR 7 merged as `f9f14b2`, Nick ran the test)
 - [x] plan nibble: done 2026-11-24 (measurements in DEV_LOG); Nick approved
 - [x] 3a: sampling plan (every N seconds inside clips, whole video if none), cap spread evenly, live count
 - [x] 3a: frames pulled from the full-resolution original; named `<video-stem>_<path-code>_<timestamp-ms>.jpg`,
       JPEG quality 95 (Pillow); source video and timestamp recorded per frame; upright for videos
       with rotation metadata; frames from earlier settings moved to `dropped/unplanned/` (QE PR 7)
 - [x] 3a: runs in the background with a progress bar (`app/jobs.py`); counts shown
-- [ ] 3b: blur filter per video (drop the blurriest X % of each video, start 10 %) with a slider and example
+- [~] 3b: blur filter per video (drop the blurriest X % of each video, start 10 %) with a slider and example
       kept / dropped frames; near-duplicate filter (dHash distance to the previous kept frame) with a slider
-- [ ] 3b: dropped frames moved to `dropped/blurry/` and `dropped/duplicate/` (never erased; Apply moves them back
+- [~] 3b: dropped frames moved to `dropped/blurry/` and `dropped/duplicate/` (never erased; Apply moves them back
       and forth); kept + dropped-blurry + dropped-duplicate add up to the live count (or the cap)
       (QE PR 7 watch: `extract.run` must not re-decode a planned frame whose file sits in `dropped/blurry/`
       or `dropped/duplicate/`, nor set it back to kept)

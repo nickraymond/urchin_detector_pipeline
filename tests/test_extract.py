@@ -105,6 +105,7 @@ def test_extract_page_start_progress_and_frames(tmp_path):
     r = client.post("/p/p/extract/start", data={"every": "1", "cap": "3"},
                     headers={"Origin": "http://evil.example"})
     assert r.status_code == 403
+    client.post("/p/p/extract/filter", data={"blur": "0", "dup": "0"})  # filters off (bite 3b)
     r = client.post("/p/p/extract/start", data={"every": "1", "cap": "3"}, follow_redirects=False)
     assert r.status_code == 303
     assert wait_for(lambda: client.get("/p/p/extract/status").json()["job"].get("state") == "done")
