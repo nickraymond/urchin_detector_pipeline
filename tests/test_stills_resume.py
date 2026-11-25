@@ -61,6 +61,23 @@ def test_add_stills_copies_unchanged_and_skips_repeats(tmp_path):
     assert st["ingest"] == "3 still images"
 
 
+def test_a_truncated_jpeg_is_counted_unreadable_and_leaves_no_copy(tmp_path):
+    src = tmp_path / "stills"
+    src.mkdir()
+    noise = Image.effect_noise((256, 256), 64).convert("RGB")
+    noise.save(src / "full.jpg", quality=95)
+    data = (src / "full.jpg").read_bytes()
+    (src / "cut.jpg").write_bytes(data[: len(data) // 2])        # passes Image.verify()
+    with Image.open(src / "cut.jpg") as im:
+        im.verify()
+    proj, conn = _proj(tmp_path)
+    assert ingest.add_stills(conn, src, extract.frames_dir(proj)) == {
+        "added": 1, "skipped": 0, "unreadable": 1}
+    assert [p.name for p in extract.frames_dir(proj).iterdir()] == [
+        ingest.still_name(src / "full.jpg")]                     # no orphan or temp copy
+    assert ingest.add_stills(conn, src, extract.frames_dir(proj))["unreadable"] == 1
+
+
 def test_too_many_stills_asks_for_a_subfolder(tmp_path, monkeypatch):
     src = make_stills(tmp_path / "stills")
     proj, conn = _proj(tmp_path)

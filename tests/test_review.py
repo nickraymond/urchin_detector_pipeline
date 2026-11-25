@@ -37,14 +37,20 @@ def test_d_k_z_move_files_and_undo_in_order(tmp_path):
         review.act(conn, proj, "nope.jpg", "D")
 
 
-def test_undo_refuses_a_frame_changed_since(tmp_path):
-    proj, conn = _project(tmp_path, [frame("a_aaaaaa_0.jpg"), frame("a_aaaaaa_1.jpg", t=1)])
+def test_undo_skips_and_keeps_a_step_whose_frame_changed_since(tmp_path):
+    proj, conn = _project(tmp_path, [frame("a_aaaaaa_0.jpg"),
+                                     frame("a_aaaaaa_1.jpg", t=1, status="dropped_blur")])
     review.act(conn, proj, "a_aaaaaa_0.jpg", "D")
-    conn.execute("UPDATE frames SET status='kept' WHERE file='a_aaaaaa_0.jpg'")  # changed elsewhere
-    extract.move_home(proj, "a_aaaaaa_0.jpg", "kept")
-    with pytest.raises(review.ReviewError, match="changed since"):
+    review.act(conn, proj, "a_aaaaaa_1.jpg", "K")            # kept by hand
+    # a new plan sets the kept-by-hand frame aside (D17a, Lead call on PR 14)
+    conn.execute("UPDATE frames SET status='unplanned' WHERE file='a_aaaaaa_1.jpg'")
+    extract.move_home(proj, "a_aaaaaa_1.jpg", "unplanned")
+    assert review.undo(conn, proj)["file"] == "a_aaaaaa_0.jpg"  # the older, still-valid step
+    with pytest.raises(review.ReviewError, match="changed"):
         review.undo(conn, proj)
-    assert review.undo(conn, proj) == {}  # the stale step is gone, not stuck
+    # the K step is kept, so the frame comes back kept by hand (QE PR 14, Low 1)
+    assert extract.last_review_status(conn, "a_aaaaaa_1.jpg") == "kept_hand"
+    assert _where(proj)["a_aaaaaa_1.jpg"] == "dropped/unplanned"
 
 
 def test_filters_leave_kept_hand_alone_and_it_anchors_duplicates():
@@ -67,6 +73,9 @@ def test_counts_include_kept_hand_and_set_rejected_outside_the_plan_apart(tmp_pa
     assert (c["kept"], c["kept_hand"], c["rejected"], c["rejected_unplanned"], c["total"]) == \
         (2, 1, 1, 1, 4)
     assert extract.counts(conn)["total"] == 5  # without the plan, every rejected frame counts
+    # the filter preview counts the same way when given the plan (QE PR 14, Low 2)
+    p = extract.preview(conn, 0, 0, planned={"k.jpg", "h.jpg", "b.jpg", "r.jpg"})["counts"]
+    assert (p["rejected"], p["total"]) == (1, 4)
 
 
 def test_extract_sets_kept_hand_aside_and_brings_it_back_kept_by_hand(tmp_path):

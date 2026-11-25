@@ -260,8 +260,9 @@ def added_stills(conn: sqlite3.Connection) -> dict[tuple[str, int], str]:
 def add_stills(conn: sqlite3.Connection, folder: Path, frames_dir: Path) -> dict:
     """Copy every still image under `folder` into frames/ (byte for byte; the source is only
     read) and add it as a kept frame with no timestamp. A still whose name and size are already
-    in the project is skipped; one that Pillow cannot read is skipped and counted. File first,
-    then its rows, so a stop in between leaves at most a copy that the next add replaces.
+    in the project is skipped; one that Pillow cannot fully decode is skipped and counted, and
+    its temporary copy removed. File first, then its rows, so a stop in between leaves at most
+    a copy that the next add replaces.
     Returns {added, skipped, unreadable}."""
     found = find_stills(folder)
     if len(found) > MAX_STILLS:
@@ -275,18 +276,19 @@ def add_stills(conn: sqlite3.Connection, folder: Path, frames_dir: Path) -> dict
         if (p.name, size) in have:
             out["skipped"] += 1
             continue
-        try:
-            with Image.open(p) as im:
-                im.verify()
-        except Exception:  # Pillow raises many types for a damaged file
-            out["unreadable"] += 1
-            continue
         name = still_name(p)
         tmp = frames_dir / (name + ".tmp")
         shutil.copyfile(p, tmp)
+        try:
+            # decode the whole copy: verify() alone passes a truncated JPEG (QE PR 16)
+            with Image.open(tmp) as im:
+                im.load()
+                blur, h = blur_score(im.convert("RGB")), dhash(im)
+        except Exception:  # Pillow raises many types for a damaged file
+            tmp.unlink(missing_ok=True)
+            out["unreadable"] += 1
+            continue
         os.replace(tmp, frames_dir / name)
-        with Image.open(frames_dir / name) as im:
-            blur, h = blur_score(im.convert("RGB")), dhash(im)
         conn.execute("INSERT OR REPLACE INTO stills (path, name, size_bytes, file) "
                      "VALUES (?, ?, ?, ?)", (str(p), p.name, size, name))
         conn.execute("INSERT OR REPLACE INTO frames (file, video, timestamp_ms, blur_score, hash, "

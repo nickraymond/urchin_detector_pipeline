@@ -332,6 +332,12 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return {extract.frame_name(s["video"]["path"], s["video"]["path_code"], s["t"])
                 for s in samples}
 
+    def current_plan(info, conn) -> set[str]:
+        """File names of the plan for the saved settings (D20: counts add up to it)."""
+        st = info["settings"]
+        samples, _ = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
+        return planned_names(samples)
+
     def extract_busy(info) -> bool:
         return (jobs.status(f"{info['folder']}:extract") or {}).get("state") in ("queued",
                                                                                  "running")
@@ -361,7 +367,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             problem, b, d = check_filters(blur, dup)
             if problem:
                 return JSONResponse({"error": problem}, 400)
-            return JSONResponse(extract.preview(conn, b, d))
+            return JSONResponse(extract.preview(conn, b, d, planned=current_plan(info, conn)))
         return with_project(request, name, work)
 
     @app.post("/p/{name}/extract/filter")
@@ -410,7 +416,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     def extract_status(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: JSONResponse({
             "job": jobs.status(f"{info['folder']}:extract") or {},
-            "counts": extract.counts(conn)}))
+            "counts": extract.counts(conn, current_plan(info, conn))}))
 
     # --- Review frames (bite 4, DESIGN D20) ---
 
