@@ -28,7 +28,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
 from app.jobs import Jobs
-from app.stages import clips, extract, ingest
+from app.stages import clips, extract, ingest, review
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
 # Host and origin rule (DESIGN D14): pages answer only to these host names, and a POST is
@@ -302,6 +302,16 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             return "The duplicate filter must be a whole number from 0 to 64.", 0.0, 0
         return "", b, int(d)
 
+    def planned_names(samples) -> set[str]:
+        return {extract.frame_name(s["video"]["path"], s["video"]["path_code"], s["t"])
+                for s in samples}
+
+    def current_plan(info, conn) -> set[str]:
+        """File names of the plan for the saved settings (D20: counts add up to it)."""
+        st = info["settings"]
+        samples, _ = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
+        return planned_names(samples)
+
     def extract_busy(info) -> bool:
         return (jobs.status(f"{info['folder']}:extract") or {}).get("state") in ("queued",
                                                                                  "running")
@@ -313,13 +323,11 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             blur, dup = filter_settings(info)
             samples, live = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
             # every kept frame, for the viewer's arrows; the grid shows the first 12
-            frames = [{"file": r[0], "video": Path(r[1]).name, "t": r[2] / 1000}
-                      for r in conn.execute("SELECT file, video, timestamp_ms FROM frames "
-                                            "WHERE status = 'kept' ORDER BY video, timestamp_ms")]
+            frames = review.frames(conn)  # kept, also by hand (D20)
             return templates.TemplateResponse(request, "extract.html", {
                 "cfg": cfg, "info": info, "every": st["seconds_between_samples"],
                 "cap": st["frame_cap"], "live": live, "planned": len(samples),
-                "videos": len(ingest.added(conn)), "counts": extract.counts(conn),
+                "videos": len(ingest.added(conn)), "counts": extract.counts(conn, planned_names(samples)),
                 "job": jobs.status(f"{info['folder']}:extract") or {}, "frames": frames,
                 "blur": blur, "dup": dup, "error": error})
         return with_project(request, name, work)
@@ -331,7 +339,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             problem, b, d = check_filters(blur, dup)
             if problem:
                 return JSONResponse({"error": problem}, 400)
-            return JSONResponse(extract.preview(conn, b, d))
+            return JSONResponse(extract.preview(conn, b, d, planned=current_plan(info, conn)))
         return with_project(request, name, work)
 
     @app.post("/p/{name}/extract/filter")
@@ -380,15 +388,77 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     def extract_status(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: JSONResponse({
             "job": jobs.status(f"{info['folder']}:extract") or {},
-            "counts": extract.counts(conn)}))
+            "counts": extract.counts(conn, current_plan(info, conn))}))
+
+    # --- Review frames (bite 4, DESIGN D20) ---
+
+    @app.get("/p/{name}/review", response_class=HTMLResponse)
+    def review_page(request: Request, name: str, dropped: int = 0):
+        def work(cfg, info, conn):
+            st = info["settings"]
+            samples, _ = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
+            return templates.TemplateResponse(request, "review.html", {
+                "cfg": cfg, "info": info, "dropped": bool(dropped),
+                "frames": review.frames(conn, bool(dropped)),
+                "counts": extract.counts(conn, planned_names(samples)),
+                "stage": next(s for s in db.stage_statuses(conn) if s["stage"] == "review"),
+                "busy": extract_busy(info)})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/review/act")
+    async def review_act(request: Request, name: str):
+        """JSON {file, key: "D" | "K" | "Z"}: reject, keep, or undo the last action
+        (file is ignored for Z). Answers {file, status, label, changed} or {error}."""
+        try:
+            body = await request.json()
+            file, key = str(body.get("file", "")), str(body["key"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return JSONResponse({"error": "Bad request: expected {file, key}."}, 400)
+
+        def work(cfg, info, conn):
+            if extract_busy(info):
+                return JSONResponse({"error": "Extraction is running; review when it has "
+                                              "finished."}, 409)
+            try:
+                if key == "Z":
+                    done = review.undo(conn, info["folder"]) or {"error": "Nothing to undo."}
+                else:
+                    done = review.act(conn, info["folder"], file, key)
+            except review.ReviewError as e:
+                return JSONResponse({"error": str(e), "summary": review.summary(conn)}, 400)
+            return JSONResponse({**done, "summary": review.summary(conn)})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/review/finish")
+    def review_finish(request: Request, name: str, state: str = Form("")):
+        """The Done and Skip buttons (review page and dashboard)."""
+        def work(cfg, info, conn):
+            try:
+                review.finish(conn, state)
+            except review.ReviewError as e:
+                return PlainTextResponse(str(e), status_code=400)
+            return RedirectResponse(f"/p/{name}", status_code=303)
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/framethumbs/{file}")
+    def frame_thumb(request: Request, name: str, file: str):
+        """The grid's scaled-down copy of a frame in the review (by name in the frames table)."""
+        def work(cfg, info, conn):
+            row = conn.execute("SELECT status FROM frames WHERE file = ?", (file,)).fetchone()
+            ok = extract.FRAME_NAME.match(file) and row and row[0] in review.SHOWN_ALL
+            path = review.thumbnail(info["folder"], file) if ok else None
+            if path is None:
+                return PlainTextResponse("not found", status_code=404)
+            return FileResponse(path, media_type="image/jpeg")
+        return with_project(request, name, work)
 
     @app.get("/p/{name}/frames/{file}")
     def frame_file(request: Request, name: str, file: str):
-        """A kept or filtered-out frame of this project, by its name in the frames table (never
-        a path), from the folder of its status."""
+        """A kept, filtered-out or rejected frame of this project, by its name in the frames
+        table (never a path), from the folder of its status."""
         def work(cfg, info, conn):
             row = conn.execute("SELECT status FROM frames WHERE file = ?", (file,)).fetchone()
-            ok = extract.FRAME_NAME.match(file) and row and row[0] in extract.FILTERED
+            ok = extract.FRAME_NAME.match(file) and row and row[0] in review.SHOWN_ALL
             path = extract.home(info["folder"], row[0]) / file if ok else None
             if not ok or not path.is_file():
                 return PlainTextResponse("not found", status_code=404)
