@@ -73,7 +73,7 @@ def test_apply_moves_back_and_forth_and_counts_add_up(tmp_path):
     proj, conn = _project(tmp_path, rows)
     preview = extract.preview(conn, 30, 2)
     c = extract.apply_filters(conn, proj, 30, 2)
-    assert c == {**preview["counts"], "unplanned": 0}  # the preview said what Apply did
+    assert c == {**preview["counts"], "unplanned": 0, "stills": 0, "stills_rejected": 0}  # = preview
     assert c["dropped_blur"] == 3 and c["dropped_duplicate"] > 0
     assert c["kept"] + c["dropped_blur"] + c["dropped_duplicate"] + c["rejected"] == c["total"] == 11
     where = _where(proj)

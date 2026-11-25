@@ -152,6 +152,8 @@ a folder of still images: they appear in frame review.
 - [ ] prompt preview on 3 sample frames with masks drawn per class
 - [ ] tiling and overlap rules; one result file per frame in `sam_raw/`, recording prompt and settings
 - [ ] re-run only what changed; reviewed masks kept and marked "from older settings"
+- [ ] watch (QE PR 16): still images with EXIF orientation are copied as stored (D21); check
+      that SAM and the masks use the same upright image, or turn such stills upright at ingest
 **Demo (Nick):** same start command. On the Labeling page press "Preview": 3 frames show coloured
 masks per class. Add a class to `classes.yaml`, run again: only the new class is labeled.
 **Needs:** S2; answers to SPEC Q2 and the SAM part of Q10.

@@ -25,7 +25,10 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
      {% if not running %}hidden{% endif %}>
   <progress max="100" value="{{ job.percent or 0 }}"></progress> <span class="hint">{{ job.message or "waiting" }}</span>
 </div>
-{% if job.state == "error" %}<p class="error">Extraction stopped: {{ job.message }}</p>{% endif %}
+{% if job.state == "error" %}<p class="error">Extraction stopped: {{ job.message }}</p>
+{% elif not running and stage.state == "in progress" %}<p class="error">The last extraction stopped before
+  the end ({{ stage.counts }}), for example because the app was quit. Press Extract frames to carry on:
+  finished frames are kept and not extracted again.</p>{% endif %}
 
 <h2>Filters</h2>
 <p class="hint">Dropped frames are moved, never erased, to <code>dropped/blurry/</code> and
@@ -46,6 +49,7 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
 <h2>Frames</h2>
 <p class="totals"><b>{{ counts.kept }}</b> kept · {{ counts.dropped_blur }} dropped as blurry ·
   {{ counts.dropped_duplicate }} dropped as duplicate
+  {% if counts.stills %}· {{ counts.stills }} still images (not extracted; in Review frames){% endif %}
   {% if counts.unplanned %}· {{ counts.unplanned }} from earlier settings set aside in <code>dropped/unplanned/</code>{% endif %}</p>
 <div class="viewer" id="viewer" hidden>
   <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
