@@ -74,12 +74,20 @@ def find_videos(folder: Path) -> list[Path]:
     return found
 
 
-def has_lrv(path: Path) -> bool:
+def lrv_path(path: Path) -> Path | None:
     """GoPro writes GX010123.MP4 next to GL010123.LRV; some cameras keep the same name."""
-    stems = {path.stem}
+    stems = [path.stem]
     if GOPRO.match(path.stem):
-        stems.add("GL" + path.stem[2:])
-    return any((path.parent / (s + ext)).exists() for s in stems for ext in (".LRV", ".lrv"))
+        stems.append("GL" + path.stem[2:])
+    for s in stems:
+        for ext in (".LRV", ".lrv"):
+            if (path.parent / (s + ext)).is_file():
+                return path.parent / (s + ext)
+    return None
+
+
+def has_lrv(path: Path) -> bool:
+    return lrv_path(path) is not None
 
 
 def probe(path: Path) -> dict:

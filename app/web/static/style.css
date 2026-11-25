@@ -22,3 +22,17 @@ tr.bad td { background: #fdf0f0; }
 .subfolders { columns: 3; }
 table.videos td, table.videos th { font-size: 14px; padding: 5px 6px; }
 td.thumb img { width: 160px; height: auto; display: block; border-radius: 3px; background: #ddd; }
+.clips-layout { display: flex; gap: 20px; align-items: flex-start; }
+.video-list { list-style: none; padding: 0; margin: 0; width: 230px; flex: none; }
+.video-list li { padding: 6px; border-radius: 4px; margin-bottom: 6px; background: #fff; font-size: 13px; }
+.video-list li.current { outline: 2px solid #1f4e5f; }
+.video-list a { color: inherit; text-decoration: none; display: block; word-break: break-all; }
+.video-list img { width: 100%; display: block; border-radius: 3px; background: #ddd; }
+.video-list .job { color: #666; }
+.player { flex: 1; min-width: 0; }
+.player video { width: 100%; background: #000; }
+.strip { display: flex; overflow-x: auto; gap: 2px; padding: 4px 0; }
+.strip img { width: 120px; flex: none; cursor: pointer; opacity: .75; border: 2px solid transparent; }
+.strip img.here { opacity: 1; border-color: #d49b00; }
+.progress-box progress { width: 60%; }
+.prepare { margin: 8px 0 16px; }

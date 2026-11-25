@@ -92,22 +92,23 @@ applied; grid from 8 per row down to 1 (default 6); thumbnails never cropped, cl
 the review stage can be skipped. A test proves source videos are unchanged after every stage
 (SPEC constraint 4).
 
-**Bite 1 — Skeleton + ingest** (split in two PRs, Nick 2026-11-24: 1a skeleton, 1b ingest; 1a: PR 3 merged as `b00be85`, Nick ran the test)
+**Bite 1 — Skeleton + ingest** (split in two PRs, Nick 2026-11-24: 1a skeleton, 1b ingest; 1a: PR 3 merged as `b00be85`, 1b: PR 4 merged as `4d11e30`, Nick ran both tests)
 - [x] plan nibble: re-read the prior art (SPEC §Background) and say what is reused (Nick approved 2026-11-24)
 - [x] 1a: `uv run app` starts the app on `127.0.0.1` and opens the dashboard; a missing or wrong
       `config.local.toml` path shows a clear message, not a stack trace
 - [x] 1a: create / open a project under `<data_dir>/projects/<name>/` (`project.json`, `state.sqlite`)
-- [~] 1b: ingest: list videos under `video_roots` with duration, resolution, fps, codec, size (ffprobe);
+- [x] 1b: ingest: list videos under `video_roots` with duration, resolution, fps, codec, size (ffprobe);
       skip sidecar (`.LRV`, `.THM`) and `._` files; group GoPro chapters; warn if a video cannot be read.
       Pick files or a folder (the app's own folder browser, starting at `video_roots`, plus a
       pasted path). Same name + same size = one video, shown as "also in: <folder>" (Nick 2026-11-24)
 - [x] 1a: dashboard shows every stage and its status (1b fills in Ingest)
 
-**Bite 2 — Clip picker**
-- [ ] low-res H.264 playback copy per video, made with ffmpeg into the project folder (GoPro `.LRV` used if present)
-- [ ] player with timeline and thumbnail strip (one frame every ~5 s)
-- [ ] in / out marks with `I` / `O`, optional note; adjust and delete; saved to `clips.json`
-- [ ] marked time per video and the number of frames extraction will produce
+**Bite 2 — Clip picker** (split in two PRs, Nick 2026-11-24: 2a player, 2b marks; copies 960 px wide)
+- [~] 2a: low-res H.264 playback copy per video, made with ffmpeg into the project folder (GoPro `.LRV` used if present),
+      in the background with a progress bar (the small job interface bite 3 reuses)
+- [~] 2a: player with timeline and thumbnail strip (one frame every ~5 s, made from the copy)
+- [ ] 2b: in / out marks with `I` / `O`, optional note; adjust and delete; saved to `clips.json`
+- [ ] 2b: marked time per video and the number of frames extraction will produce
 
 **Bite 3 — Extract frames**
 - [ ] sampling plan (every N seconds inside clips, whole video if none), cap spread evenly, live count

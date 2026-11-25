@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-24 — Sprint S2 — Bite 2a: playback copies and player
+**Branch:** sprint/2-frames-2a (from main `4d11e30`)
+**Done:** bite 2 plan approved by Nick: split 2a (player) / 2b (marks), copies 960 px wide.
+`app/jobs.py`: one background worker, jobs queued and run one at a time with percent and time
+left. `app/stages/clips.py`: 960 px H.264 playback copy (Mac's built-in encoder; a GoPro .LRV
+is repackaged instead) and a strip of one thumbnail every 5 s made from the copy, both written to
+temporary names first. Pick clips page: video list with progress, the player, the strip (click to
+jump). 6 new tests (55 in total). Browser check on 2 real 4K videos: the copy was made in the
+background, the page reloaded when ready, clicking the 0:20 thumbnail jumped the player to 20 s.
+**Broke/surprised us:** measured before coding: decoding the originals with the Mac's video chip
+was slower on 5.3K and failed on 4K, so originals are decoded in software. GoPro files carry a
+data track that has to be left out of the copy.
+**Next:** QE reviews the draft PR; Nick runs the 2a manual test; then bite 2b (I / O marks).
+
 ## 2026-11-24 — Sprint S2 — Bite 1b: ingest page
 **Branch:** sprint/2-frames-1b (from main `b00be85`, after PR 3 merged)
 **Done:** plan approved by Nick. `app/stages/ingest.py`: find .MP4 / .MOV under a folder and its
