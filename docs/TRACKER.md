@@ -304,15 +304,15 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
       after the overlap rules (D22, D31); unit tests with synthetic masks
 - [x] accept is refused while the frame has an untagged urchin (D18); undo for every review action
 
-**Bite 2a — Export writers** (D41, D44)
-- [ ] `app/export/`: `export/images/` (upright, D27), `detector_coco.json` (object classes, box + outline + class;
+**Bite 2a — Export writers** (D41, D44; PR 46)
+- [x] `app/export/`: `export/images/` (upright, D27), `detector_coco.json` (object classes, box + outline + class;
       frames with split check "no" left out), `seg_masks/` one PNG per frame + `classes.json` (ids, names,
       colours); rebuilt from scratch each time from `sam_raw` + review state; synthetic tests
 
-**Bite 2b — Splits, metrics and checks** (D41, D43)
-- [ ] `splits/` by site and dive date (D43); `frame_metrics.csv` (source video, timestamp, count and % cover per
+**Bite 2b — Splits, metrics and checks** (D41, D43; PR 46)
+- [x] `splits/` by site and dive date (D43); `frame_metrics.csv` (source video, timestamp, count and % cover per
       class, largest object %)
-- [ ] checks as data: COCO loads with pycocotools; every mask PNG matches its image size and uses only ids in
+- [x] checks as data: COCO loads with pycocotools; every mask PNG matches its image size and uses only ids in
       `classes.json`; metrics match the masks; synthetic tests
 
 **Bite 3a — Label review page**
