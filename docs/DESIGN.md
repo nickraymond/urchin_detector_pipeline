@@ -185,6 +185,69 @@ app/web/templates/label.html  the Labeling page
 - Tests: a fake predictor stands in for SAM (no torch, no weights, no real frames); synthetic images; the
   builder runs real SAM in the browser for the self-test and the bench numbers.
 
+### Planned for S4 (job control) — lead's plan 2026-11-25 (CLAUDE.md rule 7); becomes as-built as bites land
+
+```
+app/jobctl/__init__.py   the module's whole interface: submit, status, list, pause, resume, cancel,
+                         start_now, settings; kinds are registered by the app, not imported
+app/jobctl/store.py      <data_dir>/jobs/jobs.sqlite: one row per job; settings.json next to it
+app/jobctl/runner.py     the one queue thread: starts a job's worker process with the limits, reads its
+                         "@@ {json}" lines, writes the log, sends "pause" on stdin, memory guard, schedule
+app/jobctl/worker.py     helpers for worker processes: emit(), the stdin "pause" listener, the pause
+                         between items, the thread cap; imported by app/sam/worker.py and the extract worker
+app/jobctl/awake.py      keep-awake process on / off; battery check (pmset -g batt)
+app/stages/*             register their kinds: build the worker's command from params, count items done /
+                         total from their own files (sam_raw/, frames/)
+app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Start now, settings, summaries
+```
+
+- **Standalone (D4, D32).** `app/jobctl` imports nothing from `app.stages`, `app.sam` or `app.web`; a test
+  checks the imports. Nothing in it knows what a frame or an urchin is: it sees items, counts and messages.
+- **One queue, one job at a time** for the whole app (two SAM runs on the GPU triple the time, S1). Job records
+  in `<data_dir>/jobs/jobs.sqlite`: id, kind, project, params (JSON), state (`scheduled`, `queued`, `running`,
+  `pausing`, `paused`, `interrupted`, `done`, `cancelled`, `error`), items done / total, start_at, stop_by,
+  keep_awake, limits used, created / started / ended times, stop reason, summary (JSON). The app never creates
+  `data_dir` (D13); `jobs/` inside it is created on first use.
+- **Worker protocol (D33).** Bite 1a builds the module with a fake job kind; bite 1b moves SAM onto it (its
+  `frame` event becomes `item`). A job is a process: `python -m <module> <job.json>`. It writes `@@ {json}` lines:
+  `loaded` (seconds), `item` (i, n, name, seconds, counts {label: n}, warning), `done`; anything else goes to the
+  job's log. It reads stdin: a line `pause` (or end of file, when the app quits) means finish the item in
+  progress, emit `paused` and exit 0. The worker skips items whose output is already on disk, so **progress is
+  truth from the artifacts**: Resume starts a new worker for the same params and nothing is repeated or skipped.
+  `jobctl` keeps its counters for display only.
+- **Pause / Resume / Cancel (D34).** Pause sends `pause`; the process ends, so the model is unloaded. Resume
+  queues the job again. Cancel = pause plus state `cancelled`; finished items stay. If the worker does not exit
+  within 10 min of `pause` the app ends it; at most that item is lost. On app start, a job found `running` or
+  `pausing` becomes `interrupted`; the dashboard shows "Unfinished job: Resume / Cancel".
+- **Estimate (D35)** is a SAM job with params `{estimate: true}`: 1 warm-up frame not counted, then 5 frames,
+  picked spread over the frames Run would label; results saved like any run. The Labeling page shows s / frame,
+  frames left, total and finish clock time; during any job the remaining time is the rolling average of the
+  last 20 items × items left.
+- **Limits (D36)** in `<data_dir>/jobs/settings.json`, edited on the Jobs page, copied into each job at start.
+  Device auto = NVIDIA GPU, else Apple GPU, else CPU (asked in a child process; the app never imports torch).
+  Threads: `OMP_NUM_THREADS`, `MKL_NUM_THREADS` and `torch.set_num_threads` in the worker (default half of
+  `os.cpu_count()`, 5 on this laptop). Priority: the worker starts with `nice` 10. Pause between items: the
+  worker sleeps between items (still listening for `pause`). Memory guard: the runner reads free memory every
+  2 s (one named figure, picked and measured in bite 4: D36); below the threshold it pauses the job with the
+  reason "memory guard: N GB free".
+- **Schedule (D37).** Start at = the next time that clock time comes; Stop by = the next time after the start.
+  The runner checks every 15 s. A scheduled job survives a restart (it is a row); if the app was closed at its
+  start time and Stop by has not passed, it starts when the app starts; otherwise it shows "missed". The page
+  says the app must stay running for a schedule to fire.
+- **Keep awake (D38).** The app starts one macOS keep-awake process (`caffeinate -i -s -w <app pid>`) while any
+  keep-awake job is scheduled, queued or running, and ends that process (by the PID it started, never any other
+  one) when none is left; `-w` also ends it if the app dies. Reminder next to the toggle: plugged in, lid open.
+  Reading `pmset -g batt` shows a warning on battery. The app never changes power settings. Tests use a fake
+  command; builders do not run the keep-awake command or change power settings from their own shell (a hook on
+  this laptop blocks it); the self-test goes through the app's toggle.
+- **Log and summary.** `<data_dir>/jobs/<id>.log`: start, limits, each item, warnings, pauses with reason,
+  errors, end. Summary (written at the end and on each pause): items done, sum of `counts` per label (for SAM:
+  masks per run unit, so urchins found), errors, time taken, stop reason. The dashboard shows the last finished
+  job's summary.
+- **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
+  run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
+  pause needed). The SAM worker's job file and log stay in `<project>/sam_logs/`.
+
 ## Decision log
 
 | # | Date | Decision | Rationale |
@@ -224,6 +287,13 @@ app/web/templates/label.html  the Labeling page
 | D29 | 2026-11-25 | **Lead call** (planning lead, D11): default prompts: kelp shoot (object) "young kelp", kelp (area) "kelp". | S3 bite 3 bench on 6 restoration-site frames from 2 videos (PR 22): "kelp stipe" found nothing; "young kelp" marked blades of real plants with no false masks; area "kelp" was tight but missed one dense dark patch; "kelp forest" covered open water. No prompt gives one mask per plant, so shoot counts need review in S5. n = 6 frames: re-check on more restoration footage. Nick can reverse it. |
 | D30 | 2026-11-25 | Classes are added and edited through a form on the Labeling page (S3 bite 6, SPEC Q17); this replaces D25's text box. The form still writes `classes.yaml` (checked, atomic write, `yaml.safe_dump`), so the file stays the record and can still be edited by hand. | Nick, S3 builder chat 2026-11-25: editing YAML in a text box is too fragile; he wants a form like Roboflow's or Edge Impulse's. |
 | D31 | 2026-11-25 | **Lead call** (planning lead, amends D22 rule 1): when a reviewed mask and an unreviewed mask overlap with IoU > 0.5, the reviewed one wins whatever the scores, and the pair is flagged for review; the unreviewed mask stays in `sam_raw/` but is not shown, counted or exported. Between two unreviewed masks, or two reviewed ones, the higher score still wins. | Spec §5: masks Nick already reviewed are never silently replaced. Under D22 rule 1 alone, a re-run's fresh duplicate with a higher score would hide a reviewed mask (QE PR 24). It matters from S5, when masks get reviewed; bite 4's `overlap.py` applies it now. Nick can reverse it. |
+| D32 | 2026-11-25 | **Lead call** (planning lead, D4): job control is the package `app/jobctl/` with one queue for the whole app and one job at a time; job records persist in `<data_dir>/jobs/jobs.sqlite`, so a schedule and an unfinished job survive a restart. Extraction, SAM preview / estimate / run and playback copies all go through it; `app/jobctl` imports nothing labeling-specific (a test checks); `app/jobs.py` is removed in bite 2. | Spec §Job control: a separate worker process, survives the tab closing, reusable for training jobs; one queue keeps two GPU jobs apart (S1). Data folder, not the project, because the queue and the morning summary span projects. Nick can reverse it. |
+| D33 | 2026-11-25 | **Lead call** (planning lead): a job is a worker process speaking `@@ {json}` lines (`loaded`, `item`, `done`, `paused`; S3's SAM worker emits `frame`, which bite 1b renames to `item`, and gains `paused`) and reading `pause` on stdin, or end of file when the app quits. Progress comes from the artifacts: a worker skips items whose output is on disk, so Resume runs the same params again. | S3's SAM worker already works this way and skips frames whose settings key is current; extraction already skips frames on disk (D19). One source of truth means no frame repeated or skipped after a crash. |
+| D34 | 2026-11-25 | **Lead call** (planning lead): Pause ends the worker after the item in progress (the model is unloaded with the process); the app ends a worker that has not paused within 10 min. A job found running at app start becomes `interrupted` and the dashboard offers Resume or Cancel. Cancel keeps finished items. S3's Stop button becomes Pause. | Spec: pause frees GPU memory, a crash loses at most one frame, the app offers to resume. |
+| D35 | 2026-11-25 | **Lead call** (planning lead): Estimate runs 1 warm-up + 5 frames taken spread over the frames Run would label and keeps their results; it replaces D26's preview-based estimate once it has run. Remaining time during a job = rolling average of the last 20 items × items left. | Spec numbers (1 + 5, rolling 20). Keeping the results means the estimate costs no extra SAM time. Nick can reverse it. |
+| D36 | 2026-11-25 | **Lead call** (planning lead, SPEC Q10 memory guard): limits are one settings file for the laptop (`<data_dir>/jobs/settings.json`), copied into each job: device auto (NVIDIA, Apple GPU, CPU), threads half the cores, `nice` 10, pause between items 0 s, batch 1. The memory guard pauses a job when free memory is below a threshold the builder measures in bite 4 (during a tiled 4K run and a whole-frame 5.3K run) and proposes in the PR. The guard reads one named figure, which the builder picks in the bite 4 plan and measures and logs exactly as the guard reads it (on this laptop `vm_stat` "Pages free" showed 10.9 GB while `memory_pressure` showed 79 % free at the same time: QE PR 30); the lead logs the number here. A new library for reading free memory needs its licence read from PyPI metadata first; else `vm_stat`. | Measure, don't guess (D24): whole-frame SAM on 5.3K peaked at 26.7 GB Apple GPU memory on a 32 GB laptop, tiled 16.3 GB (S3 bench). |
+| D37 | 2026-11-25 | **Lead call** (planning lead): Start at / Stop by are clock times (next occurrence); the app must be running for them to fire, and the page says so. A start missed while the app was closed runs at the next app start if Stop by has not passed, else it shows "missed". Stop by pauses the job (Resume later), with reason "stop by". Offered on extraction and SAM Run, not on playback copies or Preview; SAM pre-screen (spec, deferred by SPEC Q6) gets Start at when it is built. | Spec §Overnight mode. A launchd service would fire without the app but is more machinery than the MVP needs. Nick can reverse it. |
+| D38 | 2026-11-25 | **Lead call** (planning lead): keep awake = one macOS keep-awake process (`caffeinate -i -s -w <app pid>`) started by the app when a keep-awake job is scheduled or queued and ended (by its own PID only) when no such job is left. The reminder says plugged in and lid open; the page warns when `pmset -g batt` reports battery power. The app never changes power settings. | The man page on this laptop (read 2026-11-25): `-i` prevents idle sleep, `-s` system sleep, `-w` waits for a PID to exit, so a crashed app releases it. A scheduled job needs the laptop awake before it starts. Lid-closed sleep is not covered, hence the reminder; the builder checks the real behaviour through the app. |
 
 ## Bench / test results
 

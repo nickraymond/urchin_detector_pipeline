@@ -100,6 +100,8 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   tuned blur and duplicate values (S2 starts from the guesses in DESIGN D12).
   **SAM part, Lead call D24 (2026-11-25):** confidence 0.4, full resolution in 1008 px tiles; minimum mask
   area measured in S3's preview; memory guard moves to S4. Nick can reverse it.
+  **Memory guard, Lead call D36 (2026-11-25):** pause a job when free memory falls below a threshold that
+  S4 bite 4 measures; the number is logged in D36. Nick can reverse it.
 - Q11. "Largest object %" by mask or by box; the id for unknown; which frames count as
   "accepted" for export.
 - Q12. Does SAM 3.1 run on the M1 Max? **Answered in S1 (2026-11-24): yes, SAM 3.1 and SAM 3

@@ -17,6 +17,16 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S4 — Plan (planning lead)
+**Branch:** sprint/4-plan (docs only)
+**Done:** S4 (job control) planned under CLAUDE.md rule 7: five bites in TRACKER S4, DESIGN §Planned for S4, Lead
+calls D32–D38 (module `app/jobctl/` with one queue and records in `<data_dir>/jobs/`; worker protocol with `pause`
+on stdin and progress from the artifacts; pause / resume / interrupted jobs; estimate 1 + 5 frames; limits and a
+measured memory guard; schedule; keep awake). SPEC Q10 points at D36.
+**Broke/surprised us:** a hook on this laptop blocks shell commands that name the macOS keep-awake tool: builders
+test keep awake through the app, and tests use a fake command (DESIGN §Planned for S4).
+**Next:** the S4 builder starts bite 1a.
+
 ## 2026-11-25 — Sprint S3 — Demo passed
 **Branch:** sprint/3-demo-passed (docs only)
 **Done:** Nick ran the S3 test build on `main` at `49e1db8` and wrote "S3 passes" in the planning lead's chat

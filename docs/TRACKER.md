@@ -211,16 +211,60 @@ to show only urchin masks. Add a class with the form (no typing of YAML) and Sav
 
 ### S4 — Job control  `[ ]`
 **Goal:** long jobs run in a background worker with estimate, pause/resume, limits and a schedule.
-Built as its own module with no labeling-specific code (DESIGN D4).
-- [ ] estimate (seconds per frame, total, finish time)
-- [ ] pause / resume / cancel; progress saved per frame
-- [ ] resource limits (device, threads, priority, memory guard)
-- [ ] scheduled start, "stop by", "Keep laptop awake" toggle with reminder, log and morning summary
+Built as its own module with no labeling-specific code (DESIGN D4). Design: DESIGN §Planned for S4;
+Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft PR per bite, about 300 lines each.
+
+**Bite 1a — Job module core** (D32, D33)
+- [ ] `app/jobctl/`: one queue for the whole app, one job at a time; job records in `<data_dir>/jobs/jobs.sqlite`
+      (kind, params, state, progress, times, stop reason); a job is a worker process speaking `@@ {json}` lines and
+      reading `pause` on stdin; worker helpers (`app/jobctl/worker.py`); nothing in it imports `app.stages` or
+      `app.sam` (a test checks)
+- [ ] Pause / Resume / Cancel and "interrupted" after an app quit, tested end to end with a fake job kind (a tiny
+      worker that writes one file per item): resume never repeats or skips an item
+
+**Bite 1b — SAM on the job module; Jobs page** (D33, D34)
+- [ ] SAM Preview and Run go through it; the SAM worker's `frame` event becomes `item` and it answers `pause`;
+      Pause finishes the frame in progress and ends the worker (model unloaded); Resume starts a new worker on the
+      frames still missing; Cancel keeps finished frames. S3's Stop becomes Pause
+- [ ] progress per frame from the artifacts (`sam_raw/`): resume never repeats or skips a frame (test with the fake predictor)
+- [ ] app quit or crash mid-job: on the next start the job shows as "interrupted", and the dashboard offers Resume
+- [ ] a Jobs page (`/jobs`): every job with state, progress, Pause / Resume / Cancel; linked from the dashboard
+
+**Bite 2 — Extraction and playback copies on the job module; `app/jobs.py` retired** (D32)
+- [ ] frame extraction runs as a job-module worker process with Pause / Resume / Cancel (skips frames on disk, as today)
+- [ ] playback copies and thumbnail strips queue on the same module (no pause needed); `app/jobs.py` is removed
+- [ ] the Extract and Labeling pages show the job's state from the module; one job at a time across all stages
+
+**Bite 3 — Estimate and remaining time** (D35)
+- [ ] "Estimate" on the Labeling page: 1 warm-up frame (not counted) + 5 frames from those Run would label, at the
+      current settings and limits; shows seconds per frame, frames, total time and finish clock time (now, or at
+      the scheduled start); the 6 frames' results are kept, so Run does not redo them
+- [ ] during any job: remaining time from the rolling average of the last 20 items
+
+**Bite 4 — Resource limits** (D36)
+- [ ] settings panel on the Jobs page: device (auto / Apple GPU / NVIDIA GPU / CPU), CPU threads (default half the
+      cores), low priority (`nice`, on by default), pause between frames (default 0 s), memory guard, batch size 1
+      (shown, fixed); each job records the limits it ran with
+- [ ] memory guard: the app checks free memory every 2 s while a job runs and pauses it, saying why, below the
+      threshold; the builder measures the guard's own free-memory figure (D36) during a tiled 4K and a whole-frame 5.3K run and proposes the
+      default in the PR (D36)
+- [ ] a CPU fallback on the Apple GPU shows as a warning on the job
+
+**Bite 5a — Schedule** (D37)
+- [ ] "Start at" and optional "Stop by" on extraction and SAM Run; a queued job shows its start time, Start now
+      and Cancel; the schedule survives an app restart; "Stop by" pauses the job and says so
+
+**Bite 5b — Keep awake, log and morning summary** (D38)
+- [ ] "Keep laptop awake" toggle (macOS `caffeinate`) offered when a long or scheduled job starts, released when no
+      such job is left; reminder: plugged in, lid open; a warning when the laptop runs on battery
+- [ ] one log file per job; a summary per job (items done, counts per class including urchins, errors, time taken,
+      why it stopped); the dashboard shows the last finished job's summary ("morning summary")
+
 **Demo (Nick):** press "Estimate" → seconds per frame and a finish time. Start a run and keep
 using the laptop (browser, a video): it stays usable with the thread cap on. Pause, quit the app,
 start it again, resume: the frame counter continues with no frame repeated or skipped. Schedule a
 start 2 minutes ahead with "Keep laptop awake" on, wait, read the summary page.
-**Needs:** S3.
+**Needs:** S3 (done).
 
 ### S5 — Review labels and export  `[ ]`
 **Goal:** spec stage 6 and all outputs; the spec's acceptance criteria pass on Nick's videos.
