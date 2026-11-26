@@ -124,7 +124,7 @@ def test_labeling_page_shows_edits_saves_and_refuses(tmp_path):
     assert 'href="/p/p/labeling"' in client.get("/p/p").text           # dashboard row
     page = client.get("/p/p/labeling").text
     assert "not in the project yet" in page and "sunflower sea star" in page
-    assert "Next free id: 10" in page
+    assert "next free id: 10" in page
     assert not (folder / "classes.yaml").exists()                        # a GET writes nothing
     bad = DEFAULT.replace("kind: area, prompts: [kelp]", "kind: area, prompts: kelp")
     r = client.post("/p/p/labeling/classes", data={"text": bad})
@@ -135,7 +135,7 @@ def test_labeling_page_shows_edits_saves_and_refuses(tmp_path):
                     data={"text": DEFAULT + "  - {id: 10, name: sea cucumber, kind: object, "
                                             "prompts: [sea cucumber]}\n"})
     assert "Saved classes.yaml." in r.text and "sea cucumber" in r.text
-    assert "Next free id: 11" in r.text
+    assert "next free id: 11" in r.text
     # edited in a text editor, then Reload: the page shows the problem with its line
     (folder / "classes.yaml").write_text(DEFAULT.replace("confidence: 0.4", "confidence: 2"))
     page = client.get("/p/p/labeling").text

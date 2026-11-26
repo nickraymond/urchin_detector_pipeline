@@ -82,37 +82,25 @@
 <h2>Classes</h2>
 <p class="hint">File: <code>{{ cls.path }}</code>{% if not cls.exists %} — not in the project yet:
   this is the starting list, and Save puts it there{% endif %}.
-  Ids never change and are never reused; 0 means unknown. Classes with the same <code>sam_group</code>
-  share one SAM run: purple and red urchin are found as "urchin" and tagged by hand later.
-  Where two area classes overlap, the one listed first wins.</p>
+  Ids are given by the form, never change and are never reused (next free id: {{ next_id }}); 0 means unknown.
+  Classes in the same group share one SAM run: purple and red urchin are found as "urchin" and tagged by
+  hand later. Where two area classes overlap, the one higher in the list wins. A class with SAM results
+  keeps its name; removing a class keeps its saved results. You can also edit the file in a text editor
+  and press Reload.</p>
 {% if cls.errors %}
-<section class="error" id="class-errors"><b>{% if refused %}Not saved: {% else %}classes.yaml cannot be used yet: {% endif %}fix {{ "this" if cls.errors|length == 1 else "these" }} first.</b>
+<section class="error" id="class-errors"><b>{% if refused %}Not saved: {% else %}classes.yaml cannot be used yet: {% endif %}fix {{ "this" if cls.errors|length == 1 else "these" }} first{% if not form %} in a text editor, then press Reload{% endif %}.</b>
   <ul>{% for line, msg in cls.errors %}<li>{% if line %}Line {{ line }}: {% endif %}{{ msg }}</li>{% endfor %}</ul>
+  <pre class="yaml">{{ cls.text }}</pre>
 </section>
 {% endif %}
-{% if rows %}
-<table class="classes" id="class-table">
-  <thead><tr><th>Id</th><th>Colour</th><th>Name</th><th>Kind</th><th>SAM prompts</th><th>Group</th><th>Pixels count as</th></tr></thead>
-  <tbody>
-  {% for c in rows %}
-  <tr><td>{{ c.id }}</td><td><span class="swatch" style="background: {{ c.colour }}"></span></td>
-    <td>{{ c.name }}</td><td>{{ c.kind }}</td><td>{{ c.prompts | join(", ") }}</td>
-    <td>{{ c.sam_group or "—" }}</td><td>{{ c.seg_as or "—" }}</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+{% if form %}
+<script type="application/json" id="class-form-data">{{ form | tojson }}</script>
+<div id="class-form"><p class="hint">The class form needs JavaScript.</p></div>
 <p class="hint">{{ units | length }} SAM runs per frame: {% for u in units %}{{ u.key }}{% if u.group %} ({{ u.classes.values() | join(" + ") }}){% endif %}{{ ", " if not loop.last }}{% endfor %}.
   Untagged urchins show in <span class="swatch" style="background: {{ untagged }}"></span> grey.</p>
 {% endif %}
-
-<h2>Edit classes.yaml</h2>
-<p class="hint">Change the text and press Save; it is checked first and nothing is saved if a line is wrong.
-  Next free id: {{ next_id }}. Comments are not kept when saving here. You can also edit the file in a
-  text editor and press Reload.</p>
-<form method="post" action="/p/{{ info.name }}/labeling/classes">
-  <textarea name="text" class="yaml" rows="{{ [cls.text.count('\n') + 3, 40] | min }}" spellcheck="false">{{ cls.text }}</textarea>
-  <p><button>Save</button> <a href="/p/{{ info.name }}/labeling" class="button">Reload from file</a></p>
-</form>
+<p><a href="/p/{{ info.name }}/labeling" class="button">Reload from file</a></p>
 <script src="{{ static('viewer.js') }}"></script>
 <script src="{{ static('labeling.js') }}"></script>
+<script src="{{ static('classform.js') }}"></script>
 {% endblock %}

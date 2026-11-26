@@ -167,6 +167,19 @@ app/web/templates/label.html  the Labeling page
   scaled masks and the class-map layer are cached per file version (time and size). Synthetic 5312×2988
   frame with 150 object masks and one area: a toggle took 1.9 s before; now 0.46–0.51 s the first time,
   0.01 s (1600 px) to 0.05 s (3200 px) after.
+- Class editor form (as-built, bite 6, SPEC Q17; replaces D25's text box): `static/classform.js` draws one
+  row per class from the page's JSON (id and colour shown, never typed; kind, group and "pixels count as"
+  are drop-downs of valid values; prompts are chips; ↑ ↓ set the order, which decides which area wins;
+  "+ Add class" takes the next id above every id in the file, in `sam_raw/class_ids.json` and given out on
+  the page). A class with results has a read-only name with the reason (D6); removing it keeps its results.
+  Joining a group copies the group's prompts and makes the class an object, and a group's prompts are
+  edited together, so a group never disagrees. After each change the page posts the form to
+  `/labeling/classes/form?check=1`; Save posts it again without `check`. Both run `classes.form_check`:
+  the form goes through `dump` and then `parse`, the same checks as a text save, and each problem is mapped
+  back to its row or setting (`_dump_lines` records where each line came from); nothing is written unless
+  it passes. `classes.yaml` stays the file on disk: a file broken in a text editor shows its problems with
+  line numbers and the text, without the form, until it is fixed and Reloaded. The old text POST route
+  stays (tests use it) but the page no longer has a text box.
 - Images are read through one helper that applies the EXIF orientation (Pillow `ImageOps.exif_transpose`), so
   SAM, the masks and the page all use the same upright image (D27).
 - Tests: a fake predictor stands in for SAM (no torch, no weights, no real frames); synthetic images; the
