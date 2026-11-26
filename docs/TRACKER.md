@@ -261,13 +261,23 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 - [x] one log file per job; a summary per job (items done, counts per class including urchins, errors, time taken,
       why it stopped); the dashboard shows the last finished job's summary ("morning summary")
 
-**Bite 6 — Nick's test-build feedback** (D34a, D36b; PR TBD)
+**Bite 6 — Nick's test-build feedback** (D34a, D36b; PR 41)
 - [x] Run panel in this order: how long it takes (total, s / frame and its source), when it finishes, then a
       class | frames-to-run table; the Estimate, Preview and job status lines follow the same order; hints shortened
 - [x] Cancel stops at once, also while a job is pausing (the frame in progress is dropped, finished ones kept); a
       pausing job says what it waits for ("finishing frame 2 of 40, about 1 min")
 - [x] a harmless CPU fallback (`aten::_assert_async`) goes to the job log only; any other stays a warning, worded
       "one step runs on the CPU (slower); SAM itself runs on the Apple GPU"
+
+**Bite 6b — Nick's test-build feedback, items 4–8** (D36c; PR TBD, stacked on bite 6)
+- [x] Resume easy to find: buttons next to the state on the Jobs page; a paused, pausing or interrupted job shows a
+      banner with Resume at the top of the Jobs, dashboard, project, Labeling and Extract pages
+- [x] while a job runs: a progress bar, a moving "running" sign and "about N min left, done by H:MM PM"
+- [x] pages stay in sync in place: job boxes poll an HTML fragment every 2 s and swap only what changed; the Jobs
+      page's 3 s reload is gone; the page's own buttons follow the job
+- [x] a memory-guard pause says why on the job, everywhere; it resumes by itself once twice the limit has stayed free
+      for 60 s (D36c); the summary counts guard pauses and auto-resumes
+- [x] the project page's Extract and SAM labeling rows show their job (state, mini bar, time left), live
 
 **Demo (Nick):** press "Estimate" → seconds per frame and a finish time. Start a run and keep
 using the laptop (browser, a video): it stays usable with the thread cap on. Pause, quit the app,

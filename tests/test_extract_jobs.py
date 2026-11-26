@@ -38,7 +38,7 @@ def test_extraction_pause_and_resume_decode_each_frame_once(tmp_path, monkeypatc
     n = grab_hooks.calls(folder)
     assert 2 <= n < 10 and len(list((folder / "frames").glob("*.jpg"))) == n
     page = client.get("/p/p/extract").text
-    assert "Extraction paused at" in page and f"/jobs/{j['id']}/resume" in page
+    assert "is <b>paused</b> at frame " in page and f"/jobs/{j['id']}/resume" in page
     client.post(f"/jobs/{j['id']}/resume", data={"back": "/p/p/extract"})
     assert wait_for(lambda: job(client)["state"] == "done", 60)
     assert grab_hooks.calls(folder) == 10                # none decoded twice, none skipped

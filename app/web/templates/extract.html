@@ -2,6 +2,8 @@
 {% block title %}Extract frames · {{ info.name }}{% endblock %}
 {% block content %}
 <p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
+{% from "_job.html" import waiting_banner %}
+<div data-live="/live/banner?project={{ info.name | urlencode }}&back={{ ('/p/' ~ info.name ~ '/extract') | urlencode }}">{{ waiting_banner(waiting, "/p/" ~ info.name ~ "/extract") }}</div>
 <h1>Extract frames</h1>
 <p class="hint">Frames are taken from the full-size original videos (only read, never changed),
 inside your clips, or across the whole video if it has none. Saved as JPEG quality 95 in
@@ -18,7 +20,7 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
   <label>Frame cap <input name="cap" type="number" min="1" max="100000" step="1" value="{{ cap }}"></label>
   <p class="totals" id="live">{{ live }} frames from {{ videos }} video{{ "s" if videos != 1 }}{% if live > planned %}
     → <b>{{ planned }}</b> after the cap, spread evenly across all videos{% endif %}</p>
-  <button type="submit" {% if running or job.state == "scheduled" %}disabled{% endif %}>Extract frames</button>
+  <button type="submit" data-job-lock="queued running pausing scheduled" {% if running or job.state == "scheduled" %}disabled{% endif %}>Extract frames</button>
   <span class="hint">About 0.5–0.8 s per frame. Frames already extracted are kept and skipped.</span>
   <label>Start at <input name="start" type="time"></label> <label>Stop by <input name="stop" type="time"></label>
   {% include "_awake.html" %}
@@ -26,20 +28,11 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
     stay running, and the laptop awake, for a schedule to fire.</span>
 </form>
 
-<div class="progress-box" id="extract-progress" data-status="/p/{{ info.name }}/extract/status"
-     data-state="{{ job.state or '' }}" {% if not running and job.state != "scheduled" %}hidden{% endif %}>
-  <progress max="100" value="{{ job.percent or 0 }}"></progress> <span class="hint">{{ job.message or "waiting" }}</span>
-  {% if job.state in ("queued", "running") %}<form method="post" action="/jobs/{{ job.id }}/pause" class="inline"><input type="hidden" name="back" value="/p/{{ info.name }}/extract"><button class="small">Pause</button></form>{% endif %}
-  {% if job.state in ("queued", "running", "pausing") %}<form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="/p/{{ info.name }}/extract"><button class="small">Cancel</button></form>{% endif %}
-  <a href="/jobs" class="hint">Jobs page</a>
-</div>
-{% if job.state == "scheduled" %}<div class="totals">Extraction scheduled: starts at <b>{{ job.start_show }}</b>{% if job.stop_show %}, stop by {{ job.stop_show }}{% endif %}.
-  <form method="post" action="/jobs/{{ job.id }}/start-now" class="inline"><input type="hidden" name="back" value="/p/{{ info.name }}/extract"><button class="small">Start now</button></form>
-  <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="/p/{{ info.name }}/extract"><button class="small">Cancel</button></form></div>
-{% elif job.state in ("paused", "interrupted") %}<div class="totals">Extraction {{ job.state }} at {{ job.done }} of {{ job.total }} frames{% if job.state == "interrupted" %} (the app quit during it){% endif %}.
-  <form method="post" action="/jobs/{{ job.id }}/resume" class="inline"><input type="hidden" name="back" value="/p/{{ info.name }}/extract"><button class="small">Resume</button></form>
-  <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="/p/{{ info.name }}/extract"><button class="small">Cancel</button></form>
-  Frames already extracted are kept; Extract frames with new settings replaces this job.</div>
+{% from "_job.html" import job_panel %}
+{% set back = "/p/" ~ info.name ~ "/extract" %}
+<div id="extract-job" data-live="/p/{{ info.name }}/live/extract?back={{ back | urlencode }}" data-reload-on="done error">{% if job.state != "error" %}{{ job_panel(job, back) }}{% endif %}</div>
+{% if job.state in ("paused", "interrupted") %}<p class="hint">Frames already extracted are kept; Extract frames with new
+  settings replaces this job.</p>
 {% elif job.state == "error" %}<p class="error">Extraction stopped: {{ job.message }}. Press Extract frames to
   carry on: finished frames are kept and not extracted again.</p>
 {% elif not running and stage.state == "in progress" %}<p class="error">The last extraction stopped before
@@ -57,7 +50,7 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
     <output>{{ dup }}</output> of 64 hash bits differ from the last kept frame (0 = off)</label>
   <p class="totals" id="filter-counts">{{ counts.kept }} kept + {{ counts.dropped_blur }} blurry +
     {{ counts.dropped_duplicate }} duplicate{% if counts.rejected %} + {{ counts.rejected }} rejected{% endif %} = {{ counts.total }}</p>
-  <button type="submit" {% if running %}disabled{% endif %}>Apply</button>
+  <button type="submit" data-job-lock="queued running pausing" {% if running %}disabled{% endif %}>Apply</button>
   <span class="hint">The counts and rows below follow the sliders; files move only when you press Apply.</span>
   <div id="filter-examples" class="examples"></div>
 </form>
@@ -86,4 +79,5 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
 {% endif %}
 <script src="{{ static('viewer.js') }}"></script>
 <script src="{{ static('extract.js') }}"></script>
+<script src="{{ static('live.js') }}"></script>
 {% endblock %}

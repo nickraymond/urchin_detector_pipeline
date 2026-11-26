@@ -2,6 +2,8 @@
 {% block title %}SAM labeling · {{ info.name }}{% endblock %}
 {% block content %}
 <p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
+{% from "_job.html" import job_panel, waiting_banner %}
+<div data-live="/live/banner?project={{ info.name | urlencode }}&back={{ ('/p/' ~ info.name ~ '/labeling') | urlencode }}">{{ waiting_banner(waiting, "/p/" ~ info.name ~ "/labeling") }}</div>
 <h1>SAM labeling</h1>
 <p class="hint">Frames to label: {{ kept }}.</p>
 {% if note %}<p class="totals">{{ note }}</p>{% endif %}
@@ -11,26 +13,11 @@
   picks 3 at random), so you can check the prompts before labeling every frame. The results are kept: Run
   will not label these frames again unless a class changes.</p>
 <form method="post" action="/p/{{ info.name }}/labeling/preview" class="inline">
-  <button {% if job.active %}disabled{% endif %}>Preview</button>
-  <button name="other" value="1" {% if job.active %}disabled{% endif %}>Other frames</button>
+  <button data-job-lock="queued running pausing" {% if job.active %}disabled{% endif %}>Preview</button>
+  <button name="other" value="1" data-job-lock="queued running pausing" {% if job.active %}disabled{% endif %}>Other frames</button>
 </form>
-<div id="sam-job" class="totals" {% if not job.state %}hidden{% endif %}
-   data-status="/p/{{ info.name }}/labeling/status" data-state="{{ job.state or '' }}">
-  SAM: <span id="sam-job-text">{{ job.state }}{% if job.line and job.line != job.state and job.state != "scheduled" %} — {{ job.line }}{% endif %}</span>
-  {% set back = "/p/" ~ info.name ~ "/labeling" %}
-  {% if job.state in ("queued", "running", "pausing") %}
-  {% if job.state != "pausing" %}<form method="post" action="/jobs/{{ job.id }}/pause" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Pause</button></form>{% endif %}
-  <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small" title="Stops at once; the frame in progress is dropped, finished frames are kept">Cancel</button></form>
-  {% if job.state == "pausing" %}<span class="hint">Estimate and Run wait until it has paused; Cancel stops at once.</span>{% endif %}
-  {% elif job.state == "scheduled" %} — starts at <b>{{ job.start_show }}</b>{% if job.stop_show %}, stop by {{ job.stop_show }}{% endif %}
-  <form method="post" action="/jobs/{{ job.id }}/start-now" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Start now</button></form>
-  <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Cancel</button></form>
-  {% elif job.state in ("paused", "interrupted") %}
-  <form method="post" action="/jobs/{{ job.id }}/resume" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Resume</button></form>
-  <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Cancel</button></form>
-  {% endif %}
-  <a href="/jobs" class="hint">Jobs page</a>
-  {% for w in job.warnings or [] %}<br><span class="warn-text">⚠ {{ w }}</span>{% endfor %}</div>
+{% set back = "/p/" ~ info.name ~ "/labeling" %}
+<div id="sam-job" data-live="/p/{{ info.name }}/live/sam?back={{ back | urlencode }}" data-reload-on="done error">{{ job_panel(job, back) }}</div>
 {% if preview %}
 <p class="totals">{% if preview.seconds_per_frame %}Run on all {{ n_label }} kept frames: about
   <b>{{ minutes(preview.seconds_per_frame * n_label) }}</b> ({{ preview.seconds_per_frame }} s / frame, from this
@@ -99,10 +86,10 @@
   no frame could be timed.{% endif %}</p>{% endif %}
 <p class="hint">Estimate labels and times 5 frames (after 1 warm-up frame); their results are kept.</p>
 <form method="post" action="/p/{{ info.name }}/labeling/estimate" class="inline">
-  <button {% if job.active or job.state == "scheduled" or (plan and not plan.frames) %}disabled{% endif %}>Estimate</button>
+  <button data-job-lock="queued running pausing scheduled" {% if plan and not plan.frames %}data-off-anyway{% endif %} {% if job.active or job.state == "scheduled" or (plan and not plan.frames) %}disabled{% endif %}>Estimate</button>
 </form>
 <form method="post" action="/p/{{ info.name }}/labeling/run" class="inline">
-  <button {% if job.active or job.state == "scheduled" or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
+  <button data-job-lock="queued running pausing scheduled" {% if plan and not plan.frames %}data-off-anyway{% endif %} {% if job.active or job.state == "scheduled" or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
   <label>Start at <input name="start" type="time"></label> <label>Stop by <input name="stop" type="time"></label>
   {% include "_awake.html" %}
   <span class="hint">Start at / Stop by are optional (e.g. 02:00); the app must stay running for them to fire.</span>
@@ -131,5 +118,6 @@
 <p><a href="/p/{{ info.name }}/labeling" class="button">Reload from file</a></p>
 <script src="{{ static('viewer.js') }}"></script>
 <script src="{{ static('labeling.js') }}"></script>
+<script src="{{ static('live.js') }}"></script>
 <script src="{{ static('classform.js') }}"></script>
 {% endblock %}

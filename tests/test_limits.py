@@ -5,6 +5,7 @@ CPU-fallback warning. Fake job kind and fake SAM only."""
 import io
 import json
 import os
+import time
 import warnings
 
 import pytest
@@ -15,7 +16,7 @@ from app.jobctl import worker as jw
 from app.sam import worker as sam_worker
 from app.stages import label
 from tests.test_app_skeleton import client_for, write_config
-from tests.test_jobctl import fake_kind, params, wait_state, writes
+from tests.test_jobctl import fake_kind, params, wait_for, wait_state, writes
 
 
 @pytest.fixture
@@ -95,9 +96,41 @@ def test_memory_guard_pauses_the_job_and_says_why(jc, tmp_path):
     jc.runner.guard_every_s = 0.1
     jid = jc.submit("fake", params(tmp_path, n=40, delay=0.1))
     job = wait_state(jc, jid, "paused")
-    assert job["stop_reason"] == "memory guard: 1.2 GB free, below 4 GB"
+    assert job["stop_reason"] == "Paused by the memory guard: 1.2 GB free (limit 4 GB)"
     assert len(writes(tmp_path)) < 40
     assert "memory guard" in (jc.root / f"{jid}.log").read_text()
+
+
+def test_a_guard_pause_resumes_by_itself_once_memory_stays_free(jc, tmp_path):
+    """D36c: twice the limit free for recover_s -> resumed; the summary counts both."""
+    limits.save(jc.root, good(memory_guard=True, memory_guard_gb=2))
+    free = {"gb": 1.0}
+    jc.runner.free_gb = lambda: free["gb"]
+    jc.runner.guard_every_s = 0.1
+    jc.recover_s = 0.3
+    jid = jc.submit("fake", params(tmp_path, n=6, delay=0.1))
+    wait_state(jc, jid, "paused")
+    assert jc.auto_resume() == []                  # 1 GB: still short
+    free["gb"] = 3.9                               # above the limit, below twice it
+    assert jc.auto_resume() == []
+    free["gb"] = 4.0
+    assert jc.auto_resume() == []                  # the clock starts now
+    time.sleep(0.4)
+    limits.save(jc.root, good(memory_guard=False))   # so it can finish
+    assert jc.auto_resume() == [jid]
+    job = wait_state(jc, jid, "done")
+    assert job["summary"]["memory_pauses"] == 1 and job["summary"]["auto_resumes"] == 1
+    assert "memory recovered" in (jc.root / f"{jid}.log").read_text()
+
+
+def test_a_pause_by_hand_never_resumes_by_itself(jc, tmp_path):
+    jc.runner.free_gb = lambda: 100.0
+    jc.recover_s = 0
+    jid = jc.submit("fake", params(tmp_path, n=20, delay=0.1))
+    wait_for(lambda: writes(tmp_path))
+    jc.pause(jid)
+    wait_state(jc, jid, "paused")
+    assert jc.auto_resume() == [] and jc.status(jid)["state"] == "paused"
 
 
 def test_memory_guard_off_does_not_pause(jc, tmp_path):

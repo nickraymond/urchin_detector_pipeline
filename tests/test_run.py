@@ -93,7 +93,7 @@ def test_pause_then_resume_through_the_pages_repeats_and_skips_no_frame(tmp_path
     assert (st["done"], st["total"]) == (8, 8)
     assert f"labeled {8 - len(before)} frames, {len(before)} already current" in st["message"]
     jobs = client.get("/jobs").text
-    assert "sam" in jobs and "done" in jobs and "8 / 8" in jobs
+    assert "SAM labeling" in jobs and "done" in jobs and "8 / 8" in jobs
 
 
 def test_cancel_keeps_finished_frames_and_run_does_the_rest(tmp_path, monkeypatch):
@@ -156,13 +156,13 @@ def test_app_killed_mid_run_shows_unfinished_job_and_resumes(tmp_path, monkeypat
     client = client_for(Path(config))
     home = client.get("/").text
     st = status(client)
-    assert st["state"] == "interrupted" and "Unfinished job" in home
+    assert st["state"] == "interrupted" and "the app quit or crashed during it" in home
     assert f"/jobs/{st['id']}/resume" in home
     client.post(f"/jobs/{st['id']}/resume", data={"back": "/"})
     assert wait_for(lambda: status(client)["state"] == "done", 60)
     after = run_at(folder, files)
     assert set(after) == set(files) and all(after[f] == t for f, t in before.items())
-    assert "Unfinished job" not in client.get("/").text
+    assert "the app quit or crashed during it" not in client.get("/").text
 
 
 def test_plan_estimate_is_a_fixed_cost_per_frame_plus_a_cost_per_unit(tmp_path):

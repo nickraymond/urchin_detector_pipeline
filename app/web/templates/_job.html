@@ -1,0 +1,44 @@
+{# S4 bite 6b: one way to show a job on every page (Labeling, Extract, Jobs, dashboard, project page).
+   The same macros render the page and the /live/... fragments that live.js swaps in place. #}
+
+{% macro job_buttons(j, back) -%}
+<span class="job-actions">
+  {%- if j.state in ("queued", "running") %}<form method="post" action="/jobs/{{ j.id }}/pause" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Pause</button></form>{% endif %}
+  {%- if j.state in ("paused", "interrupted") %}<form method="post" action="/jobs/{{ j.id }}/resume" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small primary">Resume</button></form>{% endif %}
+  {%- if j.state == "scheduled" %}<form method="post" action="/jobs/{{ j.id }}/start-now" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Start now</button></form>{% endif %}
+  {%- if j.state not in ("done", "cancelled", "error", "missed") %}<form method="post" action="/jobs/{{ j.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small" title="Stops at once; the item in progress is dropped, finished items are kept">Cancel</button></form>{% endif %}
+</span>
+{%- endmacro %}
+
+{# The job's state, buttons, progress bar, a moving sign while it runs, time left and why it
+   stopped. compact: one line for a table cell (project page). #}
+{% macro job_panel(j, back, compact=false) -%}
+{% if j %}
+<div class="job-panel job-{{ j.state }}{% if compact %} compact{% endif %}" data-state="{{ j.state }}">
+  <span class="job-state">{{ j.state }}</span>
+  {%- if j.state == "running" %} <span class="running-sign" title="Running: this moves while the page is up to date"></span>{% endif %}
+  {% if not compact %}<b>{{ j.what }}</b> {% endif %}{{ job_buttons(j, back) }}
+  {% if j.total and j.state not in ("scheduled", "missed") %}<span class="job-bar"><progress max="{{ j.total }}" value="{{ j.done }}"></progress>
+    {% if j.kind == "playback" %}{{ j.done }} %{% else %}{{ j.done }} / {{ j.total }}{% endif %}</span>{% endif %}
+  {% if j.state == "scheduled" %}<span class="job-line">starts at <b>{{ j.start_show }}</b>{% if j.stop_show %}, stop by {{ j.stop_show }}{% endif %}</span>
+  {% elif j.guard_paused %}<span class="job-line warn-text">⚠ {{ j.stop_reason }}.{% if not compact %}
+    Close other apps, or lower the limit on the <a href="/jobs">Jobs page</a>.
+    It resumes by itself once {{ j.guard_resume_gb }} GB has stayed free for 1 min.{% endif %}</span>
+  {% elif j.line and j.line != j.state %}<span class="job-line">{{ j.line }}</span>{% endif %}
+  {% if not compact %}{% if j.stop_show and j.state != "scheduled" %}<span class="hint">stop by {{ j.stop_show }}</span>{% endif %}
+  {% for w in j.warnings or [] %}<div class="warn-text">⚠ {{ w }}</div>{% endfor %}{% endif %}
+</div>
+{% endif %}
+{%- endmacro %}
+
+{# Item 4: a paused, pausing or interrupted job stands out at the top of the page. #}
+{% macro waiting_banner(jobs, back) -%}
+{% for j in jobs %}
+<section class="warning job-banner" data-state="{{ j.state }}"><b>Job {{ j.id }}</b> ({{ j.what }}{% if j.project_name %},
+  project <a href="/p/{{ j.project_name }}">{{ j.project_name }}</a>){% else %}){% endif %}
+  {% if j.state == "pausing" %}is {{ j.message }}.
+  {% else %}is <b>{{ j.state }}</b>{% if j.total %} at {{ j.item }} {{ j.done }} of {{ j.total }}{% endif %}{% if j.state == "interrupted" %}: the app quit or crashed during it{% elif j.guard_paused %}: {{ j.stop_reason }}; it resumes by itself once {{ j.guard_resume_gb }} GB has stayed free for 1 min{% elif j.stop_reason and j.stop_reason != "paused" %} ({{ j.stop_reason }}){% endif %}.
+  {{ job_buttons(j, back) }}{% endif %}
+</section>
+{% endfor %}
+{%- endmacro %}

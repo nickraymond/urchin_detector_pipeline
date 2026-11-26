@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Jobs{% endblock %}
 {% block content %}
+{% from "_job.html" import waiting_banner %}
 <p><a href="/">&larr; Projects</a></p>
+<div data-live="/live/banner?back=/jobs">{{ waiting_banner(waiting, "/jobs") }}</div>
 <h1>Jobs</h1>
 <p class="hint">One job runs at a time for the whole app; the others wait in the queue. A scheduled job waits for its
   start time; the app must stay running (and the laptop awake) for it to fire, and one whose start and Stop by both
@@ -33,32 +35,6 @@
 </form>
 
 <h2>Jobs</h2>
-{% if jobs %}
-<table class="jobs">
-  <tr><th>#</th><th>Kind</th><th>Project</th><th>State</th><th>Progress</th><th>Message</th><th>Created</th><th>Ended</th><th></th></tr>
-  {% for j in jobs %}
-  <tr>
-    <td>{{ j.id }}</td><td>{{ j.kind }}{% if j.params.preview %} (preview){% elif j.params.estimate %} (estimate){% endif %}{% if j.keep_awake %}<br><span class="hint">keep awake</span>{% endif %}
-      <br><a class="hint" href="/jobs/{{ j.id }}/log">log</a></td>
-    <td>{% if j.project_name %}<a href="/p/{{ j.project_name }}">{{ j.project_name }}</a>{% endif %}</td>
-    <td><b>{{ j.state }}</b></td>
-    <td>{% if j.kind == "playback" %}{{ j.done }} %{% elif j.total %}{{ j.done }} / {{ j.total }}{% endif %}</td>
-    <td>{{ j.line }}{% if j.stop_reason and j.stop_reason != j.message and j.state not in ("done",) %} ({{ j.stop_reason }}){% endif %}
-      {% if j.start_show and j.state == "scheduled" %}<br>starts at <b>{{ j.start_show }}</b>{% endif %}{% if j.stop_show %}{{ "," if j.state == "scheduled" else "<br>" | safe }} stop by {{ j.stop_show }}{% endif %}
-      {% for w in j.warnings or [] %}<br><span class="warn-text">⚠ {{ w }}</span>{% endfor %}
-      {% if j.limits %}<br><span class="hint">{{ j.limits.device }}, {{ j.limits.threads }} threads{% if j.limits.low_priority %}, low priority{% endif %}{% if j.limits.pause_s %}, {{ j.limits.pause_s }} s pause{% endif %}{% if j.limits.memory_guard %}, guard {{ j.limits.memory_guard_gb }} GB{% endif %}</span>{% endif %}</td>
-    <td>{{ (j.created or "") | replace("T", " ") }}</td><td>{{ (j.ended or "") | replace("T", " ") }}</td>
-    <td>
-      {% if j.state in ("queued", "running") %}<form method="post" action="/jobs/{{ j.id }}/pause" class="inline"><button class="small">Pause</button></form>{% endif %}
-      {% if j.state in ("paused", "interrupted") %}<form method="post" action="/jobs/{{ j.id }}/resume" class="inline"><button class="small">Resume</button></form>{% endif %}
-      {% if j.state == "scheduled" %}<form method="post" action="/jobs/{{ j.id }}/start-now" class="inline"><button class="small">Start now</button></form>{% endif %}
-      {% if j.state not in ("done", "cancelled", "error", "missed") %}<form method="post" action="/jobs/{{ j.id }}/cancel" class="inline"><button class="small">Cancel</button></form>{% endif %}
-    </td>
-  </tr>
-  {% endfor %}
-</table>
-{% else %}
-<p>No jobs yet.</p>
-{% endif %}
-{% if jobs | selectattr("active") | list %}<script>setTimeout(() => location.reload(), 3000);</script>{% endif %}
+<div data-live="/live/jobs">{% include "_jobs_table.html" %}</div>
+<script src="{{ static('live.js') }}"></script>
 {% endblock %}

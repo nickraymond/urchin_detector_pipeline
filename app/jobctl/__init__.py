@@ -16,6 +16,7 @@ from __future__ import annotations
 import fcntl
 import os
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -23,8 +24,10 @@ from typing import Callable
 
 from app.jobctl import schedule
 from app.jobctl.awake import Awake
-from app.jobctl.runner import Runner
+from app.jobctl.runner import GUARD_REASON, Runner
 from app.jobctl.store import FINISHED, Store, now
+
+RECOVER_S = 60.0   # D36c: free memory must stay at 2x the guard limit this long
 
 
 class JobError(ValueError):
@@ -68,6 +71,9 @@ class JobControl:
         # D38: one keep-awake process while any keep-awake job waits or runs (tests: a fake cmd)
         self.awake = Awake(awake_cmd)
         self._awake_stop = threading.Event()
+        self.recover_s = RECOVER_S
+        self._recovered: dict[int, float] = {}   # job id -> since when memory is free enough
+        self.auto_resume_error = ""
         if start:
             self.runner.start()
             threading.Thread(target=self._keep_awake, name="keep-awake", daemon=True).start()
@@ -78,6 +84,42 @@ class JobControl:
                 self.awake.update(self.store.keep_awake_needed())
             except Exception as e:   # never stop the app over this; the page shows the error
                 self.awake.error = f"keep awake: {e}"
+            try:
+                self.auto_resume()
+            except Exception as e:   # never stop the app over this
+                self.auto_resume_error = f"auto-resume: {e}"
+
+    def auto_resume(self) -> list[int]:
+        """D36c: a job the memory guard paused resumes by itself once free memory has stayed
+        at or above twice its limit for RECOVER_S. Jobs paused by Nick, by Stop by or by
+        Cancel never resume by themselves. Returns the ids resumed (tests)."""
+        waiting = [j for j in self.list() if j["state"] == "paused"
+                   and (j.get("stop_reason") or "").startswith(GUARD_REASON)]
+        for gone in set(self._recovered) - {j["id"] for j in waiting}:
+            self._recovered.pop(gone)
+        if not waiting:
+            return []
+        free, resumed = self.runner.free_gb(), []
+        for j in waiting:
+            need = 2 * float((j.get("limits") or {}).get("memory_guard_gb") or 0)
+            if free < need:
+                self._recovered.pop(j["id"], None)
+                continue
+            since = self._recovered.setdefault(j["id"], time.monotonic())
+            if time.monotonic() - since < self.recover_s:
+                continue
+            self._recovered.pop(j["id"])
+            summary = j.get("summary") or {}
+            summary["auto_resumes"] = summary.get("auto_resumes", 0) + 1
+            self.store.update(j["id"], summary=summary)
+            self.runner.log(j["id"], f"memory recovered: {free:.1f} GB free for "
+                                     f"{self.recover_s:g} s (needs {need:g} GB); resuming")
+            try:
+                self.resume(j["id"])
+                resumed.append(j["id"])
+            except JobError as e:
+                self.runner.log(j["id"], f"auto-resume refused: {e}")
+        return resumed
 
     def last_summary(self) -> dict | None:
         return self.store.last_summary()

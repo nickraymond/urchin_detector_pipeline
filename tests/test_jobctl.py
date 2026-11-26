@@ -136,8 +136,7 @@ def test_cancel_while_pausing_ends_the_worker_at_once(jc, tmp_path):
     jc.pause(jid)
     job = jc.status(jid)
     assert job["state"] == "pausing"
-    assert job["message"].startswith("finishing item 2 of 3, about ")
-    assert job["message"].endswith(" before pausing")
+    assert job["message"].startswith("finishing item 2 of 3; Resume appears in about ")
     jc.cancel(jid)
     job = wait_state(jc, jid, "cancelled", timeout=10)
     assert time.monotonic() - t < 10 and job["stop_reason"] == "cancelled"

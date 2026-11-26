@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S4 — Bite 6b: live job boxes, Resume, memory-guard auto-resume (builder)
+**Branch:** sprint/4-feedback-b (stacked on sprint/4-feedback)
+**Done:** Nick's items 4–8: one job panel and banner (`_job.html`) on every page, live fragments + `live.js`
+instead of reloads, progress bar with a running sign and "done by", Resume next to the state and in a banner,
+memory-guard reason on the job and auto-resume (D36c), job status on the project page. Self-tested with real SAM:
+paused from the Jobs tab, the Labeling tab followed with no reload; resumed from the banner, it followed back;
+a 40 GB limit gave "Paused by the memory guard: 22.6 GB free (limit 40 GB)" on the page.
+**Broke/surprised us:** Preview / Run stayed greyed after a pause until reload: buttons now follow the job
+(`data-job-lock`). A background tab stops polling and catches up within 2 s when shown.
+**Next:** QE on PR 42; then bite 6c (Labelled so far, project row).
+
 ## 2026-11-25 — Sprint S5 — Plan (planning lead)
 **Branch:** sprint/5-plan (docs only)
 **Done:** S4's test checklist passed (Nick, lead chat, 10:13 PM: "I've tested everything in the check list and it
