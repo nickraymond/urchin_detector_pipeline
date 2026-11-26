@@ -16,14 +16,15 @@
 <p><b>{{ frames | length }}</b> labeled frames · <b id="todo-count">{{ todo }}</b> to do ·
   <button type="button" id="next-todo">Review the next to do</button></p>
 <h2>Running totals (accepted frames)</h2>
-<p class="hint">Objects per class on the accepted frames, and on how many frames; the target is 150–200 objects per
-  class.</p>
+<p class="hint">Objects per class on the accepted frames that go to the detector, and on how many frames; the target
+  is 150–200 objects per class. Frames whose split check is "no" are counted apart: they count for cover only.</p>
 <table class="stages" id="label-totals">
-  <thead><tr><th>Class</th><th>Objects</th><th>Frames</th><th>Toward 150</th></tr></thead>
+  <thead><tr><th>Class</th><th>Objects</th><th>Frames</th><th>Toward 150</th><th>On split-no frames</th></tr></thead>
   <tbody>{% for t in totals %}
   <tr data-id="{{ t.id }}"><td><span class="swatch" style="background: {{ t.colour }}"></span> {{ t.name }}</td>
     <td class="n-obj">{{ t.objects }}</td><td class="n-fr">{{ t.frames }}</td>
-    <td><progress max="150" value="{{ [t.objects, 150] | min }}"></progress></td></tr>{% endfor %}
+    <td><progress max="150" value="{{ [t.objects, 150] | min }}"></progress></td>
+    <td class="n-no">{{ t.split_no }}</td></tr>{% endfor %}
   </tbody>
 </table>
 <h2>Frames</h2>

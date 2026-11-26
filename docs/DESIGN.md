@@ -427,7 +427,8 @@ app/web/templates/export.html  the Export page
   name (P, R, B; a clash or X / Z / F gives none), so a renamed type gets its new letter without a new file field.
 - Split check, fully checked, totals (as-built, bite 3b): the review panel has "touching urchins separated" yes /
   no / not marked and one "fully checked" box per class (all classes, D41). Running totals = objects per object
-  class on the **accepted** frames and the number of accepted frames with one, against the 150–200 target; each
+  class on the **accepted** frames that go to the detector (split check not "no") and the number of such frames,
+  against the 150–200 target, plus the objects on accepted split-"no" frames apart (cover only, QE PR 51); each
   frame's counts are cached in the app process until its `sam_raw` file, its review rows or the class list change.
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.

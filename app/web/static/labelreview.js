@@ -94,6 +94,7 @@
       row.querySelector(".n-obj").textContent = t.objects;
       row.querySelector(".n-fr").textContent = t.frames;
       row.querySelector("progress").value = Math.min(t.objects, 150);
+      row.querySelector(".n-no").textContent = t.split_no;
     });
   }
   async function act(body) {

@@ -155,14 +155,17 @@ def _frame_counts(folder: Path, conn, frame: str, class_list: list[dict]) -> dic
 
 
 def totals(folder: Path, conn, class_list: list[dict]) -> list[dict]:
-    """Running totals over the accepted frames, per object class: {id, name, colour, objects,
-    frames (accepted frames that have one)}; the page compares them with the 150-200 target."""
-    acc = [r[0] for r in conn.execute("SELECT frame FROM frame_review WHERE accepted = 1")]
-    per = [_frame_counts(folder, conn, f, class_list) for f in acc
+    """Running totals per object class: {id, name, colour, objects, frames, split_no}. objects
+    and frames count the accepted frames that go to the detector (split check not "no", spec
+    §6), which the page compares with the 150-200 target; split_no = objects on accepted frames
+    marked "no" (they count for cover only; QE PR 51)."""
+    rows = conn.execute("SELECT frame, split_ok FROM frame_review WHERE accepted = 1").fetchall()
+    per = [(_frame_counts(folder, conn, f, class_list), ok != 0) for f, ok in rows
            if results.raw_path(folder, f).is_file()]
     return [{"id": c["id"], "name": c["name"], "colour": classes.colour(c["id"]),
-             "objects": sum(p.get(c["id"], 0) for p in per),
-             "frames": sum(1 for p in per if p.get(c["id"]))}
+             "objects": sum(p.get(c["id"], 0) for p, det in per if det),
+             "frames": sum(1 for p, det in per if det and p.get(c["id"])),
+             "split_no": sum(p.get(c["id"], 0) for p, det in per if not det)}
             for c in class_list if c["kind"] == "object"]
 
 

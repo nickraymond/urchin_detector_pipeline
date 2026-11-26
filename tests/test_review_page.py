@@ -113,12 +113,17 @@ def test_split_check_fully_checked_and_running_totals(tmp_path):
         client.post(f"/p/p/labels/act/{F}", json={"action": "class", "mask_ids": [mid], "class_id": 1})
     r = client.post(f"/p/p/labels/act/{F}", json={"action": "accept"})
     t = {x["name"]: x for x in r.json()["totals"]}
-    assert (t["purple urchin"]["objects"], t["purple urchin"]["frames"]) == (2, 1)
-    assert t["sea star"]["objects"] == 1 and t["red urchin"]["objects"] == 0
+    assert (t["purple urchin"]["objects"], t["purple urchin"]["frames"]) == (0, 0)   # split "no"
+    assert (t["purple urchin"]["split_no"], t["sea star"]["split_no"]) == (2, 1)
     assert "kelp" not in t                                    # areas are not counted objects
     # a change on an accepted frame updates the totals (the cache follows the review)
     r = client.post(f"/p/p/labels/act/{F}", json={"action": "class", "mask_ids": [v["untagged"][0]],
                                                    "class_id": 2})
     t = {x["name"]: x for x in r.json()["totals"]}
-    assert (t["purple urchin"]["objects"], t["red urchin"]["objects"]) == (1, 1)
+    assert (t["purple urchin"]["split_no"], t["red urchin"]["split_no"]) == (1, 1)
     assert r.json()["state"]["accepted"]
+    # the frame's split check is "no" (set above): the detector totals leave it out (QE PR 51)
+    assert t["purple urchin"]["split_no"] == 1 and t["sea star"]["split_no"] == 1
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "split", "ok": True})
+    t = {x["name"]: x for x in r.json()["totals"]}
+    assert (t["sea star"]["objects"], t["sea star"]["split_no"]) == (1, 0)
