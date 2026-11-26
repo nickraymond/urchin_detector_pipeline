@@ -191,14 +191,14 @@ One draft PR per bite, about 300 lines each.
       everything else. The legend applies to the large view and the preview tiles alike
 - [x] the legend says why some masks have a box: objects (counted things) are boxed, areas (kelp, rock) are not
 
-**Bite 6 — Class editor form** (Nick, 2026-11-25: the YAML text box invites typing errors; replaces D25's text box)
-- [ ] a form instead of the text box: one row per class with name, kind (object / area as a choice), prompts as
+**Bite 6 — Class editor form** (Nick, 2026-11-25: the YAML text box invites typing errors; replaces D25's text box; PR 28)
+- [x] a form instead of the text box: one row per class with name, kind (object / area as a choice), prompts as
       chips (add / remove), group and "pixels count as" as drop-downs of valid values, colour swatch; an
       "Add class" button that gives the next free id; settings as labelled number fields
-- [ ] ids are shown and never typed. A class with results keeps its name (D6), and the form says why
+- [x] ids are shown and never typed. A class with results keeps its name (D6), and the form says why
       renaming is locked; removing it keeps its saved results (DESIGN §Planned for S3). Every change is
       checked before Save with the same checks as `classes.py`, and nothing invalid is saved
-- [ ] the page's Save still writes `classes.yaml` (so a text editor plus Reload keeps working); test: no form
+- [x] the page's Save still writes `classes.yaml` (so a text editor plus Reload keeps working); test: no form
       input can produce a file that fails the checks
 
 **Demo (Nick):** same start command, a project of about 5 kept frames. On the Labeling page press "Preview":

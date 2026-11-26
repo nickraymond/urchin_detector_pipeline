@@ -279,8 +279,9 @@ def _dump_lines(data: dict) -> list[tuple[str, tuple]]:
         return yaml.safe_dump(value, sort_keys=False, allow_unicode=True,
                               default_flow_style=flow, width=10_000).strip()
     out: list[tuple[str, tuple]] = [("settings:\n", ())]
-    for k, v in data["settings"].items():
-        out += [("  " + line + "\n", ("settings", k)) for line in one({k: v}, False).splitlines()]
+    st = data["settings"]   # in the starting file's order (the page's JSON sorts keys; QE PR 28)
+    for k in [*(k for k in SETTINGS if k in st), *(k for k in st if k not in SETTINGS)]:
+        out += [("  " + line + "\n", ("settings", k)) for line in one({k: st[k]}, False).splitlines()]
     out.append(("classes:\n", ()))
     for i, c in enumerate(data["classes"]):
         out += [(("  - " if n == 0 else "    ") + line + "\n", ("class", i))
