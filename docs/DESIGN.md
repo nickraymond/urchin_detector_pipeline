@@ -344,8 +344,8 @@ app/web/templates/export.html  the Export page
 - **CVAT (D42, SPEC Q9).** Fine outline fixes use CVAT on its own: `detector_coco.json` carries each outline as a
   polygon (pycocotools), which CVAT's COCO importer reads (the builder cites CVAT's docs for the format before
   relying on it). Fixes are not imported back in Build 1 (icebox).
-- **Splits (D43).** Site and dive date come from the file name (`<site>-<yy>-<mm>-<dd>-…`, SPEC facts) or else
-  the folder; one group per site + date; groups go to train / valid / test to come closest to 70 / 20 / 10 by
+- **Splits (D43).** Site and dive date come from the file name (`<site>-<date>-<time>-<diver>-<tag>`, SPEC facts;
+  the date's exact format is read from the real names in bite 2b and written down there) or else the folder; one group per site + date; groups go to train / valid / test to come closest to 70 / 20 / 10 by
   frame count, same answer every time. With fewer than 3 groups a fair split is impossible: the Export page
   says so and splits by video instead.
 - **Export images (D44).** Upright pixels (D27): files without an EXIF rotation are copied byte for byte, others

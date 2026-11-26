@@ -19,7 +19,7 @@ what broke, what's next.*
 
 ## 2026-11-25 — Sprint S5 — Plan (planning lead)
 **Branch:** sprint/5-plan (docs only)
-**Done:** S4's test checklist passed (Nick, lead chat, about 10:05 PM: "I've tested everything in the check list and it
+**Done:** S4's test checklist passed (Nick, lead chat, 10:13 PM: "I've tested everything in the check list and it
 passes"); his feedback items are S4's last bites, re-checked in the S5 test build. S5 planned under CLAUDE.md
 rule 7: seven bites in TRACKER S5 (review state, export writers, review page, urchin types and fast tagging, add a
 missed object, export page + licences + README, SAM quality), DESIGN §Planned for S5, Lead calls D40–D46 (SPEC Q9,

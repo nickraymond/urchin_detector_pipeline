@@ -272,6 +272,13 @@ start 2 minutes ahead with "Keep laptop awake" on, wait, read the summary page.
 Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q11). One draft PR per bite, about
 300 lines each. Bites 1–2 are backend only (new files), so they can run while S4's last bites touch the pages.
 
+**Carried from S4's test (S4 builder, its bite 6c)** (Nick, lead chat 2026-11-25, 9:55–10:14 PM)
+- [ ] "Labelled so far" on the Labeling page: each frame appears as soon as SAM finishes it, newest first, drawn
+      like the preview tiles (overlay, class legend, large viewer with < >), Pause / Cancel next to it; it stays
+      after Run ends and lists every labelled frame with its counts per class
+- [ ] the project page's SAM labeling row shows the labelled frames from disk after a run ("21 of 21 frames
+      labelled"), not "not started"
+
 **Bite 1 — Review state** (D40)
 - [ ] every mask in `sam_raw/` gets a stable `mask_id`; a re-run keeps the ids of masks it keeps
 - [ ] `state.sqlite` tables for mask review (class, deleted, urchin type, reviewed) and frame review (accepted,
@@ -279,20 +286,25 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
       after the overlap rules (D22, D31); unit tests with synthetic masks
 - [ ] accept is refused while the frame has an untagged urchin (D18); undo for every review action
 
-**Bite 2 — Export writers and checks** (D41, D43, D44)
+**Bite 2a — Export writers** (D41, D44)
 - [ ] `app/export/`: `export/images/` (upright, D27), `detector_coco.json` (object classes, box + outline + class;
       frames with split check "no" left out), `seg_masks/` one PNG per frame + `classes.json` (ids, names,
-      colours), `splits/` (by site and dive date, D43), `frame_metrics.csv` (source video, timestamp, count and %
-      cover per class, largest object %); rebuilt from scratch each time from `sam_raw` + review state
+      colours); rebuilt from scratch each time from `sam_raw` + review state; synthetic tests
+
+**Bite 2b — Splits, metrics and checks** (D41, D43)
+- [ ] `splits/` by site and dive date (D43); `frame_metrics.csv` (source video, timestamp, count and % cover per
+      class, largest object %)
 - [ ] checks as data: COCO loads with pycocotools; every mask PNG matches its image size and uses only ids in
       `classes.json`; metrics match the masks; synthetic tests
 
-**Bite 3 — Label review page**
+**Bite 3a — Label review page**
 - [ ] a Review page per project: frame list with accepted / to do, the one large viewer and class legend (SPEC
       Q16), objects only / areas only / final class map toggle, zoom slider and full screen
-- [ ] click a mask to select it; searchable class picker to change its class; `X` deletes; `Enter` accepts;
-      split check and "fully checked" per class on the frame; `Z` undo; running totals per class (objects and
-      frames, target 150–200 objects per class)
+- [ ] click a mask to select it; searchable class picker to change its class; `X` deletes; `Enter` accepts; `Z` undo
+
+**Bite 3b — Split check, fully checked, totals**
+- [ ] split check (touching urchins separated: yes / no) and "fully checked" per class on the frame
+- [ ] running totals per class (objects and frames, target 150–200 objects per class)
 
 **Bite 4 — Urchin types and fast tagging** (D18, D39)
 - [ ] black urchin (SPEC Q18): a new class with the next free id in the default `classes.yaml`, in the
