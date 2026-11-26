@@ -437,6 +437,13 @@ app/web/templates/export.html  the Export page
   replaces it; it wins rule 1 against unreviewed masks, D31) and the job's request id (a resumed job never adds
   it twice). Real SAM on a 4K frame: model load 14.1 s + click 2.0 s = **16.9 s per add**, under D46's 20 s, so
   no worker is kept loaded; the clicked urchin's mask matched SAM's own text mask of it at IoU 0.87.
+- Fast tagging (as-built, bite 4b): the frame view lists the urchin types with their keys, which masks are urchins,
+  the objects in reading order and each object's zoom rectangle (`tagging.focus`). `Tab` selects the next untagged
+  urchin and zooms the viewer onto it (`viewerFocus`, a third opt-in hook in `viewer.js`); a type key (P / R / B,
+  the first letter of each type's name) or a type button tags the selected urchin **and moves on to the next
+  untagged one** (builder choice: one key per urchin); "Tag all remaining as <first type>" tags the rest in one
+  undo step. A close-up panel shows the frame at full resolution around the selected mask (480 px, outline only,
+  so its colour is easy to judge). The panel toggle is the backtick key, so letters stay free for types (QE).
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 

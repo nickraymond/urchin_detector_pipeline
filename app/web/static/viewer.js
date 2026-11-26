@@ -82,6 +82,15 @@
   // zoom to `factor` × the fitted size around the middle (label review's zoom slider, S5)
   window.viewerZoom = factor => { if (!viewer.hidden) zoomAt(viewer.clientWidth / 2, viewer.clientHeight / 2, fitS * factor); };
   window.viewerZoomFactor = () => s / fitS;
+  // show the picture rectangle (x0, y0, x1, y1, picture pixels) as large as fits (label review's Tab, S5)
+  window.viewerFocus = (x0, y0, x1, y1) => {
+    if (viewer.hidden || !img.naturalWidth) return;
+    const W = viewer.clientWidth, H = viewer.clientHeight;
+    s = Math.max(fitS, Math.min(W / (x1 - x0), H / (y1 - y0), Math.max(4, fitS * 8)));
+    ox = W / 2 - (x0 + x1) / 2 * s;
+    oy = H / 2 - (y0 + y1) / 2 * s;
+    place();
+  };
   const grid = document.getElementById("frame-grid");
   if (grid) grid.addEventListener("click", e => {
     const a = e.target instanceof Element && e.target.closest("a[data-i]");

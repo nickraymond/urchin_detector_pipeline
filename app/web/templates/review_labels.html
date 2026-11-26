@@ -11,7 +11,9 @@
 {% else %}
 <p class="hint">Open a frame to review it in the large viewer. Click a mask to select it (white outline); pick its
   class in the box, <b>X</b> deletes it, <b>Enter</b> accepts the frame, <b>Z</b> undoes the last step on this
-  frame, <b>`</b> hides the panel, <b>F</b> full screen, &larr; &rarr; the other frames. A frame with an untagged urchin (grey) cannot be
+  frame, <b>`</b> hides the panel, <b>Tab</b> jumps to the next untagged urchin and zooms on it, the urchin
+  type keys (<b>P</b> purple, <b>R</b> red, <b>B</b> black: the first letter of each type) tag the selected urchin and
+  move on, "Tag all remaining" tags the rest at once, <b>F</b> full screen, &larr; &rarr; the other frames. A frame with an untagged urchin (grey) cannot be
   accepted. Only accepted frames are exported.</p>
 <p><b>{{ frames | length }}</b> labeled frames · <b id="todo-count">{{ todo }}</b> to do ·
   <button type="button" id="next-todo">Review the next to do</button></p>
@@ -54,6 +56,9 @@
     </div>
     <div class="rv-row"><label>Zoom <input type="range" id="rv-zoom" min="1" max="8" step="0.25" value="1"></label></div>
     <div class="rv-row" id="rv-selected">Click a mask to select it.</div>
+    <div class="rv-row" id="rv-types" title="Tag the selected urchin with its type (the key in brackets); Tab jumps to the next untagged urchin and zooms on it"></div>
+    <div class="rv-row"><button type="button" data-rv="tag_all" id="rv-tag-all" disabled></button></div>
+    <img class="rv-closeup" id="rv-closeup" alt="close-up of the selected mask" hidden>
     <div class="rv-row"><input type="search" id="rv-class" list="rv-classes" placeholder="class for the selected mask" disabled>
       <datalist id="rv-classes"></datalist></div>
     <div class="rv-row">
@@ -80,7 +85,8 @@
 <script type="application/json" id="review-data">{{ {
   "project": "/p/" ~ info.name ~ "/labels",
   "frames": frames,
-  "class_info": class_list} | tojson }}</script>
+  "class_info": class_list,
+  "colours": colours} | tojson }}</script>
 <script src="{{ static('viewer.js') }}"></script>
 <script src="{{ static('labelreview.js') }}"></script>
 {% endif %}

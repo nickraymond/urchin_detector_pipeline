@@ -10,7 +10,6 @@
   const viewer = document.getElementById("viewer");
   const img = viewer.querySelector("img");
   const $ = id => document.getElementById(id);
-  const byId = Object.fromEntries(data.class_info.map(c => [c.id, c]));
   const frames = data.frames.map(f => ({file: f.file, accepted: f.accepted, src: "", caption: f.file}));
   let at = -1, view = null, sel = null, mode = "all", version = 0;
 
@@ -27,6 +26,34 @@
     return base + encodeURIComponent(frames[at].file) + "?" + q;
   }
   function selected() { return view && view.masks.find(m => m.id === sel); }
+  function colourOf(id) {
+    return data.colours[id] || "#888";
+  }
+  // Tab (bite 4b): the next untagged urchin after the selected mask in reading order, wrapping
+  function nextUntagged() {
+    if (!view || !view.untagged.length) return null;
+    const order = view.order;
+    const start = sel == null ? -1 : order.indexOf(sel);
+    for (let k = 1; k <= order.length; k++) {
+      const id = order[(start + k + order.length) % order.length];
+      if (view.untagged.includes(id)) return id;
+    }
+    return null;
+  }
+  function focusOn(id) {
+    const m = view.masks.find(k => k.id === id);
+    if (!m || !m.focus || !img.naturalWidth) return;
+    const f = img.naturalWidth / view.width;
+    const r = m.focus;
+    // after the new picture loads, so the zoom is not reset by it
+    const go = () => window.viewerFocus(r[0] * f, r[1] * f, r[2] * f, r[3] * f);
+    img.addEventListener("load", go, {once: true});
+  }
+  function goNext() {
+    const id = nextUntagged();
+    if (id == null) { msg("No untagged urchin left on this frame.", true); return; }
+    sel = id; render(); focusOn(id); redraw();
+  }
 
   function render() {
     const m = selected();
@@ -41,6 +68,25 @@
     list.replaceChildren(...data.class_info.filter(c => m && c.kind === m.kind)
       .map(c => { const o = el("option"); o.value = c.name; return o; }));
     viewer.querySelector('[data-rv="delete"]').disabled = !m;
+    const types = view.types || [];
+    $("rv-types").replaceChildren(...types.map(t => {
+      const b = el("button", "rv-type");
+      b.type = "button"; b.dataset.type = t.id; b.disabled = !(m && m.urchin);
+      const sw = el("span", "swatch"); sw.style.background = colourOf(t.id);
+      b.append(sw, t.name + (t.key ? " (" + t.key + ")" : ""));
+      b.title = "Tag the selected urchin " + t.name;
+      return b;
+    }));
+    const all = $("rv-tag-all");
+    all.hidden = !types.length;
+    if (types.length) {
+      all.textContent = "Tag all remaining as " + types[0].name + " (" + view.untagged.length + ")";
+      all.dataset.type = types[0].id;
+      all.disabled = !view.untagged.length;
+    }
+    const cu = $("rv-closeup");
+    cu.hidden = !m;
+    if (m) cu.src = data.project + "/closeup/" + encodeURIComponent(view.frame) + "?mask=" + m.id + "&v=" + version;
     const st = view.state;
     viewer.querySelector('[data-rv="accept"]').hidden = st.accepted;
     viewer.querySelector('[data-rv="reopen"]').hidden = !st.accepted;
@@ -97,7 +143,7 @@
       row.querySelector(".n-no").textContent = t.split_no;
     });
   }
-  async function act(body) {
+  async function act(body, advance) {
     if (at < 0) return;
     const r = await fetch(data.project + "/act/" + encodeURIComponent(frames[at].file), {
       method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body)});
@@ -107,6 +153,7 @@
     if (!selected()) sel = null;
     msg(d.note, true);
     showTotals(d.totals);
+    if (advance && view.untagged.length) { sel = nextUntagged(); render(); focusOn(sel); redraw(); return; }
     render();
     redraw();
   }
@@ -165,17 +212,29 @@
     panel.querySelector(".rv-toggle").textContent = panel.classList.contains("collapsed") ? "Review ▸" : "Review ▾";
   }
   panel.querySelector(".rv-toggle").addEventListener("click", togglePanel);
+  $("rv-types").addEventListener("click", e => {
+    const b = e.target instanceof Element && e.target.closest("[data-type]");
+    if (b) b.blur();
+    if (b && sel != null) act({action: "tag", mask_ids: [sel], class_id: Number(b.dataset.type)}, true);
+  });
   viewer.querySelector(".v-review").addEventListener("click", e => {
     const b = e.target instanceof Element && e.target.closest("[data-rv]");
     if (!b) return;
+    b.blur();   // Enter / Space must not press it again (Enter is Accept)
     const a = b.dataset.rv;
-    act(a === "delete" ? {action: a, mask_ids: [sel]} : {action: a});
+    if (a === "tag_all") act({action: a, class_id: Number(b.dataset.type)});
+    else act(a === "delete" ? {action: a, mask_ids: [sel]} : {action: a});
   });
   document.addEventListener("keydown", e => {
     if (viewer.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.target instanceof Element && e.target.closest("input, select, textarea")) return;
     const k = e.key.toLowerCase();
-    if (k === "x" && sel != null) act({action: "delete", mask_ids: [sel]});
+    const type = view && (view.types || []).find(t => t.key && t.key.toLowerCase() === k);
+    const m = selected();
+    if (e.key === "Tab") goNext();
+    else if (type && m && m.urchin) act({action: "tag", mask_ids: [sel], class_id: type.id}, true);
+    else if (type) msg("Select an urchin first (click it, or Tab).");
+    else if (k === "x" && sel != null) act({action: "delete", mask_ids: [sel]});
     else if (e.key === "Enter") act({action: "accept"});
     else if (k === "z") act({action: "undo"});
     else if (e.key === "`") togglePanel();   // letters stay free for urchin types (QE PR 51)
