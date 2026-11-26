@@ -200,6 +200,8 @@ def test_app_killed_mid_job_shows_interrupted_and_resumes(tmp_path):
         assert jc.interrupted == [jid]
         job = jc.status(jid)
         assert job["state"] == "interrupted" and "app quit" in job["stop_reason"]
+        assert (job["done"], job["total"]) == (left, 10)       # recounted from the files
+        assert job["message"].startswith("interrupted")
         log = (root / f"{jid}.log").read_text()
         assert "interrupted: the app quit" in log and "Traceback" not in log
         jc.resume(jid)

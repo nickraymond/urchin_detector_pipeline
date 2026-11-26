@@ -222,7 +222,124 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 - [x] Pause / Resume / Cancel and "interrupted" after an app quit, tested end to end with a fake job kind (a tiny
       worker that writes one file per item): resume never repeats or skips an item
 
-**Bite 1b — SAM on the job module; Jobs page** (D33, D34)
+**Bite 2 — Clip picker** (split in two PRs, Nick 2026-11-24: 2a player, 2b marks; copies 960 px wide; 2a: PR 5 merged as `9b296cd`, 2b: PR 6 merged as `c730e20`, Nick ran both tests)
+- [x] 2a: low-res H.264 playback copy per video, made with ffmpeg into the project folder (GoPro `.LRV` used if present),
+      in the background with a progress bar (the small job interface bite 3 reuses)
+- [x] 2a: player with timeline and thumbnail strip (one frame every ~5 s, made from the copy)
+- [x] 2b: in / out marks with `I` / `O`, optional note; adjust and delete; saved to `clips.json`
+- [x] 2b: marked time per video and the number of frames extraction will produce
+
+**Bite 3 — Extract frames** (split in two PRs, Nick 2026-11-24: 3a extraction, 3b filters; DESIGN D17; 3a: PR 7 merged as `f9f14b2`, Nick ran the test; 3b: PR 9 merged as `1284232` after QE PASS on `5a72243`, DESIGN D19; Nick's check is in the S2 test build)
+- [x] plan nibble: done 2026-11-24 (measurements in DEV_LOG); Nick approved
+- [x] 3a: sampling plan (every N seconds inside clips, whole video if none), cap spread evenly, live count
+- [x] 3a: frames pulled from the full-resolution original; named `<video-stem>_<path-code>_<timestamp-ms>.jpg`,
+      JPEG quality 95 (Pillow); source video and timestamp recorded per frame; upright for videos
+      with rotation metadata; frames from earlier settings moved to `dropped/unplanned/` (QE PR 7)
+- [x] 3a: runs in the background with a progress bar (`app/jobs.py`); counts shown
+- [x] 3b: blur filter per video (drop the blurriest X % of each video, start 10 %) with a slider and example
+      kept / dropped frames; near-duplicate filter (dHash distance to the previous kept frame) with a slider
+- [x] 3b: dropped frames moved to `dropped/blurry/` and `dropped/duplicate/` (never erased; Apply moves them back
+      and forth); kept + dropped-blurry + dropped-duplicate add up to the live count (or the cap)
+      (QE PR 7 watch: `extract.run` must not re-decode a planned frame whose file sits in `dropped/blurry/`
+      or `dropped/duplicate/`, nor set it back to kept)
+
+**Bite 4 — Review frames** (PR 14 merged as `ee8f8e3` after QE PASS on `b4c956f`; DESIGN D20)
+- [x] grid with size slider, full-screen view (`F`), arrow keys
+- [x] `D` delete (moves the file to `rejected/`), `K` keep, `Z` undo
+- [x] "Show dropped" toggle: blurry, duplicate and rejected frames with their status; `K` makes them `kept_hand`, which the filters leave alone (D20)
+
+**Bite 5 — Stills + resume** (PR 16 merged as `537f9ff` after QE PASS on `82116e7`; DESIGN D21)
+- [x] ingest also accepts folders of still images; they skip clips and extraction
+- [x] each stage resumes where it left off and can be re-run without redoing earlier stages
+
+**Demo (Nick):** `uv run app`, browser opens `http://127.0.0.1:8000`. Pick 2 ReefCheck videos, mark
+a clip with `I`/`O`, extract: the kept and dropped counts add up to the preview count. Delete one
+frame with `D`, undo with `Z`, delete it again. Quit and restart: the dashboard shows the four
+stages where you left them, and the deleted frame is in the project's `rejected/` folder. Then add
+a folder of still images: they appear in frame review.
+**Needs:** S1 (done).
+
+### S3 — SAM on single frames  `[x]`  (demo passed: Nick 2026-11-25, lead chat: "S3 passes"; last code PR 28 merged as `49e1db8`)
+**Goal:** spec stage 5 without job control: class settings file, prompt preview, tiling, overlap rules.
+Design: DESIGN §Planned for S3; Lead calls D22–D27 (they answer SPEC Q2 and the SAM part of Q10).
+One draft PR per bite, about 300 lines each.
+
+**Bite 1 — Classes** (PR 20 merged as `373521d`)
+- [x] `app/sam/default_classes.yaml` with the starting classes, fixed ids and settings (DESIGN §Planned for S3);
+      copied into a project as `classes.yaml` on first use
+- [x] urchins: one SAM prompt, "urchin", shared by purple and red urchin through `sam_group: urchin`; its masks
+      have no class id until tagged; changing it re-runs both classes (D18)
+- [x] checks before any save or run (ids append-only, D6; groups; `seg_as`); errors name the line
+- [x] Labeling page: classes table with colours, edit `classes.yaml` in the browser, Reload (D25);
+      dashboard row "SAM labeling"; PyYAML a direct dependency with its licence read
+- [x] one EXIF-orientation helper for every pixel read (D27); fix the review-grid thumbnails, which show a
+      rotated still sideways today (QE PR 19)
+
+**Bite 2 — SAM runner and results files** (PR 21 merged as `c24dba4`)
+- [x] SAM in its own worker process (D9), reusing `app/sam_test/device_patch.py`; one model load per job
+- [x] tiling above 2000 px, merge to frame coordinates, tile-edge duplicates removed (D23); minimum mask area
+- [x] one `sam_raw/<frame>.json` per frame, written after each frame, also with zero masks; records prompts,
+      settings and a settings key per run unit
+- [x] tests with a fake predictor (no torch, weights or real frames); one real-SAM run in the self-test
+
+**Bite 3 — Prompt preview** (PR 22 merged as `8f3ea1a`; defaults D28, D29)
+- [x] "Preview" on 3 sample frames (D26) shows masks coloured per class, a toggle per class, counts,
+      seconds per frame and peak memory
+- [x] kelp: try prompts for kelp shoot (object) and kelp (area) on frames from a restoration-site video;
+      put the best in the default file (D11)
+- [x] measure for D24: mask areas of real vs false masks → proposed minimum mask area; re-check D10 on at least
+      6 frames from at least 2 videos (urchins kept, seconds per frame, tiles vs whole frame); numbers into
+      DESIGN §Bench results
+
+**Bite 4 — Run, re-run only what changed, overlap rules** (PR 24; QE fixes: ids up to 254, D31)
+- [x] "Run" labels every kept frame through `app/jobs.py`, with an estimate from the preview (D26); Stop, and
+      Run again carries on
+- [x] re-run only what changed: per run unit and frame, by settings key; before Run the page lists the classes
+      that will run and those unchanged; reviewed masks kept and marked "from older settings"
+- [x] `app/sam/overlap.py` with the rules of D22, unit-tested; a "final class map" toggle in the preview
+- [x] watch (QE PR 16, PR 19): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27);
+      S5's export images must be upright too (still open for S5)
+
+**Bite 5 — Large-image viewer on the Labeling page** (Nick, 2026-11-25, SPEC Q16; PR 27)
+- [x] clicking a preview frame opens it large on the same page (no new tab), with < > buttons and arrow keys
+      through the preview frames, Esc to close, zoom and pan: S2's `static/viewer.js`, reused, not copied
+- [x] a class legend along the bottom of the viewer, with each class's colour and mask count. Clicking a class
+      turns its masks on or off; a second control shows only that class, so "urchin" masks stand out from
+      everything else. The legend applies to the large view and the preview tiles alike
+- [x] the legend says why some masks have a box: objects (counted things) are boxed, areas (kelp, rock) are not
+
+**Bite 6 — Class editor form** (Nick, 2026-11-25: the YAML text box invites typing errors; replaces D25's text box; PR 28)
+- [x] a form instead of the text box: one row per class with name, kind (object / area as a choice), prompts as
+      chips (add / remove), group and "pixels count as" as drop-downs of valid values, colour swatch; an
+      "Add class" button that gives the next free id; settings as labelled number fields
+- [x] ids are shown and never typed. A class with results keeps its name (D6), and the form says why
+      renaming is locked; removing it keeps its saved results (DESIGN §Planned for S3). Every change is
+      checked before Save with the same checks as `classes.py`, and nothing invalid is saved
+- [x] the page's Save still writes `classes.yaml` (so a text editor plus Reload keeps working); test: no form
+      input can produce a file that fails the checks
+
+**Demo (Nick):** same start command, a project of about 5 kept frames. On the Labeling page press "Preview":
+3 frames show coloured masks per class, with counts and seconds per frame; "final class map" shows one colour
+per pixel, kelp on top of rock. Press "Run". Then add a class on the page and press "Run" again: the page says
+only the new class will run, and afterwards the other classes' results are unchanged.
+Click a preview frame: it opens large on the page; < > move to the next frame; click "urchin" in the legend
+to show only urchin masks. Add a class with the form (no typing of YAML) and Save.
+**Needs:** S2 (done); SPEC Q2 and the SAM part of Q10 answered by Lead calls D22–D24 (Nick can reverse them).
+
+### S4 — Job control  `[~]`
+**Goal:** long jobs run in a background worker with estimate, pause/resume, limits and a schedule.
+Built as its own module with no labeling-specific code (DESIGN D4). Design: DESIGN §Planned for S4;
+Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft PR per bite, about 300 lines each.
+
+**Bite 1a — Job module core** (D32, D33; PR 32)
+- [x] `app/jobctl/`: one queue for the whole app, one job at a time; job records in `<data_dir>/jobs/jobs.sqlite`
+      (kind, params, state, progress, times, stop reason); a job is a worker process speaking `@@ {json}` lines and
+      reading `pause` on stdin; worker helpers (`app/jobctl/worker.py`); nothing in it imports `app.stages` or
+      `app.sam` (a test checks)
+- [x] Pause / Resume / Cancel and "interrupted" after an app quit, tested end to end with a fake job kind (a tiny
+      worker that writes one file per item): resume never repeats or skips an item
+
+**Bite 1b — SAM on the job module; Jobs page** (D33, D34; PR 33)
 - [ ] SAM Preview and Run go through it; the SAM worker's `frame` event becomes `item` and it answers `pause`;
       Pause finishes the frame in progress and ends the worker (model unloaded); Resume starts a new worker on the
       frames still missing; Cancel keeps finished frames. S3's Stop becomes Pause

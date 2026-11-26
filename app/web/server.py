@@ -27,6 +27,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
+from app.jobctl import JobControl, JobError
 from app.jobs import Jobs
 from app.sam import classes
 from app.stages import clips, extract, ingest, label, review
@@ -75,12 +76,71 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     # Added last so it runs first: a request with a foreign Host never reaches a page.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
+    # --- Job control (S4, D32): one JobControl per data folder, made at app start ---
+    controls: dict[str, JobControl] = {}
+
+    def jobctl(cfg) -> JobControl:
+        """The job module for this data folder; creating it marks jobs left running by a quit
+        or crash as interrupted (D34). Only called when cfg.ok (data_dir exists, D13)."""
+        key = str(cfg.data_dir)
+        if key not in controls:
+            jc = JobControl(cfg.data_dir / "jobs")
+            jc.register(label.sam_kind())
+            controls[key] = jc
+        return controls[key]
+
+    app.state.jobctl = jobctl
+    first = config.load(config_path)
+    if first.ok:
+        jobctl(first)
+
+    def job_view(job: dict | None) -> dict:
+        """A job record as pages and status calls show it; {} when there is none."""
+        if not job:
+            return {}
+        total = job.get("total") or 0
+        return {**job, "project_name": Path(job["project"]).name if job.get("project") else "",
+                "percent": round(100 * job["done"] / total, 1) if total else 0.0,
+                "active": job["state"] in ("queued", "running", "pausing")}
+
     def dashboard(request: Request, error: str = "", name: str = "", status: int = 200):
         cfg = config.load(config_path)
         projects = project.list_projects(cfg.data_dir) if cfg.ok else []
+        unfinished = ([job_view(j) for j in jobctl(cfg).list() if j["state"] == "interrupted"]
+                      if cfg.ok else [])
         return templates.TemplateResponse(request, "dashboard.html", {
             "cfg": cfg, "projects": projects, "error": error, "name": name,
-            "name_help": project.NAME_HELP}, status_code=status)
+            "unfinished": unfinished, "name_help": project.NAME_HELP}, status_code=status)
+
+    @app.get("/jobs", response_class=HTMLResponse)
+    def jobs_page(request: Request, note: str = ""):
+        cfg = config.load(config_path)
+        if not cfg.ok:
+            return dashboard(request, status=503)
+        return templates.TemplateResponse(request, "jobs.html", {
+            "cfg": cfg, "note": note, "jobs": [job_view(j) for j in jobctl(cfg).list()]})
+
+    def safe_back(back: str) -> str:
+        """Only a path on this app: "/..." but not "//host"."""
+        return back if back.startswith("/") and not back.startswith("//") else "/jobs"
+
+    @app.post("/jobs/{job_id}/{action}")
+    def job_action(request: Request, job_id: int, action: str, back: str = Form("/jobs")):
+        """Pause / Resume / Cancel any job (D34); back to the page the button was on."""
+        cfg = config.load(config_path)
+        if not cfg.ok:
+            return dashboard(request, status=503)
+        do = {"pause": "pause", "resume": "resume", "cancel": "cancel"}.get(action)
+        if do is None:
+            return PlainTextResponse(f"No job action {action!r}.", status_code=404)
+        back, note = safe_back(back), ""
+        try:
+            getattr(jobctl(cfg), do)(job_id)
+        except JobError as e:
+            note = str(e)
+        sep = "&" if "?" in back else "?"
+        return RedirectResponse(back + (sep + urlencode({"note": note}) if note else ""),
+                                status_code=303)
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
@@ -518,8 +578,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                      "models": list(classes.MODELS), "untagged": classes.UNTAGGED_COLOUR,
                      "palette": classes.PALETTE,
                      "save": f"/p/{info['name']}/labeling/classes/form"} if data else None,
-            "job": jobs.status(f"{info['folder']}:sam") or {},
-            "can_stop": sam_busy(info) and str(info["folder"]) in sam_stops,  # a Run, not a Preview
+            "job": sam_job(cfg, info),
             "n_label": len(files),
             "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
             "kept": review.summary(conn), "refused": text is not None}, status_code=status)
@@ -562,71 +621,62 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             return JSONResponse({"errors": errors}, 400 if errors else 200)
         return with_project(request, name, work)
 
-    def sam_busy(info) -> bool:
-        return (jobs.status(f"{info['folder']}:sam") or {}).get("state") in ("queued", "running")
+    def sam_job(cfg, info) -> dict:
+        return job_view(jobctl(cfg).latest("sam", str(info["folder"])))
+
+    def sam_busy(cfg, info) -> bool:
+        return bool(sam_job(cfg, info).get("active"))
+
+    def start_sam(cfg, info, conn, preview: bool, other: bool = False) -> str:
+        """Queue a SAM Preview or Run on the job module; returns a note if it was refused.
+        An older paused or interrupted SAM job of this project is cancelled first: the new
+        job skips whatever that one finished (D33)."""
+        files = label.frames_to_label(conn)
+        try:
+            classes.ensure(info["folder"])
+        except classes.ClassesError:
+            return "classes.yaml has problems (listed below); fix them first."
+        if not files:
+            what = "preview" if preview else "label"
+            return f"No kept frames to {what}. Extract frames or add still images first."
+        if sam_busy(cfg, info) or extract_busy(info):
+            return ("Another job is running; " + ("preview" if preview else "press Run") +
+                    " when it has finished.")
+        jc = jobctl(cfg)
+        old = sam_job(cfg, info)
+        if old.get("state") in ("paused", "interrupted"):
+            try:
+                jc.cancel(old["id"])
+            except JobError:
+                pass
+        picks = label.preview_frames(files, other=other) if preview else files
+        jc.submit("sam", label.job_params(info["folder"], picks, preview=preview),
+                  project=str(info["folder"]))
+        return ""
 
     @app.post("/p/{name}/labeling/preview")
     def labeling_preview(request: Request, name: str, other: str = Form("")):
-        """Run SAM on 3 kept frames (D26) in the background; one SAM job at a time."""
+        """Run SAM on 3 kept frames (D26) as a job; one job at a time (D32)."""
         def work(cfg, info, conn):
-            note = ""
-            files = label.frames_to_label(conn)
-            try:
-                classes.ensure(info["folder"])
-            except classes.ClassesError:
-                note = "classes.yaml has problems (listed below); fix them first."
-            if not note and not files:
-                note = "No kept frames to preview. Extract frames or add still images first."
-            if not note and (sam_busy(info) or extract_busy(info)):
-                note = "Another job is running; preview when it has finished."
-            if not note:
-                sam_stops.pop(str(info["folder"]), None)  # Stop is for a Run only (QE PR 24)
-                picks = label.preview_frames(files, other=bool(other))
-                jobs.submit(f"{info['folder']}:sam", lambda report: label.run_preview(
-                    info["folder"], picks, report))
+            note = start_sam(cfg, info, conn, preview=True, other=bool(other))
             return RedirectResponse(f"/p/{name}/labeling" + (
                 "?" + urlencode({"note": note}) if note else ""), status_code=303)
         return with_project(request, name, work)
-
-    sam_stops: dict[str, threading.Event] = {}
 
     @app.post("/p/{name}/labeling/run")
     def labeling_run(request: Request, name: str):
         """Label every kept frame (D26): units whose results are current are skipped, so Run
-        after a Stop, a quit or a class change does only what is missing (SPEC Q7)."""
+        after a pause, a quit or a class change does only what is missing (SPEC Q7)."""
         def work(cfg, info, conn):
-            note = ""
-            files = label.frames_to_label(conn)
-            try:
-                classes.ensure(info["folder"])
-            except classes.ClassesError:
-                note = "classes.yaml has problems (listed below); fix them first."
-            if not note and not files:
-                note = "No kept frames to label. Extract frames or add still images first."
-            if not note and (sam_busy(info) or extract_busy(info)):
-                note = "Another job is running; press Run when it has finished."
-            if not note:
-                stop = sam_stops[str(info["folder"])] = threading.Event()
-                jobs.submit(f"{info['folder']}:sam", lambda report: label.run_all(
-                    info["folder"], files, report, stop=stop))
+            note = start_sam(cfg, info, conn, preview=False)
             return RedirectResponse(f"/p/{name}/labeling" + (
                 "?" + urlencode({"note": note}) if note else ""), status_code=303)
-        return with_project(request, name, work)
-
-    @app.post("/p/{name}/labeling/stop")
-    def labeling_stop(request: Request, name: str):
-        """Stop the running Run; finished frames are saved and Run carries on later."""
-        def work(cfg, info, conn):
-            ev = sam_stops.get(str(info["folder"]))
-            if ev is not None and sam_busy(info):
-                ev.set()
-            return RedirectResponse(f"/p/{name}/labeling", status_code=303)
         return with_project(request, name, work)
 
     @app.get("/p/{name}/labeling/status")
     def labeling_status(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: JSONResponse(
-            jobs.status(f"{info['folder']}:sam") or {}))
+            sam_job(cfg, info)))
 
     @app.get("/p/{name}/labeling/overlay/{file}")
     def labeling_overlay(request: Request, name: str, file: str,

@@ -116,6 +116,18 @@ class Store:
                                       "ORDER BY id").fetchall()
         return [_decode(r) for r in rows]
 
+    def latest(self, kind: str | None = None, project: str | None = None) -> dict | None:
+        """The newest job, optionally of one kind and / or project."""
+        where, args = [], []
+        for col, v in (("kind", kind), ("project", project)):
+            if v is not None:
+                where.append(f"{col} = ?")
+                args.append(v)
+        sql = "SELECT * FROM jobs" + (" WHERE " + " AND ".join(where) if where else "")
+        with self._lock:
+            r = self._conn.execute(sql + " ORDER BY id DESC LIMIT 1", args).fetchone()
+        return _decode(r) if r else None
+
     def next_queued(self) -> dict | None:
         """The oldest queued job."""
         with self._lock:
@@ -130,8 +142,10 @@ class Store:
             ids = [r[0] for r in self._conn.execute(
                 f"SELECT id FROM jobs WHERE state IN ({marks})", ACTIVE)]
             self._conn.execute(
-                f"UPDATE jobs SET state = 'interrupted', stop_reason = ? "
-                f"WHERE state IN ({marks})", ("app quit or crashed during the job", *ACTIVE))
+                f"UPDATE jobs SET state = 'interrupted', stop_reason = ?, message = ? "
+                f"WHERE state IN ({marks})", ("app quit or crashed during the job",
+                                              "interrupted: the app quit or crashed during it",
+                                              *ACTIVE))
         return ids
 
 

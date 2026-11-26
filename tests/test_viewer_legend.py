@@ -14,6 +14,7 @@ from app.sam import classes, results
 from app.stages import label
 from tests.test_clips import wait_for
 from tests.test_preview import make_project
+from tests.fake_sam import run_sam
 from tests.test_sam_runner import FAKE
 
 
@@ -65,7 +66,7 @@ def test_decode_box_edges(where):
 
 def labelled(tmp_path):
     client, folder = make_project(tmp_path, n=1)
-    label.run(folder, ["v_aaaaaa_0.png"], lambda p, m: None, predictor=FAKE)
+    run_sam(folder, ["v_aaaaaa_0.png"])
     return client, folder, classes.run_units(classes.ensure(folder)["classes"])
 
 

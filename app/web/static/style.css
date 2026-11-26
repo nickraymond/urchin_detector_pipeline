@@ -128,3 +128,4 @@ a.button { display: inline-block; font-size: 16px; padding: 4px 14px; border: 1p
 .cf-settings small { color: #666; }
 .cf-errors { padding: 8px 8px 8px 28px; }
 pre.yaml { background: #fff; padding: 6px; font-size: 13px; overflow-x: auto; }
+table.jobs td, table.jobs th { font-size: 14px; padding: 5px 6px; vertical-align: top; }

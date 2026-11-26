@@ -1,14 +1,24 @@
-"""S3 bite 4: Run on every kept frame through the page, Stop and carry on, re-run only what
-changed (SPEC Q7), and the final class map overlay. Fake SAM, synthetic frames only."""
+"""S3 bite 4: Run on every kept frame through the page, re-run only what changed (SPEC Q7),
+the final class map overlay. S4 bite 1b: SAM on the job module, Pause / Resume / Cancel,
+interrupted after an app quit. Fake SAM, synthetic frames only."""
 
 import json
-import threading
+import signal
+import subprocess
+import sys
+import textwrap
+import time
+from pathlib import Path
 
 from app.sam import classes, results
 from app.stages import label
 from tests.test_clips import wait_for
 from tests.test_preview import make_project
+from tests.fake_sam import run_sam
 from tests.test_sam_runner import FAKE
+
+SLOW = "tests.fake_sam:SlowFakePredictor"
+REPO = Path(__file__).resolve().parents[1]
 
 
 def run_and_wait(client):
@@ -40,22 +50,124 @@ def test_run_labels_every_kept_frame_then_only_a_new_class(tmp_path, monkeypatch
     assert raw["units"]["urchin"]["run_at"] == before and "boulder" in raw["units"]
 
 
-def test_stop_keeps_finished_frames_and_run_carries_on(tmp_path):
-    from tests.test_sam_runner import project_with_frames
-    folder, files = project_with_frames(tmp_path, n=2)
-    stop = threading.Event()
-    stop.set()                                   # Stop pressed before the worker got going
-    msg = label.run_all(folder, files, lambda p, m: None, stop=stop, predictor=FAKE)
-    assert msg.startswith("stopped after") and "carries on" in msg
-    msg = label.run_all(folder, files, lambda p, m: None, predictor=FAKE)
-    assert msg.startswith("labeled ") and msg.endswith("already current")
-    assert all(results.read(folder, f) for f in files)
+def status(client):
+    return client.get("/p/p/labeling/status").json()
+
+
+def run_at(folder, files):
+    """{frame: when its urchin unit was labeled} for the frames that have results."""
+    out = {}
+    for f in files:
+        raw = results.read(folder, f)
+        if raw:
+            out[f] = raw["units"]["urchin"]["run_at"]
+    return out
+
+
+def test_pause_then_resume_through_the_pages_repeats_and_skips_no_frame(tmp_path, monkeypatch):
+    monkeypatch.setattr(label, "PREDICTOR", SLOW)
+    client, folder = make_project(tmp_path, n=8)
+    files = [f"v_aaaaaa_{i}.png" for i in range(8)]
+    client.post("/p/p/labeling/run", data={})
+    assert wait_for(lambda: status(client).get("done", 0) >= 2, 60)
+    job = status(client)
+    page = client.get("/p/p/labeling").text
+    assert f"/jobs/{job['id']}/pause" in page and "/labeling/stop" not in page
+    r = client.post(f"/jobs/{job['id']}/pause", data={"back": "/p/p/labeling"})
+    assert r.status_code == 200 and r.url.path == "/p/p/labeling"
+    assert wait_for(lambda: status(client)["state"] == "paused", 60)
+    before = run_at(folder, files)
+    assert 2 <= len(before) < 8
+    time.sleep(1.0)
+    assert run_at(folder, files) == before                    # the worker really ended
+    page = client.get("/p/p/labeling").text
+    assert f"/jobs/{job['id']}/resume" in page and f"/jobs/{job['id']}/cancel" in page
+    client.post(f"/jobs/{job['id']}/resume", data={"back": "/p/p/labeling"})
+    assert wait_for(lambda: status(client)["state"] == "done", 60)
+    after = run_at(folder, files)
+    assert set(after) == set(files)
+    assert all(after[f] == t for f, t in before.items())     # no frame labeled twice
+    st = status(client)
+    assert (st["done"], st["total"]) == (8, 8)
+    assert f"labeled {8 - len(before)} frames, {len(before)} already current" in st["message"]
+    jobs = client.get("/jobs").text
+    assert "sam" in jobs and "done" in jobs and "8 / 8" in jobs
+
+
+def test_cancel_keeps_finished_frames_and_run_does_the_rest(tmp_path, monkeypatch):
+    monkeypatch.setattr(label, "PREDICTOR", SLOW)
+    client, folder = make_project(tmp_path, n=6)
+    files = [f"v_aaaaaa_{i}.png" for i in range(6)]
+    client.post("/p/p/labeling/run", data={})
+    assert wait_for(lambda: status(client).get("done", 0) >= 1, 60)
+    jid = status(client)["id"]
+    client.post(f"/jobs/{jid}/cancel", data={"back": "/jobs"})
+    assert wait_for(lambda: status(client)["state"] == "cancelled", 60)
+    kept = run_at(folder, files)
+    assert 1 <= len(kept) < 6
+    monkeypatch.setattr(label, "PREDICTOR", FAKE)
+    msg = run_and_wait(client)
+    assert msg == f"labeled {6 - len(kept)} frames, {len(kept)} already current"
+    assert all(run_at(folder, files)[f] == t for f, t in kept.items())
+
+
+def test_job_actions_refuse_bad_requests(tmp_path):
+    client, _ = make_project(tmp_path)
+    r = client.post("/jobs/99/pause", data={"back": "//evil.example/x"})
+    assert r.url.path == "/jobs" and "No job 99" in r.text      # no redirect off the app
+    assert client.post("/jobs/1/explode").status_code == 404
+
+
+APP = textwrap.dedent("""
+    import sys, time
+    sys.path.insert(0, {repo!r})
+    from app.stages import label
+    from tests.test_app_skeleton import client_for
+    label.PREDICTOR = {slow!r}
+    client = client_for({config!r})
+    client.post("/p/p/labeling/run", data={{}})
+    print("started", flush=True)
+    time.sleep(600)
+""")
+
+
+def test_app_killed_mid_run_shows_unfinished_job_and_resumes(tmp_path, monkeypatch):
+    """TRACKER S4 1b: the app process dies (kill -9) during a Run. The next start shows the
+    job interrupted, the dashboard offers Resume, and Resume repeats or skips no frame."""
+    client, folder = make_project(tmp_path, n=8)
+    files = [f"v_aaaaaa_{i}.png" for i in range(8)]
+    config = str(tmp_path / "config.local.toml")
+    del client                                   # this app object is dropped, like a quit
+    app = subprocess.Popen([sys.executable, "-c", APP.format(repo=str(REPO), slow=SLOW,
+                                                             config=config)],
+                           stdout=subprocess.PIPE, text=True, cwd=REPO)
+    assert app.stdout.readline().strip() == "started"
+    assert wait_for(lambda: len(run_at(folder, files)) >= 2, 60)
+    app.send_signal(signal.SIGKILL)
+    app.wait()
+    time.sleep(2.0)                              # its worker finishes the frame in progress
+    before = run_at(folder, files)
+    assert 2 <= len(before) < 8
+
+    from tests.test_app_skeleton import client_for
+    monkeypatch.setattr(label, "PREDICTOR", SLOW)
+    client = client_for(Path(config))
+    home = client.get("/").text
+    st = status(client)
+    assert st["state"] == "interrupted" and "Unfinished job" in home
+    assert f"/jobs/{st['id']}/resume" in home
+    client.post(f"/jobs/{st['id']}/resume", data={"back": "/"})
+    assert wait_for(lambda: status(client)["state"] == "done", 60)
+    after = run_at(folder, files)
+    assert set(after) == set(files) and all(after[f] == t for f, t in before.items())
+    assert "Unfinished job" not in client.get("/").text
 
 
 def test_plan_estimate_is_a_fixed_cost_per_frame_plus_a_cost_per_unit(tmp_path):
     from tests.test_sam_runner import project_with_frames
     folder, files = project_with_frames(tmp_path, n=2)
-    preview = label.run_preview(folder, files[:1], lambda p, m: None, predictor=FAKE)
+    run_sam(folder, files[:1], preview=True)
+    preview = label.read_preview(folder)
     # pretend SAM's timing as measured on the M1 Max: 62 s per frame, units ~5 s, the first 13 s
     raw = results.read(folder, files[0])
     for k, u in raw["units"].items():
@@ -90,30 +202,23 @@ def test_an_unreadable_results_file_does_not_stop_run(tmp_path):
     files = [f"v_aaaaaa_{i}.png" for i in range(4)]
     results.raw_dir(folder).mkdir(exist_ok=True)
     results.raw_path(folder, files[0]).write_text("{not json")
-    msg = label.run_all(folder, files, lambda p, m: None, predictor=FAKE)
+    msg = run_sam(folder, files)["done"]["message"]
     assert "labeled 3 frames" in msg and "cannot be read" in msg and files[0] in msg
     assert all(results.read(folder, f) for f in files[1:])
     assert results.raw_path(folder, files[0]).read_text() == "{not json"   # left as it was
 
 
-def test_stop_is_offered_for_a_run_not_a_preview(tmp_path, monkeypatch):
-    """QE PR 24: Stop did nothing during a Preview, so it is shown only while a Run goes."""
-    client, folder = make_project(tmp_path)
-    gate = threading.Event()
-
-    def slow(folder, files, report, **kw):
-        gate.wait(10)
-        return {}
-    monkeypatch.setattr(label, "run_preview", slow)
-    monkeypatch.setattr(label, "run_all", lambda *a, stop=None, **kw: gate.wait(10) and "done")
+def test_pause_is_offered_for_a_preview_too(tmp_path, monkeypatch):
+    """S3 offered Stop for a Run only (QE PR 24); a Preview is a job like any other now and
+    pauses the same way. After a Preview, Run skips its frames."""
+    monkeypatch.setattr(label, "PREDICTOR", SLOW)
+    client, folder = make_project(tmp_path, n=4)
     client.post("/p/p/labeling/preview", data={})
-    wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "running", 10)
-    assert "/labeling/stop" not in client.get("/p/p/labeling").text
-    gate.set()
-    wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "done", 10)
-    gate.clear()
-    client.post("/p/p/labeling/run")
-    wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "running", 10)
-    assert "/labeling/stop" in client.get("/p/p/labeling").text
-    gate.set()
-    wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "done", 10)
+    assert wait_for(lambda: status(client)["state"] == "running", 30)
+    st = status(client)
+    assert st["params"]["preview"] and f"/jobs/{st['id']}/pause" in client.get("/p/p/labeling").text
+    assert wait_for(lambda: status(client)["state"] == "done", 60)
+    assert status(client)["message"].startswith("preview: labeled 3 frames")
+    assert label.read_preview(folder)["seconds_per_frame"]
+    monkeypatch.setattr(label, "PREDICTOR", FAKE)
+    assert run_and_wait(client) == "labeled 1 frames, 3 already current"

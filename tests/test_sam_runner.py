@@ -2,7 +2,6 @@
 SAM worker process driven with a fake predictor (tests/fake_sam.py). Synthetic images only."""
 
 import json
-import threading
 
 import numpy as np
 import pytest
@@ -10,7 +9,7 @@ from PIL import Image, ImageDraw
 
 from app.sam import classes, results, tiles
 from app.stages import label
-from tests.fake_sam import COLOURS
+from tests.fake_sam import COLOURS, run_sam
 
 FAKE = "tests.fake_sam:FakePredictor"
 
@@ -129,9 +128,9 @@ def project_with_frames(tmp_path, n=2):
 
 def test_worker_process_labels_frames_with_tiles_and_skips_done_units(tmp_path):
     folder, files = project_with_frames(tmp_path)
-    seen = []
-    out = label.run(folder, files, lambda p, m: seen.append((p, m)), predictor=FAKE)
-    assert [e["i"] for e in out["frames"]] == [1, 2] and seen[-1][0] == 100
+    out = run_sam(folder, files)
+    assert [e["i"] for e in out["frames"]] == [1, 2] and out["code"] == 0 and out["done"]
+    assert [e["name"] for e in out["frames"]] == files and out["frames"][0]["counts"]["urchin"] == 2
     raw = results.read(folder, files[0])
     assert (raw["width"], raw["height"]) == (2600, 1200)
     counts = {k: len(u["masks"]) for k, u in raw["units"].items()}
@@ -140,13 +139,13 @@ def test_worker_process_labels_frames_with_tiles_and_skips_done_units(tmp_path):
     assert len(counts) == 8                            # every unit saved, also with no masks
     assert (folder / "classes.yaml").is_file()        # copied in on first use
     # same settings again: nothing re-runs
-    again = label.run(folder, files, lambda p, m: None, predictor=FAKE)
+    again = run_sam(folder, files)
     assert all(e.get("skipped") for e in again["frames"])
     # a changed prompt re-runs that unit only
     text = (folder / "classes.yaml").read_text().replace("prompts: [fish]", "prompts: [rock]")
     classes.save(folder, text)
     before = results.read(folder, files[0])["units"]["urchin"]["run_at"]
-    third = label.run(folder, files[:1], lambda p, m: None, predictor=FAKE)
+    third = run_sam(folder, files[:1])
     assert list(third["frames"][0]["masks"]) == ["fish"]
     assert results.read(folder, files[0])["units"]["urchin"]["run_at"] == before
 
@@ -156,7 +155,7 @@ def test_kelp_area_and_min_mask_area(tmp_path):
     text = classes.DEFAULT_FILE.read_text().replace("min_mask_area_px: 500 ",
                                                     "min_mask_area_px: 5000")
     classes.save(folder, text)
-    label.run(folder, files, lambda p, m: None, predictor=FAKE)
+    run_sam(folder, files)
     raw = results.read(folder, files[0])
     assert len(raw["units"]["urchin"]["masks"]) == 1   # the 60 px urchin is below 5000 px
     assert raw["units"]["kelp"]["masks"][0]["class_id"] == 9
@@ -165,15 +164,13 @@ def test_kelp_area_and_min_mask_area(tmp_path):
 def test_a_failing_worker_reports_and_keeps_finished_frames(tmp_path):
     folder, files = project_with_frames(tmp_path, n=1)
     (folder / "frames" / "bad.png").write_bytes(b"not an image")
-    with pytest.raises(label.LabelError) as e:
-        label.run(folder, files + ["bad.png"], lambda p, m: None, predictor=FAKE)
-    assert "after 1 of 2 frames" in str(e.value) and "Log:" in str(e.value)
+    out = run_sam(folder, files + ["bad.png"])
+    assert out["code"] != 0 and out["done"] is None and len(out["frames"]) == 1
+    assert "Traceback" in out["log"]
     assert results.read(folder, files[0]) is not None
 
 
-def test_stop_ends_the_worker(tmp_path):
+def test_a_missing_frame_file_is_named(tmp_path):
     folder, files = project_with_frames(tmp_path, n=1)
-    stop = threading.Event()
-    stop.set()
-    out = label.run(folder, files, lambda p, m: None, stop=stop, predictor=FAKE)
-    assert out["stopped"]
+    with pytest.raises(label.LabelError, match="v_gone_1.png is missing"):
+        label.build_job({"folder": str(folder), "files": files + ["v_gone_1.png"]})

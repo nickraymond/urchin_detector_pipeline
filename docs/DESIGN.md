@@ -249,6 +249,15 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   rewritten on each start) and an optional `progress(params)` counted from the kind's own files. State changes are
   compare-and-set in one SQL statement. Workers start in their own session, so a Ctrl-C on the app does not cut an
   item in half: the worker reads end of file, finishes the item and exits; `emit()` exits quietly if the app is gone.
+- **As built, bite 1b (PR 33).** SAM Preview and Run are jobs of kind `sam` (params: folder, frame names, preview,
+  predictor); `label.build_job` makes the worker's job file at each start or resume, and `label.progress` counts
+  frames with nothing left to run in `sam_raw/`. The worker writes `sam_preview.json` itself and its `done` event
+  carries the page's final message. S3's in-process driver (`label.run`, `run_all`, `run_preview`) and Stop are gone.
+  Starting a new Preview or Run cancels the project's older paused or interrupted SAM job (the new one skips what
+  it finished). The SAM job file and log are `<data_dir>/jobs/<id>.json` / `.log` like every kind, not
+  `<project>/sam_logs/` (builder call: one place for every job's log; the Jobs page names it). On start, an
+  interrupted job's counts are recounted from its artifacts. Pause / Resume / Cancel are `POST /jobs/<id>/<action>`
+  with a same-app `back` path.
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). The SAM worker's job file and log stay in `<project>/sam_logs/`.
