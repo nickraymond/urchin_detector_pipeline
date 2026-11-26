@@ -326,6 +326,47 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). Every kind's job file and log are `<data_dir>/jobs/<id>.json` / `.log` (bite 1b).
 
+### Planned for S5 (review labels and export) — lead's plan 2026-11-25 (CLAUDE.md rule 7); becomes as-built as bites land
+
+```
+app/review/state.py      review tables in state.sqlite; a frame's final masks = sam_raw + review, overlap rules
+app/review/tagging.py    urchin types, "tag all remaining", next untagged
+app/export/writers.py    images, COCO, seg_masks + classes.json, frame_metrics.csv
+app/export/splits.py     site and dive date from names; group split (D43)
+app/export/checks.py     COCO load, mask sizes and ids, metrics vs masks
+app/stages/review_labels.py   page glue for the Review page; app/web/templates/review_labels.html, static/labelreview.js
+app/web/templates/export.html  the Export page
+```
+
+- **Review state (D40).** `sam_raw/` stays what SAM returned plus a stable `mask_id` per mask; masks added by
+  hand go into `sam_raw/<frame>.json` under the unit `added` with `added_by_hand: true`. Everything a reviewer
+  does lives in `state.sqlite`: `mask_review` (mask_id, frame, class_id, deleted, urchin type, reviewed, time)
+  and `frame_review` (frame, accepted, split_ok, checked classes, time), plus an action log for undo. A re-run
+  keeps reviewed masks (S3, SPEC Q7) with their ids. Export is rebuilt from `sam_raw` + review state, so
+  re-exporting is always safe (spec).
+- **Accepted frames (D41).** Only accepted frames are exported. A frame cannot be accepted with an untagged
+  urchin (D18). Frames with split check "no" count for cover (`seg_masks`, metrics) but are left out of
+  `detector_coco.json` (spec). Classes not marked fully checked on a frame are listed per image in COCO
+  (`checked_classes`) and in `frame_metrics.csv`, so training can skip them (spec).
+- **Metrics (D41, SPEC Q11).** Counts and % cover come from the final class map (D22, after review). Largest
+  object % = pixel area of the largest object mask / frame area. Unknown = id 0 (D22).
+- **CVAT (D42, SPEC Q9).** Fine outline fixes use CVAT on its own: `detector_coco.json` carries each outline as a
+  polygon (pycocotools), which CVAT's COCO importer reads (the builder cites CVAT's docs for the format before
+  relying on it). Fixes are not imported back in Build 1 (icebox).
+- **Splits (D43).** Site and dive date come from the file name (`<site>-<date>-<time>-<diver>-<tag>`, SPEC facts;
+  the date's exact format is read from the real names in bite 2b and written down there) or else the folder; one group per site + date; groups go to train / valid / test to come closest to 70 / 20 / 10 by
+  frame count, same answer every time. With fewer than 3 groups a fair split is impossible: the Export page
+  says so and splits by video instead.
+- **Export images (D44).** Upright pixels (D27): files without an EXIF rotation are copied byte for byte, others
+  are re-saved upright at JPEG quality 95. `seg_masks/` are 8-bit PNGs, pixel = class id; 255 (untagged) never
+  appears, since such frames cannot be accepted.
+- **Area seams (D45).** Bite 7 compares area classes on the whole frame against tiles and the lead logs the pick.
+- **Add a missed object (D46).** A click or box runs SAM 3's point / box prompt on that frame through the job
+  module. If one add takes more than 20 s (model load ~11–17 s, S4 logs), the builder keeps the worker loaded
+  while the Review page is open (ends after 10 min idle) and says so in its PR.
+- Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
+  the browser for bites 5 and 7.
+
 ## Decision log
 
 | # | Date | Decision | Rationale |
@@ -376,6 +417,13 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
 | D34a | 2026-11-25 | **Lead call** (planning lead, Nick's S4 test: "not able to cancel the run and start a new one, I had to wait"): Cancel ends the worker at once (the frame in progress is dropped; finished frames stay); Pause still finishes the frame. Cancel also works while a job is pausing, and a pausing job says what it waits for. | Items are written under a temporary name and renamed, so killing a worker cannot leave a half-written item; only that item's time is lost. |
 | D36b | 2026-11-25 | **Lead call** (planning lead, Nick's S4 test: "Should it be on GPU instead?"): CPU fallbacks known to be harmless (first: `aten::_assert_async`) go to the job log only; any other fallback stays a warning on the job, worded "one step runs on the CPU (slower); SAM itself runs on the Apple GPU". | From the lead's note on Nick's screenshots (not re-measured by the builder): `aten::_assert_async` is a check with no maths; Nick's run took 67.7 s/frame against 63–66 s in the S3/S4 tiled 4K benches, and SAM used 14.46 GB of Apple GPU memory. |
 | D39 | 2026-11-25 | Third urchin type "black urchin" (SPEC Q18): a new class with the next free id, kind object, in `sam_group: urchin` (same prompt "urchin"), tagged `B` in label review. Its id is permanent; its name may change later. **Lead call** (planning lead): S5 lets a class be renamed with its id kept even after it has results, lifting S3's check that an id used in `sam_raw/` keeps its name (DESIGN §Planned for S3) for renames only; D6 keeps ids stable, and older exports' `classes.json` keep the old name. Nick can reverse it. Review is built to find outliers: `Tab` to the next untagged urchin with the viewer zoomed on it, a close-up panel, and "Tag all remaining as purple" per frame. | Nick, lead chat 2026-11-25: "we should add a third color for now / black, and later this name might change but it's certainly different from red and purple"; "most will be purple so I'd rather not need to click every single thing". Amends D18 (two types) and SPEC Q14 ("no third urchin class now"). The hourly packet's 2 urchin types are a later milestone's question. |
+| D40 | 2026-11-25 | **Lead call** (planning lead): review state lives in `state.sqlite` (mask and frame review tables, action log for undo); `sam_raw/` gains only a stable `mask_id` per mask and hand-added masks (unit `added`). Export = `sam_raw` + review state. | Spec folder layout puts review state in `state.sqlite` and says re-export rebuilds from `sam_raw` plus the review state. Stable ids let a re-run keep reviewed masks (SPEC Q7). |
+| D41 | 2026-11-25 | **Lead call** (planning lead, SPEC Q11): only accepted frames are exported; largest object % = largest object mask's pixel area / frame area; unknown = id 0; counts and cover from the final class map after review; classes not fully checked are listed per image (COCO `checked_classes`, a metrics column). | The packet's "largest single object as % of frame" is about how close an animal is: the mask measures that, a box overstates it. Id 0 was already set in D22. Nick can reverse it. |
+| D42 | 2026-11-25 | **Lead call** (planning lead, SPEC Q9): the CVAT route is the COCO file with polygon outlines; nothing is imported back from CVAT in Build 1 (icebox). | Spec: no hand-editing of outlines in v1, export to CVAT for fine fixes; importing back is not asked for. The CVAT format claim is checked against CVAT's docs in bite 6. Nick can reverse it. |
+| D43 | 2026-11-25 | **Lead call** (planning lead): splits group frames by site + dive date (from the file name, else the folder) and assign whole groups to come closest to 70 / 20 / 10 by frames, deterministically; with fewer than 3 groups the page warns and splits by video. | Spec: split by site and dive date so near-identical frames don't leak. A test set needs at least one group of its own. Nick can reverse it. |
+| D44 | 2026-11-25 | **Lead call** (planning lead): export images are upright (copied as is when no EXIF rotation, else re-saved at quality 95); `seg_masks` are 8-bit PNGs of class ids. | D27 (COCO boxes and mask sizes must match the image files); JPEG quality 95 as for extraction (D17). |
+| D45 | 2026-11-25 | **Lead call** (planning lead): area masks with straight edges at tile seams (Nick saw them on several S4 test frames) are fixed in bite 7 by comparing areas on the whole frame with tiles; the lead logs the pick. | `tiles.union_by_prompt` joins pieces but cannot add a piece the neighbouring tile missed, which leaves a straight edge. Areas are large, so the whole frame may be enough; measure first (time, memory: whole-frame 5.3K peaked at 26.7 GB, S3). |
+| D46 | 2026-11-25 | **Lead call** (planning lead): "add a missed object" runs SAM 3's click / box prompt on the frame through the job module; if an add takes over 20 s the worker stays loaded while the Review page is open (10 min idle limit). | Spec §6. S1 showed SAM 3's click and box prompts work (3.1 lacks those weights, D10). One job at a time (D32). |
 
 ## Bench / test results
 
