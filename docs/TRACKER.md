@@ -290,11 +290,11 @@ start 2 minutes ahead with "Keep laptop awake" on, wait, read the summary page.
 Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q11). One draft PR per bite, about
 300 lines each. Bites 1–2 are backend only (new files), so they can run while S4's last bites touch the pages.
 
-**Carried from S4's test (S4 builder, its bite 6c)** (Nick, lead chat 2026-11-25, 9:55–10:14 PM)
-- [ ] "Labelled so far" on the Labeling page: each frame appears as soon as SAM finishes it, newest first, drawn
+**Carried from S4's test (S4 builder, its bite 6c)** (Nick, lead chat 2026-11-25, 9:55–10:14 PM; PR 45)
+- [x] "Labelled so far" on the Labeling page: each frame appears as soon as SAM finishes it, newest first, drawn
       like the preview tiles (overlay, class legend, large viewer with < >), Pause / Cancel next to it; it stays
       after Run ends and lists every labelled frame with its counts per class
-- [ ] the project page's SAM labeling row shows the labelled frames from disk after a run ("21 of 21 frames
+- [x] the project page's SAM labeling row shows the labelled frames from disk after a run ("21 of 21 frames
       labelled"), not "not started"
 
 **Bite 1 — Review state** (D40)

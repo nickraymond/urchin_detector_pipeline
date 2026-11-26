@@ -30,18 +30,6 @@
   frames here and the large view alike; "final class map" shows one colour per pixel after the overlap
   rules. Objects (counted things such as urchins) are drawn with a box;
   areas (kelp, rock) have none.</p>
-<div class="viewer has-legend" id="viewer" hidden>
-  <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
-  <button class="v-prev" data-v="prev" title="Previous frame (&larr;)">&lsaquo;</button>
-  <img alt="">
-  <button class="v-next" data-v="next" title="Next frame (&rarr;)">&rsaquo;</button>
-  <p class="v-caption"></p>
-  <div class="legend v-legend"></div>
-</div>
-<script type="application/json" id="frame-list">{{ {
-  "base": "/p/" ~ info.name ~ "/labeling/overlay/",
-  "units": legend_units,
-  "frames": legend_frames} | tojson }}</script>
 <div class="preview-grid" id="preview-grid">
 {% for f in shown %}
   <figure>
@@ -58,6 +46,18 @@
 </div>
 {% endif %}
 
+<div class="viewer has-legend" id="viewer" hidden>
+  <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
+  <button class="v-prev" data-v="prev" title="Previous frame (&larr;)">&lsaquo;</button>
+  <img alt="">
+  <button class="v-next" data-v="next" title="Next frame (&rarr;)">&rsaquo;</button>
+  <p class="v-caption"></p>
+  <div class="legend v-legend"></div>
+</div>
+<script type="application/json" id="frame-list">{{ {
+  "base": "/p/" ~ info.name ~ "/labeling/overlay/",
+  "units": legend_units,
+  "frames": legend_frames if preview else []} | tojson }}</script>
 <h2>Run</h2>
 <p class="hint">Labels every kept frame; a class runs only where it has no results yet or its prompts or settings
   changed. Pause finishes the frame in progress; Cancel stops at once. Finished frames are always kept.</p>
@@ -94,6 +94,19 @@
   {% include "_awake.html" %}
   <span class="hint">Start at / Stop by are optional (e.g. 02:00); the app must stay running for them to fire.</span>
 </form>
+
+<h2 id="labeled">Labeled so far</h2>
+<p class="hint">Every kept frame with SAM results, newest first; frames appear here while Run goes on, so a bad
+  result can be stopped early. Click a frame to see it large; the class legend works as in the preview.</p>
+<div data-live="/p/{{ info.name }}/live/sam?back={{ back | urlencode }}">{{ job_panel(job, back) }}</div>
+<p class="totals" id="labeled-count">{{ labeled.total }} of {{ labeled.kept }} kept frames labeled{% if labeled.total > labeled.shown %}; the newest {{ labeled.shown }} are shown{% endif %}.</p>
+<div class="legend" id="labeled-legend"></div>
+<div class="preview-grid" id="labeled-grid"></div>
+<p id="labeled-more" {% if labeled.total <= labeled.shown %}hidden{% endif %}><a href="?n={{ labeled.n + 48 }}#labeled">Show 48 more</a></p>
+<script type="application/json" id="labeled-list">{{ {
+  "base": "/p/" ~ info.name ~ "/labeling/overlay/",
+  "poll": "/p/" ~ info.name ~ "/labeling/labeled?n=" ~ labeled.n,
+  "data": labeled} | tojson }}</script>
 
 <h2>Classes</h2>
 <p class="hint">File: <code>{{ cls.path }}</code>{% if not cls.exists %} — not in the project yet:

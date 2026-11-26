@@ -310,11 +310,25 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         finally:
             conn.close()
 
+    def stages_with_labels(info, conn) -> list[dict]:
+        """The stage table, with SAM labeling counted from the results on disk (bite 6c, Nick:
+        a finished run still said "not started"): a kept frame counts once it has a results
+        file. "done" = every kept frame has one; a class added later still shows on the
+        Labeling page's Run plan."""
+        stages = db.stage_statuses(conn)
+        files = label.frames_to_label(conn)
+        n = len(label.labeled_frames(info["folder"], files))
+        for s in stages:
+            if s["stage"] == "labeling" and files and n:
+                s.update(state="done" if n == len(files) else "in progress",
+                         counts=f"{n} of {len(files)} frames labeled")
+        return stages
+
     @app.get("/p/{name}", response_class=HTMLResponse)
     def project_page(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: templates.TemplateResponse(
             request, "project.html", {
-                "cfg": cfg, "info": info, "stages": db.stage_statuses(conn),
+                "cfg": cfg, "info": info, "stages": stages_with_labels(info, conn),
                 "waiting": waiting_jobs(cfg, info["name"]),
                 # bite 6b item 8: each job stage row shows its latest job, live
                 "jobs": {k: job_view(jobctl(cfg).latest(k, str(info["folder"])))
@@ -699,7 +713,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     # --- SAM labeling (S3): classes.yaml (bite 1, D25) ---
 
     def labeling_page_for(request, cfg, info, conn, text=None, errors=None, note="",
-                          status=200):
+                          status=200, n_labeled: int = 48):
         cls = classes.read(info["folder"])
         if text is not None:  # a refused save: show what was typed, with its problems
             cls = {**cls, "text": text, "errors": errors or []}
@@ -749,14 +763,15 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                                    if sam_job(cfg, info).get("state") == "scheduled" else None)
                        if plan and plan.get("estimate_s") else None),
             "n_label": len(files),
+            "labeled": labeled_view(info, conn, n_labeled),
             "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
             "kept": review.summary(conn), "refused": text is not None}, status_code=status)
 
     @app.get("/p/{name}/labeling", response_class=HTMLResponse)
-    def labeling_page(request: Request, name: str, note: str = ""):
+    def labeling_page(request: Request, name: str, note: str = "", n: int = 48):
         """Reads classes.yaml every time, so Reload shows edits made in a text editor."""
         return with_project(request, name, lambda cfg, info, conn: labeling_page_for(
-            request, cfg, info, conn, note=note))
+            request, cfg, info, conn, note=note, n_labeled=max(1, min(n, 5000))))
 
     @app.post("/p/{name}/labeling/classes")
     def labeling_save(request: Request, name: str, text: str = Form("")):
@@ -876,6 +891,38 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     def labeling_status(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: JSONResponse(
             sam_job(cfg, info)))
+
+    LABELED_PAGE = 48   # tiles per "Show more" (bite 6c)
+
+    def labeled_view(info, conn, n: int, since: str = "") -> dict:
+        """The "Labeled so far" grid's data: newest first, n tiles, with counts per run unit.
+        sig changes whenever a results file is written; when it equals `since` only
+        {"sig", "same"} is sent, so polling costs a directory listing."""
+        files = label.frames_to_label(conn)
+        have = label.labeled_frames(info["folder"], files)
+        sig = f"{len(have)}-{max((t for _, t in have), default=0)}-{n}"
+        if since == sig:
+            return {"sig": sig, "same": True}
+        cls = classes.read(info["folder"])
+        data = cls["data"]
+        units = classes.run_units(data["classes"]) if data else []
+        frames = []
+        for f, t in have[:n]:
+            try:
+                c = label.frame_counts(info["folder"], f, units, data["settings"]) if data else {}
+            except ValueError:
+                continue   # unreadable: Run's plan lists it (QE PR 22)
+            frames.append({"file": f, "v": str(t), "caption": f,
+                           "counts": {k: v["masks"] for k, v in c.items()},
+                           "older": [k for k, v in c.items() if v["older"]]})
+        return {"sig": sig, "total": len(have), "kept": len(files), "shown": len(frames),
+                "n": n, "frames": frames}
+
+    @app.get("/p/{name}/labeling/labeled")
+    def labeling_labeled(request: Request, name: str, n: int = LABELED_PAGE, since: str = ""):
+        n = max(1, min(n, 5000))
+        return with_project(request, name, lambda cfg, info, conn: JSONResponse(
+            labeled_view(info, conn, n, since), headers={"Cache-Control": "no-store"}))
 
     @app.get("/p/{name}/labeling/overlay/{file}")
     def labeling_overlay(request: Request, name: str, file: str,
