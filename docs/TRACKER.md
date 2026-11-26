@@ -297,12 +297,12 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [x] the project page's SAM labeling row shows the labelled frames from disk after a run ("21 of 21 frames
       labelled"), not "not started"
 
-**Bite 1 — Review state** (D40)
-- [ ] every mask in `sam_raw/` gets a stable `mask_id`; a re-run keeps the ids of masks it keeps
-- [ ] `state.sqlite` tables for mask review (class, deleted, urchin type, reviewed) and frame review (accepted,
+**Bite 1 — Review state** (D40; PR 44; the urchin type is the class id)
+- [x] every mask in `sam_raw/` gets a stable `mask_id`; a re-run keeps the ids of masks it keeps
+- [x] `state.sqlite` tables for mask review (class, deleted, urchin type, reviewed) and frame review (accepted,
       split check yes / no, classes fully checked); helpers to read a frame's final masks = `sam_raw` + review,
       after the overlap rules (D22, D31); unit tests with synthetic masks
-- [ ] accept is refused while the frame has an untagged urchin (D18); undo for every review action
+- [x] accept is refused while the frame has an untagged urchin (D18); undo for every review action
 
 **Bite 2a — Export writers** (D41, D44)
 - [ ] `app/export/`: `export/images/` (upright, D27), `detector_coco.json` (object classes, box + outline + class;
