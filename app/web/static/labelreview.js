@@ -172,8 +172,56 @@
     redraw();
     load(at);
   });
+  // Add a missed object (bite 5b, D46): in add mode a click or a dragged box goes to SAM as a job
+  let adding = false;
+  function setAdding(on) {
+    adding = on;
+    window.viewerBoxMode = on;
+    $("rv-add").classList.toggle("on", on);
+    $("rv-add").textContent = on ? "Click on it or drag a box… (click here or Esc: cancel)" : "Add a missed object";
+  }
+  async function addAt(body) {
+    setAdding(false);
+    const frame = frames[at].file;
+    const scale = view.width / img.naturalWidth;
+    const px = v => Math.max(0, Math.round(v * scale));
+    if (body.point) body.point = body.point.map(px);
+    if (body.box) body.box = [px(body.box[0]), px(body.box[1]), Math.min(view.width, px(body.box[2])),
+                              Math.min(view.height, px(body.box[3]))];
+    body.class_id = Number($("rv-add-class").value);
+    const r = await fetch(data.project + "/add/" + encodeURIComponent(frame), {
+      method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok) { msg(d.error || "not added"); return; }
+    msg("SAM is looking (about 20 s; it waits for any SAM run first)…", true);
+    for (;;) {
+      await new Promise(res => setTimeout(res, 1500));
+      const j = await (await fetch(data.project + "/job/" + d.job_id, {cache: "no-store"})).json();
+      if (["done", "failed", "cancelled"].includes(j.state)) {
+        if (frames[at] && frames[at].file === frame) {
+          const before = new Set(view.masks.map(m => m.id));
+          await load(at);
+          const added = view.masks.find(m => !before.has(m.id));
+          if (added) { sel = added.id; render(); }
+          redraw();
+        }
+        msg((j.state === "done" ? "" : j.state + ": ") + (j.message || j.line), j.state === "done");
+        return;
+      }
+      if (j.line) msg("SAM: " + j.state + " · " + j.line, true);
+    }
+  }
+  window.viewerBox = (x0, y0, x1, y1, i) => {
+    if (adding && view && i === at) addAt({box: [x0, y0, x1, y1]});
+  };
+  $("rv-add").addEventListener("click", e => { e.currentTarget.blur(); setAdding(!adding); });
+  window.addEventListener("keydown", e => {   // before viewer.js, which closes the viewer on Esc
+    if (e.key === "Escape" && adding) { setAdding(false); e.stopImmediatePropagation(); e.preventDefault(); }
+  }, true);
+
   window.viewerPick = (x, y, i) => {
     if (!view || i !== at || !img.naturalWidth) return false;
+    if (adding) { addAt({point: [x, y]}); return true; }
     const fx = Math.floor(x * view.width / img.naturalWidth), fy = Math.floor(y * view.height / img.naturalHeight);
     fetch(data.project + "/at/" + encodeURIComponent(frames[at].file) + "?x=" + fx + "&y=" + fy, {cache: "no-store"})
       .then(r => r.json()).then(d => {

@@ -59,6 +59,9 @@
     <div class="rv-row" id="rv-selected">Click a mask to select it.</div>
     <div class="rv-row" id="rv-types" title="Tag the selected urchin with its type (the key in brackets); Tab jumps to the next untagged urchin and zooms on it"></div>
     <div class="rv-row"><button type="button" data-rv="tag_all" id="rv-tag-all" disabled></button></div>
+    <div class="rv-row" title="SAM missed something? Turn this on, pick its class, then click on it or drag a box around it. SAM finds its outline (about 20 s: the model loads each time).">
+      <button type="button" class="rv-add" id="rv-add">Add a missed object</button>
+      <select id="rv-add-class">{% for c in class_list if c.kind == "object" %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
     <img class="rv-closeup" id="rv-closeup" alt="close-up of the selected mask" hidden>
     <div class="rv-row"><input type="search" id="rv-class" list="rv-classes" placeholder="class for the selected mask" disabled>
       <datalist id="rv-classes"></datalist></div>

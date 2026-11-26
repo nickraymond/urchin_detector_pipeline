@@ -34,7 +34,7 @@ from app.jobctl import limits as job_limits
 from app.jobctl import awake, schedule
 from app.jobctl.runner import GUARD_REASON
 from app.export import worker as export_worker
-from app.sam import classes
+from app.sam import add, classes
 from app.review import state as review_state
 from app.stages import clips, extract, ingest, label, review, review_labels
 
@@ -56,7 +56,7 @@ def static_url(name: str) -> str:
 
 templates.env.globals["static"] = static_url
 JOB_NAMES = {"sam": "SAM labeling", "extract": "Extraction", "playback": "Playback copy",
-             "export": "Export"}
+             "export": "Export", "sam_add": "Add a missed object"}
 AWAKE_CMD: list[str] | None = None   # tests: a fake keep-awake command (D38); None = the real one
 # A duration as the pages show it: "7 min", or "2.5 h" from 90 min on.
 templates.env.globals["minutes"] = lambda s: (
@@ -910,6 +910,52 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             if data is None:
                 return PlainTextResponse("not found", status_code=404)
             return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/labels/add/{file}")
+    async def labels_add(request: Request, name: str, file: str):
+        """Add a missed object (bite 5b, D46): JSON {point: [x, y]} or {box: [x0, y0, x1, y1]} in
+        frame pixels, and class_id (an object class). Queues a "sam_add" job (one GPU job at a
+        time, D32) and answers {job_id}; 400 with the reason when the request is not valid."""
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+
+        def work(cfg, info, conn):
+            cl = review_classes(info)
+            if not cl or not review_frame_ok(conn, file) or not isinstance(body, dict):
+                return JSONResponse({"error": "reload the page"}, 400)
+            by_id = {c["id"]: c for c in cl}
+            cid = body.get("class_id")
+            if not isinstance(cid, int) or cid not in by_id or by_id[cid]["kind"] != "object":
+                return JSONResponse({"error": "Pick an object class for the new mask."}, 400)
+            point, box = body.get("point"), body.get("box")
+            try:
+                for v, n in ((point, 2), (box, 4)):
+                    if v is not None and not (isinstance(v, list) and len(v) == n
+                                              and all(isinstance(x, int) for x in v)):
+                        raise ValueError("Bad request: point is [x, y], box is [x0, y0, x1, y1].")
+                v = review_labels.view(info["folder"], conn, file, cl)
+                add.check_request(v["width"], v["height"], point=point, box=box)
+            except (ValueError, review_state.ReviewError) as e:
+                return JSONResponse({"error": str(e)}, 400)
+            jid = jobctl(cfg).submit("sam_add", label.add_params(info["folder"], file, cid,
+                                                                  point=point, box=box),
+                                     project=str(info["folder"]))
+            return JSONResponse({"job_id": jid})
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/labels/job/{job_id}")
+    def labels_job(request: Request, name: str, job_id: int):
+        def work(cfg, info, conn):
+            job = jobctl(cfg).store.get(job_id)
+            if not job or job["kind"] != "sam_add" or job.get("project") != str(info["folder"]):
+                return JSONResponse({"error": "not found"}, 404)
+            v = job_view(job)
+            return JSONResponse({"state": v["state"], "line": v["line"],
+                                 "message": job.get("message") or ""},
+                                headers={"Cache-Control": "no-store"})
         return with_project(request, name, work)
 
     @app.get("/p/{name}/labels/at/{file}")

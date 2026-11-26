@@ -177,3 +177,5 @@ button.primary { background: #2e7d32; color: #fff; border-color: #2e7d32; font-w
 .pass { color: #1a7f37; }
 .fail { color: #b42318; }
 tr.state-failed td { background: #fde8e8; }
+.viewer .v-band { position: absolute; z-index: 2; border: 2px dashed #fff; background: rgba(255, 255, 255, .12); pointer-events: none; }
+.viewer .v-review .rv-add.on { background: #ffd479; }

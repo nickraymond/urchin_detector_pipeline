@@ -450,6 +450,11 @@ app/web/templates/export.html  the Export page
   writes `summary.json` (counts, splits, the D43 warning, `ok`, time) next to `checks.json`; the page shows the
   newer of `export/` and `export.failed/`, so a failed export is never hidden behind an older good one, and says
   when `export/` was not replaced. The page reloads itself when the job ends (`live.js` `data-reload-on`).
+- Add a missed object on the page (as-built, bite 5b): "Add a missed object" + a class drop-down (object classes)
+  turns on add mode for one add: a click, or a dragged box (`viewer.js` box mode: `viewerBoxMode` / `viewerBox`, a
+  fourth opt-in hook; without it a drag still pans), goes to `POST /labels/add/<frame>` in frame pixels; the server
+  checks the class and the request and queues a `sam_add` job. The page polls `/labels/job/<id>`, then reloads
+  the frame and selects the new mask. Esc or the button cancels add mode without closing the viewer.
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 

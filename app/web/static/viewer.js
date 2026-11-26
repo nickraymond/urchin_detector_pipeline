@@ -108,15 +108,33 @@
     img.setPointerCapture(e.pointerId);
     drag = {x: e.clientX, y: e.clientY, ox, oy, moved: false};
   });
+  // box mode (label review's "add a missed object", S5): a drag draws a box instead of panning,
+  // and window.viewerBox(x0, y0, x1, y1) gets it in picture pixels
+  const band = document.createElement("div");
+  band.className = "v-band";
+  band.hidden = true;
+  viewer.append(band);
   img.addEventListener("pointermove", e => {
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
-    if (drag.moved) { ox = drag.ox + dx; oy = drag.oy + dy; place(); }
+    if (!drag.moved) return;
+    if (window.viewerBoxMode) {
+      const r = viewer.getBoundingClientRect();
+      Object.assign(band.style, {left: Math.min(e.clientX, drag.x) - r.left + "px",
+        top: Math.min(e.clientY, drag.y) - r.top + "px", width: Math.abs(dx) + "px", height: Math.abs(dy) + "px"});
+      band.hidden = false;
+    } else { ox = drag.ox + dx; oy = drag.oy + dy; place(); }
   });
   img.addEventListener("pointerup", e => {
+    const r = viewer.getBoundingClientRect();
+    if (drag && drag.moved && window.viewerBoxMode && window.viewerBox) {
+      band.hidden = true;
+      const a = [(drag.x - r.left - ox) / s, (drag.y - r.top - oy) / s,
+                 (e.clientX - r.left - ox) / s, (e.clientY - r.top - oy) / s];
+      window.viewerBox(Math.min(a[0], a[2]), Math.min(a[1], a[3]), Math.max(a[0], a[2]), Math.max(a[1], a[3]), at);
+    }
     if (drag && !drag.moved) {  // a click, not a drag: actual pixels here, or back to fit
-      const r = viewer.getBoundingClientRect();
       const px = e.clientX - r.left, py = e.clientY - r.top;
       // a page may take the click (label review selects a mask; S5): image pixel coordinates
       if (window.viewerPick && window.viewerPick((px - ox) / s, (py - oy) / s, at)) { drag = null; return; }
