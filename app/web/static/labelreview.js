@@ -132,6 +132,12 @@
     if (!c) { msg("No class named " + JSON.stringify(e.target.value) + "."); return; }
     if (sel != null) act({action: "class", mask_ids: [sel], class_id: c.id});
   });
+  const panel = viewer.querySelector(".v-review");
+  function togglePanel() {
+    panel.classList.toggle("collapsed");
+    panel.querySelector(".rv-toggle").textContent = panel.classList.contains("collapsed") ? "Review ▸" : "Review ▾";
+  }
+  panel.querySelector(".rv-toggle").addEventListener("click", togglePanel);
   viewer.querySelector(".v-review").addEventListener("click", e => {
     const b = e.target instanceof Element && e.target.closest("[data-rv]");
     if (!b) return;
@@ -145,6 +151,7 @@
     if (k === "x" && sel != null) act({action: "delete", mask_ids: [sel]});
     else if (e.key === "Enter") act({action: "accept"});
     else if (k === "z") act({action: "undo"});
+    else if (k === "h") togglePanel();
     else if (k === "f") document.fullscreenElement ? document.exitFullscreen() : viewer.requestFullscreen();
     else return;
     e.preventDefault();

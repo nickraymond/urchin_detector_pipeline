@@ -137,7 +137,10 @@ def picture(folder: Path, conn, frame: str, class_list: list[dict], mode: str = 
 def act(folder: Path, conn, frame: str, class_list: list[dict], body: dict) -> str:
     """One review action from the page; returns a short note. Raises state.ReviewError."""
     a = body.get("action")
-    ids = [int(i) for i in body.get("mask_ids") or []]
+    raw_ids = body.get("mask_ids") or []
+    if not isinstance(raw_ids, list) or not all(isinstance(i, int) for i in raw_ids):
+        raise state.ReviewError("Bad request: mask_ids must be a list of numbers.")
+    ids = list(raw_ids)
     if a == "class":
         cid = body.get("class_id")
         if not isinstance(cid, int):

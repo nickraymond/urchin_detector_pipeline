@@ -71,6 +71,8 @@ def test_delete_hides_the_mask_and_undo_brings_it_back(tmp_path):
     r = client.post(f"/p/p/labels/act/{F}", json={"action": "undo"})
     assert star in [m["id"] for m in r.json()["masks"]]
     assert client.post(f"/p/p/labels/act/{F}", json={"action": "fly"}).status_code == 400
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "delete", "mask_ids": "x"})
+    assert r.status_code == 400 and "must be a list of numbers" in r.json()["error"]
     assert client.post(f"/p/p/labels/act/{F}", content=b"{oops",
                        headers={"content-type": "application/json"}).status_code == 400
 

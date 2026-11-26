@@ -165,3 +165,7 @@ button.primary { background: #2e7d32; color: #fff; border-color: #2e7d32; font-w
 .viewer .v-review .rv-msg { color: #ffd479; min-height: 1em; }
 .viewer .v-review .rv-msg.ok { color: #9fe39f; }
 #label-frames tr.current td { background: #fff7d6; }
+.viewer .v-review .rv-toggle { float: right; margin: -2px -4px 0 0; }
+.viewer .v-review.collapsed { width: auto; }
+.viewer .v-review.collapsed > :not(.rv-toggle) { display: none; }
+.viewer .v-review.collapsed .rv-toggle { float: none; margin: 0; }

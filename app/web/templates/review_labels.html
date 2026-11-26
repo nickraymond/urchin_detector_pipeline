@@ -11,7 +11,7 @@
 {% else %}
 <p class="hint">Open a frame to review it in the large viewer. Click a mask to select it (white outline); pick its
   class in the box, <b>X</b> deletes it, <b>Enter</b> accepts the frame, <b>Z</b> undoes the last step on this
-  frame, <b>F</b> full screen, &larr; &rarr; the other frames. A frame with an untagged urchin (grey) cannot be
+  frame, <b>H</b> hides the panel, <b>F</b> full screen, &larr; &rarr; the other frames. A frame with an untagged urchin (grey) cannot be
   accepted. Only accepted frames are exported.</p>
 <p><b>{{ frames | length }}</b> labeled frames · <b id="todo-count">{{ todo }}</b> to do ·
   <button type="button" id="next-todo">Review the next to do</button></p>
@@ -33,6 +33,7 @@
   <button class="v-next" data-v="next" title="Next frame (&rarr;)">&rsaquo;</button>
   <p class="v-caption"></p>
   <div class="v-review" id="review-panel">
+    <button type="button" class="rv-toggle" data-rv-toggle title="Hide or show this panel (H)">Review ▾</button>
     <div class="rv-row">
       {% for m, label in [("all", "all"), ("objects", "objects only"), ("areas", "areas only"), ("map", "final class map")] %}
       <label><input type="radio" name="rv-mode" value="{{ m }}"{% if m == "all" %} checked{% endif %}> {{ label }}</label>
