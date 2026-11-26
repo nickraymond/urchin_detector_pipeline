@@ -76,11 +76,22 @@
   {% else %}Nothing to run: every class is current on all {{ plan.total }} frames.{% endif %}
   {% set same = plan.units | dictsort | rejectattr(1) | list %}
   {% if same and will %}Unchanged: {% for k, n in same %}{{ k }}{{ ", " if not loop.last }}{% endfor %}.{% endif %}
-  {% if will %}{{ plan.frames }} of {{ plan.total }} frames have work{% if plan.estimate_s %}, about
-  {{ ((plan.estimate_s) / 60) | round(0, 'ceil') | int }} min (from the preview's time per frame){% else %}; press Preview first for a time estimate{% endif %}.{% endif %}</p>
+  {% if will %}{{ plan.frames }} of {{ plan.total }} frames have work{% if plan.estimate_s %}: about
+  <b>{{ minutes(plan.estimate_s) }}</b>, finishing about <b>{{ finish }}</b> if started now
+  ({% if plan.estimate_from == "estimate" %}from Estimate{% else %}from the preview's time per frame; Estimate gives a
+  better figure{% endif %}){% else %}; press Estimate for a time estimate{% endif %}.{% endif %}</p>
 {% if plan.unreadable %}<p class="error">These results files cannot be read; move them aside in
   <code>sam_raw/</code> and they are labeled again: {{ plan.unreadable | join(", ") }}</p>{% endif %}
 {% endif %}
+{% if estimate %}<p class="totals" id="estimate">Estimate of {{ estimate.at | replace('T', ' ') }}:
+  {% if estimate.seconds_per_frame %}<b>{{ estimate.seconds_per_frame }} s per frame</b> ({{ estimate.frames | length }}
+  frames timed after 1 warm-up frame; model load {{ estimate.load_seconds }} s){% else %}no frame could be timed{% endif %}{% if plan and plan.estimate_old %}
+  — <b>made with other classes or settings</b>; press Estimate again{% endif %}.</p>{% endif %}
+<p class="hint">Estimate labels 1 warm-up frame plus 5 frames spread over the frames Run would label, and times the
+  5. Their results are kept, so Run does not label them again.</p>
+<form method="post" action="/p/{{ info.name }}/labeling/estimate" class="inline">
+  <button {% if job.active or (plan and not plan.frames) %}disabled{% endif %}>Estimate</button>
+</form>
 <form method="post" action="/p/{{ info.name }}/labeling/run" class="inline">
   <button {% if job.active or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
 </form>

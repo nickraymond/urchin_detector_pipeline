@@ -17,12 +17,14 @@ import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
 from app.jobctl.store import Store, now
 
 PAUSE_TIMEOUT_S = 600          # D34: a worker that has not paused within 10 min is ended
+ROLLING_ITEMS = 20             # D35: remaining time = mean of the last 20 timed items × items left
 REPO = Path(__file__).resolve().parents[2]
 
 
@@ -60,6 +62,7 @@ class Runner:
         self._want: dict[int, str] = {}      # job id -> "pause" | "cancel"
         self._waiting_since: dict[int, float] = {}   # left-over worker's job id -> first seen
         self._item = "item"
+        self._times: deque[float] = deque(maxlen=ROLLING_ITEMS)   # the running job's items
         self._thread = threading.Thread(target=self._loop, name="jobctl", daemon=True)
 
     def start(self) -> None:
@@ -187,6 +190,8 @@ class Runner:
         if kind is None:
             raise RuntimeError(f"no job kind {job['kind']!r} is registered in this app")
         self._item = kind.item
+        self._times.clear()
+        self.store.update(jid, eta_s=None)
         if kind.progress:
             done, total = kind.progress(job["params"])
             self.store.update(jid, done=done, total=total)
@@ -213,10 +218,10 @@ class Runner:
             if proc.poll() is None:
                 end_worker(proc)
                 self.log(jid, f"worker ended after an error in the app: {e}")
-            self.store.update(jid, worker_pid=None)
+            self.store.update(jid, worker_pid=None, eta_s=None)
             raise
         code = proc.wait()
-        self.store.update(jid, worker_pid=None)
+        self.store.update(jid, worker_pid=None, eta_s=None)
         with self._lock:
             want = self._want.get(jid)
             self._want.pop(f"kill-{jid}", None)
@@ -273,7 +278,14 @@ class Runner:
             self.log(jid, f"loaded in {ev.get('seconds')} s")
         elif e == "item":
             i, n = _count(ev.get("i")), _count(ev.get("n"))
-            self.store.update(jid, done=i or 0, total=n, message=f"{self._item} {i} of {n}")
+            secs = ev.get("seconds")
+            if isinstance(secs, (int, float)) and not isinstance(secs, bool) \
+                    and not ev.get("skipped"):
+                self._times.append(float(secs))
+            eta = (round(sum(self._times) / len(self._times) * (n - i))
+                   if self._times and i is not None and n is not None and n >= i else None)
+            self.store.update(jid, done=i or 0, total=n, eta_s=eta,
+                              message=f"{self._item} {i} of {n}")
             self.log(jid, "item " + json.dumps({k: v for k, v in ev.items() if k != "event"}))
         elif e == "progress":   # a kind without items (playback copy): percent + message
             pct = ev.get("percent")

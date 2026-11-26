@@ -32,7 +32,7 @@ def test_run_labels_every_kept_frame_then_only_a_new_class(tmp_path, monkeypatch
     client, folder = make_project(tmp_path)
     page = client.get("/p/p/labeling").text
     assert "Will run: " in page and "<b>urchin</b> (4 frames)" in page
-    assert "press Preview first" in page
+    assert "press Estimate for a time estimate" in page
     assert run_and_wait(client) == "labeled 4 frames, 0 already current"
     assert all(results.read(folder, f"v_aaaaaa_{i}.png") for i in range(4))
     page = client.get("/p/p/labeling").text

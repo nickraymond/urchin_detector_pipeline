@@ -7,7 +7,8 @@ Progress goes to stdout as "@@ {json}" lines through app/jobctl/worker.py: `load
 per frame, then `done` or, after "pause" on stdin, `paused` (Meta's code prints its own lines
 too; those go to the job's log). A pause or crash loses at most the frame in progress: every
 finished frame is on disk, and the next worker skips units whose settings key is saved.
-A preview job (job["preview_file"]) also writes the numbers the Labeling page shows.
+A preview job (job["preview_file"]) also writes the numbers the Labeling page shows; an estimate
+job (job["estimate_file"], D35) writes the time per frame of its frames after the first (warm-up).
 
 The predictor is SAM 3 through Meta's Sam3Processor with the S1 run-time fixes
 (app/sam_test/device_patch.py, D8). Tests pass job["predictor"] = "module:Class" for a fake
@@ -154,16 +155,36 @@ def main(job: dict) -> None:
         item(i, n, recs[-1])
     if job.get("preview_file"):
         write_preview(Path(job["preview_file"]), [f["file"] for f in job["frames"]], load_s, recs)
-    jw.emit("done", message=final_message(recs, n, bool(job.get("preview_file"))))
+    if job.get("estimate_file"):
+        write_estimate(Path(job["estimate_file"]), load_s, recs, units, settings)
+    what = ("preview: labeled" if job.get("preview_file") else
+            "estimate: labeled" if job.get("estimate_file") else "labeled")
+    jw.emit("done", message=final_message(recs, n, what))
 
 
-def final_message(recs: list[dict], n: int, preview: bool) -> str:
+def final_message(recs: list[dict], n: int, what: str = "labeled") -> str:
     done = sum(1 for r in recs if not r.get("skipped"))
     bad = [r["file"] for r in recs if r.get("unreadable")]
     note = (f"; {len(bad)} not labeled, their sam_raw file cannot be read (move it aside and "
             f"Run again): {', '.join(bad)}" if bad else "")
-    what = "preview: labeled" if preview else "labeled"
     return f"{what} {done} frames, {n - done - len(bad)} already current" + note
+
+
+def write_estimate(path: Path, load_s: float, recs: list[dict], units: list[dict],
+                   settings: dict) -> None:
+    """D35: the first frame this worker labels warms up and is not counted; the rest give seconds
+    per frame. After a Pause and Resume the frames done before are skipped, so the warm-up is
+    the first one labeled after the model loaded again (QE PR 35)."""
+    labeled = [r for r in recs if not r.get("skipped")]
+    warmup, timed = (labeled[0], labeled[1:]) if labeled else (None, [])
+    summary = {"at": datetime.now().isoformat(timespec="seconds"), "load_seconds": load_s,
+               "warmup": warmup, "frames": timed,
+               "seconds_per_frame": round(sum(r["seconds"] for r in timed) / len(timed), 1)
+               if timed else None,
+               "key": results.classes_key(units, settings)}
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(summary, indent=1))
+    os.replace(tmp, path)
 
 
 def write_preview(path: Path, files: list[str], load_s: float, recs: list[dict]) -> None:

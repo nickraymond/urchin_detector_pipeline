@@ -48,6 +48,9 @@ def static_url(name: str) -> str:
 
 
 templates.env.globals["static"] = static_url
+# A duration as the pages show it: "7 min", or "2.5 h" from 90 min on.
+templates.env.globals["minutes"] = lambda s: (
+    f"{max(1, math.ceil(s / 60))} min" if s < 5400 else f"{s / 3600:.1f} h")
 
 
 def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
@@ -101,6 +104,15 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     first = config.load(config_path)
     if first.ok:
         jobctl(first)
+
+    def finish_time(seconds: float) -> str:
+        """Clock time `seconds` from now, as the page shows it (e.g. "6:42 PM", or with the
+        day when it is not today)."""
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        at = now + timedelta(seconds=seconds)
+        clock = at.strftime("%I:%M %p").lstrip("0")
+        return clock if at.date() == now.date() else at.strftime("%a ") + clock
 
     def job_view(job: dict | None) -> dict:
         """A job record as pages and status calls show it; {} when there is none."""
@@ -591,8 +603,10 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                           "counts": {k: c["masks"] for k, c in f["counts"].items()}}
                          for f in shown if not f["problem"]]
         files = label.frames_to_label(conn)
+        estimate = label.read_estimate(info["folder"])
         try:
-            plan = (label.run_plan(info["folder"], files, units, data["settings"], prev)
+            plan = (label.run_plan(info["folder"], files, units, data["settings"], prev,
+                                   estimate)
                     if data else None)
         except ValueError:
             plan = None
@@ -606,7 +620,9 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                      "models": list(classes.MODELS), "untagged": classes.UNTAGGED_COLOUR,
                      "palette": classes.PALETTE,
                      "save": f"/p/{info['name']}/labeling/classes/form"} if data else None,
-            "job": sam_job(cfg, info),
+            "job": sam_job(cfg, info), "estimate": estimate,
+            "finish": (finish_time(plan["estimate_s"]) if plan and plan.get("estimate_s")
+                       else None),
             "n_label": len(files),
             "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
             "kept": review.summary(conn), "refused": text is not None}, status_code=status)
@@ -655,7 +671,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     def sam_busy(cfg, info) -> bool:
         return bool(sam_job(cfg, info).get("active"))
 
-    def start_sam(cfg, info, conn, preview: bool, other: bool = False) -> str:
+    def start_sam(cfg, info, conn, preview: bool, other: bool = False,
+                  estimate: bool = False) -> str:
         """Queue a SAM Preview or Run on the job module; returns a note if it was refused.
         An older paused or interrupted SAM job of this project is cancelled first: the new
         job skips whatever that one finished (D33)."""
@@ -665,7 +682,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         except classes.ClassesError:
             return "classes.yaml has problems (listed below); fix them first."
         if not files:
-            what = "preview" if preview else "label"
+            what = "preview" if preview else "estimate" if estimate else "label"
             return f"No kept frames to {what}. Extract frames or add still images first."
         if sam_busy(cfg, info) or extract_busy(cfg, info):
             return ("Another job is running; " + ("preview" if preview else "press Run") +
@@ -677,10 +694,28 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 jc.cancel(old["id"])
             except JobError:
                 pass
-        picks = label.preview_frames(files, other=other) if preview else files
-        jc.submit("sam", label.job_params(info["folder"], picks, preview=preview),
+        if estimate:   # D35: 1 warm-up + 5 frames spread over the frames Run would label
+            cls = classes.ensure(info["folder"])
+            work = label.frames_with_work(info["folder"], files,
+                                          classes.run_units(cls["classes"]), cls["settings"])
+            if not work:
+                return "Nothing to estimate: every class is current on every kept frame."
+            picks = label.estimate_frames(work)
+        else:
+            picks = label.preview_frames(files, other=other) if preview else files
+        jc.submit("sam", label.job_params(info["folder"], picks, preview=preview,
+                                          estimate=estimate),
                   project=str(info["folder"]))
         return ""
+
+    @app.post("/p/{name}/labeling/estimate")
+    def labeling_estimate(request: Request, name: str):
+        """Time 5 frames after a warm-up frame (D35); their results are kept, so Run skips them."""
+        def work(cfg, info, conn):
+            note = start_sam(cfg, info, conn, preview=False, estimate=True)
+            return RedirectResponse(f"/p/{name}/labeling" + (
+                "?" + urlencode({"note": note}) if note else ""), status_code=303)
+        return with_project(request, name, work)
 
     @app.post("/p/{name}/labeling/preview")
     def labeling_preview(request: Request, name: str, other: str = Form("")):
