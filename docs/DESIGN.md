@@ -363,7 +363,8 @@ app/web/templates/export.html  the Export page
 
 - **Review state (D40).** `sam_raw/` stays what SAM returned plus a stable `mask_id` per mask; masks added by
   hand go into `sam_raw/<frame>.json` under the unit `added` with `added_by_hand: true`. Everything a reviewer
-  does lives in `state.sqlite`: `mask_review` (mask_id, frame, class_id, deleted, urchin type, reviewed, time)
+  does lives in `state.sqlite`: `mask_review` (mask_id, frame, class_id, deleted, reviewed, time; the urchin type is the class id, a class of
+  group `urchin`, as-built bite 1)
   and `frame_review` (frame, accepted, split_ok, checked classes, time), plus an action log for undo. A re-run
   keeps reviewed masks (S3, SPEC Q7) with their ids. Export is rebuilt from `sam_raw` + review state, so
   re-exporting is always safe (spec).
@@ -387,6 +388,14 @@ app/web/templates/export.html  the Export page
 - **Add a missed object (D46).** A click or box runs SAM 3's point / box prompt on that frame through the job
   module. If one add takes more than 20 s (model load ~11–17 s, S4 logs), the builder keeps the worker loaded
   while the Review page is open (ends after 10 min idle) and says so in its PR.
+- Review state (as-built, bite 1): `mask_id` is an integer unique in its frame file, never reused
+  (`next_mask_id`); files from before S5 get ids in file order when read (reading never writes). `app/review/state.py`
+  lays `mask_review` over `sam_raw` (`overlay`) and applies the overlap rules (`final`, `class_map`). A mask is
+  reviewed after any action on it or when its frame is accepted; the SAM worker passes the reviewed ids to
+  `results.write_frame`, which keeps them. A deleted mask is never shown but still wins rule 1 against unreviewed
+  masks of its **own run unit**, so a re-run does not bring it back; it never hides another class's detection
+  (QE PR 44). `split_ok` is NULL until marked; only "no" leaves a frame out of COCO. Every action logs the rows it
+  changes as they were, and undo restores them (a stack per frame or project).
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 

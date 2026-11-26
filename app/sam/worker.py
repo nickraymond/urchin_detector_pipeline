@@ -29,6 +29,7 @@ from pathlib import Path
 
 from app import images
 from app.jobctl import worker as jw
+from app.review import state as review_state
 from app.sam import results, tiles
 
 
@@ -179,7 +180,8 @@ def main(job: dict) -> None:
         t = time.perf_counter()
         image = images.open_upright(Path(fr["path"])).convert("RGB")
         done = label_frame(pred, image, todo, settings)
-        results.write_frame(folder, fr["file"], image.width, image.height, settings, done)
+        results.write_frame(folder, fr["file"], image.width, image.height, settings, done,
+                            review_state.reviewed_ids(folder, fr["file"]))
         recs.append({**rec, "seconds": round(time.perf_counter() - t, 2),
                      "masks": {k: len(v["dets"]) for k, v in done.items()},
                      "peak_process_gb": peak_process_gb(),
