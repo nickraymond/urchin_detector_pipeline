@@ -79,3 +79,19 @@ def test_a_worker_error_names_its_cause(tmp_path):
     msg = client.get("/p/p/clips/status").json()[code]["message"]
     assert msg.startswith("Video not found:")            # the worker's own message, not a code
     assert "Video not found" in client.get("/jobs").text
+
+
+def test_filters_applied_while_paused_hold_after_resume(tmp_path, monkeypatch):
+    """QE PR 34: the resumed worker applies the values saved now, not those of Extract time."""
+    client, _, folder = project(tmp_path)                 # filters 0 / 0 at Extract time
+    monkeypatch.setattr(extract, "GRAB_HOOK", "tests.grab_hooks:slow")
+    client.post("/p/p/extract/start", data={"every": "1", "cap": "300"})   # 10 frames
+    assert wait_for(lambda: job(client).get("done", 0) >= 2, 30)
+    client.post(f"/jobs/{job(client)['id']}/pause", data={"back": "/p/p/extract"})
+    assert wait_for(lambda: job(client)["state"] == "paused", 30)
+    r = client.post("/p/p/extract/filter", data={"blur": "20", "dup": "0"})
+    assert r.status_code == 200 and "error=" not in str(r.url)
+    client.post(f"/jobs/{job(client)['id']}/resume", data={"back": "/p/p/extract"})
+    assert wait_for(lambda: job(client)["state"] == "done", 60)
+    counts = client.get("/p/p/extract/status").json()["counts"]
+    assert (counts["kept"], counts["dropped_blur"]) == (8, 2)   # 20 % of 10, as saved

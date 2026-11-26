@@ -493,7 +493,6 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 return RedirectResponse(f"/p/{name}/extract?" + urlencode(
                     {"error": "Extraction is already queued or running."}), status_code=303)
             samples, _ = extract_plan(info, conn, every, cap)
-            blur, dup = filter_settings(info)
             jc = jobctl(cfg)
             old = extract_job(cfg, info)
             if old.get("state") in ("paused", "interrupted"):   # the new plan replaces it
@@ -501,7 +500,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                     jc.cancel(old["id"])
                 except JobError:
                     pass
-            jc.submit("extract", extract.job_params(info["folder"], samples, blur, dup),
+            jc.submit("extract", extract.job_params(info["folder"], samples),
                       project=str(info["folder"]))
             return RedirectResponse(f"/p/{name}/extract", status_code=303)
         return with_project(request, name, work)

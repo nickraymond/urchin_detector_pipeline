@@ -24,9 +24,9 @@ def main() -> None:
     def item(i: int, n: int, name: str, made: bool) -> None:
         jw.emit("item", i=i, n=n, name=name, new=made, counts={"new": int(made)})
 
+    blur, dup = extract.saved_filters(Path(job["folder"]))   # as saved now (QE PR 34)
     new = extract.run(Path(job["folder"]), job["samples"],
-                      blur_percent=job["blur_percent"],
-                      duplicate_distance=job["duplicate_distance"],
+                      blur_percent=blur, duplicate_distance=dup,
                       should_pause=ctl.pause_requested, on_item=item)
     if new is None:
         jw.emit("paused")

@@ -350,15 +350,25 @@ def run(project_folder: Path, samples: list[dict],
 GRAB_HOOK: str | None = None   # tests: "module:function" that wraps grab inside the worker
 
 
-def job_params(project_folder: Path, samples: list[dict], blur_percent: float,
-               duplicate_distance: int) -> dict:
-    """Params of an "extract" job: the plan as it was when Extract was pressed."""
+def job_params(project_folder: Path, samples: list[dict]) -> dict:
+    """Params of an "extract" job: the plan as it was when Extract was pressed. The filter
+    values are not frozen here: the worker reads the saved ones each time it starts, so an
+    Apply made while the job is paused counts on Resume (QE PR 34, D19)."""
     return {"folder": str(project_folder),
             "samples": [{"video": {"path": s["video"]["path"],
                                    "path_code": s["video"]["path_code"]}, "t": s["t"]}
                         for s in samples],
-            "blur_percent": blur_percent, "duplicate_distance": duplicate_distance,
             "grab_hook": GRAB_HOOK}
+
+
+def saved_filters(project_folder: Path) -> tuple[float, int]:
+    """The blur and duplicate values saved in project.json (defaults for older projects)."""
+    import json
+
+    from app import project
+    info = json.loads((Path(project_folder) / "project.json").read_text())
+    st = {**project.DEFAULT_SETTINGS, **info.get("settings", {})}
+    return st["blur_percent"], st["duplicate_distance"]
 
 
 def extract_kind():

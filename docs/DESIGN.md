@@ -267,7 +267,8 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   Known gap until bite 2: extraction still runs on `app/jobs.py`, so an extraction in one project and a SAM job in
   another can run at the same time; bite 2 puts extraction on the job module and closes it (PR 34).
 - **As built, bite 2 (PR 34).** Extraction is a job of kind `extract` (`app/stages/extract_worker.py`; params: the
-  plan as it was when Extract was pressed, blur and duplicate values); `extract.run` checks for a pause before each
+  plan as it was when Extract was pressed; the blur and duplicate values are read from `project.json` each time
+  the worker starts, so an Apply made while the job is paused counts on Resume: QE PR 34); `extract.run` checks for a pause before each
   frame and skips frames on disk, as before. Playback copies are jobs of kind `playback`
   (`app/stages/playback_worker.py`, one per video); it cannot pause (`Kind.pausable = False`): Cancel kills the
   worker's whole process group, ffmpeg included, and its output is under temporary names (D15). Workers send
