@@ -1,0 +1,5 @@
+{# Keep laptop awake (D38): the checkbox on a job form, with the reminder and the battery warning. #}
+<label><input type="checkbox" name="keep_awake" value="1"> Keep laptop awake</label>
+<span class="hint">until this job ends, also while it waits for its start time. Keep the laptop plugged in with the
+  lid open: closing the lid still puts it to sleep.</span>
+{% if battery %}<span class="warn-text">⚠ The laptop is on battery power now.</span>{% endif %}

@@ -303,6 +303,16 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   it waits becomes paused; Resume clears a Stop by that has passed and keeps one still to come (QE PR 37). `start_now` and Cancel work on a scheduled job; a project
   with a scheduled extraction or SAM job refuses another until it is started or cancelled. The Labeling page's
   finish time counts from the scheduled start.
+- **As built, bite 5b (PR 39).** `app/jobctl/awake.py`: one keep-awake process (D38's command, with `-w` the app's
+  PID) held by an `Awake` object; a JobControl thread checks every 2 s whether any keep-awake job is scheduled,
+  queued, running or pausing, starts the process if so and ends it (its own Popen only) if not; submitting a
+  keep-awake job starts it at once. A missing command is shown on the Jobs page, never raised. `on_battery()` reads
+  `pmset -g batt` (read only). "Keep laptop awake" is a checkbox on Run and Extract with the plugged-in / lid-open
+  reminder and a battery warning; the Jobs page says when the process is on. Summary: the runner keeps one per job
+  across Pause / Resume (items done, counts per label summed from `item` events, errors, seconds, state, stop
+  reason, warnings, the kind's item word), written to the row on each item and at each stop, and to the log. The
+  dashboard shows the newest stopped job's summary (finished or paused, so a Stop by pause counts), urchins first.
+  `GET /jobs/<id>/log` shows a job's log as text.
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). Every kind's job file and log are `<data_dir>/jobs/<id>.json` / `.log` (bite 1b).

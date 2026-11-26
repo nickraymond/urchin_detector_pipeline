@@ -255,10 +255,10 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
       and Cancel; the schedule survives an app restart; "Stop by" pauses the job and says so; the Estimate's finish
       clock time counts from the scheduled start (moved here from bite 3, QE PR 35)
 
-**Bite 5b — Keep awake, log and morning summary** (D38)
-- [ ] "Keep laptop awake" toggle (macOS `caffeinate`) offered when a long or scheduled job starts, released when no
+**Bite 5b — Keep awake, log and morning summary** (D38; PR 39)
+- [x] "Keep laptop awake" toggle (macOS `caffeinate`) offered when a long or scheduled job starts, released when no
       such job is left; reminder: plugged in, lid open; a warning when the laptop runs on battery
-- [ ] one log file per job; a summary per job (items done, counts per class including urchins, errors, time taken,
+- [x] one log file per job; a summary per job (items done, counts per class including urchins, errors, time taken,
       why it stopped); the dashboard shows the last finished job's summary ("morning summary")
 
 **Demo (Nick):** press "Estimate" → seconds per frame and a finish time. Start a run and keep

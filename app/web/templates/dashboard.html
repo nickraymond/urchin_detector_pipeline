@@ -9,6 +9,15 @@
   <form method="post" action="/jobs/{{ j.id }}/cancel" class="inline"><input type="hidden" name="back" value="/"><button class="small">Cancel</button></form>
 </section>
 {% endfor %}
+{% if last and last.summary %}{% set s = last.summary %}
+<section class="totals summary"><b>Last job:</b> {{ last.kind }}{% if last.params.preview %} (preview){% elif last.params.estimate %} (estimate){% endif %}{% if last.project_name %} in
+  <a href="/p/{{ last.project_name }}">{{ last.project_name }}</a>{% endif %} — <b>{{ last.state }}</b>{% if last.stop_reason and last.stop_reason not in ("finished", last.state) %} ({{ last.stop_reason }}){% endif %}{% if last.ended %},
+  {{ last.ended | replace("T", " ") }}{% endif %}.<br>
+  {{ s["items"] }} {{ s.item or "item" }}{{ "s" if s["items"] != 1 }} done{% if last.total %} ({{ last.done }} of {{ last.total }}){% endif %} in {{ minutes(s["seconds"] or 0) }};
+  {{ s.errors }} error{{ "s" if s.errors != 1 }}{% if s.warnings %}, {{ s.warnings }} warning{{ "s" if s.warnings != 1 }}{% endif %}.
+  {% if last.found %}<br>Found: {% for k, n in last.found %}{% if "urchin" in k %}<b>{{ k }} {{ n }}</b>{% else %}{{ k }} {{ n }}{% endif %}{{ ", " if not loop.last }}{% endfor %}.{% endif %}
+  <a class="hint" href="/jobs/{{ last.id }}/log">log</a> · <a class="hint" href="/jobs">Jobs page</a></section>
+{% endif %}
 <h1>Projects</h1>
 <p><a href="/jobs">Jobs</a> — every background job, with Pause / Resume / Cancel.</p>
 {% if projects %}

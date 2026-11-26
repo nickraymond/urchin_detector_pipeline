@@ -130,6 +130,23 @@ class Store:
             r = self._conn.execute(sql + " ORDER BY id DESC LIMIT 1", args).fetchone()
         return _decode(r) if r else None
 
+    def keep_awake_needed(self) -> bool:
+        """D38: some keep-awake job is scheduled, queued or running."""
+        with self._lock:
+            return self._conn.execute(
+                "SELECT 1 FROM jobs WHERE keep_awake = 1 AND state IN "
+                "('scheduled', 'queued', 'running', 'pausing') LIMIT 1").fetchone() is not None
+
+    def last_summary(self) -> dict | None:
+        """The newest job that has stopped (finished or paused) with a summary: the dashboard's
+        morning summary (D38)."""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT * FROM jobs WHERE summary IS NOT NULL AND state NOT IN "
+                "('scheduled', 'queued', 'running', 'pausing') ORDER BY ended IS NULL, "
+                "COALESCE(ended, started) DESC, id DESC LIMIT 1").fetchone()
+        return _decode(r) if r else None
+
     def scheduled(self) -> list[dict]:
         """Jobs waiting for their start time, earliest first."""
         with self._lock:
