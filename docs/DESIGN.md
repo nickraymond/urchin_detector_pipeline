@@ -244,6 +244,11 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   errors, end. Summary (written at the end and on each pause): items done, sum of `counts` per label (for SAM:
   masks per run unit, so urchins found), errors, time taken, stop reason. The dashboard shows the last finished
   job's summary.
+- **As built, bite 1a (PR 32).** `JobControl(<data_dir>/jobs)` with `register(Kind)`, `submit`, `status`, `list`,
+  `pause`, `resume`, `cancel`; a `Kind` is a worker module, `prepare(params)` (the job file, `jobs/<id>.json`,
+  rewritten on each start) and an optional `progress(params)` counted from the kind's own files. State changes are
+  compare-and-set in one SQL statement. Workers start in their own session, so a Ctrl-C on the app does not cut an
+  item in half: the worker reads end of file, finishes the item and exits; `emit()` exits quietly if the app is gone.
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). The SAM worker's job file and log stay in `<project>/sam_logs/`.

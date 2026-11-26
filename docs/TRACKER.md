@@ -209,17 +209,17 @@ Click a preview frame: it opens large on the page; < > move to the next frame; c
 to show only urchin masks. Add a class with the form (no typing of YAML) and Save.
 **Needs:** S2 (done); SPEC Q2 and the SAM part of Q10 answered by Lead calls D22–D24 (Nick can reverse them).
 
-### S4 — Job control  `[ ]`
+### S4 — Job control  `[~]`
 **Goal:** long jobs run in a background worker with estimate, pause/resume, limits and a schedule.
 Built as its own module with no labeling-specific code (DESIGN D4). Design: DESIGN §Planned for S4;
 Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft PR per bite, about 300 lines each.
 
-**Bite 1a — Job module core** (D32, D33)
-- [ ] `app/jobctl/`: one queue for the whole app, one job at a time; job records in `<data_dir>/jobs/jobs.sqlite`
+**Bite 1a — Job module core** (D32, D33; PR 32)
+- [x] `app/jobctl/`: one queue for the whole app, one job at a time; job records in `<data_dir>/jobs/jobs.sqlite`
       (kind, params, state, progress, times, stop reason); a job is a worker process speaking `@@ {json}` lines and
       reading `pause` on stdin; worker helpers (`app/jobctl/worker.py`); nothing in it imports `app.stages` or
       `app.sam` (a test checks)
-- [ ] Pause / Resume / Cancel and "interrupted" after an app quit, tested end to end with a fake job kind (a tiny
+- [x] Pause / Resume / Cancel and "interrupted" after an app quit, tested end to end with a fake job kind (a tiny
       worker that writes one file per item): resume never repeats or skips an item
 
 **Bite 1b — SAM on the job module; Jobs page** (D33, D34)
