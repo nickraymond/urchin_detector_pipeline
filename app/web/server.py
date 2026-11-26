@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import math
 import os
 import re
@@ -32,6 +33,7 @@ from app.jobctl import JobControl, JobError
 from app.jobctl import limits as job_limits
 from app.jobctl import awake, schedule
 from app.jobctl.runner import GUARD_REASON
+from app.export import worker as export_worker
 from app.sam import classes
 from app.review import state as review_state
 from app.stages import clips, extract, ingest, label, review, review_labels
@@ -53,7 +55,8 @@ def static_url(name: str) -> str:
 
 
 templates.env.globals["static"] = static_url
-JOB_NAMES = {"sam": "SAM labeling", "extract": "Extraction", "playback": "Playback copy"}
+JOB_NAMES = {"sam": "SAM labeling", "extract": "Extraction", "playback": "Playback copy",
+             "export": "Export"}
 AWAKE_CMD: list[str] | None = None   # tests: a fake keep-awake command (D38); None = the real one
 # A duration as the pages show it: "7 min", or "2.5 h" from 90 min on.
 templates.env.globals["minutes"] = lambda s: (
@@ -96,6 +99,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             jc = JobControl(cfg.data_dir / "jobs", awake_cmd=AWAKE_CMD)
             jc.register(label.sam_kind())
             jc.register(label.add_kind())
+            jc.register(export_worker.export_kind())
             jc.register(extract.extract_kind())
             jc.register(clips.playback_kind())
             controls[key] = jc
@@ -137,7 +141,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "what": JOB_NAMES.get(job["kind"], job["kind"]) + (
                     " (preview)" if params.get("preview") else
                     " (estimate)" if params.get("estimate") else ""),
-                "item": "frame" if job["kind"] in ("sam", "extract") else "item",
+                "item": "frame" if job["kind"] in ("sam", "extract", "export") else "item",
                 "guard_paused": guard,   # D36c: resumes by itself at twice the limit
                 "guard_resume_gb": f"{2 * float((job.get('limits') or {}).get('memory_guard_gb') or 0):g}",
                 "percent": round(100 * job["done"] / total, 1) if total else 0.0,
@@ -216,7 +220,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     @app.get("/p/{name}/live/{kind}", response_class=HTMLResponse)
     def live_panel(request: Request, name: str, kind: str, back: str = "", compact: str = ""):
         """The latest job of this kind in this project, as the pages show it."""
-        if kind not in ("sam", "extract"):
+        if kind not in ("sam", "extract", "export"):
             return PlainTextResponse(f"No job kind {kind!r}.", status_code=404)
         return with_project(request, name, lambda cfg, info, conn: live_html(
             LIVE["panel"].render(j=job_view(jobctl(cfg).latest(kind, str(info["folder"]))),
@@ -816,6 +820,47 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     def review_frame_ok(conn, file: str) -> bool:
         row = conn.execute("SELECT status FROM frames WHERE file = ?", (file,)).fetchone()
         return bool(extract.FRAME_NAME.match(file) and row and row[0] in label.LABELED)
+
+    # ---- Export (S5 bite 6): a job that rebuilds export/, then the checks and counts ----
+
+    def export_report(folder: Path) -> dict | None:
+        """The last export's summary and checks: export/ (passed) or a newer export.failed/."""
+        found = []
+        for sub in ("export", "export.failed"):
+            p = folder / sub / "summary.json"
+            if p.is_file():
+                try:
+                    rep = json.loads(p.read_text())
+                    rep["checks"] = json.loads((folder / sub / "checks.json").read_text())
+                except (ValueError, OSError):
+                    continue
+                found.append({**rep, "folder": str(folder / sub), "failed": sub != "export"})
+        return max(found, key=lambda r: r.get("at", "")) if found else None
+
+    @app.get("/p/{name}/export", response_class=HTMLResponse)
+    def export_page(request: Request, name: str, error: str = ""):
+        def work(cfg, info, conn):
+            acc = conn.execute("SELECT COUNT(*) FROM frame_review WHERE accepted = 1").fetchone()[0]
+            return templates.TemplateResponse(request, "export.html", {
+                "cfg": cfg, "info": info, "accepted": acc, "error": error,
+                "job": job_view(jobctl(cfg).latest("export", str(info["folder"]))),
+                "report": export_report(info["folder"])})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/export/start")
+    def export_start(request: Request, name: str):
+        def work(cfg, info, conn):
+            jc = jobctl(cfg)
+            if job_view(jc.latest("export", str(info["folder"]))).get("active"):
+                return RedirectResponse(f"/p/{name}/export?" + urlencode(
+                    {"error": "An export is already queued or running."}), status_code=303)
+            if not conn.execute("SELECT 1 FROM frame_review WHERE accepted = 1").fetchone():
+                return RedirectResponse(f"/p/{name}/export?" + urlencode(
+                    {"error": "No accepted frames yet: accept frames on the Review labels page."}),
+                    status_code=303)
+            jc.submit("export", {"folder": str(info["folder"])}, project=str(info["folder"]))
+            return RedirectResponse(f"/p/{name}/export", status_code=303)
+        return with_project(request, name, work)
 
     @app.get("/p/{name}/labels", response_class=HTMLResponse)
     def labels_page(request: Request, name: str):
