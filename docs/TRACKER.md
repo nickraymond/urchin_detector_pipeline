@@ -183,13 +183,13 @@ One draft PR per bite, about 300 lines each.
 - [x] watch (QE PR 16, PR 19): stills with EXIF orientation: SAM, masks and pages use the same upright image (D27);
       S5's export images must be upright too (still open for S5)
 
-**Bite 5 — Large-image viewer on the Labeling page** (Nick, 2026-11-25, SPEC Q16)
-- [ ] clicking a preview frame opens it large on the same page (no new tab), with < > buttons and arrow keys
+**Bite 5 — Large-image viewer on the Labeling page** (Nick, 2026-11-25, SPEC Q16; PR 27)
+- [x] clicking a preview frame opens it large on the same page (no new tab), with < > buttons and arrow keys
       through the preview frames, Esc to close, zoom and pan: S2's `static/viewer.js`, reused, not copied
-- [ ] a class legend along the bottom of the viewer, with each class's colour and mask count. Clicking a class
+- [x] a class legend along the bottom of the viewer, with each class's colour and mask count. Clicking a class
       turns its masks on or off; a second control shows only that class, so "urchin" masks stand out from
       everything else. The legend applies to the large view and the preview tiles alike
-- [ ] the legend says why some masks have a box: objects (counted things) are boxed, areas (kelp, rock) are not
+- [x] the legend says why some masks have a box: objects (counted things) are boxed, areas (kelp, rock) are not
 
 **Bite 6 — Class editor form** (Nick, 2026-11-25: the YAML text box invites typing errors; replaces D25's text box)
 - [ ] a form instead of the text box: one row per class with name, kind (object / area as a choice), prompts as

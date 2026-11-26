@@ -18,7 +18,7 @@ what broke, what's next.*
 ---
 
 ## 2026-11-25 — Sprint S3 — Bite 5: large viewer and class legend on the Labeling page
-**Branch:** sprint/3-viewer (from sprint/3-run, PR 24 not merged yet)
+**Branch:** sprint/3-viewer (PR 27; built on bite 4's branch, `main` merged in after PR 24's squash)
 **Done:** clicking a preview frame opens S2's viewer on the page (arrows, Esc, zoom, pan) with the masks;
 a class legend (toggle, "only", final class map) drives the tiles and the viewer together; objects boxed,
 areas not, and the legend says so. Masks are decoded inside their box only and cached: on a synthetic 5.3K

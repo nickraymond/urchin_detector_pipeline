@@ -118,3 +118,13 @@ def test_page_gives_the_viewer_its_frames_and_legend(tmp_path, monkeypatch):
     urchin = next(u for u in data["units"] if u["key"] == "urchin")
     assert urchin["kind"] == "object" and urchin["untagged"] and urchin["colour"].startswith("#")
     assert data["frames"][0]["counts"]["urchin"] == 2
+
+
+def test_a_results_file_without_frame_size_gives_404_not_500(tmp_path):
+    """QE PR 27: a hand-edited sam_raw file that parses but lacks width / height."""
+    client, folder, _ = labelled(tmp_path)
+    results.raw_path(folder, "v_aaaaaa_0.png").write_text('{"units": {}}')
+    r = client.get("/p/p/labeling/overlay/v_aaaaaa_0.png")
+    assert r.status_code == 404 and "move it aside" in r.text
+    results.raw_path(folder, "v_aaaaaa_0.png").write_text('{"width": 1, "height": 1, "units": []}')
+    assert client.get("/p/p/labeling/overlay/v_aaaaaa_0.png").status_code == 404
