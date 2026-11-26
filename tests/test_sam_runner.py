@@ -89,7 +89,7 @@ def test_write_frame_rle_reviewed_masks_and_class_ids(tmp_path):
     assert results.to_run(tmp_path, "f.jpg", units, s) == [u for u in units
                                                            if u["key"] not in ("urchin", "fish")]
     assert json.loads((tmp_path / "sam_raw" / "class_ids.json").read_text()) == {
-        "1": "purple urchin", "2": "red urchin", "6": "fish"}
+        "1": "purple urchin", "2": "red urchin", "10": "black urchin", "6": "fish"}
     # a re-run replaces unreviewed masks and keeps reviewed ones, marked as older
     raw = results.read(tmp_path, "f.jpg")
     raw["units"]["urchin"]["masks"][0]["reviewed"] = True
@@ -100,10 +100,10 @@ def test_write_frame_rle_reviewed_masks_and_class_ids(tmp_path):
     assert [(m["reviewed"], m["from_older_settings"]) for m in masks] == [(True, True),
                                                                           (False, False)]
     assert data["units"]["fish"]["masks"] == []                           # other units untouched
-    # the classes check now holds those ids to their names (D6)
+    # the classes check now holds those names to their ids (D6); a rename keeps the id (D39)
     with pytest.raises(classes.ClassesError):
-        classes.save(tmp_path, classes.DEFAULT_FILE.read_text().replace("name: fish,",
-                                                                        "name: fishes,"))
+        classes.save(tmp_path, classes.DEFAULT_FILE.read_text().replace("{id: 6, name: fish,",
+                                                                        "{id: 11, name: fish,"))
 
 
 def synthetic_frame(path, size=(2600, 1200)):

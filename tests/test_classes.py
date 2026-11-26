@@ -27,7 +27,7 @@ def test_default_file_is_valid_with_the_planned_ids_and_order():
     by_id = {c["id"]: c["name"] for c in data["classes"]}
     assert by_id == {1: "purple urchin", 2: "red urchin", 3: "sea star",
                      4: "sunflower sea star", 5: "anemone", 6: "fish", 7: "rock/substrate",
-                     8: "kelp shoot", 9: "kelp"}
+                     8: "kelp shoot", 9: "kelp", 10: "black urchin"}     # 10: D39
     names = [c["name"] for c in data["classes"]]
     assert names.index("kelp") < names.index("rock/substrate")          # D22: kelp wins
     assert data["settings"] == {"model": "sam3", "confidence": 0.4, "tile_px": 1008,
@@ -41,7 +41,7 @@ def test_urchins_are_one_run_unit_with_one_prompt():
     units = classes.run_units(classes.parse(DEFAULT)["classes"])
     urchin = units[0]
     assert urchin == {"key": "urchin", "group": True, "kind": "object", "prompts": ["urchin"],
-                      "classes": {1: "purple urchin", 2: "red urchin"}}
+                      "classes": {1: "purple urchin", 2: "red urchin", 10: "black urchin"}}
     assert len(units) == 8 and all(not u["group"] for u in units[1:])
 
 
@@ -50,7 +50,8 @@ def test_errors_name_the_line():
                            "{id: 2, name: sea star, kind: thing")
     errs = errors_of(text)
     line = next(i for i, s in enumerate(text.splitlines(), 1) if "name: sea star" in s)
-    assert (line, "id 2 is used twice (also line %d)" % (line - 1)) in errs
+    red = next(i for i, s in enumerate(text.splitlines(), 1) if "name: red urchin" in s)
+    assert (line, "id 2 is used twice (also line %d)" % red) in errs
     assert (line, "kind must be object or area; got 'thing'") in errs
 
 
@@ -83,11 +84,10 @@ def test_bad_classes_are_refused(old, new, expect):
     assert any(expect in m and n for n, m in errs), errs
 
 
-def test_ids_with_sam_results_keep_their_names():
+def test_ids_with_sam_results_may_be_renamed_but_never_renumbered():
     used = {3: "sea star", 6: "fish"}
-    errs = errors_of(DEFAULT.replace("name: sea star,", "name: bat star,"), used)
-    assert any("id 3 has SAM results as 'sea star'" in m and "e.g. 10" in m for _, m in errs)
-    errs = errors_of(DEFAULT.replace("{id: 6, name: fish", "{id: 10, name: fish"), used)
+    classes.parse(DEFAULT.replace("name: sea star,", "name: bat star,"), used)   # D39 rename
+    errs = errors_of(DEFAULT.replace("{id: 6, name: fish", "{id: 11, name: fish"), used)
     assert any("'fish' has SAM results under id 6" in m for _, m in errs)
     # removing a class with results is fine; its results stay on disk (DESIGN)
     classes.parse(DEFAULT.replace("  - {id: 6, name: fish, kind: object, prompts: [fish]}\n", ""),
@@ -104,7 +104,7 @@ def test_save_is_safe_dump_and_nothing_is_written_on_error(tmp_path):
     (tmp_path / "sam_raw").mkdir()
     (tmp_path / "sam_raw" / "class_ids.json").write_text(json.dumps({"3": "sea star"}))
     with pytest.raises(classes.ClassesError):
-        classes.save(tmp_path, DEFAULT.replace("name: sea star,", "name: bat star,"))
+        classes.save(tmp_path, DEFAULT.replace("{id: 3, name: sea star", "{id: 11, name: sea star"))
     assert (tmp_path / "classes.yaml").read_text() == written
 
 
@@ -124,18 +124,18 @@ def test_labeling_page_shows_edits_saves_and_refuses(tmp_path):
     assert 'href="/p/p/labeling"' in client.get("/p/p").text           # dashboard row
     page = client.get("/p/p/labeling").text
     assert "not in the project yet" in page and "sunflower sea star" in page
-    assert "next free id: 10" in page
+    assert "next free id: 11" in page
     assert not (folder / "classes.yaml").exists()                        # a GET writes nothing
     bad = DEFAULT.replace("kind: area, prompts: [kelp]", "kind: area, prompts: kelp")
     r = client.post("/p/p/labeling/classes", data={"text": bad})
-    assert r.status_code == 400 and "Not saved" in r.text and "Line 22:" in r.text
+    assert r.status_code == 400 and "Not saved" in r.text and "Line 24:" in r.text
     assert "prompts: kelp" in r.text                                     # what was typed stays
     assert not (folder / "classes.yaml").exists()
     r = client.post("/p/p/labeling/classes",
-                    data={"text": DEFAULT + "  - {id: 10, name: sea cucumber, kind: object, "
+                    data={"text": DEFAULT + "  - {id: 11, name: sea cucumber, kind: object, "
                                             "prompts: [sea cucumber]}\n"})
     assert "Saved classes.yaml." in r.text and "sea cucumber" in r.text
-    assert "next free id: 11" in r.text
+    assert "next free id: 12" in r.text
     # edited in a text editor, then Reload: the page shows the problem with its line
     (folder / "classes.yaml").write_text(DEFAULT.replace("confidence: 0.4", "confidence: 2"))
     page = client.get("/p/p/labeling").text
@@ -143,10 +143,10 @@ def test_labeling_page_shows_edits_saves_and_refuses(tmp_path):
     # a list where a name belongs: a message with the line, not a server error (QE PR 20)
     listed = DEFAULT.replace("seg_as: kelp}", "seg_as: [kelp]}")
     r = client.post("/p/p/labeling/classes", data={"text": listed})
-    assert r.status_code == 400 and "Line 20: seg_as must be the name" in r.text
+    assert r.status_code == 400 and "Line 22: seg_as must be the name" in r.text
     (folder / "classes.yaml").write_text(listed)
     page = client.get("/p/p/labeling")
-    assert page.status_code == 200 and "Line 20: seg_as must be the name" in page.text
+    assert page.status_code == 200 and "Line 22: seg_as must be the name" in page.text
 
 
 # --- EXIF orientation (D27) ---

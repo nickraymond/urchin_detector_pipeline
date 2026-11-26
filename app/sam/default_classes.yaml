@@ -9,9 +9,11 @@ settings:
   min_mask_area_px: 500    # below the smallest real urchin seen, 948 px (S3 bite 3, D24)
 classes:
   # ids are fixed: never renumbered or reused (D6); 0 means unknown.
-  # One SAM prompt, "urchin", for both urchins; the type is tagged by hand in label review (D18).
+  # One SAM prompt, "urchin", for every urchin type; the type is tagged by hand in label review (D18, D39).
   - {id: 1, name: purple urchin, kind: object, prompts: [urchin], sam_group: urchin}
   - {id: 2, name: red urchin, kind: object, prompts: [urchin], sam_group: urchin}
+  # A third urchin type (SPEC Q18, D39); its name may change later, its id never does.
+  - {id: 10, name: black urchin, kind: object, prompts: [urchin], sam_group: urchin}
   - {id: 3, name: sea star, kind: object, prompts: [sea star]}
   - {id: 4, name: sunflower sea star, kind: object, prompts: [sunflower sea star]}
   - {id: 5, name: anemone, kind: object, prompts: [sea anemone]}

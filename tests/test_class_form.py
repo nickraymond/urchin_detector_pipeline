@@ -3,6 +3,7 @@ classes.yaml is written only when the same checks as a text save pass. Synthetic
 
 import copy
 import json
+from pathlib import Path
 import random
 
 import pytest
@@ -31,16 +32,16 @@ def test_form_saves_an_added_class_and_check_writes_nothing(tmp_path):
     page = client.get("/p/p/labeling").text
     assert 'id="class-form-data"' in page and "classform.js" in page and "<textarea" not in page
     form = json.loads(page.split('id="class-form-data">')[1].split("</script>")[0])
-    assert form["next_id"] == 10 and form["kinds"] == ["object", "area"] and form["used"] == {}
+    assert form["next_id"] == 11 and form["kinds"] == ["object", "area"] and form["used"] == {}
     body = {"settings": form["settings"], "classes": form["classes"] + [
-        {"id": 10, "name": "sea cucumber", "kind": "object", "prompts": ["sea cucumber"]}]}
+        {"id": 11, "name": "sea cucumber", "kind": "object", "prompts": ["sea cucumber"]}]}
     r = client.post("/p/p/labeling/classes/form?check=1", json=body)
     assert r.status_code == 200 and r.json() == {"errors": []}
     assert not (folder / "classes.yaml").exists()                    # a check never writes
     assert client.post("/p/p/labeling/classes/form", json=body).json() == {"errors": []}
     saved = classes.parse((folder / "classes.yaml").read_text())
     assert saved["classes"][-1]["name"] == "sea cucumber"
-    assert "next free id: 11" in client.get("/p/p/labeling").text
+    assert "next free id: 12" in client.get("/p/p/labeling").text
 
 
 def test_problems_point_at_the_row_or_setting_and_nothing_is_saved(tmp_path):
@@ -64,21 +65,24 @@ def test_problems_point_at_the_row_or_setting_and_nothing_is_saved(tmp_path):
     assert not (folder / "classes.yaml").exists()
 
 
-def test_a_class_with_results_keeps_its_name(tmp_path):
+def test_a_class_with_results_can_be_renamed_and_keeps_its_id(tmp_path):
     client, folder = start(tmp_path)
     with_results(folder, {"6": "fish"})
     page = client.get("/p/p/labeling").text
     assert json.loads(page.split('id="class-form-data">')[1].split("</script>")[0])["used"] == {
         "6": "fish"}
     body = copy.deepcopy(DEFAULT)
-    body["classes"][5]["name"] = "rockfish"
-    errs = client.post("/p/p/labeling/classes/form", json=body).json()["errors"]
-    assert any(e["row"] == 5 and "never reused" in e["msg"] for e in errs)
-    del body["classes"][5]                                    # removing it is allowed
+    row = next(i for i, c in enumerate(body["classes"]) if c["id"] == 6)
+    body["classes"][row]["name"] = "rockfish"                 # D39: a rename keeps id 6
     assert client.post("/p/p/labeling/classes/form", json=body).json() == {"errors": []}
-    body["classes"].append({"id": 10, "name": "fish", "kind": "object", "prompts": ["fish"]})
+    assert json.loads((folder / "sam_raw" / classes.USED_FILE).read_text()) == {"6": "rockfish"}
+    del body["classes"][row]                                  # removing it is allowed
+    assert client.post("/p/p/labeling/classes/form", json=body).json() == {"errors": []}
+    body["classes"].append({"id": 11, "name": "rockfish", "kind": "object", "prompts": ["fish"]})
     errs = client.post("/p/p/labeling/classes/form", json=body).json()["errors"]
     assert any(e["row"] == len(body["classes"]) - 1 and "under id 6" in e["msg"] for e in errs)
+    assert "has results: a rename keeps id" in (Path(__file__).parents[1] / "app" / "web" /
+                                                 "static" / "classform.js").read_text()
 
 
 # --- fuzz: no form input can produce a classes.yaml that fails the checks ---
