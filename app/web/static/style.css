@@ -155,3 +155,17 @@ table.jobs progress { width: 110px; }
 @media (prefers-reduced-motion: reduce) { .running-sign { animation-duration: 3s; } }
 button.primary { background: #2e7d32; color: #fff; border-color: #2e7d32; font-weight: 600; }
 .job-banner { margin: 8px 0; }
+/* Label review (S5 bite 3a): the review panel inside the large viewer */
+.viewer .v-review { position: absolute; z-index: 1; top: 52px; left: 12px; width: 290px; padding: 8px 10px; border-radius: 6px; background: rgba(0, 0, 0, .65); color: #eee; font-size: 13px; }
+.viewer .v-review .rv-row { margin: 4px 0; }
+.viewer .v-review button { position: static; background: rgba(255, 255, 255, .92); color: #222; padding: 3px 8px; margin: 2px 2px 2px 0; }
+.viewer .v-review button:disabled { opacity: .5; cursor: default; }
+.viewer .v-review input[type=search] { width: 100%; box-sizing: border-box; }
+.viewer .v-review input[type=range] { width: 170px; vertical-align: middle; }
+.viewer .v-review .rv-msg { color: #ffd479; min-height: 1em; }
+.viewer .v-review .rv-msg.ok { color: #9fe39f; }
+#label-frames tr.current td { background: #fff7d6; }
+.viewer .v-review .rv-toggle { float: right; margin: -2px -4px 0 0; }
+.viewer .v-review.collapsed { width: auto; }
+.viewer .v-review.collapsed > :not(.rv-toggle) { display: none; }
+.viewer .v-review.collapsed .rv-toggle { float: none; margin: 0; }

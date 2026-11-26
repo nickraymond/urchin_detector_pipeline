@@ -315,10 +315,10 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [x] checks as data: COCO loads with pycocotools; every mask PNG matches its image size and uses only ids in
       `classes.json`; metrics match the masks; synthetic tests
 
-**Bite 3a — Label review page**
-- [ ] a Review page per project: frame list with accepted / to do, the one large viewer and class legend (SPEC
+**Bite 3a — Label review page** (PR 50)
+- [x] a Review page per project: frame list with accepted / to do, the one large viewer and class legend (SPEC
       Q16), objects only / areas only / final class map toggle, zoom slider and full screen
-- [ ] click a mask to select it; searchable class picker to change its class; `X` deletes; `Enter` accepts; `Z` undo
+- [x] click a mask to select it; searchable class picker to change its class; `X` deletes; `Enter` accepts; `Z` undo
 
 **Bite 3b — Split check, fully checked, totals**
 - [ ] split check (touching urchins separated: yes / no) and "fully checked" per class on the frame

@@ -12,7 +12,7 @@
   <tr class="state-{{ s.state | replace(' ', '-') }}">
     <td>{{ loop.index }}</td>
     <td>{% if s.stage == "ingest" %}<a href="/p/{{ info.name }}/ingest">{{ s.label }}</a>{% elif s.stage == "clips" %}<a href="/p/{{ info.name }}/clips">{{ s.label }}</a>{% elif s.stage == "extract" %}<a href="/p/{{ info.name }}/extract">{{ s.label }}</a>{% elif s.stage == "review" %}<a href="/p/{{ info.name }}/review">{{ s.label }}</a>{% if s.state != "skipped" %}
-      <form method="post" action="/p/{{ info.name }}/review/finish" class="inline"><button name="state" value="skipped" class="small">Skip</button></form>{% endif %}{% elif s.stage == "labeling" %}<a href="/p/{{ info.name }}/labeling">{{ s.label }}</a>{% else %}{{ s.label }}{% endif %}</td><td>{{ s.state }}{% if s.stage in ("extract", "labeling") %}{% set kind = "sam" if s.stage == "labeling" else "extract" %}
+      <form method="post" action="/p/{{ info.name }}/review/finish" class="inline"><button name="state" value="skipped" class="small">Skip</button></form>{% endif %}{% elif s.stage == "labeling" %}<a href="/p/{{ info.name }}/labeling">{{ s.label }}</a>{% elif s.stage == "export" %}<a href="/p/{{ info.name }}/labels">{{ s.label }}</a>{% else %}{{ s.label }}{% endif %}</td><td>{{ s.state }}{% if s.stage in ("extract", "labeling") %}{% set kind = "sam" if s.stage == "labeling" else "extract" %}
       <div data-live="/p/{{ info.name }}/live/{{ kind }}?compact=1&back={{ ('/p/' ~ info.name) | urlencode }}">{{ job_panel(jobs[kind], "/p/" ~ info.name, true) }}</div>{% endif %}</td>
     <td>{{ s.counts or "—" }}</td><td>{{ s.updated }}</td>
   </tr>

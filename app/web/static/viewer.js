@@ -5,6 +5,8 @@
 // Shared by the Extract and Review pages (bite 4); the page gives #frame-list and #viewer.
 // Each frame is {file, video, t, label?}; label (review status) is added to the caption.
 // The Labeling page (S3 bite 5) gives {file, src, caption} instead: src is the overlay URL.
+// Label review (S5) sets window.viewerPick(x, y, i) to take a click on the picture (x, y in
+// picture pixels); returning true skips the click-to-zoom.
 (function () {
   "use strict";
   const listEl = document.getElementById("frame-list");
@@ -77,6 +79,9 @@
   window.openViewer = (list, i) => { frames = list; show(i); };
   window.viewerIndex = () => (viewer.hidden ? -1 : at);   // the frame shown, -1 when closed
   window.viewerShow = (i, keep) => show(i, keep);         // redraw / move (review keys)
+  // zoom to `factor` × the fitted size around the middle (label review's zoom slider, S5)
+  window.viewerZoom = factor => { if (!viewer.hidden) zoomAt(viewer.clientWidth / 2, viewer.clientHeight / 2, fitS * factor); };
+  window.viewerZoomFactor = () => s / fitS;
   const grid = document.getElementById("frame-grid");
   if (grid) grid.addEventListener("click", e => {
     const a = e.target instanceof Element && e.target.closest("a[data-i]");
@@ -103,7 +108,10 @@
   img.addEventListener("pointerup", e => {
     if (drag && !drag.moved) {  // a click, not a drag: actual pixels here, or back to fit
       const r = viewer.getBoundingClientRect();
-      s > fitS * 1.01 ? fit() : zoomAt(e.clientX - r.left, e.clientY - r.top, Math.max(1, fitS * 2));
+      const px = e.clientX - r.left, py = e.clientY - r.top;
+      // a page may take the click (label review selects a mask; S5): image pixel coordinates
+      if (window.viewerPick && window.viewerPick((px - ox) / s, (py - oy) / s, at)) { drag = null; return; }
+      s > fitS * 1.01 ? fit() : zoomAt(px, py, Math.max(1, fitS * 2));
     }
     drag = null;
   });
@@ -115,6 +123,7 @@
 
   document.addEventListener("keydown", e => {
     if (viewer.hidden || e.metaKey || e.ctrlKey) return;
+    if (e.target instanceof Element && e.target.closest("input, select, textarea")) return;  // typing
     const W = viewer.clientWidth / 2, H = viewer.clientHeight / 2;
     if (e.key === "Escape") close();
     else if (e.key === "ArrowRight") show(at + 1);
