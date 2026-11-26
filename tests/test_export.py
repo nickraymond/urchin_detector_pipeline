@@ -185,6 +185,23 @@ def test_re_export_rebuilds_from_scratch(proj):
     assert not (folder / "export.new").exists() and not (folder / "export.old").exists()
 
 
+def test_an_export_left_half_swapped_by_a_crash_is_put_back(proj):
+    """QE PR 46: a run that died between renaming export/ to export.old/ and export.new/ to
+    export/ leaves the only good export in export.old/; the next run must not delete it."""
+    folder, conn = proj
+    writers.run(folder, conn)
+    (folder / "export").rename(folder / "export.old")
+    state.reopen(conn, "f4.jpg")
+    with pytest.raises(writers.ExportError):          # a build error: the old export must survive
+        results.write_frame(folder, "f0.jpg", W, H, {**SETTINGS, "confidence": 0.5},
+                            {"urchin": {"unit": UNITS["urchin"], "seconds": 0.1,
+                                        "dets": [det((60, 0, 70, 8))]}},
+                            state.reviewed_ids(folder, "f0.jpg"))
+        writers.run(folder, conn)
+    assert (folder / "export" / "detector_coco.json").is_file()
+    assert not (folder / "export.old").exists()
+
+
 def test_an_untagged_urchin_on_an_accepted_frame_stops_the_export_and_keeps_the_old(proj):
     folder, conn = proj
     writers.run(folder, conn)

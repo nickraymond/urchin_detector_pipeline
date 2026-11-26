@@ -17,6 +17,18 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S5 — Bites 1, 2, 4a, 7 (builder, overnight)
+**Branch:** sprint/5-review-state (PR 44), 5-export (PR 46), 5-urchin-tagging (PR 47), 5-sam-quality (PR 49)
+**Done:** review state in `state.sqlite` with stable mask ids, final masks after review, accept rule, undo (bite 1);
+export writers + splits + metrics + checks (bite 2; new dependency contourpy for COCO outlines); black urchin, renames
+that keep the id, tagging helpers (bite 4a, backend of bite 4); areas on the whole frame at 2016 px and the anemone
+prompt, from a 10-frame real-SAM bench (bite 7, Lead calls proposed). Self-tests on a scratch copy of an S4 project
+(16 real 4K frames): export checks PASS, polygon IoU median 0.997; rename re-runs nothing; Preview re-ran areas only.
+**Broke/surprised us:** a run unit's key is the class name, so a rename would have orphaned its results
+(`follow_renames` re-keys on save). macOS `._*` files on the exFAT SSD tripped the split check. "sea anemone" takes
+27 of 94 urchins under rule 1; whole-frame areas miss on 2 of 10 frames. QE: a deleted mask hid another class (fixed).
+**Next:** bite 3 (Review page) now that S4's page PRs are merged; then 4b, 5, 6.
+
 ## 2026-11-25 — Sprint S4 — Closed (planning lead)
 **Branch:** sprint/4-close (docs only)
 **Done:** S4 marked `[x]`. Nick passed the checklist at 10:13 PM (lead chat). His feedback from the test went in as

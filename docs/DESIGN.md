@@ -396,6 +396,18 @@ app/web/templates/export.html  the Export page
   masks of its **own run unit**, so a re-run does not bring it back; it never hides another class's detection
   (QE PR 44). `split_ok` is NULL until marked; only "no" leaves a frame out of COCO. Every action logs the rows it
   changes as they were, and undo restores them (a stack per frame or project).
+- Export (as-built, bites 2a + 2b, `app/export/`): `writers.run` builds everything into `export.new/`, runs
+  `checks.run_all` on it, and only when every check passes renames `export/` → `export.old/`, `export.new/` →
+  `export/` and deletes `export.old/`; a run that finds `export.old/` without `export/` (a crash between the two
+  renames) puts it back first. A failed check leaves the new build in `export.failed/` and `export/` unchanged; a
+  build error (e.g. an accepted frame that a re-run gave an untagged urchin) raises and keeps the old export.
+  COCO outlines: masks → polygons with `contourpy` (marching squares at 0.5; BSD-3-Clause, PyPI metadata of
+  1.3.3; `<1.4` because 1.4 needs numpy 2; pycocotools only goes polygon → RLE), Douglas-Peucker at 0.5 px, holes
+  dropped (COCO polygons are filled); on 109 real masks IoU vs the mask 0.964–0.997. Category id = class id.
+  Metrics counts are the final objects after review and rule 1; cover from the class map. macOS writes a `._<name>`
+  file next to every file on the exFAT SSD (`com.apple.provenance`); the checks ignore `._*`.
+  D43 date format: `<site>-<yy>-<mm>-<dd>-…` read as year-month-day (QE PR 46 on Nick's footage: 30 of 46 videos
+  match, fields 22/24/25, 06–10, 11–29, so not dd-mm-yy; 6 site + date groups); the others use the folder name.
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 

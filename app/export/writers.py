@@ -240,6 +240,8 @@ def run(folder: Path, conn, progress=None) -> dict:
         raise ExportError("classes.yaml has problems: fix them on the Labeling page first.")
     class_list = cfg["data"]["classes"]
     new, old, dest = folder / "export.new", folder / "export.old", folder / "export"
+    if old.exists() and not dest.exists():   # a run died between its two renames: put it back
+        os.replace(old, dest)
     for p in (new, old):
         if p.exists():
             shutil.rmtree(p)
