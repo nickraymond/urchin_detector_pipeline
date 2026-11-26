@@ -214,17 +214,24 @@ def follow_renames(folder: Path, class_list: list[dict]) -> int:
             data = json.loads(p.read_text())
         except ValueError:
             continue                       # reported when the frame is read
-        new, dirty = {}, False
+        # every saved unit's new key first (names may swap or rotate in one save, QE PR 47);
+        # a unit whose ids are in no current unit keeps its key unless a current unit takes it
+        moved, kept = {}, {}
         for key, u in data.get("units", {}).items():
             ids = {int(k) for k in u.get("classes", {})}
             cur = next((c for c in units if ids and ids <= set(c["classes"])), None)
-            if cur is not None:
-                fresh = {str(i): names[i] for i in sorted(ids)}
-                if u["classes"] != fresh:
-                    u, dirty = {**u, "classes": fresh}, True
-                if cur["key"] != key and cur["key"] not in data["units"]:
-                    key, dirty = cur["key"], True
-            new[key] = u
+            if cur is None or cur["key"] in moved:   # no current unit, or one already taken
+                kept[key] = u
+                continue
+            fresh = {str(i): names[i] for i in sorted(ids)}
+            moved[cur["key"]] = {**u, "classes": fresh}
+        new = dict(moved)
+        for key, u in kept.items():
+            k, n = key, 1
+            while k in new:                      # its old name now belongs to a current unit
+                k, n = f"{key} (removed {n})", n + 1
+            new[k] = u
+        dirty = new != data.get("units", {})
         if dirty:
             data["units"] = new
             _atomic(p, data)

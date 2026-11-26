@@ -129,3 +129,37 @@ def test_a_rename_keeps_ids_results_and_review_without_a_re_run(proj):
     # renaming back works too
     classes.save(folder, DEFAULT)
     assert "fish" in results.read(folder, F)["units"]
+
+
+def test_a_swap_of_names_in_one_save_keeps_each_class_its_results(proj):
+    """QE PR 47: fish (6) and sea star (3) swap names in one save; each id keeps its masks."""
+    folder, conn = proj
+    results.write_frame(folder, F, W, H, SETTINGS, {
+        "sea star": {"unit": UNITS["sea star"], "seconds": 0.1, "dets": [det((10, 10, 30, 30))]}})
+    star_ids = [m["mask_id"] for m in results.read(folder, F)["units"]["sea star"]["masks"]]
+    fish_ids = [m["mask_id"] for m in results.read(folder, F)["units"]["fish"]["masks"]]
+    swapped = DEFAULT.replace("name: fish,", "name: TMP,").replace(
+        "name: sea star,", "name: fish,").replace("name: TMP,", "name: sea star,")
+    data = classes.save(folder, swapped)
+    raw = results.read(folder, F)
+    assert raw["units"]["fish"]["classes"] == {"3": "fish"}
+    assert [m["mask_id"] for m in raw["units"]["fish"]["masks"]] == star_ids
+    assert raw["units"]["sea star"]["classes"] == {"6": "sea star"}
+    assert [m["mask_id"] for m in raw["units"]["sea star"]["masks"]] == fish_ids
+    units = classes.run_units(data["classes"])
+    assert not {"fish", "sea star"} & {u["key"] for u in results.to_run(folder, F, units, SETTINGS)}
+
+
+
+def test_two_saved_units_never_merge_into_one(proj):
+    """Two saved units whose ids land in one current unit (red urchin pulled into the urchin
+    group after it had its own results): the first keeps the key, the other is kept apart."""
+    folder, conn = proj
+    p = results.raw_path(folder, F)
+    raw = json.loads(p.read_text())
+    raw["units"]["red urchin"] = {**raw["units"]["fish"], "classes": {"2": "red urchin"}}
+    p.write_text(json.dumps(raw))
+    results.follow_renames(folder, CLASSES)
+    after = results.read(folder, F)["units"]
+    assert after["urchin"]["classes"] == {"1": "purple urchin", "2": "red urchin", "10": "black urchin"}
+    assert after["red urchin"]["classes"] == {"2": "red urchin"}     # not merged, not lost
