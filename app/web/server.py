@@ -825,6 +825,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "cfg": cfg, "info": info, "frames": frames, "class_list": cl or [],
                 "classes_broken": cl is None,
                 "todo": sum(1 for f in frames if not f["accepted"]),
+                "totals": review_labels.totals(info["folder"], conn, cl) if cl else [],
                 "colours": {c["id"]: classes.colour(c["id"]) for c in cl or []}})
         return with_project(request, name, work)
 
@@ -881,7 +882,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 note = review_labels.act(info["folder"], conn, file, cl, body)
             except (review_state.ReviewError, ValueError, TypeError) as e:
                 return JSONResponse({"error": str(e)}, 400)
-            return JSONResponse({"note": note,
+            return JSONResponse({"note": note, "totals": review_labels.totals(info["folder"], conn, cl),
                                  **review_labels.view(info["folder"], conn, file, cl)})
         return with_project(request, name, work)
 

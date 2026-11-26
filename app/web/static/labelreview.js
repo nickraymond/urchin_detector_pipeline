@@ -57,6 +57,16 @@
       s.append(sw, " " + name + ": " + c.n + (c.kind === "object" ? " ☐" : ""));
       return s;
     }), el("span", "lg-note", "☐ objects are boxed; areas (kelp, rock) are not"));
+    viewer.querySelectorAll('input[name="rv-split"]').forEach(r => {
+      r.checked = r.value === (st.split_ok == null ? "" : st.split_ok ? "yes" : "no");
+    });
+    $("rv-checked").replaceChildren(...data.class_info.map(c => {
+      const l = el("label");
+      const cb = el("input");
+      cb.type = "checkbox"; cb.dataset.cid = c.id; cb.checked = st.checked.includes(c.id);
+      l.append(cb, " " + c.name);
+      return l;
+    }));
     const row = document.querySelector('#label-frames tr[data-file="' + CSS.escape(view.frame) + '"]');
     if (row) row.querySelector(".st").textContent = st.accepted ? "accepted" : "to do";
     frames[at].accepted = st.accepted;
@@ -77,6 +87,15 @@
     msg("");
     render();
   }
+  function showTotals(totals) {
+    (totals || []).forEach(t => {
+      const row = document.querySelector('#label-totals tr[data-id="' + t.id + '"]');
+      if (!row) return;
+      row.querySelector(".n-obj").textContent = t.objects;
+      row.querySelector(".n-fr").textContent = t.frames;
+      row.querySelector("progress").value = Math.min(t.objects, 150);
+    });
+  }
   async function act(body) {
     if (at < 0) return;
     const r = await fetch(data.project + "/act/" + encodeURIComponent(frames[at].file), {
@@ -86,6 +105,7 @@
     view = d;
     if (!selected()) sel = null;
     msg(d.note, true);
+    showTotals(d.totals);
     render();
     redraw();
   }
@@ -126,6 +146,12 @@
   viewer.querySelectorAll('input[name="rv-mode"]').forEach(r => r.addEventListener("change", () => {
     mode = r.value; redraw();
   }));
+  viewer.querySelectorAll('input[name="rv-split"]').forEach(r => r.addEventListener("change", () =>
+    act({action: "split", ok: r.value === "" ? null : r.value === "yes"})));
+  $("rv-checked").addEventListener("change", e => {
+    const cb = e.target;
+    if (cb.dataset && cb.dataset.cid) act({action: "checked", class_id: Number(cb.dataset.cid), checked: cb.checked});
+  });
   $("rv-zoom").addEventListener("input", e => window.viewerZoom(Number(e.target.value)));
   $("rv-class").addEventListener("change", e => {
     const c = data.class_info.find(c => c.name.toLowerCase() === e.target.value.trim().toLowerCase());

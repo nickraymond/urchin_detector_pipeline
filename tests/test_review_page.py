@@ -93,3 +93,32 @@ def test_picture_modes_and_selection_outline(tmp_path):
     assert min(r, g, b) > 200
     assert client.get("/p/p/labels/picture/nope.png").status_code == 404
     assert client.get("/p/p/labels/frame/../x.png").status_code == 404
+
+
+def test_split_check_fully_checked_and_running_totals(tmp_path):
+    client, folder = labeled(tmp_path)
+    v = client.get(f"/p/p/labels/frame/{F}").json()
+    assert v["state"] == {"accepted": False, "split_ok": None, "checked": []}
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "split", "ok": False})
+    assert r.json()["state"]["split_ok"] is False and r.json()["note"] == "split check no"
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "checked", "class_id": 3, "checked": True})
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "checked", "class_id": 1, "checked": True})
+    assert r.json()["state"]["checked"] == [1, 3]
+    assert client.post(f"/p/p/labels/act/{F}", json={"action": "split", "ok": "maybe"}
+                       ).status_code == 400
+    # totals count accepted frames only
+    page = client.get("/p/p/labels").text
+    assert "Running totals" in page and 'max="150" value="0"' in page
+    for mid in v["untagged"]:
+        client.post(f"/p/p/labels/act/{F}", json={"action": "class", "mask_ids": [mid], "class_id": 1})
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "accept"})
+    t = {x["name"]: x for x in r.json()["totals"]}
+    assert (t["purple urchin"]["objects"], t["purple urchin"]["frames"]) == (2, 1)
+    assert t["sea star"]["objects"] == 1 and t["red urchin"]["objects"] == 0
+    assert "kelp" not in t                                    # areas are not counted objects
+    # a change on an accepted frame updates the totals (the cache follows the review)
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "class", "mask_ids": [v["untagged"][0]],
+                                                   "class_id": 2})
+    t = {x["name"]: x for x in r.json()["totals"]}
+    assert (t["purple urchin"]["objects"], t["red urchin"]["objects"]) == (1, 1)
+    assert r.json()["state"]["accepted"]

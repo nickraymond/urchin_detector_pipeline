@@ -320,9 +320,9 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
       Q16), objects only / areas only / final class map toggle, zoom slider and full screen
 - [x] click a mask to select it; searchable class picker to change its class; `X` deletes; `Enter` accepts; `Z` undo
 
-**Bite 3b — Split check, fully checked, totals**
-- [ ] split check (touching urchins separated: yes / no) and "fully checked" per class on the frame
-- [ ] running totals per class (objects and frames, target 150–200 objects per class)
+**Bite 3b — Split check, fully checked, totals** (PR 51)
+- [x] split check (touching urchins separated: yes / no) and "fully checked" per class on the frame
+- [x] running totals per class (objects and frames, target 150–200 objects per class)
 
 **Bite 4a — Urchin types, backend** (D18, D39; PR 47; split from bite 4 by the builder: the keys need bite 3's page)
 - [x] black urchin (SPEC Q18): a new class with the next free id in the default `classes.yaml`, in the

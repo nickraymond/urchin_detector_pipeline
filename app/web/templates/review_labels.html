@@ -15,6 +15,18 @@
   accepted. Only accepted frames are exported.</p>
 <p><b>{{ frames | length }}</b> labeled frames · <b id="todo-count">{{ todo }}</b> to do ·
   <button type="button" id="next-todo">Review the next to do</button></p>
+<h2>Running totals (accepted frames)</h2>
+<p class="hint">Objects per class on the accepted frames, and on how many frames; the target is 150–200 objects per
+  class.</p>
+<table class="stages" id="label-totals">
+  <thead><tr><th>Class</th><th>Objects</th><th>Frames</th><th>Toward 150</th></tr></thead>
+  <tbody>{% for t in totals %}
+  <tr data-id="{{ t.id }}"><td><span class="swatch" style="background: {{ t.colour }}"></span> {{ t.name }}</td>
+    <td class="n-obj">{{ t.objects }}</td><td class="n-fr">{{ t.frames }}</td>
+    <td><progress max="150" value="{{ [t.objects, 150] | min }}"></progress></td></tr>{% endfor %}
+  </tbody>
+</table>
+<h2>Frames</h2>
 <table class="stages" id="label-frames">
   <thead><tr><th>#</th><th>Frame</th><th>Status</th><th></th></tr></thead>
   <tbody>
@@ -49,6 +61,13 @@
       <button type="button" data-rv="reopen" hidden>Back to do</button>
       <button type="button" data-rv="undo" title="Undo the last step on this frame (Z)">Undo (Z)</button>
     </div>
+    <div class="rv-row" title="Were touching urchins separated into one mask each? A frame marked no still counts for cover but is left out of the detector file.">
+      Touching urchins separated:
+      <label><input type="radio" name="rv-split" value="yes"> yes</label>
+      <label><input type="radio" name="rv-split" value="no"> no</label>
+      <label><input type="radio" name="rv-split" value=""> not marked</label></div>
+    <div class="rv-row" title="Tick each class you looked for on this whole frame. Training skips a class on frames not checked for it.">
+      Fully checked for: <span id="rv-checked"></span></div>
     <div class="rv-row rv-status" id="rv-status"></div>
     <div class="rv-row rv-msg" id="rv-msg" role="status"></div>
   </div>
