@@ -295,6 +295,14 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   CPU (asked in a child process); `torch.set_num_threads`; a PyTorch "fall back to run on the CPU" warning becomes
   a `warning` event, kept once per op on the job and shown on the Jobs and Labeling pages. Workers rest
   `pause_s` between items through `worker.rest` (a pause wakes them).
+- **As built, bite 5a (PR 37).** `app/jobctl/schedule.py`: "HH:MM" → the next time it comes (Stop by: the next
+  time after the start, or after now without a start). `submit(..., start_at, stop_by)` stores a `scheduled` row;
+  the queue thread checks every second (D37 said 15 s; the check is one query) and queues a job whose start has
+  come, also after a restart, unless its Stop by has passed too: then it is `missed` (a new finished state). A
+  running job gets a watcher that pauses it at Stop by ("stop by 7:35 PM"); a queued job whose Stop by passes while
+  it waits becomes paused; Resume clears the Stop by. `start_now` and Cancel work on a scheduled job; a project
+  with a scheduled extraction or SAM job refuses another until it is started or cancelled. The Labeling page's
+  finish time counts from the scheduled start.
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). Every kind's job file and log are `<data_dir>/jobs/<id>.json` / `.log` (bite 1b).

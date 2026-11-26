@@ -16,9 +16,11 @@ from __future__ import annotations
 import fcntl
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from app.jobctl import schedule
 from app.jobctl.runner import Runner
 from app.jobctl.store import FINISHED, Store, now
 
@@ -79,13 +81,33 @@ class JobControl:
                     continue
                 self.store.update(job["id"], done=done, total=total)
 
-    def submit(self, kind: str, params: dict, project: str | None = None) -> int:
+    def submit(self, kind: str, params: dict, project: str | None = None,
+               start_at: datetime | None = None, stop_by: datetime | None = None) -> int:
+        """Queue a job; with start_at it waits as "scheduled" until then (D37). stop_by pauses
+        it at that time with the reason "stop by"."""
         if kind not in self.kinds:
             raise JobError(f"No job kind {kind!r}. Known: {', '.join(sorted(self.kinds))}.")
-        jid = self.store.add(kind, params, project=project, message="waiting")
-        self.runner.log(jid, f"queued: kind {kind}, project {project}")
+        if start_at and stop_by and stop_by <= start_at:
+            raise JobError("Stop by must come after Start at.")
+        state = "scheduled" if start_at else "queued"
+        msg = f"starts at {schedule.show(schedule.iso(start_at))}" if start_at else "waiting"
+        jid = self.store.add(kind, params, project=project, state=state, message=msg,
+                             start_at=schedule.iso(start_at), stop_by=schedule.iso(stop_by))
+        self.runner.log(jid, f"{state}: kind {kind}, project {project}"
+                        + (f", start at {schedule.iso(start_at)}" if start_at else "")
+                        + (f", stop by {schedule.iso(stop_by)}" if stop_by else ""))
         self.runner.wake()
         return jid
+
+    def start_now(self, job_id: int) -> dict:
+        """A scheduled job joins the queue at once (its Stop by stays)."""
+        if not self.store.set_state(job_id, "queued", ("scheduled",), message="waiting",
+                                    start_at=schedule.iso(datetime.now())):
+            raise JobError(f"Job {job_id} is {self.status(job_id)['state']}; only a scheduled "
+                           "job can be started now.")
+        self.runner.log(job_id, "start now (was scheduled)")
+        self.runner.wake()
+        return self.status(job_id)
 
     def status(self, job_id: int) -> dict:
         job = self.store.get(job_id)
@@ -121,8 +143,9 @@ class JobControl:
     def resume(self, job_id: int) -> dict:
         """A paused or interrupted job is queued again; its new worker skips finished items."""
         job = self.status(job_id)
+        # Resume later after a Stop by (D37): the old Stop by no longer applies.
         if not self.store.set_state(job_id, "queued", ("paused", "interrupted"),
-                                    message="waiting", stop_reason=None):
+                                    message="waiting", stop_reason=None, stop_by=None):
             raise JobError(f"Job {job_id} is {job['state']}; only a paused or interrupted "
                            "job can be resumed.")
         self.runner.log(job_id, f"resume (was {job['state']})")

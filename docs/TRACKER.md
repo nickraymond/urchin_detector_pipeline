@@ -250,8 +250,8 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
       default in the PR (D36)
 - [x] a CPU fallback on the Apple GPU shows as a warning on the job
 
-**Bite 5a — Schedule** (D37)
-- [ ] "Start at" and optional "Stop by" on extraction and SAM Run; a queued job shows its start time, Start now
+**Bite 5a — Schedule** (D37; PR 37)
+- [x] "Start at" and optional "Stop by" on extraction and SAM Run; a queued job shows its start time, Start now
       and Cancel; the schedule survives an app restart; "Stop by" pauses the job and says so; the Estimate's finish
       clock time counts from the scheduled start (moved here from bite 3, QE PR 35)
 

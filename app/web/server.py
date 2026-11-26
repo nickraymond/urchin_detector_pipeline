@@ -30,6 +30,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app import config, db, project
 from app.jobctl import JobControl, JobError
 from app.jobctl import limits as job_limits
+from app.jobctl import schedule
 from app.sam import classes
 from app.stages import clips, extract, ingest, label, review
 
@@ -107,14 +108,12 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     if first.ok:
         jobctl(first)
 
-    def finish_time(seconds: float) -> str:
-        """Clock time `seconds` from now, as the page shows it (e.g. "6:42 PM", or with the
-        day when it is not today)."""
+    def finish_time(seconds: float, start: str | None = None) -> str:
+        """Clock time `seconds` after `start` (ISO; default now), as the page shows it (e.g.
+        "6:42 PM", or with the weekday when it is not today)."""
         from datetime import datetime, timedelta
-        now = datetime.now()
-        at = now + timedelta(seconds=seconds)
-        clock = at.strftime("%I:%M %p").lstrip("0")
-        return clock if at.date() == now.date() else at.strftime("%a ") + clock
+        at = (schedule.parse(start) or datetime.now()) + timedelta(seconds=seconds)
+        return schedule.show(schedule.iso(at))
 
     def job_view(job: dict | None) -> dict:
         """A job record as pages and status calls show it; {} when there is none."""
@@ -123,7 +122,16 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         total = job.get("total") or 0
         return {**job, "project_name": Path(job["project"]).name if job.get("project") else "",
                 "percent": round(100 * job["done"] / total, 1) if total else 0.0,
-                "active": job["state"] in ("queued", "running", "pausing")}
+                "active": job["state"] in ("queued", "running", "pausing"),
+                "start_show": schedule.show(job.get("start_at")),
+                "stop_show": schedule.show(job.get("stop_by"))}
+
+    def read_schedule(start: str, stop: str):
+        """(start_at, stop_by, problem) from the two optional clock-time fields (D37)."""
+        try:
+            return (*schedule.plan(start, stop), "")
+        except schedule.ScheduleError as e:
+            return None, None, str(e)
 
     def dashboard(request: Request, error: str = "", name: str = "", status: int = 200):
         cfg = config.load(config_path)
@@ -174,7 +182,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         cfg = config.load(config_path)
         if not cfg.ok:
             return dashboard(request, status=503)
-        do = {"pause": "pause", "resume": "resume", "cancel": "cancel"}.get(action)
+        do = {"pause": "pause", "resume": "resume", "cancel": "cancel",
+              "start-now": "start_now"}.get(action)
         if do is None:
             return PlainTextResponse(f"No job action {action!r}.", status_code=404)
         back, note = safe_back(back), ""
@@ -518,9 +527,13 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     @app.post("/p/{name}/extract/start")
     def extract_start(request: Request, name: str, every: float = Form(2.0),
-                      cap: int = Form(300)):
+                      cap: int = Form(300), start: str = Form(""), stop: str = Form("")):
         def work(cfg, info, conn):
             problem = check_settings(every, cap)
+            start_at, stop_by, when = read_schedule(start, stop)
+            problem = problem or when
+            if not problem and extract_job(cfg, info).get("state") == "scheduled":
+                problem = "An extraction is scheduled; use its Start now or Cancel first."
             if problem:
                 return RedirectResponse(f"/p/{name}/extract?" + urlencode({"error": problem}),
                                         status_code=303)
@@ -537,7 +550,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 except JobError:
                     pass
             jc.submit("extract", extract.job_params(info["folder"], samples),
-                      project=str(info["folder"]))
+                      project=str(info["folder"]), start_at=start_at, stop_by=stop_by)
             return RedirectResponse(f"/p/{name}/extract", status_code=303)
         return with_project(request, name, work)
 
@@ -645,8 +658,9 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                      "palette": classes.PALETTE,
                      "save": f"/p/{info['name']}/labeling/classes/form"} if data else None,
             "job": sam_job(cfg, info), "estimate": estimate,
-            "finish": (finish_time(plan["estimate_s"]) if plan and plan.get("estimate_s")
-                       else None),
+            "finish": (finish_time(plan["estimate_s"], sam_job(cfg, info).get("start_at")
+                                   if sam_job(cfg, info).get("state") == "scheduled" else None)
+                       if plan and plan.get("estimate_s") else None),
             "n_label": len(files),
             "next_id": max(ids) + 1, "untagged": classes.UNTAGGED_COLOUR,
             "kept": review.summary(conn), "refused": text is not None}, status_code=status)
@@ -696,7 +710,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return bool(sam_job(cfg, info).get("active"))
 
     def start_sam(cfg, info, conn, preview: bool, other: bool = False,
-                  estimate: bool = False) -> str:
+                  estimate: bool = False, start: str = "", stop: str = "") -> str:
         """Queue a SAM Preview or Run on the job module; returns a note if it was refused.
         An older paused or interrupted SAM job of this project is cancelled first: the new
         job skips whatever that one finished (D33)."""
@@ -708,6 +722,12 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         if not files:
             what = "preview" if preview else "estimate" if estimate else "label"
             return f"No kept frames to {what}. Extract frames or add still images first."
+        start_at, stop_by, problem = read_schedule(start, stop)
+        if problem:
+            return problem
+        if "scheduled" in (sam_job(cfg, info).get("state"), extract_job(cfg, info).get("state")):
+            return ("A job of this project is scheduled; use its Start now or Cancel first "
+                    "(Jobs page).")
         if sam_busy(cfg, info) or extract_busy(cfg, info):
             return ("Another job is running; " + ("preview" if preview else "press Run") +
                     " when it has finished.")
@@ -729,7 +749,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             picks = label.preview_frames(files, other=other) if preview else files
         jc.submit("sam", label.job_params(info["folder"], picks, preview=preview,
                                           estimate=estimate),
-                  project=str(info["folder"]))
+                  project=str(info["folder"]), start_at=start_at, stop_by=stop_by)
         return ""
 
     @app.post("/p/{name}/labeling/estimate")
@@ -751,11 +771,12 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return with_project(request, name, work)
 
     @app.post("/p/{name}/labeling/run")
-    def labeling_run(request: Request, name: str):
+    def labeling_run(request: Request, name: str, start: str = Form(""), stop: str = Form("")):
         """Label every kept frame (D26): units whose results are current are skipped, so Run
-        after a pause, a quit or a class change does only what is missing (SPEC Q7)."""
+        after a pause, a quit or a class change does only what is missing (SPEC Q7). Optional
+        Start at / Stop by clock times (D37)."""
         def work(cfg, info, conn):
-            note = start_sam(cfg, info, conn, preview=False)
+            note = start_sam(cfg, info, conn, preview=False, start=start, stop=stop)
             return RedirectResponse(f"/p/{name}/labeling" + (
                 "?" + urlencode({"note": note}) if note else ""), status_code=303)
         return with_project(request, name, work)

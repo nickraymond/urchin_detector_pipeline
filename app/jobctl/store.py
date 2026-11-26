@@ -12,10 +12,10 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-STATES = ("scheduled", "queued", "running", "pausing", "paused", "interrupted",
+STATES = ("scheduled", "queued", "running", "pausing", "paused", "interrupted", "missed",
           "done", "cancelled", "error")
 ACTIVE = ("running", "pausing")          # a worker process exists (or did, before a quit)
-FINISHED = ("done", "cancelled", "error")
+FINISHED = ("done", "cancelled", "error", "missed")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -129,6 +129,13 @@ class Store:
         with self._lock:
             r = self._conn.execute(sql + " ORDER BY id DESC LIMIT 1", args).fetchone()
         return _decode(r) if r else None
+
+    def scheduled(self) -> list[dict]:
+        """Jobs waiting for their start time, earliest first."""
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM jobs WHERE state = 'scheduled' "
+                                      "ORDER BY start_at, id").fetchall()
+        return [_decode(r) for r in rows]
 
     def next_queued(self) -> dict | None:
         """The oldest queued job."""
