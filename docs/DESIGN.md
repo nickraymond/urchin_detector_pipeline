@@ -444,6 +444,12 @@ app/web/templates/export.html  the Export page
   untagged one** (builder choice: one key per urchin); "Tag all remaining as <first type>" tags the rest in one
   undo step. A close-up panel shows the frame at full resolution around the selected mask (480 px, outline only,
   so its colour is easy to judge). The panel toggle is the backtick key, so letters stay free for types (QE).
+- Export page (as-built, bite 6a): `/p/<name>/export`, linked from the project page and the Review page. Export
+  is a job of the kind `export` (`app/export/worker.py`, not pausable: the export is rebuilt from scratch anyway),
+  one item per accepted frame; refused with no accepted frame or while one is queued or running. `writers.run` also
+  writes `summary.json` (counts, splits, the D43 warning, `ok`, time) next to `checks.json`; the page shows the
+  newer of `export/` and `export.failed/`, so a failed export is never hidden behind an older good one, and says
+  when `export/` was not replaced. The page reloads itself when the job ends (`live.js` `data-reload-on`).
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 

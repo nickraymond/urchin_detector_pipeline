@@ -3,6 +3,7 @@
 {% block content %}
 <p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
 <h1>Review labels</h1>
+<p class="hint">When the frames are reviewed: <a href="/p/{{ info.name }}/export">Export</a>.</p>
 {% if classes_broken %}
 <section class="problem"><p>classes.yaml has problems: fix them on the <a href="/p/{{ info.name }}/labeling">Labeling
   page</a> first.</p></section>

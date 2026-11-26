@@ -22,6 +22,7 @@ import csv
 import json
 import os
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -252,6 +253,9 @@ def run(folder: Path, conn, progress=None) -> dict:
         shutil.rmtree(new, ignore_errors=True)
         raise
     (new / "checks.json").write_text(json.dumps(found, indent=1))
+    (new / "summary.json").write_text(json.dumps(
+        {**summary, "ok": all(c["ok"] for c in found),
+         "at": datetime.now().isoformat(timespec="seconds")}, indent=1))
     ok = all(c["ok"] for c in found)
     if not ok:
         failed = folder / "export.failed"

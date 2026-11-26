@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Export · {{ info.name }}{% endblock %}
+{% block content %}
+{% from "_job.html" import job_panel %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a> · <a href="/p/{{ info.name }}/labels">Review labels</a></p>
+<h1>Export</h1>
+<p class="hint">Export rebuilds <code>{{ info.folder }}/export/</code> from scratch from the SAM results and your
+  review: the accepted frames (upright), <code>detector_coco.json</code> (objects: box, outline, class; frames whose
+  split check is "no" left out), <code>seg_masks/</code> (one PNG per frame, pixel = class id, with
+  <code>classes.json</code>), <code>splits/</code> (train / valid / test by site and dive date) and
+  <code>frame_metrics.csv</code>. Then it checks the files. The previous export is replaced only when every check
+  passes. Re-exporting is always safe.</p>
+{% if error %}<section class="problem"><p>{{ error }}</p></section>{% endif %}
+<p><b>{{ accepted }}</b> accepted frames.
+<form method="post" action="/p/{{ info.name }}/export/start" class="inline"><button class="primary" data-job-lock="queued running pausing"{% if not accepted %} disabled data-off-anyway{% endif %}{% if job.active %} disabled{% endif %}>Export</button></form></p>
+<div data-live="/p/{{ info.name }}/live/export?back={{ ('/p/' ~ info.name ~ '/export') | urlencode }}" data-reload-on="done error cancelled">{{ job_panel(job, "/p/" ~ info.name ~ "/export") }}</div>
+
+{% if report %}
+<h2>Last export: {{ report.at | replace('T', ' ') }} · {% if report.ok %}<span class="pass">PASS</span>{% else %}<span class="fail">FAIL</span>{% endif %}</h2>
+{% if report.failed %}<p class="problem">These checks failed, so <code>export/</code> was <b>not</b> replaced. The
+  failed export is in <code>{{ report.folder }}</code> to look at.</p>{% else %}<p class="hint">In <code>{{ report.folder }}</code>.</p>{% endif %}
+<table class="stages" id="export-checks">
+  <thead><tr><th>Check</th><th>Result</th><th>Details</th></tr></thead>
+  <tbody>{% for c in report.checks %}
+  <tr class="{{ 'state-done' if c.ok else 'state-failed' }}"><td>{{ c.name }}</td><td>{% if c.ok %}PASS{% else %}<b>FAIL</b>{% endif %}</td><td>{{ c.detail }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+<p>{{ report.frames }} frames exported; {{ report.coco_images }} in COCO ({{ report.split_no }} left out by the split
+  check); {{ report.objects }} objects.</p>
+<h3>Splits (grouped by {{ report.grouped_by }})</h3>
+{% if report.split_warning %}<section class="warning"><p>{{ report.split_warning }}</p></section>{% endif %}
+<table class="stages" id="export-splits"><thead><tr><th>Split</th><th>Frames</th></tr></thead><tbody>
+  {% for s, n in report.per_split.items() %}<tr><td>{{ s }}</td><td>{{ n }}</td></tr>{% endfor %}</tbody></table>
+<h3>Objects per class in COCO</h3>
+<table class="stages" id="export-classes"><thead><tr><th>Class</th><th>Objects</th></tr></thead><tbody>
+  {% for c, n in report.per_class.items() %}<tr><td>{{ c }}</td><td>{{ n }}</td></tr>{% endfor %}</tbody></table>
+{% else %}
+<p>No export yet.</p>
+{% endif %}
+<script src="{{ static('live.js') }}"></script>
+{% endblock %}

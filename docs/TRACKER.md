@@ -344,9 +344,11 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [ ] click on it or drag a box; SAM returns a mask for that spot (S1: SAM 3's click and box prompts work);
       pick its class; saved like any mask, marked added by hand; runs through the job module
 
-**Bite 6 — Export page, licences, README** (D42)
-- [ ] an Export page: Export button (a job), the checks from bite 2 shown PASS / FAIL with what failed, counts per
+**Bite 6a — Export page** (D43; PR 56; split by the builder)
+- [x] an Export page: Export button (a job), the checks from bite 2 shown PASS / FAIL with what failed, counts per
       split and per class, a warning when the splits cannot be fair (D43)
+
+**Bite 6b — Licences, README, acceptance** (D42)
 - [ ] `THIRD_PARTY_LICENSES` with the SAM License text; README: setup, SAM access steps, 10-minute walkthrough
 - [ ] run every acceptance box of `docs/source/mvp_spec.md` on Nick's videos and tick it with its evidence
 
