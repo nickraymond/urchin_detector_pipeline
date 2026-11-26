@@ -353,6 +353,10 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [~] run every acceptance box of `docs/source/mvp_spec.md` on Nick's videos and tick it with its evidence (PR 57:
       9 of 10 ticked with their evidence; the `frame_metrics.csv` spot check on 5 frames is Nick's, in the S5 demo)
 
+**Fix — Missing urchin type in older projects** (D50; found in Nick's S5 test)
+- [x] a project made before D39 has no black urchin, so no B key: the Review page offers "Add black urchin" (appended,
+      new id); nothing else changes
+
 **Bite 7 — SAM quality: tile seams on areas, anemone prompts** (D45, D48, D49; PR 49; needs the GPU: run SAM only when no
 other SAM run is going)
 - [x] area masks (rock, kelp) end in straight lines where tiles meet (Nick, 2026-11-25, S4 test frames): compare

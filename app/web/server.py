@@ -863,16 +863,30 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return with_project(request, name, work)
 
     @app.get("/p/{name}/labels", response_class=HTMLResponse)
-    def labels_page(request: Request, name: str):
+    def labels_page(request: Request, name: str, error: str = ""):
         def work(cfg, info, conn):
             cl = review_classes(info)
             frames = review_labels.frame_list(info["folder"], conn) if cl else []
             return templates.TemplateResponse(request, "review_labels.html", {
                 "cfg": cfg, "info": info, "frames": frames, "class_list": cl or [],
-                "classes_broken": cl is None,
+                "classes_broken": cl is None, "error": error,
+                "missing_types": classes.missing_types(info["folder"], cl) if cl else [],
                 "todo": sum(1 for f in frames if not f["accepted"]),
                 "totals": review_labels.totals(info["folder"], conn, cl) if cl else [],
                 "colours": {c["id"]: classes.colour(c["id"]) for c in cl or []}})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/labels/add-type")
+    def labels_add_type(request: Request, name: str, type: str = Form("")):
+        """Append a missing urchin type (e.g. black urchin in a project made before D39) to
+        classes.yaml (D50); nothing else in the file changes."""
+        def work(cfg, info, conn):
+            try:
+                classes.add_type(info["folder"], type)
+            except classes.ClassesError as e:
+                return RedirectResponse(f"/p/{name}/labels?" + urlencode({"error": str(e)}),
+                                        status_code=303)
+            return RedirectResponse(f"/p/{name}/labels", status_code=303)
         return with_project(request, name, work)
 
     @app.get("/p/{name}/labels/frame/{file}")
