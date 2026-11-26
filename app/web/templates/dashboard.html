@@ -2,7 +2,15 @@
 {% block content %}
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 {% if cfg.ok %}
+{% for j in unfinished %}
+<section class="warning"><b>Unfinished job:</b> {{ j.kind }}{% if j.project_name %} in project {{ j.project_name }}{% endif %},
+  {{ j.done }} of {{ j.total }} done; the app quit or crashed during it.
+  <form method="post" action="/jobs/{{ j.id }}/resume" class="inline"><input type="hidden" name="back" value="/"><button class="small">Resume</button></form>
+  <form method="post" action="/jobs/{{ j.id }}/cancel" class="inline"><input type="hidden" name="back" value="/"><button class="small">Cancel</button></form>
+</section>
+{% endfor %}
 <h1>Projects</h1>
+<p><a href="/jobs">Jobs</a> — every background job, with Pause / Resume / Cancel.</p>
 {% if projects %}
 <ul class="projects">{% for p in projects %}<li><a href="/p/{{ p }}">{{ p }}</a></li>{% endfor %}</ul>
 {% else %}

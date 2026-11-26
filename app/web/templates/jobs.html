@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Jobs{% endblock %}
+{% block content %}
+<p><a href="/">&larr; Projects</a></p>
+<h1>Jobs</h1>
+<p class="hint">One job runs at a time for the whole app; the others wait in the queue. Pause finishes the item in
+  progress and ends the worker (the GPU is freed); Resume carries on with the items still missing. Cancel ends the
+  job for good; finished items are kept. Records live in <code>{{ cfg.data_dir }}/jobs/</code>, with one log per job.</p>
+{% if note %}<p class="totals">{{ note }}</p>{% endif %}
+{% if jobs %}
+<table class="jobs">
+  <tr><th>#</th><th>Kind</th><th>Project</th><th>State</th><th>Progress</th><th>Message</th><th>Created</th><th>Ended</th><th></th></tr>
+  {% for j in jobs %}
+  <tr>
+    <td>{{ j.id }}</td><td>{{ j.kind }}{% if j.params.preview %} (preview){% endif %}</td>
+    <td>{% if j.project_name %}<a href="/p/{{ j.project_name }}">{{ j.project_name }}</a>{% endif %}</td>
+    <td><b>{{ j.state }}</b></td>
+    <td>{% if j.total %}{{ j.done }} / {{ j.total }}{% endif %}</td>
+    <td>{{ j.message or "" }}{% if j.stop_reason and j.stop_reason != j.message and j.state not in ("done",) %} ({{ j.stop_reason }}){% endif %}</td>
+    <td>{{ (j.created or "") | replace("T", " ") }}</td><td>{{ (j.ended or "") | replace("T", " ") }}</td>
+    <td>
+      {% if j.state in ("queued", "running") %}<form method="post" action="/jobs/{{ j.id }}/pause" class="inline"><button class="small">Pause</button></form>{% endif %}
+      {% if j.state in ("paused", "interrupted") %}<form method="post" action="/jobs/{{ j.id }}/resume" class="inline"><button class="small">Resume</button></form>{% endif %}
+      {% if j.state not in ("done", "cancelled", "error") %}<form method="post" action="/jobs/{{ j.id }}/cancel" class="inline"><button class="small">Cancel</button></form>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No jobs yet.</p>
+{% endif %}
+{% if jobs | selectattr("active") | list %}<script>setTimeout(() => location.reload(), 3000);</script>{% endif %}
+{% endblock %}

@@ -200,6 +200,8 @@ def test_app_killed_mid_job_shows_interrupted_and_resumes(tmp_path):
         assert jc.interrupted == [jid]
         job = jc.status(jid)
         assert job["state"] == "interrupted" and "app quit" in job["stop_reason"]
+        assert (job["done"], job["total"]) == (left, 10)       # recounted from the files
+        assert job["message"].startswith("interrupted")
         log = (root / f"{jid}.log").read_text()
         assert "interrupted: the app quit" in log and "Traceback" not in log
         jc.resume(jid)
@@ -306,3 +308,27 @@ def test_a_second_app_on_the_same_data_folder_is_refused(jc, tmp_path):
     """QE PR 32 nit 4: it would mark the first app's running job interrupted."""
     with pytest.raises(JobError, match="Another copy of the app"):
         JobControl(tmp_path / "jobs")
+
+
+def test_a_left_over_worker_that_never_exits_is_ended_after_the_timeout(tmp_path):
+    """QE PR 33: a recorded worker that ignores end of file must not hold the queue forever
+    (D34: at most 10 min; here 1 s)."""
+    root = tmp_path / "jobs"
+    p = params(tmp_path, n=6, delay=0.1, hang_at=2)
+    app = subprocess.Popen([sys.executable, "-c", APP.format(repo=str(REPO), root=str(root),
+                                                               params=p)],
+                           stdout=subprocess.PIPE, text=True, cwd=REPO)
+    jid = int(app.stdout.readline())
+    wait_for(lambda: (tmp_path / "out" / ".hung").exists())
+    app.send_signal(signal.SIGKILL)                   # the worker is stuck in item 2
+    app.wait()
+    jc = JobControl(root)
+    jc.register(fake_kind())
+    jc.runner.pause_timeout_s = 1.0
+    try:
+        jc.resume(jid)
+        wait_state(jc, jid, "done", timeout=60)
+        assert "left-over worker" in (root / f"{jid}.log").read_text()
+        assert_each_once(tmp_path, 6)
+    finally:
+        jc.close()

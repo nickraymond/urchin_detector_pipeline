@@ -34,6 +34,7 @@ class Kind:
     prepare: Callable[[dict], dict] = lambda params: dict(params)   # params -> job file
     progress: Callable[[dict], tuple[int, int]] | None = None       # params -> (done, total)
     cwd: Path | None = None                      # default: the repo folder
+    item: str = "item"                           # what the page calls one item ("frame")
     env: dict = field(default_factory=dict)      # added to the worker's environment
 
 
@@ -63,7 +64,19 @@ class JobControl:
             self.runner.start()
 
     def register(self, kind: Kind) -> None:
+        """Also recounts this kind's interrupted jobs from their artifacts: the app may have
+        died after a worker finished an item but before its event was read (D33)."""
         self.kinds[kind.name] = kind
+        if not kind.progress:
+            return
+        for job in self.store.all():
+            if job["kind"] == kind.name and job["state"] == "interrupted":
+                try:
+                    done, total = kind.progress(job["params"])
+                except Exception as e:   # a missing project folder must not stop the app
+                    self.runner.log(job["id"], f"cannot count progress: {e}")
+                    continue
+                self.store.update(job["id"], done=done, total=total)
 
     def submit(self, kind: str, params: dict, project: str | None = None) -> int:
         if kind not in self.kinds:
@@ -81,6 +94,9 @@ class JobControl:
 
     def list(self, limit: int = 200) -> list[dict]:
         return self.store.all(limit)
+
+    def latest(self, kind: str | None = None, project: str | None = None) -> dict | None:
+        return self.store.latest(kind, project)
 
     def pause(self, job_id: int) -> dict:
         """Running: the worker finishes the item in progress and exits (model unloaded).

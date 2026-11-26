@@ -3,7 +3,8 @@ per item into params["out"] (item_<i>.txt, written under a temporary name, then 
 skips items already on disk, like the real workers. Every write is also appended to
 writes.log, so a test can prove no item was written twice or left out.
 
-Params: out, n, delay (s per item), ignore_pause, crash_at (item number), first_delay.
+Params: out, n, delay (s per item), ignore_pause, crash_at (item number), first_delay,
+hang_at (item number: the first worker to reach it hangs there for 120 s, a stuck item).
 """
 
 import os
@@ -31,6 +32,10 @@ def main() -> None:
             print(f"fake crash at item {i}", file=sys.stderr)
             sys.exit(3)
         t = time.perf_counter()
+        hung = out / ".hung"
+        if job.get("hang_at") == i and not hung.exists():
+            hung.write_text("x")
+            time.sleep(120)
         time.sleep(job.get("first_delay", 0) if i == 1 and "first_delay" in job
                    else job.get("delay", 0))
         tmp = out / f".item_{i}.tmp"

@@ -222,13 +222,13 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 - [x] Pause / Resume / Cancel and "interrupted" after an app quit, tested end to end with a fake job kind (a tiny
       worker that writes one file per item): resume never repeats or skips an item
 
-**Bite 1b — SAM on the job module; Jobs page** (D33, D34)
-- [ ] SAM Preview and Run go through it; the SAM worker's `frame` event becomes `item` and it answers `pause`;
+**Bite 1b — SAM on the job module; Jobs page** (D33, D34; PR 33)
+- [x] SAM Preview and Run go through it; the SAM worker's `frame` event becomes `item` and it answers `pause`;
       Pause finishes the frame in progress and ends the worker (model unloaded); Resume starts a new worker on the
       frames still missing; Cancel keeps finished frames. S3's Stop becomes Pause
-- [ ] progress per frame from the artifacts (`sam_raw/`): resume never repeats or skips a frame (test with the fake predictor)
-- [ ] app quit or crash mid-job: on the next start the job shows as "interrupted", and the dashboard offers Resume
-- [ ] a Jobs page (`/jobs`): every job with state, progress, Pause / Resume / Cancel; linked from the dashboard
+- [x] progress per frame from the artifacts (`sam_raw/`): resume never repeats or skips a frame (test with the fake predictor)
+- [x] app quit or crash mid-job: on the next start the job shows as "interrupted", and the dashboard offers Resume
+- [x] a Jobs page (`/jobs`): every job with state, progress, Pause / Resume / Cancel; linked from the dashboard
 
 **Bite 2 — Extraction and playback copies on the job module; `app/jobs.py` retired** (D32)
 - [ ] frame extraction runs as a job-module worker process with Pause / Resume / Cancel (skips frames on disk, as today)

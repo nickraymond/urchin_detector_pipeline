@@ -1,10 +1,13 @@
 """SAM in its own process (D9): `python -m app.sam.worker <job.json>`. Loads the model once,
 then labels the job's frames in order and writes sam_raw/<frame>.json after each one
-(app/sam/results.py). Started and watched by app/stages/label.py.
+(app/sam/results.py). A job-module worker (D33): started by app/jobctl for the "sam" kind
+that app/stages/label.py registers.
 
-Progress goes to stdout as lines "@@ {json}" (Meta's code prints its own lines too; those are
-ignored). A stop or crash loses at most the frame in progress: every finished frame is on
-disk, and the next run skips units whose settings key is already saved.
+Progress goes to stdout as "@@ {json}" lines through app/jobctl/worker.py: `loaded`, one `item`
+per frame, then `done` or, after "pause" on stdin, `paused` (Meta's code prints its own lines
+too; those go to the job's log). A pause or crash loses at most the frame in progress: every
+finished frame is on disk, and the next worker skips units whose settings key is saved.
+A preview job (job["preview_file"]) also writes the numbers the Labeling page shows.
 
 The predictor is SAM 3 through Meta's Sam3Processor with the S1 run-time fixes
 (app/sam_test/device_patch.py, D8). Tests pass job["predictor"] = "module:Class" for a fake
@@ -15,24 +18,17 @@ from __future__ import annotations
 
 import contextlib
 import importlib
-import io
 import json
+import os
 import resource
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
-import numpy as np
-
 from app import images
+from app.jobctl import worker as jw
 from app.sam import results, tiles
-
-OUT = sys.stdout
-
-
-def emit(**event) -> None:
-    OUT.write("@@ " + json.dumps(event) + "\n")
-    OUT.flush()
 
 
 class SamPredictor:
@@ -119,32 +115,70 @@ def peak_process_gb() -> float:
     return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e9, 2)  # bytes on macOS
 
 
+def item(i: int, n: int, rec: dict) -> None:
+    """One frame's `item` event (D33): masks per run unit become the generic counts."""
+    jw.emit("item", i=i, n=n, name=rec["file"], **{k: v for k, v in rec.items() if k != "file"},
+            counts=rec.get("masks", {}))
+
+
 def main(job: dict) -> None:
     folder, settings = Path(job["folder"]), job["settings"]
     units = [{**u, "classes": {int(k): v for k, v in u["classes"].items()}} for u in job["units"]]
+    ctl = jw.listen()
     t = time.perf_counter()
     pred = make_predictor(job)
-    emit(event="loaded", seconds=round(time.perf_counter() - t, 1))
-    n = len(job["frames"])
+    load_s = round(time.perf_counter() - t, 1)
+    jw.emit("loaded", seconds=load_s)
+    n, recs = len(job["frames"]), []
     for i, fr in enumerate(job["frames"], 1):
+        if ctl.pause_requested():
+            jw.emit("paused")
+            return
+        rec = {"file": fr["file"]}
         try:
             todo = results.to_run(folder, fr["file"], units, settings)
         except ValueError as e:  # an unreadable sam_raw file: leave the frame, go on (QE PR 24)
-            emit(event="frame", i=i, n=n, file=fr["file"], skipped=True, unreadable=str(e))
-            continue
+            todo, rec = [], {**rec, "skipped": True, "unreadable": str(e)}
         if not todo:
-            emit(event="frame", i=i, n=n, file=fr["file"], skipped=True)
+            recs.append({"skipped": True, **rec})
+            item(i, n, recs[-1])
             continue
         t = time.perf_counter()
         image = images.open_upright(Path(fr["path"])).convert("RGB")
         done = label_frame(pred, image, todo, settings)
         results.write_frame(folder, fr["file"], image.width, image.height, settings, done)
-        emit(event="frame", i=i, n=n, file=fr["file"], seconds=round(time.perf_counter() - t, 2),
-             masks={k: len(v["dets"]) for k, v in done.items()},
-             peak_process_gb=peak_process_gb(),
-             peak_gpu_gb=round(getattr(pred, "peak_gpu", 0) / 1e9, 2))
-    emit(event="done")
+        recs.append({**rec, "seconds": round(time.perf_counter() - t, 2),
+                     "masks": {k: len(v["dets"]) for k, v in done.items()},
+                     "peak_process_gb": peak_process_gb(),
+                     "peak_gpu_gb": round(getattr(pred, "peak_gpu", 0) / 1e9, 2)})
+        item(i, n, recs[-1])
+    if job.get("preview_file"):
+        write_preview(Path(job["preview_file"]), [f["file"] for f in job["frames"]], load_s, recs)
+    jw.emit("done", message=final_message(recs, n, bool(job.get("preview_file"))))
+
+
+def final_message(recs: list[dict], n: int, preview: bool) -> str:
+    done = sum(1 for r in recs if not r.get("skipped"))
+    bad = [r["file"] for r in recs if r.get("unreadable")]
+    note = (f"; {len(bad)} not labeled, their sam_raw file cannot be read (move it aside and "
+            f"Run again): {', '.join(bad)}" if bad else "")
+    what = "preview: labeled" if preview else "labeled"
+    return f"{what} {done} frames, {n - done - len(bad)} already current" + note
+
+
+def write_preview(path: Path, files: list[str], load_s: float, recs: list[dict]) -> None:
+    """The preview numbers the Labeling page shows (S3 bite 3), written atomically."""
+    done = [r for r in recs if not r.get("skipped")]
+    summary = {"files": files, "at": datetime.now().isoformat(timespec="seconds"),
+               "load_seconds": load_s, "frames": recs,
+               "seconds_per_frame": round(sum(r["seconds"] for r in done) / len(done), 1)
+               if done else None,
+               "peak_process_gb": max((r["peak_process_gb"] for r in done), default=None),
+               "peak_gpu_gb": max((r["peak_gpu_gb"] for r in done), default=None)}
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(summary, indent=1))
+    os.replace(tmp, path)
 
 
 if __name__ == "__main__":
-    main(json.loads(Path(sys.argv[1]).read_text()))
+    main(jw.load_job())

@@ -11,12 +11,20 @@
   picks 3 at random), so you can check the prompts before labeling every frame. The results are kept: Run
   will not label these frames again unless a class changes.</p>
 <form method="post" action="/p/{{ info.name }}/labeling/preview" class="inline">
-  <button {% if job.state in ("queued", "running") %}disabled{% endif %}>Preview</button>
-  <button name="other" value="1" {% if job.state in ("queued", "running") %}disabled{% endif %}>Other frames</button>
+  <button {% if job.active %}disabled{% endif %}>Preview</button>
+  <button name="other" value="1" {% if job.active %}disabled{% endif %}>Other frames</button>
 </form>
-<p id="sam-job" class="totals" {% if not job.state %}hidden{% endif %}
+<div id="sam-job" class="totals" {% if not job.state %}hidden{% endif %}
    data-status="/p/{{ info.name }}/labeling/status" data-state="{{ job.state or '' }}">
-  SAM: <span id="sam-job-text">{{ job.state }}{% if job.message and job.message != job.state %} — {{ job.message }}{% endif %}</span></p>
+  SAM: <span id="sam-job-text">{{ job.state }}{% if job.message and job.message != job.state %} — {{ job.message }}{% endif %}</span>
+  {% set back = "/p/" ~ info.name ~ "/labeling" %}
+  {% if job.state in ("queued", "running") %}
+  <form method="post" action="/jobs/{{ job.id }}/pause" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Pause</button></form>
+  {% elif job.state in ("paused", "interrupted") %}
+  <form method="post" action="/jobs/{{ job.id }}/resume" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Resume</button></form>
+  <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Cancel</button></form>
+  {% endif %}
+  <a href="/jobs" class="hint">Jobs page</a></div>
 {% if preview %}
 <p class="totals">Preview of {{ preview.at | replace('T', ' ') }}: {% if preview.seconds_per_frame %}<b>{{ preview.seconds_per_frame }} s per frame</b>
   (model load {{ preview.load_seconds }} s), peak memory {{ preview.peak_process_gb }} GB process,
@@ -59,8 +67,9 @@
 
 <h2>Run</h2>
 <p class="hint">Labels every kept frame. A class runs only on frames where it has no results yet or its
-  prompts or settings changed; the others stay as they are. Stop keeps every finished frame, and Run
-  carries on from there.</p>
+  prompts or settings changed; the others stay as they are. Pause finishes the frame in progress and frees the
+  GPU; Resume (or Run) carries on with the frames still missing. Cancel ends the job; finished frames are kept,
+  also after a quit.</p>
 {% if plan %}
 <p class="totals" id="run-plan">{% set will = plan.units | dictsort | selectattr(1) | list %}
   {% if will %}Will run: {% for k, n in will %}<b>{{ k }}</b> ({{ n }} frame{{ "s" if n != 1 }}){{ ", " if not loop.last }}{% endfor %}.
@@ -73,11 +82,8 @@
   <code>sam_raw/</code> and they are labeled again: {{ plan.unreadable | join(", ") }}</p>{% endif %}
 {% endif %}
 <form method="post" action="/p/{{ info.name }}/labeling/run" class="inline">
-  <button {% if job.state in ("queued", "running") or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
+  <button {% if job.active or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
 </form>
-{% if can_stop %}
-<form method="post" action="/p/{{ info.name }}/labeling/stop" class="inline"><button>Stop</button></form>
-{% endif %}
 
 <h2>Classes</h2>
 <p class="hint">File: <code>{{ cls.path }}</code>{% if not cls.exists %} — not in the project yet:

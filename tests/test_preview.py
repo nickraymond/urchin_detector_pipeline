@@ -8,6 +8,7 @@ from PIL import Image
 from app.stages import label
 from tests.test_app_skeleton import client_for, write_config
 from tests.test_clips import wait_for
+from tests.fake_sam import run_sam
 from tests.test_sam_runner import FAKE, synthetic_frame
 
 
@@ -75,7 +76,7 @@ def test_overlay_draws_masks_on_the_upright_frame(tmp_path):
 
     from app.sam import classes
     client, folder = make_project(tmp_path, n=1)
-    label.run(folder, ["v_aaaaaa_0.png"], lambda p, m: None, predictor=FAKE)
+    run_sam(folder, ["v_aaaaaa_0.png"])
     units = classes.run_units(classes.ensure(folder)["classes"])
 
     def draw(hidden):

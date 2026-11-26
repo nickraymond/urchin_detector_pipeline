@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -48,6 +49,8 @@ class Runner:
         self._proc: subprocess.Popen | None = None
         self._job_id: int | None = None      # set from "running" until the job ends
         self._want: dict[int, str] = {}      # job id -> "pause" | "cancel"
+        self._waiting_since: dict[int, float] = {}   # left-over worker's job id -> first seen
+        self._item = "item"
         self._thread = threading.Thread(target=self._loop, name="jobctl", daemon=True)
 
     def start(self) -> None:
@@ -110,10 +113,21 @@ class Runner:
             if job["id"] == self.running_id():
                 continue
             pid = job["worker_pid"]
-            if worker_alive(pid, self.root / f"{job['id']}.json"):
-                out.append((job["id"], pid))
-            else:
+            if not worker_alive(pid, self.root / f"{job['id']}.json"):
                 self.store.update(job["id"], worker_pid=None)
+                self._waiting_since.pop(job["id"], None)
+                continue
+            since = self._waiting_since.setdefault(job["id"], time.monotonic())
+            if time.monotonic() - since > self.pause_timeout_s:   # D34: at most 10 min
+                self.log(job["id"], f"left-over worker (pid {pid}) still running after "
+                                    f"{self.pause_timeout_s} s; ending it (at most its item "
+                                    "in progress is lost)")
+                try:
+                    os.killpg(pid, signal.SIGKILL)   # its own session: pgid = pid
+                except (ProcessLookupError, PermissionError):
+                    pass
+                continue
+            out.append((job["id"], pid))
         return out
 
     def _loop(self) -> None:
@@ -153,6 +167,7 @@ class Runner:
         jid, kind = job["id"], self.kinds.get(job["kind"])
         if kind is None:
             raise RuntimeError(f"no job kind {job['kind']!r} is registered in this app")
+        self._item = kind.item
         if kind.progress:
             done, total = kind.progress(job["params"])
             self.store.update(jid, done=done, total=total)
@@ -236,7 +251,7 @@ class Runner:
             self.log(jid, f"loaded in {ev.get('seconds')} s")
         elif e == "item":
             i, n = _count(ev.get("i")), _count(ev.get("n"))
-            self.store.update(jid, done=i or 0, total=n, message=f"item {i} of {n}")
+            self.store.update(jid, done=i or 0, total=n, message=f"{self._item} {i} of {n}")
             self.log(jid, "item " + json.dumps({k: v for k, v in ev.items() if k != "event"}))
         elif e in ("paused", "done"):
             self.log(jid, f"worker: {e}")

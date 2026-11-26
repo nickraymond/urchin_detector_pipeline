@@ -1,24 +1,22 @@
-"""Stage 5, SAM labeling: pick the frames, start the SAM worker process, follow its progress
-(DESIGN, Planned for S3). Bite 2 has the driver; the Preview and Run pages come in bites 3-4.
+"""Stage 5, SAM labeling: pick the frames and describe the SAM job (DESIGN, Planned for S3/S4).
 
-Each call starts one worker process that loads the model once (D9, D26). Callers queue it
-through app/jobs.py, whose single worker thread runs one job at a time, so two SAM jobs never
-share the GPU (S1: two at once triple the time). The worker's own lines go to a log file in
-<project>/sam_logs/, kept for debugging.
+A SAM Preview or Run is a job of the "sam" kind on app/jobctl (D32, D33): params are
+{folder, files, preview, predictor}; prepare() turns them into the worker's job file each time
+the job starts or resumes, and the worker (app/sam/worker.py) skips units whose results are
+current, so a resumed job does only the frames still missing. The job module runs one job at a
+time for the whole app, so two SAM jobs never share the GPU (S1: two at once triple the time).
 """
 
 from __future__ import annotations
 
 import functools
 import json
-import os
 import sqlite3
 import subprocess
 import sys
-import threading
-from datetime import datetime
 from pathlib import Path
 
+from app.jobctl import Kind
 from app.sam import classes
 from app.stages import extract
 
@@ -48,73 +46,55 @@ def device() -> str:
     return r.stdout.strip() or "cpu"
 
 
-def run(folder: Path, files: list[str], report, stop: threading.Event | None = None,
-        predictor: str | None = None, dev: str | None = None) -> dict:
-    """Label `files` (frame names) with the project's classes.yaml. report(percent, message)
-    as app/jobs.py expects. Returns {"frames": [per-frame events], "load_seconds"}.
-    Raises LabelError on a failure, classes.ClassesError if classes.yaml has problems."""
-    folder = Path(folder)
-    predictor = predictor or PREDICTOR
+def build_job(params: dict) -> dict:
+    """The SAM worker's job file for params {folder, files, preview, predictor}. Raises
+    LabelError if a frame's file is missing, classes.ClassesError if classes.yaml has problems."""
+    folder = Path(params["folder"])
+    predictor = params.get("predictor")
     cfg = classes.ensure(folder)
     settings = cfg["settings"]
     units = [{**u, "classes": {str(k): v for k, v in u["classes"].items()}}
              for u in classes.run_units(cfg["classes"])]
     frames = []
-    for f in files:
+    for f in params["files"]:
         p = extract.find_file(folder, f)
         if p is None:
             raise LabelError(f"The file of frame {f} is missing from the project folder.")
         frames.append({"file": f, "path": str(p)})
     repo_id, ckpt = MODELS[settings["model"]]
-    logs = folder / "sam_logs"
-    logs.mkdir(exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    job_path, log_path = logs / f"job-{stamp}.json", logs / f"run-{stamp}.log"
-    job_path.write_text(json.dumps({
-        "folder": str(folder), "frames": frames, "units": units, "settings": settings,
-        "repo_id": repo_id, "checkpoint": ckpt, "predictor": predictor,
-        "device": dev or ("cpu" if predictor else device())}, indent=1))
-    env = dict(os.environ, PYTORCH_ENABLE_MPS_FALLBACK="1")  # S1: CPU fallback on (D8)
-    out = {"frames": [], "load_seconds": None, "log": str(log_path)}
-    report(0, "loading SAM")
-    with open(log_path, "w") as log:
-        proc = subprocess.Popen([sys.executable, "-m", "app.sam.worker", str(job_path)],
-                                stdout=subprocess.PIPE, stderr=log, text=True, env=env,
-                                cwd=Path(__file__).resolve().parents[2])
-        watcher = None
-        if stop is not None:
-            def watch():
-                while not stop.wait(0.5):
-                    if proc.poll() is not None:
-                        return
-                if proc.poll() is None:
-                    proc.terminate()
-            watcher = threading.Thread(target=watch, daemon=True)
-            watcher.start()
-        finished = False
-        for line in proc.stdout:
-            if not line.startswith("@@ "):
-                log.write(line)
-                continue
-            ev = json.loads(line[3:])
-            if ev["event"] == "loaded":
-                out["load_seconds"] = ev["seconds"]
-                report(0, f"SAM loaded in {ev['seconds']} s")
-            elif ev["event"] == "frame":
-                out["frames"].append(ev)
-                report(100 * ev["i"] / ev["n"], f"frame {ev['i']} of {ev['n']}")
-            elif ev["event"] == "done":
-                finished = True
-        code = proc.wait()
-    if stop is not None and stop.is_set():
-        out["stopped"] = True
-        return out
-    if code != 0 or not finished:
-        tail = "\n".join(log_path.read_text().splitlines()[-15:])
-        raise LabelError(f"SAM stopped with exit code {code} after {len(out['frames'])} of "
-                         f"{len(frames)} frames (those are saved). Log: {log_path}\n{tail}")
-    job_path.unlink(missing_ok=True)
-    return out
+    return {"folder": str(folder), "frames": frames, "units": units, "settings": settings,
+            "repo_id": repo_id, "checkpoint": ckpt, "predictor": predictor,
+            "device": params.get("device") or ("cpu" if predictor else device()),
+            "preview_file": str(folder / PREVIEW_FILE) if params.get("preview") else None}
+
+
+def progress(params: dict) -> tuple[int, int]:
+    """Frames done / total, from sam_raw/ (D33): a frame is done when no unit needs running."""
+    from app.sam import results
+    folder, files = Path(params["folder"]), params["files"]
+    try:
+        cfg = classes.ensure(folder)
+    except classes.ClassesError:
+        return 0, len(files)
+    units = classes.run_units(cfg["classes"])
+    done = 0
+    for f in files:
+        try:
+            done += not results.to_run(folder, f, units, cfg["settings"])
+        except ValueError:
+            pass
+    return done, len(files)
+
+
+def sam_kind() -> Kind:
+    # S1: the CPU fallback on (D8)
+    return Kind("sam", module="app.sam.worker", prepare=build_job, progress=progress,
+                env={"PYTORCH_ENABLE_MPS_FALLBACK": "1"}, item="frame")
+
+
+def job_params(folder: Path, files: list[str], preview: bool = False) -> dict:
+    return {"folder": str(folder), "files": list(files), "preview": preview,
+            "predictor": PREDICTOR}
 
 
 # --- Run on every kept frame (bite 4, D26) ---
@@ -170,21 +150,6 @@ def frame_costs(folder: Path, preview: dict | None) -> tuple[float, float] | Non
     return max(fixed, 0.0), unit
 
 
-def run_all(folder: Path, files: list[str], report, stop: threading.Event | None = None,
-            **kw) -> str:
-    """Run: label every kept frame, skipping units whose results are current, so a stopped
-    or crashed Run carries on where it ended. Returns the job's final message."""
-    out = run(folder, files, report, stop=stop, **kw)
-    done = sum(1 for e in out["frames"] if not e.get("skipped"))
-    bad = [e["file"] for e in out["frames"] if e.get("unreadable")]
-    seen = len(out["frames"])
-    note = (f"; {len(bad)} not labeled, their sam_raw file cannot be read (move it aside and "
-            f"Run again): {', '.join(bad)}" if bad else "")
-    if out.get("stopped"):
-        return f"stopped after {seen} of {len(files)} frames; Run carries on from there" + note
-    return f"labeled {done} frames, {seen - done - len(bad)} already current" + note
-
-
 # --- Prompt preview (bite 3, D26) ---
 
 PREVIEW_FILE = "sam_preview.json"
@@ -200,24 +165,6 @@ def preview_frames(files: list[str], other: bool = False, rng=None) -> list[str]
     if len(files) <= 3:
         return list(files)
     return [files[0], files[len(files) // 2], files[-1]]
-
-
-def run_preview(folder: Path, files: list[str], report, **kw) -> dict:
-    """Label the preview frames (results go to sam_raw/ like any run, so Run later skips
-    them) and save the numbers the page shows in sam_preview.json."""
-    folder = Path(folder)
-    out = run(folder, files, report, **kw)
-    done = [e for e in out["frames"] if not e.get("skipped")]
-    summary = {"files": files, "at": datetime.now().isoformat(timespec="seconds"),
-               "load_seconds": out["load_seconds"], "frames": out["frames"],
-               "seconds_per_frame": round(sum(e["seconds"] for e in done) / len(done), 1)
-               if done else None,
-               "peak_process_gb": max((e["peak_process_gb"] for e in done), default=None),
-               "peak_gpu_gb": max((e["peak_gpu_gb"] for e in done), default=None)}
-    tmp = folder / (PREVIEW_FILE + ".tmp")
-    tmp.write_text(json.dumps(summary, indent=1))
-    os.replace(tmp, folder / PREVIEW_FILE)
-    return summary
 
 
 def read_preview(folder: Path) -> dict | None:

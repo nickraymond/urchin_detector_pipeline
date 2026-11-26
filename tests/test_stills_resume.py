@@ -164,6 +164,7 @@ def test_restart_keeps_every_stage_and_extract_resumes(tmp_path, monkeypatch):
 
     # restart: a new app on the same settings file; nothing in memory survives
     monkeypatch.setattr(extract, "grab", real)
+    client.app.state.close_jobs()                              # the old app has quit
     client = client_for(cfg)
     dash = client.get("/p/p").text
     assert "Ingest" in dash and "1 video" in dash
@@ -177,6 +178,7 @@ def test_restart_keeps_every_stage_and_extract_resumes(tmp_path, monkeypatch):
     assert len(files) == 4
 
     client.post("/p/p/review/act", json={"file": files[1], "key": "D"})
+    client.app.state.close_jobs()
     client = client_for(cfg)                                   # restart again
     states = dict(conn.execute("SELECT stage, state FROM stage_status"))
     assert (states["ingest"], states["extract"], states["review"]) == \
