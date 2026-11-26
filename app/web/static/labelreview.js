@@ -151,7 +151,7 @@
     if (k === "x" && sel != null) act({action: "delete", mask_ids: [sel]});
     else if (e.key === "Enter") act({action: "accept"});
     else if (k === "z") act({action: "undo"});
-    else if (k === "h") togglePanel();
+    else if (e.key === "`") togglePanel();   // letters stay free for urchin types (QE PR 51)
     else if (k === "f") document.fullscreenElement ? document.exitFullscreen() : viewer.requestFullscreen();
     else return;
     e.preventDefault();
