@@ -89,7 +89,7 @@ def progress(params: dict) -> tuple[int, int]:
 def sam_kind() -> Kind:
     # S1: the CPU fallback on (D8)
     return Kind("sam", module="app.sam.worker", prepare=build_job, progress=progress,
-                env={"PYTORCH_ENABLE_MPS_FALLBACK": "1"})
+                env={"PYTORCH_ENABLE_MPS_FALLBACK": "1"}, item="frame")
 
 
 def job_params(folder: Path, files: list[str], preview: bool = False) -> dict:

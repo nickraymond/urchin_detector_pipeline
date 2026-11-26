@@ -34,6 +34,7 @@ class Kind:
     prepare: Callable[[dict], dict] = lambda params: dict(params)   # params -> job file
     progress: Callable[[dict], tuple[int, int]] | None = None       # params -> (done, total)
     cwd: Path | None = None                      # default: the repo folder
+    item: str = "item"                           # what the page calls one item ("frame")
     env: dict = field(default_factory=dict)      # added to the worker's environment
 
 

@@ -137,6 +137,7 @@ app/web/templates/label.html  the Labeling page
 - SAM runner (as-built, bite 2): `app/stages/label.py` `run()` starts `python -m app.sam.worker <job.json>`
   (one process and one model load per call; the app itself never imports torch) and reads its
   progress lines (`@@ {json}` on stdout); the worker's other output goes to `<project>/sam_logs/run-<time>.log`.
+  **Replaced in S4 bite 1b:** SAM runs as a job of the job module; its job file and log are in `<data_dir>/jobs/`.
   A frame is tiled when its longer side is above `tile_above_px`. Object masks: tile-edge rule then IoU
   (D23, `app/sam/tiles.py`), then the minimum area. Area masks (rock, kelp): all pieces of one prompt
   become one mask, since tiles cut an area into pieces; prompts stay apart in `sam_raw/`. Files are
@@ -249,6 +250,11 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   rewritten on each start) and an optional `progress(params)` counted from the kind's own files. State changes are
   compare-and-set in one SQL statement. Workers start in their own session, so a Ctrl-C on the app does not cut an
   item in half: the worker reads end of file, finishes the item and exits; `emit()` exits quietly if the app is gone.
+  QE PR 32: the worker's PID is kept in the row (`worker_pid`) until the runner has waited for it; no job starts
+  while a recorded worker is still alive (its command line must name `jobs/<id>.json`, so a reused PID does not
+  count), and one that is still alive 10 min (D34) after the queue began waiting for it is ended. An error while
+  following a worker ends that worker before the queue moves on. `jobs/app.lock` (`flock`) allows one app per data
+  folder; a second `uv run app` on it exits with a message.
 - **As built, bite 1b (PR 33).** SAM Preview and Run are jobs of kind `sam` (params: folder, frame names, preview,
   predictor); `label.build_job` makes the worker's job file at each start or resume, and `label.progress` counts
   frames with nothing left to run in `sam_raw/`. The worker writes `sam_preview.json` itself and its `done` event
@@ -257,10 +263,12 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   it finished). The SAM job file and log are `<data_dir>/jobs/<id>.json` / `.log` like every kind, not
   `<project>/sam_logs/` (builder call: one place for every job's log; the Jobs page names it). On start, an
   interrupted job's counts are recounted from its artifacts. Pause / Resume / Cancel are `POST /jobs/<id>/<action>`
-  with a same-app `back` path.
+  with a same-app `back` path. A kind names its items (`Kind.item`: SAM says "frame 3 of 6").
+  Known gap until bite 2: extraction still runs on `app/jobs.py`, so an extraction in one project and a SAM job in
+  another can run at the same time; bite 2 puts extraction on the job module and closes it.
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
-  pause needed). The SAM worker's job file and log stay in `<project>/sam_logs/`.
+  pause needed). Every kind's job file and log are `<data_dir>/jobs/<id>.json` / `.log` (bite 1b).
 
 ## Decision log
 

@@ -71,6 +71,7 @@ def test_pause_then_resume_through_the_pages_repeats_and_skips_no_frame(tmp_path
     client.post("/p/p/labeling/run", data={})
     assert wait_for(lambda: status(client).get("done", 0) >= 2, 60)
     job = status(client)
+    assert job["message"].startswith("frame ")              # QE PR 33: frames, not "items"
     page = client.get("/p/p/labeling").text
     assert f"/jobs/{job['id']}/pause" in page and "/labeling/stop" not in page
     r = client.post(f"/jobs/{job['id']}/pause", data={"back": "/p/p/labeling"})
