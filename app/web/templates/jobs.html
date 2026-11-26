@@ -6,8 +6,8 @@
 <p class="hint">One job runs at a time for the whole app; the others wait in the queue. A scheduled job waits for its
   start time; the app must stay running (and the laptop awake) for it to fire, and one whose start and Stop by both
   passed while the app was closed shows as missed. Pause finishes the item in
-  progress and ends the worker (the GPU is freed); Resume carries on with the items still missing. Cancel ends the
-  job for good; finished items are kept. Records live in <code>{{ cfg.data_dir }}/jobs/</code>, with one log per job.</p>
+  progress and ends the worker (the GPU is freed); Resume carries on with the items still missing. Cancel stops at
+  once, also while pausing (the item in progress is dropped); finished items are kept. Records live in <code>{{ cfg.data_dir }}/jobs/</code>, with one log per job.</p>
 {% if note %}<p class="totals">{{ note }}</p>{% endif %}
 {% if awake.pid %}<p class="totals">Keeping the laptop awake (process {{ awake.pid }}) while a keep-awake job waits or
   runs; it stops when none is left. Keep it plugged in with the lid open.{% if awake.battery %}
@@ -42,8 +42,8 @@
       <br><a class="hint" href="/jobs/{{ j.id }}/log">log</a></td>
     <td>{% if j.project_name %}<a href="/p/{{ j.project_name }}">{{ j.project_name }}</a>{% endif %}</td>
     <td><b>{{ j.state }}</b></td>
-    <td>{% if j.kind == "playback" %}{{ j.done }} %{% elif j.total %}{{ j.done }} / {{ j.total }}{% endif %}{% if j.active and j.eta_s %}<br><span class="hint">about {{ minutes(j.eta_s) }} left</span>{% endif %}</td>
-    <td>{{ j.message or "" }}{% if j.stop_reason and j.stop_reason != j.message and j.state not in ("done",) %} ({{ j.stop_reason }}){% endif %}
+    <td>{% if j.kind == "playback" %}{{ j.done }} %{% elif j.total %}{{ j.done }} / {{ j.total }}{% endif %}</td>
+    <td>{{ j.line }}{% if j.stop_reason and j.stop_reason != j.message and j.state not in ("done",) %} ({{ j.stop_reason }}){% endif %}
       {% if j.start_show and j.state == "scheduled" %}<br>starts at <b>{{ j.start_show }}</b>{% endif %}{% if j.stop_show %}{{ "," if j.state == "scheduled" else "<br>" | safe }} stop by {{ j.stop_show }}{% endif %}
       {% for w in j.warnings or [] %}<br><span class="warn-text">⚠ {{ w }}</span>{% endfor %}
       {% if j.limits %}<br><span class="hint">{{ j.limits.device }}, {{ j.limits.threads }} threads{% if j.limits.low_priority %}, low priority{% endif %}{% if j.limits.pause_s %}, {{ j.limits.pause_s }} s pause{% endif %}{% if j.limits.memory_guard %}, guard {{ j.limits.memory_guard_gb }} GB{% endif %}</span>{% endif %}</td>

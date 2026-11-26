@@ -125,11 +125,13 @@ def item(i: int, n: int, rec: dict) -> None:
 
 
 FALLBACK = "fall back to run on the CPU"   # PyTorch's warning when an op is missing on MPS
+# D36b: fallbacks with no maths in them (a check), which cost nothing: the job log only
+HARMLESS_FALLBACKS = {"aten::_assert_async"}
 
 
 def report_cpu_fallback() -> None:
     """D36: a CPU fallback on the Apple GPU becomes a warning on the job (once per op), and
-    still goes to the log as before."""
+    still goes to the log as before. D36b: a harmless one goes to the job log only."""
     import warnings
     shown = warnings.showwarning
     seen: set[str] = set()
@@ -140,7 +142,12 @@ def report_cpu_fallback() -> None:
             op = text.split("'")[1] if text.count("'") >= 2 else text[:60]
             if op not in seen:
                 seen.add(op)
-                jw.emit("warning", message=f"Apple GPU: {op} runs on the CPU (slower)")
+                if op in HARMLESS_FALLBACKS:
+                    jw.emit("note", message=f"Apple GPU: {op} runs on the CPU (a check, "
+                                            "no maths; harmless)")
+                else:
+                    jw.emit("warning", message=f"One step ({op}) runs on the CPU (slower); "
+                                               "SAM itself runs on the Apple GPU")
         shown(message, category, filename, lineno, file, line)
     warnings.showwarning = show
 

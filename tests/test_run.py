@@ -31,8 +31,8 @@ def test_run_labels_every_kept_frame_then_only_a_new_class(tmp_path, monkeypatch
     monkeypatch.setattr(label, "PREDICTOR", FAKE)
     client, folder = make_project(tmp_path)
     page = client.get("/p/p/labeling").text
-    assert "Will run: " in page and "<b>urchin</b> (4 frames)" in page
-    assert "press Estimate for a time estimate" in page
+    assert "<tr><td>urchin</td><td>4</td></tr>" in page
+    assert "Takes: not known yet: press Estimate" in page
     assert run_and_wait(client) == "labeled 4 frames, 0 already current"
     assert all(results.read(folder, f"v_aaaaaa_{i}.png") for i in range(4))
     page = client.get("/p/p/labeling").text
@@ -43,8 +43,9 @@ def test_run_labels_every_kept_frame_then_only_a_new_class(tmp_path, monkeypatch
         "\n  - {id: 10, name: boulder, kind: area, prompts: [rock]}\n"
     assert client.post("/p/p/labeling/classes", data={"text": text}).status_code == 200
     page = client.get("/p/p/labeling").text
-    assert "Will run: <b>boulder</b> (4 frames)." in page and "Unchanged: " in page
-    assert "4 of 4 frames have work" in page
+    assert "<tr><td>boulder</td><td>4</td></tr>" in page
+    assert "<tr><td>urchin</td><td>unchanged</td></tr>" in page
+    assert "<b>4 of 4</b>" in page
     assert run_and_wait(client) == "labeled 4 frames, 0 already current"
     raw = results.read(folder, "v_aaaaaa_1.png")
     assert raw["units"]["urchin"]["run_at"] == before and "boulder" in raw["units"]

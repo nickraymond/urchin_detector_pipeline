@@ -177,6 +177,7 @@ def run_plan(folder: Path, files: list[str], units: list[dict], settings: dict,
         source = "preview" if est is not None else None
     return {"units": todo, "frames": frames, "total": len(files), "unreadable": unreadable,
             "estimate_s": est, "estimate_from": source,
+            "per_frame": round(est / frames, 1) if est and frames else None,
             "estimate_old": bool(estimate) and not current}
 
 

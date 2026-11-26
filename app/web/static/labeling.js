@@ -8,8 +8,8 @@
   if (job && busy(job.dataset.state)) {
     const text = document.getElementById("sam-job-text");
     const tick = () => fetch(job.dataset.status).then(r => r.json()).then(st => {
-      text.textContent = st.state + (st.message && st.message !== st.state ? " — " + st.message : "") +
-        (st.eta_s ? " · about " + Math.ceil(st.eta_s / 60) + " min left" : "");
+      // the server's line: time left, finish time, then what it is doing (bite 6)
+      text.textContent = st.state + (st.line && st.line !== st.state ? " — " + st.line : "");
       if (st.state === job.dataset.state && busy(st.state)) setTimeout(tick, 2000);
       else location.reload();
     }).catch(() => setTimeout(tick, 5000));

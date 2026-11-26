@@ -27,6 +27,16 @@ Q11). Nick saw straight edges on area masks at tile seams on several frames: bit
 **Broke/surprised us:** there is no page yet to see a finished run's frames; S4's "Labelled so far" item covers it.
 **Next:** QE on the plan; the S5 builder starts bite 1 tonight.
 
+## 2026-11-25 — Sprint S4 — Bite 6: Nick's test-build feedback (builder)
+**Branch:** sprint/4-feedback
+**Done:** Run panel reordered (time, finish clock time, then a class | frames-to-run table), Estimate, Preview and
+job status lines in the same order; Cancel ends the worker at once, also while pausing (D34a), and a pausing job
+says what it waits for; `aten::_assert_async` goes to the job log only (D36b). Self-tested with real SAM on the
+scratch folder: Pause, then Cancel while pausing ended the job 3 s after the click; frame 9 was not written.
+**Broke/surprised us:** the first try was paused by the memory guard (1.8 GB free) while the test suite ran
+alongside, which is the guard working; a quiet second try passed. "pausing — pausing: …" read twice; reworded.
+**Next:** QE on the PR, then Nick's S4 re-test.
+
 ## 2026-11-25 — Sprint S4 — Bites 1a–5b (builder)
 **Branch:** sprint/4-jobctl-core, 4-sam-jobs, 4-extract-jobs, 4-estimate, 4-limits, 4-schedule, 4-awake (PRs 32–37, 39)
 **Done:** job control as `app/jobctl/` (one queue, records in `<data_dir>/jobs/`, workers in their own session with

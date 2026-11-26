@@ -177,7 +177,9 @@ class JobControl:
         return self.status(job_id)
 
     def cancel(self, job_id: int) -> dict:
-        """Ends the job for good; finished items stay on disk."""
+        """Ends the job for good; finished items stay on disk. A running or pausing job's
+        worker is ended at once (D34a): the item in progress is dropped, never half-written,
+        since workers write each item under a temporary name and rename it."""
         job = self.status(job_id)
         if self.store.set_state(job_id, "cancelled",
                                 ("scheduled", "queued", "paused", "interrupted"),
@@ -187,9 +189,7 @@ class JobControl:
         job = self.status(job_id)
         if job["state"] in FINISHED:
             raise JobError(f"Job {job_id} is already {job['state']}.")
-        kind = self.kinds.get(job["kind"])
-        if not self.runner.request(job_id, "cancel",
-                                   kill=kind is not None and not kind.pausable):
+        if not self.runner.request(job_id, "cancel", kill=True):
             raise JobError(f"Job {job_id} is between states; try again in a moment.")
         return self.status(job_id)
 
