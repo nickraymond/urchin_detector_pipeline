@@ -269,7 +269,7 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 - [x] a harmless CPU fallback (`aten::_assert_async`) goes to the job log only; any other stays a warning, worded
       "one step runs on the CPU (slower); SAM itself runs on the Apple GPU"
 
-**Bite 6b — Nick's test-build feedback, items 4–8** (D36c; PR TBD, stacked on bite 6)
+**Bite 6b — Nick's test-build feedback, items 4–8** (D36c; PR 42)
 - [x] Resume easy to find: buttons next to the state on the Jobs page; a paused, pausing or interrupted job shows a
       banner with Resume at the top of the Jobs, dashboard, project, Labeling and Extract pages
 - [x] while a job runs: a progress bar, a moving "running" sign and "about N min left, done by H:MM PM"

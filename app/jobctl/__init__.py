@@ -101,6 +101,17 @@ class JobControl:
             return []
         free, resumed = self.runner.free_gb(), []
         for j in waiting:
+            stop = schedule.parse(j.get("stop_by"))
+            if stop is not None and stop <= datetime.now():
+                # QE PR 42: its Stop by passed while it waited; resuming would clear the Stop
+                # by and run on unattended. It stays paused, now as stopped by the Stop by.
+                why = (f"stop by {schedule.show(j['stop_by'])} (it passed while the job was "
+                       "paused by the memory guard)")
+                self.store.set_state(j["id"], "paused", ("paused",), stop_reason=why,
+                                     message=why)
+                self._recovered.pop(j["id"], None)
+                self.runner.log(j["id"], f"no auto-resume: {why}")
+                continue
             need = 2 * float((j.get("limits") or {}).get("memory_guard_gb") or 0)
             if free < need:
                 self._recovered.pop(j["id"], None)

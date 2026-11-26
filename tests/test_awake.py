@@ -105,7 +105,10 @@ def test_one_summary_per_job_across_pause_and_resume(jc, tmp_path):
     assert s["items"] == len(writes(tmp_path)) == s["counts"]["thing"]
     assert jc.last_summary()["id"] == jid          # a paused job's summary counts as last
     jc.resume(jid)
-    job = wait_state(jc, jid, "done")
+    wait_state(jc, jid, "done")
+    # the runner writes the summary just after the state (a race seen in the suite, PR 45)
+    assert wait_for(lambda: (jc.status(jid)["summary"] or {}).get("state") == "done", 10)
+    job = jc.status(jid)
     s = job["summary"]
     assert (s["items"], s["counts"], s["errors"], s["state"]) == (8, {"thing": 8}, 0, "done")
     assert s["stop_reason"] == "finished" and s["seconds"] >= 1
