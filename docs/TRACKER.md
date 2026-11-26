@@ -269,37 +269,68 @@ start 2 minutes ahead with "Keep laptop awake" on, wait, read the summary page.
 
 ### S5 — Review labels and export  `[ ]`
 **Goal:** spec stage 6 and all outputs; the spec's acceptance criteria pass on Nick's videos.
+Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q11). One draft PR per bite, about
+300 lines each. Bites 1–2 are backend only (new files), so they can run while S4's last bites touch the pages.
 
-**Anemone prompt check** (Nick, 2026-11-25: SAM calls urchins "anemone"; a bench like S3 bite 3; run SAM only when
-no other SAM run is going)
-- [ ] on frames where an urchin shows as an anemone, see whether SAM also finds it as an urchin (legend "only")
-- [ ] try other anemone prompts (e.g. "anemone", "sea anemone tentacles") and say which keeps real anemones and drops urchins
-- [ ] whether a confidence per class is needed (today one value, 0.4, for all); prompt and confidence choices are
-      Lead calls the lead logs. A rule that urchin beats anemone whatever the scores would contradict the spec's
-      "keep the higher score" (D22 rule 1, D31): if the bench argues for it, it goes to Nick as a question
-- [ ] best prompt into `app/sam/default_classes.yaml`; numbers into DESIGN §Bench results
+**Bite 1 — Review state** (D40)
+- [ ] every mask in `sam_raw/` gets a stable `mask_id`; a re-run keeps the ids of masks it keeps
+- [ ] `state.sqlite` tables for mask review (class, deleted, urchin type, reviewed) and frame review (accepted,
+      split check yes / no, classes fully checked); helpers to read a frame's final masks = `sam_raw` + review,
+      after the overlap rules (D22, D31); unit tests with synthetic masks
+- [ ] accept is refused while the frame has an untagged urchin (D18); undo for every review action
 
-**Label review and export**
-- [ ] label review uses the app's one large-image viewer and its class legend (SPEC Q16, S3 bite 5)
-- [ ] label review page: class change, delete mask, add a missed object by click or box, accept
-      frame, split check, fully-checked flags, running totals
-- [ ] urchin type: `P` / `R` / `B` tags the selected urchin purple, red or black; a frame with an untagged
-      urchin cannot be accepted; running totals count each type separately (D18, D39)
+**Bite 2 — Export writers and checks** (D41, D43, D44)
+- [ ] `app/export/`: `export/images/` (upright, D27), `detector_coco.json` (object classes, box + outline + class;
+      frames with split check "no" left out), `seg_masks/` one PNG per frame + `classes.json` (ids, names,
+      colours), `splits/` (by site and dive date, D43), `frame_metrics.csv` (source video, timestamp, count and %
+      cover per class, largest object %); rebuilt from scratch each time from `sam_raw` + review state
+- [ ] checks as data: COCO loads with pycocotools; every mask PNG matches its image size and uses only ids in
+      `classes.json`; metrics match the masks; synthetic tests
+
+**Bite 3 — Label review page**
+- [ ] a Review page per project: frame list with accepted / to do, the one large viewer and class legend (SPEC
+      Q16), objects only / areas only / final class map toggle, zoom slider and full screen
+- [ ] click a mask to select it; searchable class picker to change its class; `X` deletes; `Enter` accepts;
+      split check and "fully checked" per class on the frame; `Z` undo; running totals per class (objects and
+      frames, target 150–200 objects per class)
+
+**Bite 4 — Urchin types and fast tagging** (D18, D39)
 - [ ] black urchin (SPEC Q18): a new class with the next free id in the default `classes.yaml`, in the
       `urchin` group; existing projects can add it from the class form. The id never changes; a later rename
       keeps the id and must be possible even after results exist (Lead call D39, lifting S3's name lock for renames)
+- [ ] `P` / `R` / `B` tags the selected urchin purple, red or black; running totals count each type
 - [ ] fast tagging (Nick, 2026-11-25: most urchins are purple, find the outliers): `Tab` jumps to the next
       untagged urchin and zooms the viewer onto it with some scene around it; a close-up panel shows the
       selected urchin enlarged; "Tag all remaining as purple" tags every untagged urchin on the frame at once
-- [ ] export: `export/images/`, `detector_coco.json`, `seg_masks/` + `classes.json`, `splits/`
-      (by site and dive date), `frame_metrics.csv`
-- [ ] export checks shown in the UI (COCO load, mask sizes and ids)
-- [ ] `THIRD_PARTY_LICENSES` file with the SAM License text
-- [ ] README: setup, SAM access steps, 10-minute walkthrough
-**Demo (Nick):** review 5 frames, tag the outlier urchins with `R` / `B` and the rest with "Tag all remaining as purple", add one missed urchin by clicking it, press "Export". The Export
-page shows the COCO load check PASS, mask sizes matching their images, and `frame_metrics.csv`
-values matching those 5 frames. All acceptance boxes in `docs/source/mvp_spec.md` are ticked.
-**Needs:** S4; answers to SPEC Q9, Q11.
+
+**Bite 5 — Add a missed object** (D46)
+- [ ] click on it or drag a box; SAM returns a mask for that spot (S1: SAM 3's click and box prompts work);
+      pick its class; saved like any mask, marked added by hand; runs through the job module
+
+**Bite 6 — Export page, licences, README** (D42)
+- [ ] an Export page: Export button (a job), the checks from bite 2 shown PASS / FAIL with what failed, counts per
+      split and per class, a warning when the splits cannot be fair (D43)
+- [ ] `THIRD_PARTY_LICENSES` with the SAM License text; README: setup, SAM access steps, 10-minute walkthrough
+- [ ] run every acceptance box of `docs/source/mvp_spec.md` on Nick's videos and tick it with its evidence
+
+**Bite 7 — SAM quality: tile seams on areas, anemone prompts** (D45; needs the GPU: run SAM only when no
+other SAM run is going)
+- [ ] area masks (rock, kelp) end in straight lines where tiles meet (Nick, 2026-11-25, S4 test frames): compare
+      areas on the whole frame (one extra image encoding per frame) with tiles on the same frames; pick by the
+      overlays, seconds per frame and peak memory; numbers into DESIGN §Bench results
+- [ ] anemone (Nick, 2026-11-25: SAM calls urchins "anemone"): on frames where an urchin shows as an anemone,
+      see whether SAM also finds it as an urchin; try other anemone prompts (e.g. "anemone", "sea anemone
+      tentacles"); whether a confidence per class is needed (today 0.4 for all). Prompt and confidence choices
+      are Lead calls; a rule that urchin beats anemone whatever the scores would contradict the spec's "keep
+      the higher score" (D22 rule 1, D31): if the bench argues for it, it goes to Nick as a question
+- [ ] best settings into `app/sam/default_classes.yaml`
+
+**Demo (Nick):** review 5 frames, tag the outlier urchins with `R` / `B` and the rest with "Tag all remaining as
+purple", add one missed urchin by clicking it, press "Export". The Export page shows the COCO load check PASS,
+mask sizes matching their images, and `frame_metrics.csv` values matching those 5 frames. All acceptance boxes in
+`docs/source/mvp_spec.md` are ticked. Also re-check S4's feedback bites (Run panel, Cancel, progress, Resume,
+pages in sync, memory-guard message, project page, "Labelled so far").
+**Needs:** S4 (demo passed); SPEC Q9 and Q11 answered by Lead calls D41, D42 (Nick can reverse them).
 
 ---
 
@@ -308,4 +339,5 @@ values matching those 5 frames. All acceptance boxes in `docs/source/mvp_spec.md
 - "Suggest clips" and "Pre-screen with SAM" buttons: left out of S2; decide after S3 (a tiled SAM pass costs about a minute per frame).
 - Re-check the kelp prompts (D29) and urchin defaults on more restoration-site footage once the full pipeline
   works and more video is available (Nick, 2026-11-25: only the SSD's videos for now).
+- Import CVAT outline fixes back into the project (D42; not asked for in Build 1).
 - Later MVP milestones (train, quantize, bench test, quality gate, bake-off, Iridium packet): not this repo's Build 1.

@@ -17,6 +17,16 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S5 — Plan (planning lead)
+**Branch:** sprint/5-plan (docs only)
+**Done:** S4's test checklist passed (Nick, lead chat, about 10:05 PM: "I've tested everything in the check list and it
+passes"); his feedback items are S4's last bites, re-checked in the S5 test build. S5 planned under CLAUDE.md
+rule 7: seven bites in TRACKER S5 (review state, export writers, review page, urchin types and fast tagging, add a
+missed object, export page + licences + README, SAM quality), DESIGN §Planned for S5, Lead calls D40–D46 (SPEC Q9,
+Q11). Nick saw straight edges on area masks at tile seams on several frames: bite 7 (D45).
+**Broke/surprised us:** there is no page yet to see a finished run's frames; S4's "Labelled so far" item covers it.
+**Next:** QE on the plan; the S5 builder starts bite 1 tonight.
+
 ## 2026-11-25 — Sprint S4 — Bites 1a–5b (builder)
 **Branch:** sprint/4-jobctl-core, 4-sam-jobs, 4-extract-jobs, 4-estimate, 4-limits, 4-schedule, 4-awake (PRs 32–37, 39)
 **Done:** job control as `app/jobctl/` (one queue, records in `<data_dir>/jobs/`, workers in their own session with

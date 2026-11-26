@@ -96,6 +96,8 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   **Lead call D22 (2026-11-25):** areas listed first in `classes.yaml` win (kelp over rock); prompts of one
   area class are unioned; kelp-shoot pixels count as kelp. Nick can reverse it.
 - Q9. CVAT export format for fine outline fixes, and whether fixes are imported back.
+  **Lead call D42 (2026-11-25):** the COCO file with polygon outlines is the CVAT route; no import back in
+  Build 1. Nick can reverse it.
 - Q10. Defaults still open: minimum mask area, inference resolution, memory guard, and the
   tuned blur and duplicate values (S2 starts from the guesses in DESIGN D12).
   **SAM part, Lead call D24 (2026-11-25):** confidence 0.4, full resolution in 1008 px tiles; minimum mask
@@ -104,6 +106,8 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
   S4 bite 4 measures; the number is logged in D36. Nick can reverse it.
 - Q11. "Largest object %" by mask or by box; the id for unknown; which frames count as
   "accepted" for export.
+  **Lead call D41 (2026-11-25):** largest object % by mask; unknown = id 0; only accepted frames are exported.
+  Nick can reverse it.
 - Q12. Does SAM 3.1 run on the M1 Max? **Answered in S1 (2026-11-24): yes, SAM 3.1 and SAM 3
   both run on the Apple GPU with real weights (outcome at the end of this item).** Facts,
   from `facebookresearch/sam3` @ `31cb7e6` (read 2026-11-24): the readme lists Python 3.12+, PyTorch 2.7+ and a CUDA 12.6+ GPU and installs torch 2.10.0;
