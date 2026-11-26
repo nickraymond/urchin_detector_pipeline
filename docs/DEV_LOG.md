@@ -17,7 +17,7 @@ what broke, what's next.*
 
 ---
 
-## 2026-11-26 — Sprint S5 — Bites 3a, 3b, 5a (builder, overnight, rotating)
+## 2026-11-26 — Sprint S5 — Bites 3a, 3b, 5a (builder, overnight)
 **Branch:** sprint/5-review-page (PR 50), 5-review-checks (PR 51), 5-add-object (PR 52)
 **Done:** the label Review page (`/p/<name>/labels`): frame list, S2's viewer reused with a click hook, picture
 modes, click to select, class picker, X / Enter / Z, collapsible panel; split check, fully checked per class, running
