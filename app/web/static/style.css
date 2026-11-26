@@ -169,3 +169,5 @@ button.primary { background: #2e7d32; color: #fff; border-color: #2e7d32; font-w
 .viewer .v-review.collapsed { width: auto; }
 .viewer .v-review.collapsed > :not(.rv-toggle) { display: none; }
 .viewer .v-review.collapsed .rv-toggle { float: none; margin: 0; }
+.viewer .v-review #rv-checked label { display: inline-block; margin-right: 6px; white-space: nowrap; }
+#label-totals progress { width: 120px; }

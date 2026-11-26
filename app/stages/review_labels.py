@@ -134,6 +134,41 @@ def picture(folder: Path, conn, frame: str, class_list: list[dict], mode: str = 
     return out.getvalue()
 
 
+_TOTALS: dict[tuple, dict] = {}   # (folder, frame) -> (version, {class id: objects}); bite 3b
+
+
+def _frame_counts(folder: Path, conn, frame: str, class_list: list[dict]) -> dict[int, int]:
+    """Objects per class on one frame after review, cached until its results or review change."""
+    p = results.raw_path(folder, frame)
+    st = p.stat()
+    version = (st.st_mtime_ns, st.st_size, repr(sorted(state.mask_rows(conn, frame).items())),
+               repr([(c["id"], c["kind"]) for c in class_list]))
+    hit = _TOTALS.get((str(folder), frame))
+    if hit and hit[0] == version:
+        return hit[1]
+    counts: dict[int, int] = {}
+    for o in state.final(folder, conn, frame, class_list)["objects"]:
+        if o["class_id"] is not None:
+            counts[o["class_id"]] = counts.get(o["class_id"], 0) + 1
+    _TOTALS[(str(folder), frame)] = (version, counts)
+    return counts
+
+
+def totals(folder: Path, conn, class_list: list[dict]) -> list[dict]:
+    """Running totals per object class: {id, name, colour, objects, frames, split_no}. objects
+    and frames count the accepted frames that go to the detector (split check not "no", spec
+    §6), which the page compares with the 150-200 target; split_no = objects on accepted frames
+    marked "no" (they count for cover only; QE PR 51)."""
+    rows = conn.execute("SELECT frame, split_ok FROM frame_review WHERE accepted = 1").fetchall()
+    per = [(_frame_counts(folder, conn, f, class_list), ok != 0) for f, ok in rows
+           if results.raw_path(folder, f).is_file()]
+    return [{"id": c["id"], "name": c["name"], "colour": classes.colour(c["id"]),
+             "objects": sum(p.get(c["id"], 0) for p, det in per if det),
+             "frames": sum(1 for p, det in per if det and p.get(c["id"])),
+             "split_no": sum(p.get(c["id"], 0) for p, det in per if not det)}
+            for c in class_list if c["kind"] == "object"]
+
+
 def act(folder: Path, conn, frame: str, class_list: list[dict], body: dict) -> str:
     """One review action from the page; returns a short note. Raises state.ReviewError."""
     a = body.get("action")
@@ -156,6 +191,18 @@ def act(folder: Path, conn, frame: str, class_list: list[dict], body: dict) -> s
     if a == "reopen":
         state.reopen(conn, frame)
         return "frame back to do"
+    if a == "split":
+        ok = body.get("ok")
+        if ok not in (True, False, None):
+            raise state.ReviewError("Split check is yes, no or not marked.")
+        state.set_split(conn, frame, ok)
+        return "split check " + ("not marked" if ok is None else "yes" if ok else "no")
+    if a == "checked":
+        cid = body.get("class_id")
+        if not isinstance(cid, int):
+            raise state.ReviewError("Pick a class.")
+        state.set_checked(conn, frame, cid, bool(body.get("checked")), class_list)
+        return "fully checked: " + ("on" if body.get("checked") else "off")
     if a == "undo":
         done = state.undo(conn, frame)
         return f"undone: {done.split(' on ')[0]}" if done else "nothing to undo on this frame"
