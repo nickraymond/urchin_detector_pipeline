@@ -268,6 +268,16 @@ start 2 minutes ahead with "Keep laptop awake" on, wait, read the summary page.
 
 ### S5 — Review labels and export  `[ ]`
 **Goal:** spec stage 6 and all outputs; the spec's acceptance criteria pass on Nick's videos.
+
+**Anemone prompt check** (Nick, 2026-11-25: SAM calls urchins "anemone"; a bench like S3 bite 3; run SAM only when
+no other SAM run is going)
+- [ ] on frames where an urchin shows as an anemone, see whether SAM also finds it as an urchin (legend "only")
+- [ ] try other anemone prompts (e.g. "anemone", "sea anemone tentacles") and say which keeps real anemones and drops urchins
+- [ ] decide whether urchin should win when an urchin and an anemone mask clash (D22 rule 1), and whether a
+      confidence per class is needed (today one value, 0.4, for all); the lead logs the result as a Lead call
+- [ ] best prompt into `app/sam/default_classes.yaml`; numbers into DESIGN §Bench results
+
+**Label review and export**
 - [ ] label review uses the app's one large-image viewer and its class legend (SPEC Q16, S3 bite 5)
 - [ ] label review page: class change, delete mask, add a missed object by click or box, accept
       frame, split check, fully-checked flags, running totals
