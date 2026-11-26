@@ -13,9 +13,10 @@
 Units saved in sam_raw/ but no longer in classes.yaml are left out (DESIGN, Planned for S3).
 S5 (D40): masks added by hand sit in the unit `added` (objects with a class). A mask may carry
 review state laid over it by app/review/state.py: `class_id` (changed class), `reviewed` and
-`deleted`. A deleted mask is never shown, but it still wins rule 1 against unreviewed masks, so
-a re-run's fresh copy of a mask the reviewer deleted stays hidden; among reviewed masks a kept
-one beats a deleted one. An area mask paints its own `class_id` (a changed class) in that
+`deleted`. A deleted mask is never shown, but it still wins rule 1 against unreviewed masks of
+its own run unit, so a re-run's fresh copy of a mask the reviewer deleted stays hidden; another
+class's detection of the same spot is not hidden by it. Among reviewed masks a kept one beats a
+deleted one. An area mask paints its own `class_id` (a changed class) in that
 class's place in the file order (rule 3).
 Pure numpy + pycocotools: no torch, so the tests stay fast.
 """
@@ -67,7 +68,10 @@ def objects(raw: dict, class_list: list[dict]) -> list[dict]:
         iou = np.asarray(mask_utils.iou(rles, rles, [0] * len(rles)))
         kept: list[int] = []
         for i in range(len(found)):            # reviewed first, then highest score
-            clash = [k for k in kept if iou[i, k] > IOU_SAME]
+            # a deleted mask only hides masks of its own run unit (a re-run's fresh copy of it),
+            # never another class's detection of the same spot (QE PR 44)
+            clash = [k for k in kept if iou[i, k] > IOU_SAME
+                     and not (found[k]["mask"].get("deleted") and found[k]["unit"] != found[i]["unit"])]
             if clash:
                 found[clash[0]]["flag"] = True
             else:

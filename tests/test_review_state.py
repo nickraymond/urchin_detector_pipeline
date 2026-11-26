@@ -132,6 +132,18 @@ def test_a_deleted_mask_stays_hidden_after_a_re_run(proj):
     assert 6 in ids(state.final(folder, conn, F, CLASSES))
 
 
+def test_a_deleted_mask_never_hides_another_class_on_the_same_spot(proj):
+    """QE PR 44: a sea star deleted as a false positive; the fish prompt later finds the real
+    fish there (IoU 1). The fish shows; only a re-run of the sea star stays hidden."""
+    folder, conn = proj
+    state.delete(conn, folder, F, [3])
+    run(folder, "fish", [det((60, 30, 70, 40), 0.5)])
+    fin = state.final(folder, conn, F, CLASSES)
+    fish = [o for o in fin["objects"] if o["unit"] == "fish"]
+    assert [(o["mask_id"], o["class_id"]) for o in fish] == [(6, 6)]
+    assert (state.class_map(fin, CLASSES)[30:40, 60:70] == 6).all()
+
+
 def test_masks_added_by_hand_are_objects_of_their_class(proj):
     folder, conn = proj
     p = results.raw_path(folder, F)
