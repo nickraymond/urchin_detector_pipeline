@@ -28,7 +28,6 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
 from app.jobctl import JobControl, JobError
-from app.jobs import Jobs
 from app.sam import classes
 from app.stages import clips, extract, ingest, label, review
 
@@ -86,6 +85,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         if key not in controls:
             jc = JobControl(cfg.data_dir / "jobs")
             jc.register(label.sam_kind())
+            jc.register(extract.extract_kind())
+            jc.register(clips.playback_kind())
             controls[key] = jc
         return controls[key]
 
@@ -285,15 +286,22 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             return RedirectResponse(ingest_url(name, folder), status_code=303)
         return with_project(request, name, work)
 
-    jobs = Jobs()
-    app.state.jobs = jobs
+    def playback_jobs(cfg, info) -> dict[str, dict]:
+        """The newest playback job per video code of this project."""
+        out: dict[str, dict] = {}
+        for j in jobctl(cfg).list():   # newest first
+            if j["kind"] == "playback" and j["project"] == str(info["folder"]):
+                out.setdefault(j["params"].get("code"), job_view(j))
+        return out
+
     strip_file = re.compile(r"^\d{4}\.jpg$")
 
-    def clip_status(info, videos) -> dict:
+    def clip_status(cfg, info, videos) -> dict:
+        found = playback_jobs(cfg, info)
         out = {}
         for v in videos:
             code = v["path_code"]
-            st = jobs.status(f"{info['folder']}:{code}") or {}
+            st = found.get(code, {})
             out[code] = {**st, "ready": clips.ready(info["folder"], code)}
         return out
 
@@ -302,7 +310,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         def work(cfg, info, conn):
             videos = ingest.added(conn)
             current = next((r for r in videos if r["path_code"] == v), videos[0] if videos else None)
-            status = clip_status(info, videos)
+            status = clip_status(cfg, info, videos)
             strip = (clips.strip_frames(info["folder"], current["path_code"])
                      if current and status[current["path_code"]]["ready"] else [])
             every = info["settings"]["seconds_between_samples"]
@@ -328,11 +336,13 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         """Queue a playback copy for every video that has none yet, in order. A POST, so only
         the app's own page can start this CPU work (D14)."""
         def work(cfg, info, conn):
+            found = playback_jobs(cfg, info)
             for row in ingest.added(conn):
-                if not clips.ready(info["folder"], row["path_code"]):
-                    jobs.submit(f"{info['folder']}:{row['path_code']}",
-                                lambda report, row=row: clips.make_playback(
-                                    row, info["folder"], report))
+                code = row["path_code"]
+                if not clips.ready(info["folder"], code) and \
+                        not found.get(code, {}).get("active"):
+                    jobctl(cfg).submit("playback", clips.playback_params(info["folder"], row),
+                                       project=str(info["folder"]))
             return RedirectResponse(f"/p/{name}/clips?" + urlencode({"v": v}), status_code=303)
         return with_project(request, name, work)
 
@@ -410,12 +420,14 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         samples, _ = extract_plan(info, conn, st["seconds_between_samples"], st["frame_cap"])
         return planned_names(samples)
 
-    def extract_busy(info) -> bool:
-        return (jobs.status(f"{info['folder']}:extract") or {}).get("state") in ("queued",
-                                                                                 "running")
+    def extract_job(cfg, info) -> dict:
+        return job_view(jobctl(cfg).latest("extract", str(info["folder"])))
+
+    def extract_busy(cfg, info) -> bool:
+        return bool(extract_job(cfg, info).get("active"))
 
     @app.get("/p/{name}/extract", response_class=HTMLResponse)
-    def extract_page(request: Request, name: str, error: str = ""):
+    def extract_page(request: Request, name: str, error: str = "", note: str = ""):
         def work(cfg, info, conn):
             st = info["settings"]
             blur, dup = filter_settings(info)
@@ -427,8 +439,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "cfg": cfg, "info": info, "every": st["seconds_between_samples"],
                 "cap": st["frame_cap"], "live": live, "planned": len(samples),
                 "videos": len(ingest.added(conn)), "counts": extract.counts(conn, planned_names(samples)),
-                "job": jobs.status(f"{info['folder']}:extract") or {}, "frames": frames,
-                "blur": blur, "dup": dup, "error": error,
+                "job": extract_job(cfg, info), "frames": frames,
+                "blur": blur, "dup": dup, "error": error, "note": note,
                 "stage": next(s for s in db.stage_statuses(conn) if s["stage"] == "extract")})
         return with_project(request, name, work)
 
@@ -448,7 +460,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         """Apply the filters: move files between frames/ and dropped/, save the values."""
         def work(cfg, info, conn):
             problem, b, d = check_filters(blur, dup)
-            if not problem and extract_busy(info):
+            if not problem and extract_busy(cfg, info):
                 problem = "Extraction is running; apply the filters when it has finished."
             if not problem:
                 project.update_settings(info["folder"], blur_percent=b, duplicate_distance=d)
@@ -477,17 +489,26 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 return RedirectResponse(f"/p/{name}/extract?" + urlencode({"error": problem}),
                                         status_code=303)
             project.update_settings(info["folder"], seconds_between_samples=every, frame_cap=cap)
+            if extract_busy(cfg, info):
+                return RedirectResponse(f"/p/{name}/extract?" + urlencode(
+                    {"error": "Extraction is already queued or running."}), status_code=303)
             samples, _ = extract_plan(info, conn, every, cap)
-            blur, dup = filter_settings(info)
-            jobs.submit(f"{info['folder']}:extract",
-                        lambda report: extract.run(info["folder"], samples, report, blur, dup))
+            jc = jobctl(cfg)
+            old = extract_job(cfg, info)
+            if old.get("state") in ("paused", "interrupted"):   # the new plan replaces it
+                try:
+                    jc.cancel(old["id"])
+                except JobError:
+                    pass
+            jc.submit("extract", extract.job_params(info["folder"], samples),
+                      project=str(info["folder"]))
             return RedirectResponse(f"/p/{name}/extract", status_code=303)
         return with_project(request, name, work)
 
     @app.get("/p/{name}/extract/status")
     def extract_status(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: JSONResponse({
-            "job": jobs.status(f"{info['folder']}:extract") or {},
+            "job": extract_job(cfg, info),
             "counts": extract.counts(conn, current_plan(info, conn))}))
 
     # --- Review frames (bite 4, DESIGN D20) ---
@@ -502,7 +523,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "frames": review.frames(conn, bool(dropped)),
                 "counts": extract.counts(conn, planned_names(samples)),
                 "stage": next(s for s in db.stage_statuses(conn) if s["stage"] == "review"),
-                "busy": extract_busy(info)})
+                "busy": extract_busy(cfg, info)})
         return with_project(request, name, work)
 
     @app.post("/p/{name}/review/act")
@@ -516,7 +537,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             return JSONResponse({"error": "Bad request: expected {file, key}."}, 400)
 
         def work(cfg, info, conn):
-            if extract_busy(info):
+            if extract_busy(cfg, info):
                 return JSONResponse({"error": "Extraction is running; review when it has "
                                               "finished."}, 409)
             try:
@@ -646,7 +667,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         if not files:
             what = "preview" if preview else "label"
             return f"No kept frames to {what}. Extract frames or add still images first."
-        if sam_busy(cfg, info) or extract_busy(info):
+        if sam_busy(cfg, info) or extract_busy(cfg, info):
             return ("Another job is running; " + ("preview" if preview else "press Run") +
                     " when it has finished.")
         jc = jobctl(cfg)
@@ -740,7 +761,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     @app.get("/p/{name}/clips/status")
     def clips_status(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: JSONResponse(
-            clip_status(info, ingest.added(conn))))
+            clip_status(cfg, info, ingest.added(conn))))
 
     def project_file(request, name, code, path_of):
         """Serve a file of one of the project's own videos; codes not in the project get 404."""

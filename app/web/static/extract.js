@@ -27,7 +27,7 @@
     box.querySelector("progress").value = j.percent || 0;
     const eta = j.eta_s != null ? ", about " + Math.ceil(j.eta_s / 60) + " min left" : "";
     box.querySelector(".hint").textContent = (j.message || j.state || "waiting") + eta;
-    if (j.state === "done" || j.state === "error") { clearInterval(poll); location.reload(); }
+    if (!["queued", "running", "pausing"].includes(j.state)) { clearInterval(poll); location.reload(); }
   }, 2000);
 })();
 

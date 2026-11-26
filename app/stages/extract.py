@@ -271,8 +271,12 @@ def last_review_status(conn: sqlite3.Connection, name: str) -> str | None:
 
 def run(project_folder: Path, samples: list[dict],
         report: Callable[[float, str], None] = lambda p, m: None,
-        blur_percent: float = 0, duplicate_distance: int = 0) -> int:
-    """Extract every sample not yet on disk; returns how many were new. Each frame is written
+        blur_percent: float = 0, duplicate_distance: int = 0,
+        should_pause: Callable[[], bool] = lambda: False,
+        on_item: Callable[[int, int, str, bool], None] | None = None) -> int | None:
+    """Extract every sample not yet on disk; returns how many were new, or None if
+    should_pause() said stop (checked before each frame; S4 job module, D33). on_item(i, n,
+    name, new) is called after each frame. Each frame is written
     to a temporary name, then its database row, so a stop mid-run loses at most that frame and
     the next run carries on (resume). Frames kept from an earlier plan that this plan does not
     ask for move to dropped/unplanned/ with status 'unplanned'; a planned frame found there
@@ -289,7 +293,11 @@ def run(project_folder: Path, samples: list[dict],
                                    "WHERE timestamp_ms IS NOT NULL"))  # stills are not extracted
         planned, new = set(), 0
         for i, s in enumerate(samples):
-            v = s["video"]
+            if should_pause():
+                db.set_stage(conn, "extract", "in progress",
+                             f"paused at {i} of {len(samples)} frames")
+                return None
+            v, made = s["video"], False
             name = frame_name(v["path"], v["path_code"], s["t"])
             planned.add(name)
             st = status.get(name)
@@ -316,6 +324,9 @@ def run(project_folder: Path, samples: list[dict],
                              (name, v["path"], round(s["t"] * 1000), blur_score(im), dhash(im)))
                 conn.commit()
                 new += 1
+                made = True
+            if on_item:
+                on_item(i + 1, len(samples), name, made)
             report(100 * (i + 1) / len(samples), f"frame {i + 1} of {len(samples)}")
             # the dashboard shows how far a run got, also after the app was quit mid-run
             db.set_stage(conn, "extract", "in progress", f"{i + 1} of {len(samples)} frames")
@@ -332,3 +343,34 @@ def run(project_folder: Path, samples: list[dict],
         raise
     finally:
         conn.close()
+
+
+# --- the job module (S4 bite 2, D32) ---
+
+GRAB_HOOK: str | None = None   # tests: "module:function" that wraps grab inside the worker
+
+
+def job_params(project_folder: Path, samples: list[dict]) -> dict:
+    """Params of an "extract" job: the plan as it was when Extract was pressed. The filter
+    values are not frozen here: the worker reads the saved ones each time it starts, so an
+    Apply made while the job is paused counts on Resume (QE PR 34, D19)."""
+    return {"folder": str(project_folder),
+            "samples": [{"video": {"path": s["video"]["path"],
+                                   "path_code": s["video"]["path_code"]}, "t": s["t"]}
+                        for s in samples],
+            "grab_hook": GRAB_HOOK}
+
+
+def saved_filters(project_folder: Path) -> tuple[float, int]:
+    """The blur and duplicate values saved in project.json (defaults for older projects)."""
+    import json
+
+    from app import project
+    info = json.loads((Path(project_folder) / "project.json").read_text())
+    st = {**project.DEFAULT_SETTINGS, **info.get("settings", {})}
+    return st["blur_percent"], st["duplicate_distance"]
+
+
+def extract_kind():
+    from app.jobctl import Kind
+    return Kind("extract", module="app.stages.extract_worker", item="frame")

@@ -35,6 +35,7 @@ class Kind:
     progress: Callable[[dict], tuple[int, int]] | None = None       # params -> (done, total)
     cwd: Path | None = None                      # default: the repo folder
     item: str = "item"                           # what the page calls one item ("frame")
+    pausable: bool = True                        # False: Pause refused, Cancel ends the worker
     env: dict = field(default_factory=dict)      # added to the worker's environment
 
 
@@ -109,6 +110,10 @@ class JobControl:
         if job["state"] not in ("running", "pausing"):
             raise JobError(f"Job {job_id} is {job['state']}; only a queued or running job "
                            "can be paused.")
+        kind = self.kinds.get(job["kind"])
+        if kind is not None and not kind.pausable:
+            raise JobError(f"A {job['kind']} job cannot be paused; Cancel ends it (its "
+                           "unfinished output is thrown away).")
         if not self.runner.request(job_id, "pause"):
             raise JobError(f"Job {job_id} is between states; try again in a moment.")
         return self.status(job_id)
@@ -135,7 +140,9 @@ class JobControl:
         job = self.status(job_id)
         if job["state"] in FINISHED:
             raise JobError(f"Job {job_id} is already {job['state']}.")
-        if not self.runner.request(job_id, "cancel"):
+        kind = self.kinds.get(job["kind"])
+        if not self.runner.request(job_id, "cancel",
+                                   kill=kind is not None and not kind.pausable):
             raise JobError(f"Job {job_id} is between states; try again in a moment.")
         return self.status(job_id)
 

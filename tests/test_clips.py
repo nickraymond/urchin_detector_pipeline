@@ -9,7 +9,6 @@ import time
 
 import pytest
 
-from app.jobs import Jobs
 from app.stages import clips, ingest
 from tests.test_app_skeleton import client_for, write_config
 from tests.test_ingest import digest, make_video
@@ -30,30 +29,6 @@ def wait_for(check, seconds=60):
         time.sleep(0.2)
     return False
 
-
-# --- jobs ---
-
-def test_jobs_run_report_and_survive_errors():
-    jobs = Jobs()
-    gate = threading.Event()
-
-    def slow(report):
-        report(50, "half")
-        gate.wait(5)
-
-    jobs.submit("a", slow)
-    assert wait_for(lambda: jobs.status("a")["percent"] == 50)
-    jobs.submit("a", slow)  # already running: not queued twice
-    jobs.submit("b", lambda report: 1 / 0)
-    jobs.submit("c", lambda report: None)
-    gate.set()
-    assert wait_for(lambda: jobs.status("c")["state"] == "done")
-    assert jobs.status("a")["state"] == "done"
-    assert jobs.status("b")["state"] == "error" and "ZeroDivisionError" in jobs.status("b")["message"]
-    assert jobs.status("zzz") is None
-
-
-# --- playback copy and strip ---
 
 def test_copy_and_strip(tmp_path):
     src = make_video(tmp_path / "v" / "dive.MP4", seconds=12, size="1280x720")
