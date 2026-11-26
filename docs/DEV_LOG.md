@@ -17,6 +17,16 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S3 — Demo passed
+**Branch:** sprint/3-demo-passed (docs only)
+**Done:** Nick ran the S3 test build on `main` at `49e1db8` and wrote "S3 passes" in the planning lead's chat
+(5:03 PM). Bites 1–6 merged: PRs 20, 21, 22, 24, 27, 28; docs PRs 19, 23, 25, 26. Lead calls D22–D29, D31; Nick's
+class form D30 replaced D25. S3 marked `[x]`; bites 1–3 ticked with their PRs.
+**Broke/surprised us:** kelp prompts are weak (n = 6 frames; shoots come in pieces): re-check on more footage
+later (icebox). Whole-frame SAM on a 5.3K frame peaked at 26.7 GB Apple GPU memory (input for S4's memory guard).
+Two builders were briefly started for bites 5–6; the duplicate was archived before it changed anything.
+**Next:** S4 (job control), planned by the lead.
+
 ## 2026-11-25 — Sprint S3 — Bite 6: class editor form
 **Branch:** sprint/3-class-form (from sprint/3-viewer, bite 5)
 **Done:** the YAML text box is replaced by a form: rows with name, kind, prompt chips, group and "pixels
