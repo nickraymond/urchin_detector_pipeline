@@ -116,23 +116,38 @@ def test_warnings_are_kept_once_and_shown(jc, tmp_path):
     assert jc.status(jid)["warnings"] == ["Apple GPU: x runs on the CPU"]
 
 
-def test_cpu_fallback_becomes_one_warning_per_op(monkeypatch):
+def fallback_events(monkeypatch, ops):
     buf = io.StringIO()
     monkeypatch.setattr(jw, "OUT", buf)
     before = warnings.showwarning
     try:
         sam_worker.report_cpu_fallback()
-        text = ("The operator 'aten::_assert_async' is not currently supported on the MPS "
-                "backend and will fall back to run on the CPU.")
         with warnings.catch_warnings():
             warnings.simplefilter("always")
-            for _ in range(3):
-                warnings.warn(text, UserWarning)
+            for op in ops:
+                warnings.warn(f"The operator '{op}' is not currently supported on the MPS "
+                              "backend and will fall back to run on the CPU.", UserWarning)
     finally:
         warnings.showwarning = before
-    events = [json.loads(l[3:]) for l in buf.getvalue().splitlines()]
-    assert events == [{"event": "warning",
-                       "message": "Apple GPU: aten::_assert_async runs on the CPU (slower)"}]
+    return [json.loads(l[3:]) for l in buf.getvalue().splitlines()]
+
+
+def test_cpu_fallback_becomes_one_warning_per_op(monkeypatch):
+    assert fallback_events(monkeypatch, ["aten::foo"] * 3) == [
+        {"event": "warning",
+         "message": "One step (aten::foo) runs on the CPU (slower); SAM itself runs on the "
+                    "Apple GPU"}]
+
+
+def test_a_harmless_fallback_goes_to_the_log_only(monkeypatch, jc, tmp_path):
+    """D36b: aten::_assert_async is a check with no maths: a note in the log, no warning."""
+    events = fallback_events(monkeypatch, ["aten::_assert_async"] * 2)
+    assert [e["event"] for e in events] == ["note"]
+    jid = jc.submit("fake", params(tmp_path, n=1))
+    wait_state(jc, jid, "done")
+    jc.runner._on_event(jid, events[0])
+    assert not jc.status(jid)["warnings"]
+    assert "note: Apple GPU: aten::_assert_async" in (jc.root / f"{jid}.log").read_text()
 
 
 def test_sam_device_comes_from_the_limits():

@@ -261,6 +261,14 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 - [x] one log file per job; a summary per job (items done, counts per class including urchins, errors, time taken,
       why it stopped); the dashboard shows the last finished job's summary ("morning summary")
 
+**Bite 6 — Nick's test-build feedback** (D34a, D36b; PR TBD)
+- [x] Run panel in this order: how long it takes (total, s / frame and its source), when it finishes, then a
+      class | frames-to-run table; the Estimate, Preview and job status lines follow the same order; hints shortened
+- [x] Cancel stops at once, also while a job is pausing (the frame in progress is dropped, finished ones kept); a
+      pausing job says what it waits for ("finishing frame 2 of 40, about 1 min")
+- [x] a harmless CPU fallback (`aten::_assert_async`) goes to the job log only; any other stays a warning, worded
+      "one step runs on the CPU (slower); SAM itself runs on the Apple GPU"
+
 **Demo (Nick):** press "Estimate" → seconds per frame and a finish time. Start a run and keep
 using the laptop (browser, a video): it stays usable with the thread cap on. Pause, quit the app,
 start it again, resume: the frame counter continues with no frame repeated or skipped. Schedule a

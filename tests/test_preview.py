@@ -45,7 +45,7 @@ def test_preview_through_the_page(tmp_path, monkeypatch):
     assert r.status_code == 200
     wait_for(lambda: client.get("/p/p/labeling/status").json().get("state") == "done", 60)
     page = client.get("/p/p/labeling").text
-    assert "s per frame" in page and "Run on all 4 kept frames" in page
+    assert "s / frame, from this" in page and "Run on all 4 kept frames: about" in page
     for f in ("v_aaaaaa_0.png", "v_aaaaaa_2.png", "v_aaaaaa_3.png"):
         assert f in page
     assert "urchin: 2" in page and "sea star: 1" in page and "fish: 0" in page

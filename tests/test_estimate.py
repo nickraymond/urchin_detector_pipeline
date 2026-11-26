@@ -25,7 +25,7 @@ def test_estimate_through_the_page_keeps_its_results_and_times_five_frames(tmp_p
     client, folder = make_project(tmp_path, n=12)
     files = sorted(f"v_aaaaaa_{i}.png" for i in range(12))      # name order, as the app
     page = client.get("/p/p/labeling").text
-    assert "/labeling/estimate" in page and "press Estimate for a time estimate" in page
+    assert "/labeling/estimate" in page and "Takes: not known yet: press Estimate" in page
     client.post("/p/p/labeling/estimate", data={})
     assert wait_for(lambda: status(client)["state"] == "done", 60)
     st = status(client)
@@ -39,9 +39,10 @@ def test_estimate_through_the_page_keeps_its_results_and_times_five_frames(tmp_p
     assert est["warmup"]["file"] == picked[0] and len(est["frames"]) == 5
     assert est["seconds_per_frame"] > 0
     page = client.get("/p/p/labeling").text
-    assert f"<b>{est['seconds_per_frame']} s per frame</b>" in page
-    assert "6 of 12 frames have work" in page and "from Estimate" in page
-    assert "finishing about" in page
+    assert f"Estimate: <b>{est['seconds_per_frame']} s / frame</b>" in page
+    assert "<b>6 of 12</b>" in page and "from Estimate" in page
+    # bite 6 (Nick): how long, then when it finishes, then what runs (the table)
+    assert page.index("Takes: about") < page.index("Finishes: about") < page.index('<table class="plan">')
     monkeypatch.setattr(label, "PREDICTOR", FAKE)
     assert run_and_wait(client) == "labeled 6 frames, 6 already current"   # Run skips them
 
