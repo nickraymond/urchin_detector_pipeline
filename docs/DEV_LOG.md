@@ -17,6 +17,15 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S3 — Bite 5: large viewer and class legend on the Labeling page
+**Branch:** sprint/3-viewer (PR 27; built on bite 4's branch, `main` merged in after PR 24's squash)
+**Done:** clicking a preview frame opens S2's viewer on the page (arrows, Esc, zoom, pan) with the masks;
+a class legend (toggle, "only", final class map) drives the tiles and the viewer together; objects boxed,
+areas not, and the legend says so. Masks are decoded inside their box only and cached: on a synthetic 5.3K
+frame with 150 masks a toggle went from 1.9 s to 0.01–0.05 s (0.5 s the first time). 161 tests.
+**Broke/surprised us:** a class toggle in the viewer reset the zoom; `viewerShow(i, true)` now keeps it.
+**Next:** QE on the bite 5 PR; then bite 6 (class editor form).
+
 ## 2026-11-25 — Sprint S3 — Bite 4: Run, Stop, re-run only what changed, overlap rules
 **Branch:** sprint/3-run (PR 24)
 **Done:** Run on every kept frame with Stop and carry-on; the page lists the classes that will run and those

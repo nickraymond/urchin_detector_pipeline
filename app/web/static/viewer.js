@@ -4,6 +4,7 @@
 // + / - / 0 zoom in, out and back to fit.
 // Shared by the Extract and Review pages (bite 4); the page gives #frame-list and #viewer.
 // Each frame is {file, video, t, label?}; label (review status) is added to the caption.
+// The Labeling page (S3 bite 5) gives {file, src, caption} instead: src is the overlay URL.
 (function () {
   "use strict";
   const listEl = document.getElementById("frame-list");
@@ -13,7 +14,7 @@
   let frames = kept;  // the list the arrows move through: the kept frames, or the examples
   const img = viewer.querySelector("img");
   const caption = viewer.querySelector(".v-caption");
-  let at = -1, s = 1, fitS = 1, ox = 0, oy = 0, drag = null;
+  let at = -1, s = 1, fitS = 1, ox = 0, oy = 0, drag = null, keepZoom = false;
 
   function fmt(t) {
     const m = Math.floor(t / 60), sec = t - m * 60;
@@ -42,13 +43,15 @@
     s = next;
     place();
   }
-  function show(i) {
+  // keep: redraw the same frame (new overlay) without leaving the zoom and pan
+  function show(i, keep) {
+    keepZoom = !!keep && !viewer.hidden;
     at = (i + frames.length) % frames.length;  // wraps around at both ends
     const f = frames[at];
-    img.src = base + encodeURIComponent(f.file);
-    caption.textContent = (at + 1) + " of " + frames.length + " · " + f.video +
-      (f.t == null ? " (still image)" : " at " + fmt(f.t)) +
-      (f.label ? " · " + f.label : "");
+    img.src = f.src || base + encodeURIComponent(f.file);
+    caption.textContent = (at + 1) + " of " + frames.length + " · " + (f.caption ||
+      f.video + (f.t == null ? " (still image)" : " at " + fmt(f.t)) +
+      (f.label ? " · " + f.label : ""));
     document.dispatchEvent(new CustomEvent("viewer:show", {detail: {i: at}}));
     if (viewer.hidden) {
       viewer.hidden = false;
@@ -63,7 +66,7 @@
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   }
 
-  img.addEventListener("load", fit);
+  img.addEventListener("load", () => (keepZoom ? place() : fit()));
   window.addEventListener("resize", fit);
   // Esc in full screen is taken by the browser to leave full screen: close the viewer with it
   document.addEventListener("fullscreenchange", () => {
@@ -73,7 +76,7 @@
   // open the viewer on a list of {file, video, t}; the filter examples use this too
   window.openViewer = (list, i) => { frames = list; show(i); };
   window.viewerIndex = () => (viewer.hidden ? -1 : at);   // the frame shown, -1 when closed
-  window.viewerShow = i => show(i);                       // redraw / move (review keys)
+  window.viewerShow = (i, keep) => show(i, keep);         // redraw / move (review keys)
   const grid = document.getElementById("frame-grid");
   if (grid) grid.addEventListener("click", e => {
     const a = e.target instanceof Element && e.target.closest("a[data-i]");

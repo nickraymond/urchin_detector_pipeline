@@ -156,6 +156,17 @@ app/web/templates/label.html  the Labeling page
   includes the image encoding, which the first unit pays). `app/sam/overlap.py`: `objects` (rule 1, IoU from
   RLEs) and `class_map` (rules 2-7; an untagged urchin paints 255). The preview's "final class map" draws
   it at 1600 px.
+- Large viewer and class legend (as-built, bite 5, SPEC Q16): the Labeling page loads S2's `viewer.js`
+  unchanged in its controls; a frame entry may now carry `src` (the overlay URL) and `caption`, and
+  `viewerShow(i, true)` redraws without leaving the zoom. `labeling.js` keeps one legend state (hidden run
+  units, final class map) for the tiles and the viewer: class buttons toggle, "only" shows one unit (again:
+  all); the viewer's legend counts that frame's masks, the page's legend the preview frames together; both
+  say objects are boxed and areas are not. The viewer asks for `size=large` (3200 px, never scaled up).
+  Speed: `results.decode_box` decodes a mask's box columns only (a vectorised reading of COCO's compressed
+  RLE; large boxes use pycocotools' C decode), also used by `overlap.class_map`; the scaled frame, the
+  scaled masks and the class-map layer are cached per file version (time and size). Synthetic 5312×2988
+  frame with 150 object masks and one area: a toggle took 1.9 s before; now 0.46–0.51 s the first time,
+  0.01 s (1600 px) to 0.05 s (3200 px) after.
 - Images are read through one helper that applies the EXIF orientation (Pillow `ImageOps.exif_transpose`), so
   SAM, the masks and the page all use the same upright image (D27).
 - Tests: a fake predictor stands in for SAM (no torch, no weights, no real frames); synthetic images; the

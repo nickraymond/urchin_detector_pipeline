@@ -9,6 +9,7 @@ share the GPU (S1: two at once triple the time). The worker's own lines go to a 
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import sqlite3
@@ -188,6 +189,7 @@ def run_all(folder: Path, files: list[str], report, stop: threading.Event | None
 
 PREVIEW_FILE = "sam_preview.json"
 PREVIEW_WIDTH = 1600  # overlay width on the page; the frame itself is never changed
+LARGE_WIDTH = 3200    # overlay width in the large viewer (bite 5); smaller frames stay as they are
 
 
 def preview_frames(files: list[str], other: bool = False, rng=None) -> list[str]:
@@ -246,50 +248,87 @@ def unit_colour(unit: dict) -> str:
 
 
 def overlay(folder: Path, frame: str, units: list[dict], hidden: set[str],
-            class_list: list[dict] | None = None) -> bytes | None:
-    """The frame (upright, D27) scaled to PREVIEW_WIDTH with the saved masks of the shown
-    units drawn on it: areas first and fainter, objects on top. With class_list: the final
-    class map instead (D22, app/sam/overlap.py), one colour per pixel. JPEG bytes; None if
-    missing."""
+            class_list: list[dict] | None = None, width: int = PREVIEW_WIDTH) -> bytes | None:
+    """The frame (upright, D27) scaled to `width` with the saved masks of the shown units
+    drawn on it: areas first and fainter, objects on top with a box. With class_list: the
+    final class map instead (D22, app/sam/overlap.py), one colour per pixel. JPEG bytes;
+    None if missing. The scaled frame and the scaled masks are cached per file version, so
+    a class toggle only pastes and encodes (bite 5)."""
     import io
 
-    import numpy as np
     from PIL import Image, ImageColor, ImageDraw
 
-    from app import images
     from app.sam import results
     path = extract.find_file(folder, frame)
-    raw = results.read(folder, frame)
-    if path is None or raw is None:
+    rp = results.raw_path(folder, frame)
+    if path is None or not rp.is_file():
         return None
-    im = images.open_upright(path).convert("RGB")
-    s = min(1.0, PREVIEW_WIDTH / im.width)
-    im = im.resize((round(im.width * s), round(im.height * s)))
+    st, rst = path.stat(), rp.stat()   # a changed file (time or size) is read again
+    im = _scaled_frame(str(path), (st.st_mtime_ns, st.st_size), width)
+    rkey = (str(folder), frame, (rst.st_mtime_ns, rst.st_size))
     if class_list is not None:
-        layer = class_map_layer(raw, class_list, im.size)
-        out = io.BytesIO()
-        Image.alpha_composite(im.convert("RGBA"), layer).convert("RGB").save(out, "JPEG",
-                                                                             quality=85)
-        return out.getvalue()
-    layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(layer)
-    order = sorted((u for u in units if u["key"] not in hidden and u["key"] in raw["units"]),
-                   key=lambda u: u["kind"] != "area")
-    for u in order:
-        rgb = ImageColor.getrgb(unit_colour(u))
-        alpha = 90 if u["kind"] == "area" else 150
-        for m in raw["units"][u["key"]]["masks"]:
-            x0, y0, x1, y1 = m["box"]
-            crop = results.decode(m["rle"])[y0:y1, x0:x1]
-            bx0, by0 = round(x0 * s), round(y0 * s)
-            size = (max(1, round(x1 * s) - bx0), max(1, round(y1 * s) - by0))
-            mask = Image.fromarray(crop.astype(np.uint8) * 255).resize(size)
-            layer.paste(Image.new("RGBA", size, (*rgb, alpha)), (bx0, by0), mask)
-            if u["kind"] == "object":
-                draw.rectangle([bx0, by0, bx0 + size[0], by0 + size[1]], outline=(*rgb, 255))
+        layer = _map_layer(*rkey, json.dumps(class_list, sort_keys=True), im.size)
+    else:
+        pieces = _mask_pieces(*rkey, im.size)
+        layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        order = sorted((u for u in units if u["key"] not in hidden and u["key"] in pieces),
+                       key=lambda u: u["kind"] != "area")
+        for u in order:
+            rgb = ImageColor.getrgb(unit_colour(u))
+            alpha = 90 if u["kind"] == "area" else 150
+            for (bx0, by0), size, mask in pieces[u["key"]]:
+                layer.paste(Image.new("RGBA", size, (*rgb, alpha)), (bx0, by0), mask)
+                if u["kind"] == "object":
+                    draw.rectangle([bx0, by0, bx0 + size[0], by0 + size[1]],
+                                   outline=(*rgb, 255), width=max(1, round(im.width / 1600)))
     out = io.BytesIO()
     Image.alpha_composite(im.convert("RGBA"), layer).convert("RGB").save(out, "JPEG", quality=85)
     return out.getvalue()
+
+
+@functools.lru_cache(maxsize=6)
+def _scaled_frame(path: str, version: tuple, width: int):
+    """The upright frame scaled down to `width` (never up). Cached: a 5.3K JPEG takes about
+    0.3 s to read and scale."""
+    from PIL import Image
+
+    from app import images
+    im = images.open_upright(Path(path)).convert("RGB")
+    s = min(1.0, width / im.width)
+    return im.resize((round(im.width * s), round(im.height * s)), Image.BILINEAR)
+
+
+@functools.lru_cache(maxsize=24)
+def _mask_pieces(folder: str, frame: str, version: tuple, size: tuple[int, int]) -> dict:
+    """{unit key: [((x, y), (w, h), mask image)]}: each saved mask decoded inside its box only
+    (results.decode_box) and scaled to `size`. Cached per sam_raw file version."""
+    import numpy as np
+    from PIL import Image
+
+    from app.sam import results
+    raw = results.read(Path(folder), frame)
+    sx, sy = size[0] / raw["width"], size[1] / raw["height"]
+    out = {}
+    for key, u in raw["units"].items():
+        out[key] = []
+        for m in u["masks"]:
+            x0, y0, x1, y1 = m["box"]
+            if x1 <= x0 or y1 <= y0:
+                continue
+            crop = results.decode_box(m["rle"], m["box"])
+            bx0, by0 = round(x0 * sx), round(y0 * sy)
+            wh = (max(1, round(x1 * sx) - bx0), max(1, round(y1 * sy) - by0))
+            out[key].append(((bx0, by0), wh,
+                             Image.fromarray(crop.astype(np.uint8) * 255).resize(wh)))
+    return out
+
+
+@functools.lru_cache(maxsize=6)
+def _map_layer(folder: str, frame: str, version: tuple, class_json: str,
+               size: tuple[int, int]):
+    from app.sam import results
+    return class_map_layer(results.read(Path(folder), frame), json.loads(class_json), size)
 
 
 def class_map_layer(raw: dict, class_list: list[dict], size: tuple[int, int]):

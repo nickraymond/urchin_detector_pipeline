@@ -65,6 +65,46 @@ def decode(rle: dict) -> np.ndarray:
                              ).astype(bool)
 
 
+def run_lengths(counts: str) -> np.ndarray:
+    """COCO's compressed RLE string -> run lengths (zeros first, then ones, alternating),
+    vectorised from pycocotools' rleFrString: 5 bits per character after subtracting 48,
+    bit 0x20 = more characters follow, bit 0x10 on the last one = negative; from the third
+    run on, each value is a difference to the run two places before."""
+    c = np.frombuffer(counts.encode("ascii"), np.uint8).astype(np.int64) - 48
+    if not len(c):
+        return np.zeros(0, np.int64)
+    ends = np.flatnonzero((c & 0x20) == 0)          # the last character of each number
+    starts = np.r_[0, ends[:-1] + 1]
+    k = np.arange(len(c)) - np.repeat(starts, ends - starts + 1)
+    x = np.add.reduceat((c & 0x1f) << (5 * k), starts)
+    neg = (c[ends] & 0x10) != 0
+    x[neg] -= np.left_shift(1, 5 * (k[ends][neg] + 1))   # sign-extend
+    x[1::2] = np.cumsum(x[1::2])   # run i adds run i-2 (C: if m > 2), so runs 3, 5, ... add up from 1
+    x[2::2] = np.cumsum(x[2::2])   # and runs 4, 6, ... add up from 2
+    return x
+
+
+def decode_box(rle: dict, box: list[int]) -> np.ndarray:
+    """The bool mask inside box (x0, y0, x1, y1) only, without making the full frame:
+    COCO RLE runs down columns, so only the box's columns are filled (bite 5: an object's
+    mask on a 5.3K frame is 16 MB when decoded whole, about 8 ms each)."""
+    h, w = rle["size"]
+    x0, y0, x1, y1 = box
+    if (x1 - x0) * (y1 - y0) * 4 > h * w:   # a large area: pycocotools' C decode is faster
+        return decode(rle)[y0:y1, x0:x1]
+    runs = run_lengths(rle["counts"])
+    end = np.cumsum(runs)
+    s, e = (end - runs)[1::2], end[1::2]            # the runs of ones
+    lo, hi = x0 * h, x1 * h
+    s, e = np.clip(s, lo, hi) - lo, np.clip(e, lo, hi) - lo
+    keep = e > s
+    edge = np.zeros(hi - lo + 1, np.int32)
+    np.add.at(edge, s[keep], 1)
+    np.add.at(edge, e[keep], -1)
+    cols = np.cumsum(edge[:-1]).astype(bool).reshape(x1 - x0, h)
+    return cols.T[y0:y1]
+
+
 def read(folder: Path, frame: str) -> dict | None:
     p = raw_path(folder, frame)
     if not p.is_file():

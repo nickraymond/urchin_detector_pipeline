@@ -74,9 +74,10 @@ def class_map(raw: dict, class_list: list[dict]) -> np.ndarray:
     for u in reversed(areas):                    # the first listed is painted last: it wins
         cid = next(iter(u["classes"]))
         for m in raw["units"][u["key"]]["masks"]:
-            out[results.decode(m["rle"])] = cid
+            x0, y0, x1, y1 = m["box"]
+            out[y0:y1, x0:x1][results.decode_box(m["rle"], m["box"])] = cid
     for o in objects(raw, class_list):            # lowest score first: the higher score wins
         x0, y0, x1, y1 = o["mask"]["box"]
-        crop = results.decode(o["mask"]["rle"])[y0:y1, x0:x1]
+        crop = results.decode_box(o["mask"]["rle"], o["mask"]["box"])
         out[y0:y1, x0:x1][crop] = o["paint"]
     return out

@@ -495,6 +495,13 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                     c, problem = {}, str(e)
                 shown.append({"file": f, "counts": c, "seconds": ev.get("seconds"),
                               "problem": problem})
+        colours = {u["key"]: label.unit_colour(u) for u in units}
+        legend_units = [{"key": u["key"], "colour": colours[u["key"]], "kind": u["kind"],
+                         "untagged": bool(u["group"])} for u in units]
+        legend_frames = [{"file": f["file"], "caption": f["file"] + (
+                              f" · {f['seconds']} s" if f["seconds"] else ""),
+                          "counts": {k: c["masks"] for k, c in f["counts"].items()}}
+                         for f in shown if not f["problem"]]
         files = label.frames_to_label(conn)
         try:
             plan = (label.run_plan(info["folder"], files, units, data["settings"], prev)
@@ -504,7 +511,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return templates.TemplateResponse(request, "labeling.html", {
             "cfg": cfg, "info": info, "cls": cls, "rows": rows, "note": note, "plan": plan,
             "units": units, "preview": prev, "shown": shown,
-            "colours": {u["key"]: label.unit_colour(u) for u in units},
+            "colours": colours, "legend_units": legend_units, "legend_frames": legend_frames,
             "job": jobs.status(f"{info['folder']}:sam") or {},
             "can_stop": sam_busy(info) and str(info["folder"]) in sam_stops,  # a Run, not a Preview
             "n_label": len(files),
@@ -599,19 +606,25 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     @app.get("/p/{name}/labeling/overlay/{file}")
     def labeling_overlay(request: Request, name: str, file: str,
-                         hide: list[str] = Query(default=[]), map: str = ""):
+                         hide: list[str] = Query(default=[]), map: str = "", size: str = ""):
         """A frame of this project with its saved SAM masks drawn (reads only); one `hide`
-        parameter per run unit left out, so a name with a comma works too."""
+        parameter per run unit left out, so a name with a comma works too; size=large for
+        the large viewer (bite 5)."""
         def work(cfg, info, conn):
             row = conn.execute("SELECT 1 FROM frames WHERE file = ?", (file,)).fetchone()
             cls = classes.read(info["folder"])
             try:
                 data = (label.overlay(info["folder"], file, classes.run_units(
                     cls["data"]["classes"]), set(hide),
-                    class_list=cls["data"]["classes"] if map else None)
+                    class_list=cls["data"]["classes"] if map else None,
+                    width=label.LARGE_WIDTH if size == "large" else label.PREVIEW_WIDTH)
                     if row and extract.FRAME_NAME.match(file) and cls["data"] else None)
             except ValueError as e:  # unreadable sam_raw file (QE PR 22)
                 return PlainTextResponse(str(e), status_code=404)
+            except (KeyError, TypeError, AttributeError) as e:  # parses but wrong shape (QE PR 27)
+                return PlainTextResponse(f"sam_raw/{file}.json is missing or has a wrong field "
+                                         f"({type(e).__name__}: {e}); move it aside and Run "
+                                         "again.", status_code=404)
             if data is None:
                 return PlainTextResponse("not found", status_code=404)
             return Response(data, media_type="image/jpeg")
