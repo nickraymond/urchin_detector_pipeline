@@ -142,35 +142,35 @@ stages where you left them, and the deleted frame is in the project's `rejected/
 a folder of still images: they appear in frame review.
 **Needs:** S1 (done).
 
-### S3 — SAM on single frames  `[~]`
+### S3 — SAM on single frames  `[x]`  (demo passed: Nick 2026-11-25, lead chat: "S3 passes"; last code PR 28 merged as `49e1db8`)
 **Goal:** spec stage 5 without job control: class settings file, prompt preview, tiling, overlap rules.
 Design: DESIGN §Planned for S3; Lead calls D22–D27 (they answer SPEC Q2 and the SAM part of Q10).
 One draft PR per bite, about 300 lines each.
 
-**Bite 1 — Classes**
-- [ ] `app/sam/default_classes.yaml` with the starting classes, fixed ids and settings (DESIGN §Planned for S3);
+**Bite 1 — Classes** (PR 20 merged as `373521d`)
+- [x] `app/sam/default_classes.yaml` with the starting classes, fixed ids and settings (DESIGN §Planned for S3);
       copied into a project as `classes.yaml` on first use
-- [ ] urchins: one SAM prompt, "urchin", shared by purple and red urchin through `sam_group: urchin`; its masks
+- [x] urchins: one SAM prompt, "urchin", shared by purple and red urchin through `sam_group: urchin`; its masks
       have no class id until tagged; changing it re-runs both classes (D18)
-- [ ] checks before any save or run (ids append-only, D6; groups; `seg_as`); errors name the line
-- [ ] Labeling page: classes table with colours, edit `classes.yaml` in the browser, Reload (D25);
+- [x] checks before any save or run (ids append-only, D6; groups; `seg_as`); errors name the line
+- [x] Labeling page: classes table with colours, edit `classes.yaml` in the browser, Reload (D25);
       dashboard row "SAM labeling"; PyYAML a direct dependency with its licence read
-- [ ] one EXIF-orientation helper for every pixel read (D27); fix the review-grid thumbnails, which show a
+- [x] one EXIF-orientation helper for every pixel read (D27); fix the review-grid thumbnails, which show a
       rotated still sideways today (QE PR 19)
 
-**Bite 2 — SAM runner and results files**
-- [ ] SAM in its own worker process (D9), reusing `app/sam_test/device_patch.py`; one model load per job
-- [ ] tiling above 2000 px, merge to frame coordinates, tile-edge duplicates removed (D23); minimum mask area
-- [ ] one `sam_raw/<frame>.json` per frame, written after each frame, also with zero masks; records prompts,
+**Bite 2 — SAM runner and results files** (PR 21 merged as `c24dba4`)
+- [x] SAM in its own worker process (D9), reusing `app/sam_test/device_patch.py`; one model load per job
+- [x] tiling above 2000 px, merge to frame coordinates, tile-edge duplicates removed (D23); minimum mask area
+- [x] one `sam_raw/<frame>.json` per frame, written after each frame, also with zero masks; records prompts,
       settings and a settings key per run unit
-- [ ] tests with a fake predictor (no torch, weights or real frames); one real-SAM run in the self-test
+- [x] tests with a fake predictor (no torch, weights or real frames); one real-SAM run in the self-test
 
-**Bite 3 — Prompt preview**
-- [ ] "Preview" on 3 sample frames (D26) shows masks coloured per class, a toggle per class, counts,
+**Bite 3 — Prompt preview** (PR 22 merged as `8f3ea1a`; defaults D28, D29)
+- [x] "Preview" on 3 sample frames (D26) shows masks coloured per class, a toggle per class, counts,
       seconds per frame and peak memory
-- [ ] kelp: try prompts for kelp shoot (object) and kelp (area) on frames from a restoration-site video;
+- [x] kelp: try prompts for kelp shoot (object) and kelp (area) on frames from a restoration-site video;
       put the best in the default file (D11)
-- [ ] measure for D24: mask areas of real vs false masks → proposed minimum mask area; re-check D10 on at least
+- [x] measure for D24: mask areas of real vs false masks → proposed minimum mask area; re-check D10 on at least
       6 frames from at least 2 videos (urchins kept, seconds per frame, tiles vs whole frame); numbers into
       DESIGN §Bench results
 
