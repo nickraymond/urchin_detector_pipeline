@@ -29,6 +29,8 @@ def main() -> None:
         extra = {"seconds": round(now - last[0], 2)} if made else {"skipped": True}
         last[0] = now
         jw.emit("item", i=i, n=n, name=name, new=made, counts={"new": int(made)}, **extra)
+        if made:
+            jw.rest(ctl, job)                   # D36: pause between frames (wakes on pause)
 
     blur, dup = extract.saved_filters(Path(job["folder"]))   # as saved now (QE PR 34)
     new = extract.run(Path(job["folder"]), job["samples"],

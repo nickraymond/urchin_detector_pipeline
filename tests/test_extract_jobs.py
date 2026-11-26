@@ -63,10 +63,13 @@ def test_one_job_at_a_time_across_stages(tmp_path, monkeypatch):
     assert "already queued or running" in r.text
     assert wait_for(lambda: job(client)["state"] == "done", 60)
     code = copy["params"]["code"]
-    assert wait_for(lambda: client.get("/p/p/clips/status").json()[code]["ready"], 60)
+    # wait for the job's own state: the files are ready a moment before the row says done
+    # (QE PR 36: waiting for "ready" raced the runner)
+    assert wait_for(lambda: client.get("/p/p/clips/status").json()[code].get("state") == "done", 60)
+    assert client.get("/p/p/clips/status").json()[code]["ready"]
     ext = job(client)
     done = jc(config.load(tmp_path / "config.local.toml")).status(copy["id"])
-    assert done["state"] == "done" and done["started"] >= ext["ended"]
+    assert done["started"] >= ext["ended"]
 
 
 def test_a_worker_error_names_its_cause(tmp_path):

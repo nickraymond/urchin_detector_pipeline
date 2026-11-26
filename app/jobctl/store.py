@@ -37,12 +37,13 @@ CREATE TABLE IF NOT EXISTS jobs (
     stop_reason TEXT,
     summary     TEXT,                 -- JSON (bite 5b)
     worker_pid  INTEGER,              -- the worker process while it may be alive (QE PR 32)
-    eta_s       INTEGER               -- remaining seconds while running (bite 3, D35)
+    eta_s       INTEGER,              -- remaining seconds while running (bite 3, D35)
+    warnings    TEXT                  -- JSON list of warnings the worker sent (bite 4)
 );
 """
 # Columns added after a jobs.sqlite may exist: name -> type (added on open).
-ADDED = {"worker_pid": "INTEGER", "eta_s": "INTEGER"}
-JSON_COLUMNS = ("params", "limits", "summary")
+ADDED = {"worker_pid": "INTEGER", "eta_s": "INTEGER", "warnings": "TEXT"}
+JSON_COLUMNS = ("params", "limits", "summary", "warnings")
 
 
 def now() -> str:

@@ -24,7 +24,8 @@
   <form method="post" action="/jobs/{{ job.id }}/resume" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Resume</button></form>
   <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Cancel</button></form>
   {% endif %}
-  <a href="/jobs" class="hint">Jobs page</a></div>
+  <a href="/jobs" class="hint">Jobs page</a>
+  {% for w in job.warnings or [] %}<br><span class="warn-text">⚠ {{ w }}</span>{% endfor %}</div>
 {% if preview %}
 <p class="totals">Preview of {{ preview.at | replace('T', ' ') }}: {% if preview.seconds_per_frame %}<b>{{ preview.seconds_per_frame }} s per frame</b>
   (model load {{ preview.load_seconds }} s), peak memory {{ preview.peak_process_gb }} GB process,

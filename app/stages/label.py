@@ -38,9 +38,10 @@ def frames_to_label(conn: sqlite3.Connection) -> list[str]:
 
 
 def device() -> str:
-    """The Apple GPU when there is one (S1), else CPU. Asked in a child process, so the app
-    itself never imports torch."""
-    r = subprocess.run([sys.executable, "-c", "import torch; print('mps' if "
+    """D36 "auto": an NVIDIA GPU, else the Apple GPU (S1), else CPU. Asked in a child process,
+    so the app itself never imports torch."""
+    r = subprocess.run([sys.executable, "-c", "import torch; print('cuda' if "
+                        "torch.cuda.is_available() else 'mps' if "
                         "torch.backends.mps.is_available() else 'cpu')"],
                        capture_output=True, text=True)
     return r.stdout.strip() or "cpu"
@@ -64,9 +65,16 @@ def build_job(params: dict) -> dict:
     repo_id, ckpt = MODELS[settings["model"]]
     return {"folder": str(folder), "frames": frames, "units": units, "settings": settings,
             "repo_id": repo_id, "checkpoint": ckpt, "predictor": predictor,
-            "device": params.get("device") or ("cpu" if predictor else device()),
+            "device": params.get("device") or ("cpu" if predictor else
+                                               pick_device(params.get("limits") or {})),
             "preview_file": str(folder / PREVIEW_FILE) if params.get("preview") else None,
             "estimate_file": str(folder / ESTIMATE_FILE) if params.get("estimate") else None}
+
+
+def pick_device(lim: dict) -> str:
+    """The device from the job's limits (D36); "auto" asks torch in a child process."""
+    chosen = lim.get("device") or "auto"
+    return device() if chosen == "auto" else chosen
 
 
 def progress(params: dict) -> tuple[int, int]:
