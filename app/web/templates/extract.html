@@ -30,6 +30,7 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
      data-state="{{ job.state or '' }}" {% if not running and job.state != "scheduled" %}hidden{% endif %}>
   <progress max="100" value="{{ job.percent or 0 }}"></progress> <span class="hint">{{ job.message or "waiting" }}</span>
   {% if job.state in ("queued", "running") %}<form method="post" action="/jobs/{{ job.id }}/pause" class="inline"><input type="hidden" name="back" value="/p/{{ info.name }}/extract"><button class="small">Pause</button></form>{% endif %}
+  {% if job.state in ("queued", "running", "pausing") %}<form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="/p/{{ info.name }}/extract"><button class="small">Cancel</button></form>{% endif %}
   <a href="/jobs" class="hint">Jobs page</a>
 </div>
 {% if job.state == "scheduled" %}<div class="totals">Extraction scheduled: starts at <b>{{ job.start_show }}</b>{% if job.stop_show %}, stop by {{ job.stop_show }}{% endif %}.

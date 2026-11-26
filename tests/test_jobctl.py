@@ -126,6 +126,25 @@ def test_cancel_running_keeps_finished_items(jc, tmp_path):
         jc.cancel(jid)
 
 
+def test_cancel_while_pausing_ends_the_worker_at_once(jc, tmp_path):
+    """D34a (Nick's S4 test): Pause finishes the item in progress, and the job says what it
+    waits for; Cancel, also while pausing, ends the worker at once and drops that item."""
+    jid = jc.submit("fake", params(tmp_path, n=3, delay=0.2, hang_at=2))
+    wait_for(lambda: writes(tmp_path) == [1])
+    wait_for(lambda: (tmp_path / "out" / ".hung").exists())   # item 2 takes 120 s
+    t = time.monotonic()
+    jc.pause(jid)
+    job = jc.status(jid)
+    assert job["state"] == "pausing"
+    assert job["message"].startswith("finishing item 2 of 3, about ")
+    assert job["message"].endswith(" before pausing")
+    jc.cancel(jid)
+    job = wait_state(jc, jid, "cancelled", timeout=10)
+    assert time.monotonic() - t < 10 and job["stop_reason"] == "cancelled"
+    assert writes(tmp_path) == [1]                        # item 2 dropped, never written
+    assert not (tmp_path / "out" / "item_2.txt").exists()
+
+
 def test_one_job_at_a_time_and_queued_pause_cancel(jc, tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
     first = jc.submit("fake", params(a, n=3, delay=0.2))

@@ -121,7 +121,12 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         if not job:
             return {}
         total = job.get("total") or 0
-        return {**job, "project_name": Path(job["project"]).name if job.get("project") else "",
+        eta = job.get("eta_s") if job["state"] in ("running", "pausing") else None
+        line = job.get("message") or ""
+        if eta and job["state"] == "running":   # bite 6: time, finish, then what
+            line = (f"about {templates.env.globals['minutes'](eta)} left, finishing about "
+                    f"{finish_time(eta)} · {line}")
+        return {**job, "line": line, "project_name": Path(job["project"]).name if job.get("project") else "",
                 "percent": round(100 * job["done"] / total, 1) if total else 0.0,
                 "active": job["state"] in ("queued", "running", "pausing"),
                 "start_show": schedule.show(job.get("start_at")),

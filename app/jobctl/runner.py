@@ -11,6 +11,7 @@ and never puts two workers on the GPU.
 from __future__ import annotations
 
 import json
+import math
 import os
 import signal
 import subprocess
@@ -103,12 +104,27 @@ class Runner:
             if reason:
                 self._reason[job_id] = reason
             proc = self._proc
-        self.store.set_state(job_id, "pausing", ("running",))
+        job = self.store.get(job_id) or {}
+        self.store.set_state(job_id, "pausing", ("running", "pausing"),
+                             message="cancelling: ending the worker" if kill else
+                             self._finishing(job))
         self.log(job_id, f"{what} asked{' (' + reason + ')' if reason else ''}; " +
                  ("ending the worker" if kill else "finishing the item in progress"))
         if proc is not None:
             self._send_pause(job_id, proc)
         return True
+
+    def _finishing(self, job: dict) -> str:
+        """What a pausing job waits for, so the greyed buttons are explained (D34a): e.g.
+        "finishing frame 3 of 40, about 1 min before pausing"."""
+        done, total = job.get("done") or 0, job.get("total")
+        what = f"{self._item} {done + 1}" + (f" of {total}" if total else "")
+        try:
+            times = list(self._times)   # appended by the follow thread
+        except RuntimeError:
+            times = []
+        left = f", about {max(1, math.ceil(sum(times) / len(times) / 60))} min" if times else ""
+        return f"finishing {what}{left} before pausing"
 
     def _send_pause(self, job_id: int, proc: subprocess.Popen) -> None:
         with self._lock:
@@ -347,7 +363,7 @@ class Runner:
         elif want or last == "paused":
             state = "cancelled" if want == "cancel" else "paused"
             reason = {"cancel": "cancelled", "pause": why or "paused"}.get(want, "worker paused")
-            if last != "paused":
+            if last != "paused" and want != "cancel":   # Cancel ends the worker (D34a)
                 reason += f" (worker ended with code {code} before saying it paused)"
             self.store.update(jid, state=state, stop_reason=reason, message=reason,
                               **({"ended": now()} if state == "cancelled" else {}))
@@ -396,6 +412,8 @@ class Runner:
             if text and text not in have:
                 self.store.update(jid, warnings=have + [text])
             self.log(jid, f"warning: {text}")
+        elif e == "note":      # log only (D36b: a harmless CPU fallback)
+            self.log(jid, f"note: {ev.get('message')}")
         elif e in ("paused", "done"):
             self.log(jid, f"worker: {e}")
         else:

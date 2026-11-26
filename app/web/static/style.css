@@ -132,3 +132,8 @@ table.jobs td, table.jobs th { font-size: 14px; padding: 5px 6px; vertical-align
 form.limits { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; background: #fff; padding: 10px 12px; }
 form.limits input[type=number] { width: 5em; }
 .warn-text { color: #8a5a00; }
+/* Run panel (S4 bite 6): time, finish, then what will run as a small table */
+#run-plan p { margin: 2px 0; }
+table.plan { border-collapse: collapse; margin-top: 6px; width: auto; min-width: 280px; }
+table.plan td, table.plan th { font-size: 14px; padding: 2px 12px 2px 0; text-align: left; }
+table.plan td + td, table.plan th + th { text-align: right; }

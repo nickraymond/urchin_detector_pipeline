@@ -16,10 +16,12 @@
 </form>
 <div id="sam-job" class="totals" {% if not job.state %}hidden{% endif %}
    data-status="/p/{{ info.name }}/labeling/status" data-state="{{ job.state or '' }}">
-  SAM: <span id="sam-job-text">{{ job.state }}{% if job.message and job.message != job.state and job.state != "scheduled" %} — {{ job.message }}{% endif %}</span>
+  SAM: <span id="sam-job-text">{{ job.state }}{% if job.line and job.line != job.state and job.state != "scheduled" %} — {{ job.line }}{% endif %}</span>
   {% set back = "/p/" ~ info.name ~ "/labeling" %}
-  {% if job.state in ("queued", "running") %}
-  <form method="post" action="/jobs/{{ job.id }}/pause" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Pause</button></form>
+  {% if job.state in ("queued", "running", "pausing") %}
+  {% if job.state != "pausing" %}<form method="post" action="/jobs/{{ job.id }}/pause" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Pause</button></form>{% endif %}
+  <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small" title="Stops at once; the frame in progress is dropped, finished frames are kept">Cancel</button></form>
+  {% if job.state == "pausing" %}<span class="hint">Estimate and Run wait until it has paused; Cancel stops at once.</span>{% endif %}
   {% elif job.state == "scheduled" %} — starts at <b>{{ job.start_show }}</b>{% if job.stop_show %}, stop by {{ job.stop_show }}{% endif %}
   <form method="post" action="/jobs/{{ job.id }}/start-now" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Start now</button></form>
   <form method="post" action="/jobs/{{ job.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Cancel</button></form>
@@ -30,11 +32,11 @@
   <a href="/jobs" class="hint">Jobs page</a>
   {% for w in job.warnings or [] %}<br><span class="warn-text">⚠ {{ w }}</span>{% endfor %}</div>
 {% if preview %}
-<p class="totals">Preview of {{ preview.at | replace('T', ' ') }}: {% if preview.seconds_per_frame %}<b>{{ preview.seconds_per_frame }} s per frame</b>
-  (model load {{ preview.load_seconds }} s), peak memory {{ preview.peak_process_gb }} GB process,
-  {{ preview.peak_gpu_gb }} GB Apple GPU{% else %}all 3 frames already had results for these classes{% endif %}.
-  {% if preview.seconds_per_frame %}Run on all {{ n_label }} kept frames: about
-  {{ ((preview.seconds_per_frame * n_label) / 60) | round(0, 'ceil') | int }} min.{% endif %}</p>
+<p class="totals">{% if preview.seconds_per_frame %}Run on all {{ n_label }} kept frames: about
+  <b>{{ minutes(preview.seconds_per_frame * n_label) }}</b> ({{ preview.seconds_per_frame }} s / frame, from this
+  preview). {% else %}All 3 frames already had results for these classes. {% endif %}<span class="hint">Preview of
+  {{ preview.at | replace('T', ' ') }}{% if preview.seconds_per_frame %}; model load {{ preview.load_seconds }} s,
+  peak memory {{ preview.peak_process_gb }} GB process, {{ preview.peak_gpu_gb }} GB Apple GPU{% endif %}.</span></p>
 <div class="legend" id="legend"></div>
 <p class="hint">Click a frame to see it large (&larr; &rarr; move, <b>Esc</b> closes, scroll or click to zoom,
   drag to pan). Click a class to show or hide its masks, "only" to show that class alone; this applies to the
@@ -70,29 +72,32 @@
 {% endif %}
 
 <h2>Run</h2>
-<p class="hint">Labels every kept frame. A class runs only on frames where it has no results yet or its
-  prompts or settings changed; the others stay as they are. Pause finishes the frame in progress and frees the
-  GPU; Resume (or Run) carries on with the frames still missing. Cancel ends the job; finished frames are kept,
-  also after a quit.</p>
+<p class="hint">Labels every kept frame; a class runs only where it has no results yet or its prompts or settings
+  changed. Pause finishes the frame in progress; Cancel stops at once. Finished frames are always kept.</p>
 {% if plan %}
-<p class="totals" id="run-plan">{% set will = plan.units | dictsort | selectattr(1) | list %}
-  {% if will %}Will run: {% for k, n in will %}<b>{{ k }}</b> ({{ n }} frame{{ "s" if n != 1 }}){{ ", " if not loop.last }}{% endfor %}.
-  {% else %}Nothing to run: every class is current on all {{ plan.total }} frames.{% endif %}
-  {% set same = plan.units | dictsort | rejectattr(1) | list %}
-  {% if same and will %}Unchanged: {% for k, n in same %}{{ k }}{{ ", " if not loop.last }}{% endfor %}.{% endif %}
-  {% if will %}{{ plan.frames }} of {{ plan.total }} frames have work{% if plan.estimate_s %}: about
-  <b>{{ minutes(plan.estimate_s) }}</b>, finishing about <b>{{ finish }}</b>{% if job.state == "scheduled" %} if it starts at {{ job.start_show }}{% else %} if started now{% endif %}
-  ({% if plan.estimate_from == "estimate" %}from Estimate{% else %}from the preview's time per frame; Estimate gives a
-  better figure{% endif %}){% else %}; press Estimate for a time estimate{% endif %}.{% endif %}</p>
+<div class="totals" id="run-plan">{% set will = plan.units | dictsort | selectattr(1) | list %}
+  {% if will %}
+  <p>Takes: {% if plan.estimate_s %}about <b>{{ minutes(plan.estimate_s) }}</b> ({{ plan.per_frame }} s / frame,
+    {% if plan.estimate_from == "estimate" %}from Estimate{% else %}from the preview; Estimate gives a better
+    figure{% endif %}){% else %}not known yet: press Estimate{% endif %}.</p>
+  {% if plan.estimate_s %}<p>Finishes: about <b>{{ finish }}</b>{% if job.state == "scheduled" %} if it starts at
+    {{ job.start_show }}{% else %} if started now{% endif %}.</p>{% endif %}
+  <table class="plan">
+    <tr><th>Class</th><th>Frames to run</th></tr>
+    {% for k, n in plan.units | dictsort %}<tr><td>{{ k }}</td><td>{{ n if n else "unchanged" }}</td></tr>{% endfor %}
+    <tr><td><b>Frames with work</b></td><td><b>{{ plan.frames }} of {{ plan.total }}</b></td></tr>
+  </table>
+  {% else %}<p>Nothing to run: every class is current on all {{ plan.total }} frames.</p>{% endif %}
+</div>
 {% if plan.unreadable %}<p class="error">These results files cannot be read; move them aside in
   <code>sam_raw/</code> and they are labeled again: {{ plan.unreadable | join(", ") }}</p>{% endif %}
 {% endif %}
-{% if estimate %}<p class="totals" id="estimate">Estimate of {{ estimate.at | replace('T', ' ') }}:
-  {% if estimate.seconds_per_frame %}<b>{{ estimate.seconds_per_frame }} s per frame</b> ({{ estimate.frames | length }}
-  frames timed after 1 warm-up frame; model load {{ estimate.load_seconds }} s){% else %}no frame could be timed{% endif %}{% if plan and plan.estimate_old %}
-  — <b>made with other classes or settings</b>; press Estimate again{% endif %}.</p>{% endif %}
-<p class="hint">Estimate labels 1 warm-up frame plus 5 frames spread over the frames Run would label, and times the
-  5. Their results are kept, so Run does not label them again.</p>
+{% if estimate %}<p class="totals" id="estimate">{% if estimate.seconds_per_frame %}Estimate: <b>{{ estimate.seconds_per_frame }} s / frame</b>{% if plan and plan.estimate_old %}
+  — <b>made with other classes or settings</b>; press Estimate again{% endif %}.
+  <span class="hint">{{ estimate.at | replace('T', ' ') }}; {{ estimate.frames | length }} frames timed after 1 warm-up
+  frame; model load {{ estimate.load_seconds }} s.</span>{% else %}Estimate of {{ estimate.at | replace('T', ' ') }}:
+  no frame could be timed.{% endif %}</p>{% endif %}
+<p class="hint">Estimate labels and times 5 frames (after 1 warm-up frame); their results are kept.</p>
 <form method="post" action="/p/{{ info.name }}/labeling/estimate" class="inline">
   <button {% if job.active or job.state == "scheduled" or (plan and not plan.frames) %}disabled{% endif %}>Estimate</button>
 </form>
@@ -100,8 +105,7 @@
   <button {% if job.active or job.state == "scheduled" or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
   <label>Start at <input name="start" type="time"></label> <label>Stop by <input name="stop" type="time"></label>
   {% include "_awake.html" %}
-  <span class="hint">Start at / Stop by (optional, e.g. 02:00): the next time that clock time comes. The app must
-    stay running, and the laptop awake, for a schedule to fire.</span>
+  <span class="hint">Start at / Stop by are optional (e.g. 02:00); the app must stay running for them to fire.</span>
 </form>
 
 <h2>Classes</h2>
