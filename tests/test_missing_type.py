@@ -59,3 +59,17 @@ def test_a_used_id_10_gets_a_new_id_and_a_renamed_type_counts(tmp_path):
     r = client.post("/p/p/labels/add-type", data={"type": "black urchin"}, follow_redirects=False)
     assert "error" not in r.headers["location"]
     assert classes.parse((folder / "classes.yaml").read_text())["classes"][-1]["id"] == new["id"]
+
+
+def test_a_removed_type_with_results_gets_back_the_id_its_results_hold(tmp_path):
+    """QE PR 58: black urchin had results as id 10, then was removed; a new id would be refused
+    by the used-id check (D6), so the id the results hold is offered."""
+    import json
+    client, folder = old_project(tmp_path)
+    used = folder / "sam_raw" / classes.USED_FILE
+    used.write_text(json.dumps({**json.loads(used.read_text()), "10": "black urchin"}))
+    (new,) = classes.missing_types(folder, classes.ensure(folder)["classes"])
+    assert new["id"] == 10
+    r = client.post("/p/p/labels/add-type", data={"type": "black urchin"}, follow_redirects=False)
+    assert "error" not in r.headers["location"]
+    assert classes.parse((folder / "classes.yaml").read_text())["classes"][-1]["id"] == 10

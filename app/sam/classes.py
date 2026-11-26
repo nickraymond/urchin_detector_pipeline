@@ -346,16 +346,20 @@ def missing_types(folder: Path, class_list: list[dict]) -> list[dict]:
     in a project made before D39. A type counts as present if its name is in the file, or its id
     in the same group (a renamed type keeps its id). Each comes with the id it would get: its
     starting id if no class in the file or in the SAM results ever used it, else the next new
-    id. Only groups the project already has are offered."""
+    id; a type removed after it had SAM results gets back the id its results hold (D6, QE PR 58).
+    Only groups the project already has are offered."""
     groups = {c.get("sam_group") for c in class_list if c.get("sam_group")}
-    ids = {c["id"] for c in class_list} | set(used_ids(folder))
+    used = used_ids(folder)
+    in_file = {c["id"] for c in class_list}
+    ids = in_file | set(used)
     names = {c["name"] for c in class_list}
     typed = {(c["id"], c.get("sam_group")) for c in class_list}
     out = []
     for c in parse(DEFAULT_FILE.read_text())["classes"]:
         g = c.get("sam_group")
         if g in groups and c["name"] not in names and (c["id"], g) not in typed:
-            new = c["id"] if c["id"] not in ids else max(ids) + 1
+            held = [i for i, n in used.items() if n == c["name"] and i not in in_file]
+            new = held[0] if held else c["id"] if c["id"] not in ids else max(ids) + 1
             out.append({**c, "id": new})
             ids.add(new)
     return out
