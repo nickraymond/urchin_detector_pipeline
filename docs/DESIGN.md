@@ -593,7 +593,7 @@ up). *Seam px* = mask edge pixels lying exactly on an inner tile edge (a straigh
 The other 3 frames have no areas in any mode. Time for both area prompts: whole 2.0–4.8 s, whole 2016 2.1–3.1 s
 (one image encoding); tiles share the 52–98 s per frame tile pass. Apple GPU memory after the whole-frame pass up
 to 26.9 GB on 5.3K, after whole 2016 at most 22.7 GB (no higher than the tiles). Whole 2016 vs whole: IoU 0.88–0.97.
-**Pick (proposed, Lead call):** areas on the whole frame at 2016 px (`areas_whole_px: 2016`; 0 = tiles); the two
+**Pick (Lead call D48):** areas on the whole frame at 2016 px (`areas_whole_px: 2016`; 0 = tiles); the two
 misses are frames where tiles found only fragments. n = 10 frames.
 
 *Anemone vs urchin* (tiles, after tile-edge duplicates; urchin masks at 0.4). Of the masks of each anemone prompt
@@ -607,6 +607,6 @@ anemone and the urchin is lost), on the 4 frames with urchins (94 urchin masks):
 | "sea anemone tentacles" | 30 | 0 | 1 |
 
 Anemone masks on urchins score up to 0.93 ("sea anemone") and 0.82 ("anemone"), so a per-class confidence
-cannot separate them. **Pick (proposed, Lead call):** prompt "anemone". A rule that urchin beats anemone whatever
+cannot separate them. **Pick (Lead call D49):** prompt "anemone". A rule that urchin beats anemone whatever
 the scores would contradict the spec's "keep the higher score" (D22 rule 1): not done; a question for Nick if
 review shows urchins still lost.

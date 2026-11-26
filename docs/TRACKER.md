@@ -346,7 +346,7 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [ ] `THIRD_PARTY_LICENSES` with the SAM License text; README: setup, SAM access steps, 10-minute walkthrough
 - [ ] run every acceptance box of `docs/source/mvp_spec.md` on Nick's videos and tick it with its evidence
 
-**Bite 7 — SAM quality: tile seams on areas, anemone prompts** (D45; PR 49, picks proposed as Lead calls; needs the GPU: run SAM only when no
+**Bite 7 — SAM quality: tile seams on areas, anemone prompts** (D45, D48, D49; PR 49; needs the GPU: run SAM only when no
 other SAM run is going)
 - [x] area masks (rock, kelp) end in straight lines where tiles meet (Nick, 2026-11-25, S4 test frames): compare
       areas on the whole frame (one extra image encoding per frame) with tiles on the same frames; pick by the
