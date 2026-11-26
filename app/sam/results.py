@@ -192,3 +192,54 @@ def note_class_ids(folder: Path, done: dict[str, dict]) -> None:
     new = {str(k): v for res in done.values() for k, v in res["unit"]["classes"].items()}
     if any(used.get(k) != v for k, v in new.items()):
         _atomic(p, {**used, **new})
+
+
+def follow_renames(folder: Path, class_list: list[dict]) -> int:
+    """After classes.yaml is saved (D39): a renamed class (or group) keeps its id, but its run
+    unit's key is its name, so saved units are re-keyed to the current key and their class
+    names updated; class_ids.json gets the new names. Units whose ids are not all in one
+    current unit are left alone (not shown, as for a removed class). Idempotent; returns the
+    number of sam_raw files rewritten. Settings keys do not include names: no re-run."""
+    from app.sam.classes import run_units
+    units = run_units(class_list)
+    names = {c["id"]: c["name"] for c in class_list}
+    changed = 0
+    d = raw_dir(folder)
+    if not d.is_dir():
+        return 0
+    for p in sorted(d.glob("*.json")):
+        if p.name == USED_FILE or p.name.startswith("._"):
+            continue
+        try:
+            data = json.loads(p.read_text())
+        except ValueError:
+            continue                       # reported when the frame is read
+        # every saved unit's new key first (names may swap or rotate in one save, QE PR 47);
+        # a unit whose ids are in no current unit keeps its key unless a current unit takes it
+        moved, kept = {}, {}
+        for key, u in data.get("units", {}).items():
+            ids = {int(k) for k in u.get("classes", {})}
+            cur = next((c for c in units if ids and ids <= set(c["classes"])), None)
+            if cur is None or cur["key"] in moved:   # no current unit, or one already taken
+                kept[key] = u
+                continue
+            fresh = {str(i): names[i] for i in sorted(ids)}
+            moved[cur["key"]] = {**u, "classes": fresh}
+        new = dict(moved)
+        for key, u in kept.items():
+            k, n = key, 1
+            while k in new:                      # its old name now belongs to a current unit
+                k, n = f"{key} (removed {n})", n + 1
+            new[k] = u
+        dirty = new != data.get("units", {})
+        if dirty:
+            data["units"] = new
+            _atomic(p, data)
+            changed += 1
+    used_p = d / USED_FILE
+    if used_p.is_file():
+        used = json.loads(used_p.read_text())
+        fixed = {k: names.get(int(k), v) for k, v in used.items()}
+        if fixed != used:
+            _atomic(used_p, fixed)
+    return changed

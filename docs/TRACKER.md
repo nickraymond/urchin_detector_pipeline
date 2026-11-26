@@ -324,10 +324,13 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [ ] split check (touching urchins separated: yes / no) and "fully checked" per class on the frame
 - [ ] running totals per class (objects and frames, target 150–200 objects per class)
 
-**Bite 4 — Urchin types and fast tagging** (D18, D39)
-- [ ] black urchin (SPEC Q18): a new class with the next free id in the default `classes.yaml`, in the
+**Bite 4a — Urchin types, backend** (D18, D39; PR 47; split from bite 4 by the builder: the keys need bite 3's page)
+- [x] black urchin (SPEC Q18): a new class with the next free id in the default `classes.yaml`, in the
       `urchin` group; existing projects can add it from the class form. The id never changes; a later rename
       keeps the id and must be possible even after results exist (Lead call D39, lifting S3's name lock for renames)
+- [x] tagging helpers (`app/review/tagging.py`): types and keys, next untagged, zoom rectangle, tag, tag all remaining
+
+**Bite 4b — Urchin types and fast tagging on the Review page** (D18, D39)
 - [ ] `P` / `R` / `B` tags the selected urchin purple, red or black; running totals count each type
 - [ ] fast tagging (Nick, 2026-11-25: most urchins are purple, find the outliers): `Tab` jumps to the next
       untagged urchin and zooms the viewer onto it with some scene around it; a close-up panel shows the

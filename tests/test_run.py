@@ -40,7 +40,7 @@ def test_run_labels_every_kept_frame_then_only_a_new_class(tmp_path, monkeypatch
     before = results.read(folder, "v_aaaaaa_1.png")["units"]["urchin"]["run_at"]
     # add a class: only it will run, and the others' results stay as they are
     text = (folder / "classes.yaml").read_text().rstrip("\n") + \
-        "\n  - {id: 10, name: boulder, kind: area, prompts: [rock]}\n"
+        "\n  - {id: 11, name: boulder, kind: area, prompts: [rock]}\n"
     assert client.post("/p/p/labeling/classes", data={"text": text}).status_code == 200
     page = client.get("/p/p/labeling").text
     assert "<tr><td>boulder</td><td>4</td></tr>" in page

@@ -1,5 +1,6 @@
 // Class editor form (S3 bite 6, SPEC Q17): one row per class instead of a YAML text box.
-// Ids are given, never typed; a class with SAM results keeps its name (D6). After every change
+// Ids are given, never typed. A class with SAM results may be renamed: it keeps its id and its
+// saved masks (D39, S5; S3 locked the name, D6). After every change
 // the server checks the form with the same checks as classes.yaml (app/sam/classes.py), and
 // Save stays off while there is a problem; the server checks again before it writes the file.
 (function () {
@@ -140,10 +141,10 @@
                                  v => setGroup(i, v), c.kind !== "object"));
   }
   function row(c, i) {
-    const locked = F.used[String(c.id)] !== undefined;
+    const locked = F.used[String(c.id)] !== undefined;  // has results: removing keeps them
     const name = el("input", {type: "text", class: "cf-name", value: c.name, size: 16,
-                              readonly: locked, placeholder: "class name",
-                              title: locked ? "This class has SAM results: its name stays, so its saved masks keep their meaning (D6)" : null});
+                              placeholder: "class name",
+                              title: locked ? "This class has SAM results: a new name keeps its id " + c.id + " and its saved masks (D39). Older exports keep the old name." : null});
     let before = c.name;  // seg_as names that pointed at the old name follow the new one
     name.addEventListener("focus", () => { before = c.name; });
     name.addEventListener("input", () => { c.name = name.value; changed(false); });
@@ -152,7 +153,7 @@
     return el("tr", {"data-row": i},
       el("td", null, String(c.id)),
       el("td", null, el("span", {class: "swatch", style: "background: " + colour(c.id)})),
-      el("td", null, name, locked ? el("small", {class: "lock"}, "🔒 has results: name kept (D6)") : null),
+      el("td", null, name, locked ? el("small", {class: "lock"}, "has results: a rename keeps id " + c.id) : null),
       el("td", null, select("cf-kind", c.kind, F.kinds.map(k => [k, k]), v => {
         c.kind = v;
         if (v === "area") { c.sam_group = undefined; c.seg_as = undefined; }

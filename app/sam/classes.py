@@ -148,8 +148,8 @@ def parse(text: str, used: dict[int, str] | None = None) -> dict:
 def _check_classes(classes: list, lines: list[dict], used: dict[int, str]) -> list:
     errs = []
     ids, names, groups, areas = {}, {}, {}, set()
-    free = max([*used, *(c.get("id") for c in classes if isinstance(c, dict)
-                         and _int(c.get("id"))), 0]) + 1
+    file_ids = {c["id"]: c.get("name") for c in classes
+                if isinstance(c, dict) and _int(c.get("id"))}
 
     def line(i, key="_"):
         d = lines[i] if i < len(lines) else {}
@@ -187,13 +187,10 @@ def _check_classes(classes: list, lines: list[dict], used: dict[int, str]) -> li
         if not (isinstance(p, list) and p and all(isinstance(s, str) and s.strip() for s in p)):
             errs.append((line(i, "prompts"), "prompts must be a list of at least one text, "
                          "like [sea star]"))
-        # ids with SAM results keep their name, and such a name keeps its id (D6)
-        if _int(cid) and cid in used and name is not None and used[cid] != name:
-            errs.append((line(i, "id"), f"id {cid} has SAM results as {used[cid]!r}; ids are "
-                         f"never reused (D6). Give {name!r} a new id, e.g. "
-                         f"{free}"))
+        # D39 (S5): an id with SAM results may be renamed, keeping its id. A name with results
+        # keeps its id (D6) unless that id is in the file under another name (renamed away)
         old = next((k for k, v in used.items() if name is not None and v == name), None)
-        if old is not None and _int(cid) and cid != old:
+        if old is not None and _int(cid) and cid != old and file_ids.get(old) in (None, name):
             errs.append((line(i, "id"), f"{name!r} has SAM results under id {old}; ids are "
                          "never renumbered (D6)"))
         g = c.get("sam_group")
@@ -264,6 +261,8 @@ def save(folder: Path, text: str) -> dict:
     Raises ClassesError and writes nothing if it has problems."""
     data = parse(text, used_ids(folder))
     _write(file_path(folder), dump(data))
+    from app.sam import results          # results imports this module
+    results.follow_renames(folder, data["classes"])
     return data
 
 
