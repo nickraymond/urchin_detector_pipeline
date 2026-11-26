@@ -459,8 +459,8 @@ app/web/templates/export.html  the Export page
   the `LICENSE` file of `facebook/sam3` in the Hugging Face cache (byte-identical to `facebook/sam3.1`'s, `cmp`
   2026-11-26) and contourpy's BSD-3-Clause text. D42's CVAT route, checked against CVAT's COCO format page
   (docs.cvat.ai/docs/dataset_management/formats/format-coco/, read 2026-11-26): the COCO 1.0 importer lists
-  polygons and masks as supported, and "Upload annotation" → "COCO 1.0" into an existing task is the documented
-  route. The page does not say how `images[].file_name` is matched or whether extra keys (`checked_classes`,
+  polygons and masks as supported; its documented route is to create a task with the images and then
+  "Upload annotation" → "COCO 1.0" (QE PR 57: the page shows it while creating a task from a COCO dataset). The page does not say how `images[].file_name` is matched or whether extra keys (`checked_classes`,
   `score`, `split`, `seg_mask`, `added_by_hand`) are ignored on import: **not tested end to end** (no CVAT on the
   laptop); the first real CVAT import is the test.
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
