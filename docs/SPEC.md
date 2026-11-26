@@ -157,3 +157,8 @@ Answered (Nick, chat 2026-11-25):
   of the viewer, where clicking a class shows or hides its masks.
 - Q17. Classes are edited in a form (rows, choices and buttons, like Roboflow or Edge Impulse), not by
   typing YAML in a text box, which invites entry errors. `classes.yaml` stays the file on disk.
+- Q18. A third urchin type, "black urchin" for now (the name may change later; it is clearly different from
+  red and purple). It shares the "urchin" SAM prompt with purple and red and is tagged in label review like
+  them. This replaces "No third urchin class now" under Q14. Most urchins are purple: review should find
+  and tag the outliers, not make Nick click every urchin (D39). Open for the later packet milestone: the
+  hourly packet in `docs/source/mvp_spec.md` has 2 urchin types (count 4 bytes, cover per type).
