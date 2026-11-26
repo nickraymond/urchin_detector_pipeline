@@ -276,6 +276,14 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   found: …") events. `app/jobs.py` is removed, so every background job in the app is on the one queue. Extract
   frames with new settings cancels a paused or interrupted extraction (the new plan replaces it). Tests reach the
   extract worker through `extract.GRAB_HOOK` (as SAM's `PREDICTOR`), since a test cannot patch another process.
+- **As built, bite 3 (PR 35).** Estimate is a `sam` job with params `estimate: true` on 1 + 5 frames picked spread
+  over the frames Run would label (`label.estimate_frames`); the worker writes `<project>/sam_estimate.json` (warm-up
+  frame, the 5 timed frames, seconds per frame, and `results.classes_key` of the classes and settings). Run's plan
+  uses it (seconds per frame × frames with work) while that key matches the current classes, else the preview-based
+  guess (D26), and says which; a changed class shows the estimate as out of date. The finish time is "if started
+  now" until the schedule (bite 5a) adds a start time. Remaining time of any job: the runner keeps the seconds of
+  the last 20 timed items (skipped ones excluded) and stores `eta_s` = mean × items left on each item; the Labeling,
+  Extract, Clips and Jobs pages show it.
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). Every kind's job file and log are `<data_dir>/jobs/<id>.json` / `.log` (bite 1b).

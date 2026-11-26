@@ -65,7 +65,8 @@ def build_job(params: dict) -> dict:
     return {"folder": str(folder), "frames": frames, "units": units, "settings": settings,
             "repo_id": repo_id, "checkpoint": ckpt, "predictor": predictor,
             "device": params.get("device") or ("cpu" if predictor else device()),
-            "preview_file": str(folder / PREVIEW_FILE) if params.get("preview") else None}
+            "preview_file": str(folder / PREVIEW_FILE) if params.get("preview") else None,
+            "estimate_file": str(folder / ESTIMATE_FILE) if params.get("estimate") else None}
 
 
 def progress(params: dict) -> tuple[int, int]:
@@ -92,18 +93,59 @@ def sam_kind() -> Kind:
                 env={"PYTORCH_ENABLE_MPS_FALLBACK": "1"}, item="frame")
 
 
-def job_params(folder: Path, files: list[str], preview: bool = False) -> dict:
+def job_params(folder: Path, files: list[str], preview: bool = False,
+               estimate: bool = False) -> dict:
     return {"folder": str(folder), "files": list(files), "preview": preview,
-            "predictor": PREDICTOR}
+            "estimate": estimate, "predictor": PREDICTOR}
+
+
+# --- Estimate (S4 bite 3, D35) ---
+
+ESTIMATE_FILE = "sam_estimate.json"
+ESTIMATE_FRAMES = 5          # timed frames, after 1 warm-up frame that is not counted (spec)
+
+
+def frames_with_work(folder: Path, files: list[str], units: list[dict],
+                     settings: dict) -> list[str]:
+    """The frames Run would label: some unit has no current results. A frame whose results
+    file cannot be read is left out, as Run leaves it alone (QE PR 24)."""
+    from app.sam import results
+    out = []
+    for f in files:
+        try:
+            if results.to_run(folder, f, units, settings):
+                out.append(f)
+        except ValueError:
+            pass
+    return out
+
+
+def estimate_frames(work: list[str]) -> list[str]:
+    """1 warm-up + 5 frames spread evenly over the frames Run would label (D35), in order."""
+    k = ESTIMATE_FRAMES + 1
+    if len(work) <= k:
+        return list(work)
+    picks = sorted({round(j * (len(work) - 1) / (k - 1)) for j in range(k)})
+    return [work[i] for i in picks]
+
+
+def read_estimate(folder: Path) -> dict | None:
+    p = Path(folder) / ESTIMATE_FILE
+    try:
+        return json.loads(p.read_text()) if p.is_file() else None
+    except ValueError:
+        return None
 
 
 # --- Run on every kept frame (bite 4, D26) ---
 
 def run_plan(folder: Path, files: list[str], units: list[dict], settings: dict,
-             preview: dict | None = None) -> dict:
+             preview: dict | None = None, estimate: dict | None = None) -> dict:
     """What Run will do (SPEC Q7): per run unit, on how many frames it runs (its settings key
-    differs or is missing); frames with any work; unreadable sam_raw files; an estimate from
-    the preview's timing: a fixed cost per frame with work plus a cost per unit (D26)."""
+    differs or is missing); frames with any work; unreadable sam_raw files; a time estimate.
+    The estimate comes from Estimate (D35: seconds per frame × frames with work) when one was
+    made with the current classes and settings, else from the preview's timing: a fixed cost
+    per frame with work plus a cost per unit (D26)."""
     from app.sam import results
     todo = {u["key"]: 0 for u in units}
     frames, unreadable = 0, []
@@ -116,11 +158,18 @@ def run_plan(folder: Path, files: list[str], units: list[dict], settings: dict,
         for u in run_units:
             todo[u["key"]] += 1
         frames += bool(run_units)
-    cost = frame_costs(folder, preview)
-    est = (round(frames * cost[0] + sum(todo.values()) * cost[1]) if cost and frames
-           else None)
+    current = bool(estimate and estimate.get("seconds_per_frame")
+                   and estimate.get("key") == results.classes_key(units, settings))
+    if current:
+        est, source = round(frames * estimate["seconds_per_frame"]), "estimate"
+    else:
+        cost = frame_costs(folder, preview)
+        est = (round(frames * cost[0] + sum(todo.values()) * cost[1]) if cost and frames
+               else None)
+        source = "preview" if est is not None else None
     return {"units": todo, "frames": frames, "total": len(files), "unreadable": unreadable,
-            "estimate_s": est}
+            "estimate_s": est, "estimate_from": source,
+            "estimate_old": bool(estimate) and not current}
 
 
 def frame_costs(folder: Path, preview: dict | None) -> tuple[float, float] | None:

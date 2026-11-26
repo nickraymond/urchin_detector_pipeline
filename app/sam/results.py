@@ -50,6 +50,13 @@ def settings_key(unit: dict, settings: dict) -> str:
     return hashlib.sha1(blob.encode()).hexdigest()[:12]
 
 
+def classes_key(units: list[dict], settings: dict) -> str:
+    """One key for all units: changes whenever any unit's results would change (an estimate
+    made with other classes or settings is out of date, S4 bite 3)."""
+    keys = sorted(settings_key(u, settings) for u in units)
+    return hashlib.sha1(",".join(keys).encode()).hexdigest()[:12]
+
+
 def encode(det: dict, width: int, height: int) -> dict:
     """COCO RLE of the detection's mask on the full frame."""
     full = np.zeros((height, width), dtype=np.uint8, order="F")

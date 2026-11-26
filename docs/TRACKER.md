@@ -235,11 +235,11 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 - [x] playback copies and thumbnail strips queue on the same module (no pause needed); `app/jobs.py` is removed
 - [x] the Extract and Labeling pages show the job's state from the module; one job at a time across all stages
 
-**Bite 3 — Estimate and remaining time** (D35)
-- [ ] "Estimate" on the Labeling page: 1 warm-up frame (not counted) + 5 frames from those Run would label, at the
+**Bite 3 — Estimate and remaining time** (D35; PR 35)
+- [x] "Estimate" on the Labeling page: 1 warm-up frame (not counted) + 5 frames from those Run would label, at the
       current settings and limits; shows seconds per frame, frames, total time and finish clock time (now, or at
       the scheduled start); the 6 frames' results are kept, so Run does not redo them
-- [ ] during any job: remaining time from the rolling average of the last 20 items
+- [x] during any job: remaining time from the rolling average of the last 20 items
 
 **Bite 4 — Resource limits** (D36)
 - [ ] settings panel on the Jobs page: device (auto / Apple GPU / NVIDIA GPU / CPU), CPU threads (default half the
