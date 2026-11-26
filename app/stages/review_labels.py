@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageColor, ImageDraw, ImageFilter
 
-from app.review import state
+from app.review import state, tagging
 from app.sam import classes, overlap, results
 from app.stages import extract, label
 
@@ -48,9 +48,19 @@ def view(folder: Path, conn, frame: str, class_list: list[dict]) -> dict:
     masks += [{"id": a["mask_id"], "kind": "area", "class_id": a["class_id"],
                "name": names.get(a["class_id"], "?"), "colour": colour_of(a["class_id"]),
                "box": a["box"], "reviewed": a["reviewed"]} for a in fin["areas"]]
+    types = tagging.urchin_types(class_list)
+    groups = {t["group"] for t in types}
+    type_ids = {t["id"] for t in types}
+    for m in masks:   # bite 4b: which masks P / R / B can tag, and where Tab zooms to
+        if m["kind"] == "object":
+            o = next(o for o in fin["objects"] if o["mask_id"] == m["id"])
+            m["urchin"] = o["unit"] in groups or o["class_id"] in type_ids
+            m["focus"] = tagging.focus(o["box"], fin["width"], fin["height"])
+    order = [o["mask_id"] for o in sorted(fin["objects"],
+                                          key=lambda o: (o["box"][1], o["box"][0], o["mask_id"]))]
     return {"frame": frame, "width": fin["width"], "height": fin["height"],
             "state": state.frame_state(conn, frame), "untagged": fin["untagged"],
-            "masks": masks}
+            "masks": masks, "types": types, "order": order}
 
 
 def _rles(fin: dict) -> dict[int, dict]:
@@ -73,6 +83,38 @@ def mask_at(folder: Path, conn, frame: str, class_list: list[dict], x: int, y: i
         if hit(a):
             return a["mask_id"]
     return None
+
+
+CLOSEUP_PX = 480
+
+
+def closeup(folder: Path, conn, frame: str, class_list: list[dict], mask_id: int) -> bytes | None:
+    """The close-up panel (bite 4b): the frame at full resolution around one mask (its focus
+    rectangle), CLOSEUP_PX wide, with only that mask's outline, so its colour is easy to judge."""
+    path = extract.find_file(folder, frame)
+    if path is None or not results.raw_path(folder, frame).is_file():
+        return None
+    fin = state.final(folder, conn, frame, class_list)
+    m = next((o for o in fin["objects"] + fin["areas"] if o["mask_id"] == mask_id), None)
+    if m is None:
+        return None
+    st = path.stat()
+    full = label._scaled_frame(str(path), (st.st_mtime_ns, st.st_size), 100_000)  # never up: full size
+    x0, y0, x1, y1 = tagging.focus(m["box"], fin["width"], fin["height"])
+    im = full.crop((x0, y0, x1, y1))
+    s = CLOSEUP_PX / im.width
+    im = im.resize((CLOSEUP_PX, max(1, round(im.height * s))), Image.BILINEAR).convert("RGBA")
+    bx0, by0, bx1, by1 = m["box"]
+    crop = results.decode_box(_rles(fin)[mask_id]["rle"], m["box"])
+    wh = (max(1, round((bx1 - bx0) * s)), max(1, round((by1 - by0) * s)))
+    mk = Image.fromarray(crop.astype(np.uint8) * 255).resize(wh)
+    edge = mk.filter(ImageFilter.FIND_EDGES).filter(ImageFilter.MaxFilter(3))
+    layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    layer.paste(Image.new("RGBA", wh, (255, 255, 255, 230)),
+                (round((bx0 - x0) * s), round((by0 - y0) * s)), edge)
+    out = io.BytesIO()
+    Image.alpha_composite(im, layer).convert("RGB").save(out, "JPEG", quality=88)
+    return out.getvalue()
 
 
 def picture(folder: Path, conn, frame: str, class_list: list[dict], mode: str = "all",
@@ -203,6 +245,19 @@ def act(folder: Path, conn, frame: str, class_list: list[dict], body: dict) -> s
             raise state.ReviewError("Pick a class.")
         state.set_checked(conn, frame, cid, bool(body.get("checked")), class_list)
         return "fully checked: " + ("on" if body.get("checked") else "off")
+    if a == "tag":
+        cid = body.get("class_id")
+        if not isinstance(cid, int):
+            raise state.ReviewError("Pick an urchin type.")
+        tagging.tag(conn, folder, frame, ids, cid, class_list)
+        return "tagged " + next(t["name"] for t in tagging.urchin_types(class_list) if t["id"] == cid)
+    if a == "tag_all":
+        cid = body.get("class_id")
+        if not isinstance(cid, int):
+            raise state.ReviewError("Pick an urchin type.")
+        n = tagging.tag_all_remaining(conn, folder, frame, cid, class_list)
+        name = next(t["name"] for t in tagging.urchin_types(class_list) if t["id"] == cid)
+        return f"tagged {n} remaining urchin{'s' if n > 1 else ''} {name}"
     if a == "undo":
         done = state.undo(conn, frame)
         return f"undone: {done.split(' on ')[0]}" if done else "nothing to undo on this frame"

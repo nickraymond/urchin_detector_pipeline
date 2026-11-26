@@ -127,3 +127,30 @@ def test_split_check_fully_checked_and_running_totals(tmp_path):
     r = client.post(f"/p/p/labels/act/{F}", json={"action": "split", "ok": True})
     t = {x["name"]: x for x in r.json()["totals"]}
     assert (t["sea star"]["objects"], t["sea star"]["split_no"]) == (1, 0)
+
+
+def test_urchin_types_tab_order_tag_tag_all_and_closeup(tmp_path):
+    """Bite 4b: the view says which masks are urchins, their reading order and zoom rectangles;
+    tag / tag_all actions; the close-up picture."""
+    client, folder = labeled(tmp_path)
+    v = client.get(f"/p/p/labels/frame/{F}").json()
+    assert [(t["name"], t["key"]) for t in v["types"]] == [
+        ("purple urchin", "P"), ("red urchin", "R"), ("black urchin", "B")]
+    by = {m["id"]: m for m in v["masks"]}
+    small, far = sorted(v["untagged"], key=lambda i: by[i]["box"][1])   # y 200 first, then 300
+    assert v["order"].index(small) < v["order"].index(far)              # reading order
+    assert by[small]["urchin"] and by[small]["focus"][2] - by[small]["focus"][0] >= 400
+    star = next(m for m in v["masks"] if m["name"] == "sea star")
+    assert not star["urchin"]
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "tag", "mask_ids": [star["id"]], "class_id": 2})
+    assert r.status_code == 400 and "not an urchin" in r.json()["error"]
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "tag", "mask_ids": [far], "class_id": 10})
+    assert r.json()["note"] == "tagged black urchin" and r.json()["untagged"] == [small]
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "tag_all", "class_id": 1})
+    assert r.json()["note"] == "tagged 1 remaining urchin purple urchin" and r.json()["untagged"] == []
+    r = client.post(f"/p/p/labels/act/{F}", json={"action": "tag_all", "class_id": 1})
+    assert r.status_code == 400 and "No untagged" in r.json()["error"]
+    cu = client.get(f"/p/p/labels/closeup/{F}?mask={far}")
+    assert cu.status_code == 200 and Image.open(io.BytesIO(cu.content)).width == 480
+    assert client.get(f"/p/p/labels/closeup/{F}?mask=999").status_code == 404
+    assert 'id="rv-tag-all"' in client.get("/p/p/labels").text

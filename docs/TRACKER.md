@@ -330,9 +330,9 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
       keeps the id and must be possible even after results exist (Lead call D39, lifting S3's name lock for renames)
 - [x] tagging helpers (`app/review/tagging.py`): types and keys, next untagged, zoom rectangle, tag, tag all remaining
 
-**Bite 4b — Urchin types and fast tagging on the Review page** (D18, D39)
-- [ ] `P` / `R` / `B` tags the selected urchin purple, red or black; running totals count each type
-- [ ] fast tagging (Nick, 2026-11-25: most urchins are purple, find the outliers): `Tab` jumps to the next
+**Bite 4b — Urchin types and fast tagging on the Review page** (D18, D39; PR 54)
+- [x] `P` / `R` / `B` tags the selected urchin purple, red or black; running totals count each type
+- [x] fast tagging (Nick, 2026-11-25: most urchins are purple, find the outliers): `Tab` jumps to the next
       untagged urchin and zooms the viewer onto it with some scene around it; a close-up panel shows the
       selected urchin enlarged; "Tag all remaining as purple" tags every untagged urchin on the frame at once
 

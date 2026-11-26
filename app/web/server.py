@@ -856,6 +856,17 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
         return with_project(request, name, work)
 
+    @app.get("/p/{name}/labels/closeup/{file}")
+    def labels_closeup(request: Request, name: str, file: str, mask: int):
+        def work(cfg, info, conn):
+            cl = review_classes(info)
+            data = (review_labels.closeup(info["folder"], conn, file, cl, mask)
+                    if cl and review_frame_ok(conn, file) else None)
+            if data is None:
+                return PlainTextResponse("not found", status_code=404)
+            return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+        return with_project(request, name, work)
+
     @app.get("/p/{name}/labels/at/{file}")
     def labels_at(request: Request, name: str, file: str, x: int, y: int):
         def work(cfg, info, conn):

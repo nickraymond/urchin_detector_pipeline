@@ -171,3 +171,5 @@ button.primary { background: #2e7d32; color: #fff; border-color: #2e7d32; font-w
 .viewer .v-review.collapsed .rv-toggle { float: none; margin: 0; }
 .viewer .v-review #rv-checked label { display: inline-block; margin-right: 6px; white-space: nowrap; }
 #label-totals progress { width: 120px; }
+.viewer .v-review img.rv-closeup { position: static; transform: none; display: block; width: 100%; max-width: 100%; margin: 4px 0; border-radius: 4px; cursor: default; }
+.viewer .v-review .rv-type .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 3px; }
