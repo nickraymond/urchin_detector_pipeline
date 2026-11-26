@@ -31,6 +31,7 @@ from app import config, db, project
 from app.jobctl import JobControl, JobError
 from app.jobctl import limits as job_limits
 from app.jobctl import awake, schedule
+from app.jobctl.runner import GUARD_REASON
 from app.sam import classes
 from app.stages import clips, extract, ingest, label, review
 
@@ -51,6 +52,7 @@ def static_url(name: str) -> str:
 
 
 templates.env.globals["static"] = static_url
+JOB_NAMES = {"sam": "SAM labeling", "extract": "Extraction", "playback": "Playback copy"}
 AWAKE_CMD: list[str] | None = None   # tests: a fake keep-awake command (D38); None = the real one
 # A duration as the pages show it: "7 min", or "2.5 h" from 90 min on.
 templates.env.globals["minutes"] = lambda s: (
@@ -124,9 +126,18 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         eta = job.get("eta_s") if job["state"] in ("running", "pausing") else None
         line = job.get("message") or ""
         if eta and job["state"] == "running":   # bite 6: time, finish, then what
-            line = (f"about {templates.env.globals['minutes'](eta)} left, finishing about "
+            line = (f"about {templates.env.globals['minutes'](eta)} left, done by "
                     f"{finish_time(eta)} · {line}")
+        params = job.get("params") or {}
+        guard = job["state"] == "paused" and (job.get("stop_reason") or "").startswith(
+            GUARD_REASON)
         return {**job, "line": line, "project_name": Path(job["project"]).name if job.get("project") else "",
+                "what": JOB_NAMES.get(job["kind"], job["kind"]) + (
+                    " (preview)" if params.get("preview") else
+                    " (estimate)" if params.get("estimate") else ""),
+                "item": "frame" if job["kind"] in ("sam", "extract") else "item",
+                "guard_paused": guard,   # D36c: resumes by itself at twice the limit
+                "guard_resume_gb": f"{2 * float((job.get('limits') or {}).get('memory_guard_gb') or 0):g}",
                 "percent": round(100 * job["done"] / total, 1) if total else 0.0,
                 "active": job["state"] in ("queued", "running", "pausing"),
                 "start_show": schedule.show(job.get("start_at")),
@@ -142,14 +153,19 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         except schedule.ScheduleError as e:
             return None, None, str(e)
 
+    def waiting_jobs(cfg, project_name: str = "") -> list[dict]:
+        """Jobs waiting for Nick (bite 6b item 4): paused, pausing or interrupted; optionally
+        of one project only."""
+        return [v for v in (job_view(j) for j in jobctl(cfg).list())
+                if v["state"] in ("pausing", "paused", "interrupted")
+                and (not project_name or v["project_name"] == project_name)]
+
     def dashboard(request: Request, error: str = "", name: str = "", status: int = 200):
         cfg = config.load(config_path)
         projects = project.list_projects(cfg.data_dir) if cfg.ok else []
-        unfinished = ([job_view(j) for j in jobctl(cfg).list() if j["state"] == "interrupted"]
-                      if cfg.ok else [])
         return templates.TemplateResponse(request, "dashboard.html", {
             "cfg": cfg, "projects": projects, "error": error, "name": name,
-            "unfinished": unfinished, "name_help": project.NAME_HELP,
+            "waiting": waiting_jobs(cfg) if cfg.ok else [], "name_help": project.NAME_HELP,
             "last": job_view(jobctl(cfg).last_summary()) if cfg.ok else {}},
             status_code=status)
 
@@ -168,6 +184,42 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             return PlainTextResponse(f"No log for job {job_id}.", status_code=404)
         return PlainTextResponse(p.read_text(errors="replace"))
 
+    # --- Live fragments (bite 6b item 6): pages poll these and swap only what changed ---
+    LIVE = {
+        "panel": templates.env.from_string(
+            '{% from "_job.html" import job_panel %}{{ job_panel(j, back, compact) }}'),
+        "banner": templates.env.from_string(
+            '{% from "_job.html" import waiting_banner %}{{ waiting_banner(jobs, back) }}')}
+
+    def live_html(text: str) -> HTMLResponse:
+        return HTMLResponse(text, headers={"Cache-Control": "no-store"})
+
+    @app.get("/live/jobs", response_class=HTMLResponse)
+    def live_jobs(request: Request):
+        cfg = config.load(config_path)
+        if not cfg.ok:
+            return live_html("")
+        return templates.TemplateResponse(request, "_jobs_table.html", {
+            "jobs": [job_view(j) for j in jobctl(cfg).list()]},
+            headers={"Cache-Control": "no-store"})
+
+    @app.get("/live/banner", response_class=HTMLResponse)
+    def live_banner(project: str = "", back: str = "/jobs"):
+        cfg = config.load(config_path)
+        if not cfg.ok:
+            return live_html("")
+        return live_html(LIVE["banner"].render(jobs=waiting_jobs(cfg, project),
+                                               back=safe_back(back)))
+
+    @app.get("/p/{name}/live/{kind}", response_class=HTMLResponse)
+    def live_panel(request: Request, name: str, kind: str, back: str = "", compact: str = ""):
+        """The latest job of this kind in this project, as the pages show it."""
+        if kind not in ("sam", "extract"):
+            return PlainTextResponse(f"No job kind {kind!r}.", status_code=404)
+        return with_project(request, name, lambda cfg, info, conn: live_html(
+            LIVE["panel"].render(j=job_view(jobctl(cfg).latest(kind, str(info["folder"]))),
+                                 back=safe_back(back or f"/p/{name}"), compact=bool(compact))))
+
     @app.get("/jobs", response_class=HTMLResponse)
     def jobs_page(request: Request, note: str = "", error: str = ""):
         cfg = config.load(config_path)
@@ -178,7 +230,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             "cfg": cfg, "note": note, "error": error, "jobs": [job_view(j) for j in jc.list()],
             "limits": job_limits.load(jc.root), "devices": job_limits.DEVICES,
             "cores": os.cpu_count() or 1, "free_gb": round(job_limits.free_gb(), 1),
-            "awake": awake_view(jc)})
+            "awake": awake_view(jc), "waiting": waiting_jobs(cfg)})
 
     @app.post("/jobs/settings")
     def jobs_settings(request: Request, device: str = Form("auto"), threads: str = Form(""),
@@ -261,8 +313,12 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     @app.get("/p/{name}", response_class=HTMLResponse)
     def project_page(request: Request, name: str):
         return with_project(request, name, lambda cfg, info, conn: templates.TemplateResponse(
-            request, "project.html", {"cfg": cfg, "info": info,
-                                      "stages": db.stage_statuses(conn)}))
+            request, "project.html", {
+                "cfg": cfg, "info": info, "stages": db.stage_statuses(conn),
+                "waiting": waiting_jobs(cfg, info["name"]),
+                # bite 6b item 8: each job stage row shows its latest job, live
+                "jobs": {k: job_view(jobctl(cfg).latest(k, str(info["folder"])))
+                         for k in ("sam", "extract")}}))
 
     def ingest_url(name: str, folder: str) -> str:
         return f"/p/{name}/ingest?" + urlencode({"folder": folder})
@@ -512,6 +568,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "cap": st["frame_cap"], "live": live, "planned": len(samples),
                 "videos": len(ingest.added(conn)), "counts": extract.counts(conn, planned_names(samples)),
                 "job": extract_job(cfg, info), "frames": frames, "battery": awake.on_battery(),
+                "waiting": waiting_jobs(cfg, info["name"]),
                 "blur": blur, "dup": dup, "error": error, "note": note,
                 "stage": next(s for s in db.stage_statuses(conn) if s["stage"] == "extract")})
         return with_project(request, name, work)
@@ -687,6 +744,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                      "palette": classes.PALETTE,
                      "save": f"/p/{info['name']}/labeling/classes/form"} if data else None,
             "job": sam_job(cfg, info), "estimate": estimate, "battery": awake.on_battery(),
+            "waiting": waiting_jobs(cfg, info["name"]),
             "finish": (finish_time(plan["estimate_s"], sam_job(cfg, info).get("start_at")
                                    if sam_job(cfg, info).get("state") == "scheduled" else None)
                        if plan and plan.get("estimate_s") else None),

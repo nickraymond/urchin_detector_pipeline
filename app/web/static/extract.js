@@ -1,4 +1,4 @@
-// Extract frames page (bite 3a): live count while typing, progress while extracting.
+// Extract frames page (bite 3a): live count while typing. The job box updates itself (live.js).
 (function () {
   "use strict";
   const form = document.getElementById("extract-form");
@@ -18,17 +18,6 @@
     }, 300);
   }));
 
-  const box = document.getElementById("extract-progress");
-  if (box.hidden) return;
-  const poll = setInterval(async () => {
-    let a;
-    try { a = await (await fetch(box.dataset.status)).json(); } catch (e) { return; }
-    const j = a.job || {};
-    box.querySelector("progress").value = j.percent || 0;
-    const eta = j.eta_s != null ? ", about " + Math.ceil(j.eta_s / 60) + " min left" : "";
-    box.querySelector(".hint").textContent = (j.message || j.state || "waiting") + eta;
-    if (j.state !== box.dataset.state) { clearInterval(poll); location.reload(); }
-  }, 2000);
 })();
 
 // Filters (bite 3b): while a slider moves, ask the app what Apply would do (reads only) and show

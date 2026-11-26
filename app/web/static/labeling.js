@@ -1,20 +1,8 @@
-// Labeling page (S3): follow the SAM job and reload when it ends; a class legend redraws the
-// preview overlays and the large viewer (S2's viewer.js) without the hidden classes.
+// Labeling page (S3): a class legend redraws the
+// preview overlays and the large viewer (S2's viewer.js) without the hidden classes. The SAM
+// job box updates itself (live.js, bite 6b).
 (function () {
   "use strict";
-  const job = document.getElementById("sam-job");
-  // a scheduled job is followed too, so the page updates when its start time comes
-  const busy = st => ["scheduled", "queued", "running", "pausing"].includes(st);
-  if (job && busy(job.dataset.state)) {
-    const text = document.getElementById("sam-job-text");
-    const tick = () => fetch(job.dataset.status).then(r => r.json()).then(st => {
-      // the server's line: time left, finish time, then what it is doing (bite 6)
-      text.textContent = st.state + (st.line && st.line !== st.state ? " — " + st.line : "");
-      if (st.state === job.dataset.state && busy(st.state)) setTimeout(tick, 2000);
-      else location.reload();
-    }).catch(() => setTimeout(tick, 5000));
-    tick();
-  }
   // Class legend (bite 5, SPEC Q16): one state for the preview tiles and the large viewer.
   // Click a class to show or hide its masks; "only" shows that class alone (again: all).
   const listEl = document.getElementById("frame-list");

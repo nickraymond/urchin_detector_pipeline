@@ -2,13 +2,8 @@
 {% block content %}
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 {% if cfg.ok %}
-{% for j in unfinished %}
-<section class="warning"><b>Unfinished job:</b> {{ j.kind }}{% if j.project_name %} in project {{ j.project_name }}{% endif %},
-  {{ j.done }} of {{ j.total }} done; the app quit or crashed during it.
-  <form method="post" action="/jobs/{{ j.id }}/resume" class="inline"><input type="hidden" name="back" value="/"><button class="small">Resume</button></form>
-  <form method="post" action="/jobs/{{ j.id }}/cancel" class="inline"><input type="hidden" name="back" value="/"><button class="small">Cancel</button></form>
-</section>
-{% endfor %}
+{% from "_job.html" import waiting_banner %}
+<div data-live="/live/banner?back=/">{{ waiting_banner(waiting, "/") }}</div>
 {% if last and last.summary %}{% set s = last.summary %}
 <section class="totals summary"><b>Last job:</b> {{ last.kind }}{% if last.params.preview %} (preview){% elif last.params.estimate %} (estimate){% endif %}{% if last.project_name %} in
   <a href="/p/{{ last.project_name }}">{{ last.project_name }}</a>{% endif %} — <b>{{ last.state }}</b>{% if last.stop_reason and last.stop_reason not in ("finished", last.state) %} ({{ last.stop_reason }}){% endif %}{% if last.ended %},
@@ -31,5 +26,6 @@
   <button type="submit">Create</button>
   <p class="hint">{{ name_help }} The folder is made under {{ cfg.data_dir }}/projects/.</p>
 </form>
+<script src="{{ static('live.js') }}"></script>
 {% endif %}
 {% endblock %}

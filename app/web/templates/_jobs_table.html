@@ -1,0 +1,22 @@
+{% from "_job.html" import job_buttons %}
+{% if jobs %}
+<table class="jobs">
+  <tr><th>#</th><th>Kind</th><th>Project</th><th>State</th><th>Progress</th><th>Details</th><th>Created</th><th>Ended</th></tr>
+  {% for j in jobs %}
+  <tr class="job-{{ j.state }}">
+    <td>{{ j.id }}</td><td>{{ j.what }}{% if j.keep_awake %}<br><span class="hint">keep awake</span>{% endif %}
+      <br><a class="hint" href="/jobs/{{ j.id }}/log">log</a></td>
+    <td>{% if j.project_name %}<a href="/p/{{ j.project_name }}">{{ j.project_name }}</a>{% endif %}</td>
+    <td><b class="job-state">{{ j.state }}</b>{% if j.state == "running" %} <span class="running-sign" title="Running"></span>{% endif %}<br>{{ job_buttons(j, "/jobs") }}</td>
+    <td>{% if j.total and j.state not in ("scheduled", "missed") %}<progress max="{{ j.total }}" value="{{ j.done }}"></progress><br>{% if j.kind == "playback" %}{{ j.done }} %{% else %}{{ j.done }} / {{ j.total }}{% endif %}{% endif %}</td>
+    <td>{% if j.guard_paused %}<span class="warn-text">⚠ {{ j.stop_reason }}; resumes by itself once {{ j.guard_resume_gb }} GB has stayed free for 1 min</span>{% else %}{{ j.line }}{% if j.stop_reason and j.stop_reason != j.message and j.state not in ("done",) %} ({{ j.stop_reason }}){% endif %}{% endif %}
+      {% if j.start_show and j.state == "scheduled" %}<br>starts at <b>{{ j.start_show }}</b>{% endif %}{% if j.stop_show %}{{ "," if j.state == "scheduled" else "<br>" | safe }} stop by {{ j.stop_show }}{% endif %}
+      {% for w in j.warnings or [] %}<br><span class="warn-text">⚠ {{ w }}</span>{% endfor %}
+      {% if j.limits %}<br><span class="hint">{{ j.limits.device }}, {{ j.limits.threads }} threads{% if j.limits.low_priority %}, low priority{% endif %}{% if j.limits.pause_s %}, {{ j.limits.pause_s }} s pause{% endif %}{% if j.limits.memory_guard %}, guard {{ j.limits.memory_guard_gb }} GB{% endif %}</span>{% endif %}</td>
+    <td>{{ (j.created or "") | replace("T", " ") }}</td><td>{{ (j.ended or "") | replace("T", " ") }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No jobs yet.</p>
+{% endif %}

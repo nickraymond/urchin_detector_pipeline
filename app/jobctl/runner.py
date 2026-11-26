@@ -27,6 +27,7 @@ from app.jobctl import schedule
 from app.jobctl.store import Store, now
 
 PAUSE_TIMEOUT_S = 600          # D34: a worker that has not paused within 10 min is ended
+GUARD_REASON = "Paused by the memory guard"   # D36c: the start of a guard pause's reason
 ROLLING_ITEMS = 20             # D35: remaining time = mean of the last 20 timed items × items left
 REPO = Path(__file__).resolve().parents[2]
 
@@ -116,15 +117,15 @@ class Runner:
 
     def _finishing(self, job: dict) -> str:
         """What a pausing job waits for, so the greyed buttons are explained (D34a): e.g.
-        "finishing frame 3 of 40, about 1 min before pausing"."""
+        "finishing frame 3 of 40; Resume appears in about 1 min"."""
         done, total = job.get("done") or 0, job.get("total")
         what = f"{self._item} {done + 1}" + (f" of {total}" if total else "")
         try:
             times = list(self._times)   # appended by the follow thread
         except RuntimeError:
             times = []
-        left = f", about {max(1, math.ceil(sum(times) / len(times) / 60))} min" if times else ""
-        return f"finishing {what}{left} before pausing"
+        left = f" about {max(1, math.ceil(sum(times) / len(times) / 60))} min" if times else ""
+        return f"finishing {what}; Resume appears in{left or ' a moment'}"
 
     def _send_pause(self, job_id: int, proc: subprocess.Popen) -> None:
         with self._lock:
@@ -298,6 +299,8 @@ class Runner:
             reason = self._reason.pop(jid, None)
         self._finish(jid, last, code, want, final, took, err, reason)
         done = self.store.get(jid) or {}
+        if done.get("state") == "paused" and (reason or "").startswith(GUARD_REASON):
+            self._summary["memory_pauses"] = self._summary.get("memory_pauses", 0) + 1
         self._summary.update(state=done.get("state"), stop_reason=done.get("stop_reason"),
                              done=done.get("done"), total=done.get("total"),
                              warnings=len(done.get("warnings") or []))
@@ -349,8 +352,8 @@ class Runner:
                 self.log(jid, f"memory guard cannot read free memory: {e}")
                 return
             if free < threshold_gb:
-                self.request(jid, "pause", reason=f"memory guard: {free:.1f} GB free, "
-                                                  f"below {threshold_gb:g} GB")
+                self.request(jid, "pause", reason=f"{GUARD_REASON}: {free:.1f} GB free "
+                                                  f"(limit {threshold_gb:g} GB)")
                 return
 
     def _finish(self, jid: int, last: str | None, code: int, want: str | None,

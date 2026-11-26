@@ -137,3 +137,21 @@ form.limits input[type=number] { width: 5em; }
 table.plan { border-collapse: collapse; margin-top: 6px; width: auto; min-width: 280px; }
 table.plan td, table.plan th { font-size: 14px; padding: 2px 12px 2px 0; text-align: left; }
 table.plan td + td, table.plan th + th { text-align: right; }
+/* Job boxes (S4 bite 6b): state, buttons, bar, a moving sign while running, time left */
+.job-panel { background: #f4f6f8; border-left: 4px solid #8a9aa8; padding: 6px 10px; margin: 8px 0; line-height: 1.8; }
+.job-panel.job-running { border-left-color: #2e7d32; }
+.job-panel.job-pausing, .job-panel.job-paused, .job-panel.job-interrupted { border-left-color: #d49b00; }
+.job-panel.job-error { border-left-color: #c62828; }
+.job-panel.compact { background: none; border: 0; padding: 0; margin: 2px 0 0; font-size: 13px; line-height: 1.6; }
+.job-panel .job-state { font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; }
+.job-panel .job-bar progress { width: 240px; vertical-align: middle; }
+.job-panel.compact .job-bar progress { width: 110px; }
+.job-panel .job-line, .job-panel .job-bar, .job-panel .job-actions { margin-right: 10px; }
+.job-panel .job-line { display: inline-block; }
+table.jobs progress { width: 110px; }
+.running-sign { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #2e7d32;
+  border-right-color: transparent; vertical-align: -1px; animation: job-spin 1s linear infinite; }
+@keyframes job-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .running-sign { animation-duration: 3s; } }
+button.primary { background: #2e7d32; color: #fff; border-color: #2e7d32; font-weight: 600; }
+.job-banner { margin: 8px 0; }
