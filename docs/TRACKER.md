@@ -209,7 +209,7 @@ Click a preview frame: it opens large on the page; < > move to the next frame; c
 to show only urchin masks. Add a class with the form (no typing of YAML) and Save.
 **Needs:** S2 (done); SPEC Q2 and the SAM part of Q10 answered by Lead calls D22–D24 (Nick can reverse them).
 
-### S4 — Job control  `[~]`
+### S4 — Job control  `[x]`  (demo passed: Nick 2026-11-25 10:13 PM, lead chat: "I've tested everything in the check list and it passes"; feedback bites 6, 6b, 6c merged as PRs 41, 42, 45; last `57ebe81`)
 **Goal:** long jobs run in a background worker with estimate, pause/resume, limits and a schedule.
 Built as its own module with no labeling-specific code (DESIGN D4). Design: DESIGN §Planned for S4;
 Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft PR per bite, about 300 lines each.
