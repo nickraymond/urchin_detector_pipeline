@@ -2,6 +2,8 @@
 Run would label, results kept) and the remaining time of any job (rolling mean of the last 20
 items). Fake SAM, synthetic frames only."""
 
+import json
+
 from app.jobctl import JobControl
 from app.sam import results
 from app.stages import label
@@ -79,3 +81,16 @@ def test_remaining_time_is_the_rolling_mean_of_timed_items(tmp_path):
         assert jc.status(jid)["eta_s"] == 11                     # last 20 only: 1 s × 11
     finally:
         jc.close()
+
+
+def test_after_a_resume_the_warm_up_is_the_first_frame_labeled_again(tmp_path):
+    """QE PR 35: a resumed Estimate skips the frames done before the pause; the first frame it
+    labels after the model loads again is the warm-up, not a timed one."""
+    from app.sam.worker import write_estimate
+    recs = [{"file": "a", "skipped": True}, {"file": "b", "skipped": True},
+            {"file": "c", "seconds": 90.0}, {"file": "d", "seconds": 60.0},
+            {"file": "e", "seconds": 62.0}]
+    write_estimate(tmp_path / "e.json", 13.0, recs, [], {})
+    est = json.loads((tmp_path / "e.json").read_text())
+    assert est["warmup"]["file"] == "c" and [f["file"] for f in est["frames"]] == ["d", "e"]
+    assert est["seconds_per_frame"] == 61.0

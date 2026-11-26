@@ -237,8 +237,8 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 
 **Bite 3 — Estimate and remaining time** (D35; PR 35)
 - [x] "Estimate" on the Labeling page: 1 warm-up frame (not counted) + 5 frames from those Run would label, at the
-      current settings and limits; shows seconds per frame, frames, total time and finish clock time (now, or at
-      the scheduled start); the 6 frames' results are kept, so Run does not redo them
+      current settings and limits; shows seconds per frame, frames, total time and finish clock time (now); the 6
+      frames' results are kept, so Run does not redo them
 - [x] during any job: remaining time from the rolling average of the last 20 items
 
 **Bite 4 — Resource limits** (D36)
@@ -252,7 +252,8 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 
 **Bite 5a — Schedule** (D37)
 - [ ] "Start at" and optional "Stop by" on extraction and SAM Run; a queued job shows its start time, Start now
-      and Cancel; the schedule survives an app restart; "Stop by" pauses the job and says so
+      and Cancel; the schedule survives an app restart; "Stop by" pauses the job and says so; the Estimate's finish
+      clock time counts from the scheduled start (moved here from bite 3, QE PR 35)
 
 **Bite 5b — Keep awake, log and morning summary** (D38)
 - [ ] "Keep laptop awake" toggle (macOS `caffeinate`) offered when a long or scheduled job starts, released when no

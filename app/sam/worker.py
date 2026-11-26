@@ -172,10 +172,13 @@ def final_message(recs: list[dict], n: int, what: str = "labeled") -> str:
 
 def write_estimate(path: Path, load_s: float, recs: list[dict], units: list[dict],
                    settings: dict) -> None:
-    """D35: the first frame warms up and is not counted; the rest give seconds per frame."""
-    timed = [r for r in recs[1:] if not r.get("skipped")]
+    """D35: the first frame this worker labels warms up and is not counted; the rest give seconds
+    per frame. After a Pause and Resume the frames done before are skipped, so the warm-up is
+    the first one labeled after the model loaded again (QE PR 35)."""
+    labeled = [r for r in recs if not r.get("skipped")]
+    warmup, timed = (labeled[0], labeled[1:]) if labeled else (None, [])
     summary = {"at": datetime.now().isoformat(timespec="seconds"), "load_seconds": load_s,
-               "warmup": recs[0] if recs else None, "frames": recs[1:],
+               "warmup": warmup, "frames": timed,
                "seconds_per_frame": round(sum(r["seconds"] for r in timed) / len(timed), 1)
                if timed else None,
                "key": results.classes_key(units, settings)}
