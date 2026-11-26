@@ -35,6 +35,18 @@ def emit(event: str, **fields) -> None:
         sys.exit(0)
 
 
+def run(main) -> None:
+    """Run main(); on an exception, emit "error" with its message (the page shows it), print
+    the traceback to the job's log and exit 1."""
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        emit("error", message=str(e) or type(e).__name__)
+        sys.exit(1)
+
+
 def load_job(argv: list[str] | None = None) -> dict:
     argv = sys.argv if argv is None else argv
     return json.loads(Path(argv[1]).read_text())

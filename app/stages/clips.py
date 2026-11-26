@@ -243,3 +243,15 @@ def summary(videos: list[dict], all_clips: list[dict], every_s: float) -> dict:
     return {"videos": per, "clips": sum(p["clips"] for p in per.values()),
             "marked_s": round(sum(p["marked_s"] for p in per.values()), 1),
             "frames": sum(p["frames"] for p in per.values())}
+
+
+def playback_params(project_folder: Path, video: dict) -> dict:
+    """Params of a "playback" job: the video's row (path, code, duration)."""
+    return {"folder": str(project_folder), "code": video["path_code"],
+            "video": {"path": video["path"], "path_code": video["path_code"],
+                      "duration_s": video["duration_s"]}}
+
+
+def playback_kind():
+    from app.jobctl import Kind
+    return Kind("playback", module="app.stages.playback_worker", pausable=False)

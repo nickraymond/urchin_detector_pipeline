@@ -26,6 +26,15 @@ PAUSE_TIMEOUT_S = 600          # D34: a worker that has not paused within 10 min
 REPO = Path(__file__).resolve().parents[2]
 
 
+def end_worker(proc: subprocess.Popen) -> None:
+    """Kill a worker and everything it started (its own session, e.g. ffmpeg), then reap it."""
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        proc.kill()
+    proc.wait()
+
+
 def worker_alive(pid: int, job_file: Path) -> bool:
     """True if process `pid` is still the worker of `job_file` (its command line names the
     file, so a PID reused by another program does not count)."""
@@ -70,23 +79,32 @@ class Runner:
         with self._lock:
             return self._job_id
 
-    def request(self, job_id: int, what: str) -> bool:
+    def request(self, job_id: int, what: str, kill: bool = False) -> bool:
         """Ask the running job to pause (what = "pause" or "cancel"). While its worker is
-        still being started the request is kept and sent once it runs. False if this runner
-        is not running that job."""
+        still being started the request is kept and sent once it runs. kill: end the worker
+        at once instead (a kind that cannot pause; its output is written under temporary
+        names). False if this runner is not running that job."""
         with self._lock:
             if self._job_id != job_id:
                 return False
             self._want[job_id] = "cancel" if what == "cancel" else \
                 self._want.get(job_id, "pause")
+            if kill:
+                self._want[f"kill-{job_id}"] = "kill"
             proc = self._proc
         self.store.set_state(job_id, "pausing", ("running",))
-        self.log(job_id, f"{what} asked; finishing the item in progress")
+        self.log(job_id, f"{what} asked; " + ("ending the worker" if kill else
+                                              "finishing the item in progress"))
         if proc is not None:
             self._send_pause(job_id, proc)
         return True
 
     def _send_pause(self, job_id: int, proc: subprocess.Popen) -> None:
+        with self._lock:
+            kill = f"kill-{job_id}" in self._want
+        if kill:
+            end_worker(proc)
+            return
         try:
             proc.stdin.write("pause\n")
             proc.stdin.flush()
@@ -162,6 +180,7 @@ class Runner:
                 with self._lock:
                     self._proc, self._job_id = None, None
                     self._want.pop(job["id"], None)
+                    self._want.pop(f"kill-{job['id']}", None)
 
     def _run(self, job: dict) -> None:
         jid, kind = job["id"], self.kinds.get(job["kind"])
@@ -188,12 +207,11 @@ class Runner:
                 want = self._want.get(jid)
             if want:   # Pause or Cancel came while the worker was being started
                 self._send_pause(jid, proc)
-            last, final, took = self._follow(jid, proc)
+            last, final, took, err = self._follow(jid, proc)
         except BaseException as e:
             # Never leave a worker running while the queue moves on (D32, QE PR 32).
             if proc.poll() is None:
-                proc.kill()
-                proc.wait()
+                end_worker(proc)
                 self.log(jid, f"worker ended after an error in the app: {e}")
             self.store.update(jid, worker_pid=None)
             raise
@@ -201,11 +219,13 @@ class Runner:
         self.store.update(jid, worker_pid=None)
         with self._lock:
             want = self._want.get(jid)
-        self._finish(jid, last, code, want, final, took)
+            self._want.pop(f"kill-{jid}", None)
+        self._finish(jid, last, code, want, final, took, err)
 
-    def _follow(self, jid: int, proc: subprocess.Popen) -> tuple[str | None, str, int]:
-        """Read the worker's lines until it closes stdout."""
-        last, final, started = None, "done", time.monotonic()
+    def _follow(self, jid: int, proc: subprocess.Popen):
+        """Read the worker's lines until it closes stdout. Returns (last event, the done
+        message, seconds taken, the message of an "error" event or None)."""
+        last, final, err, started = None, "done", None, time.monotonic()
         for line in proc.stdout:
             if not line.startswith("@@ "):
                 with open(self.root / f"{jid}.log", "a") as log:
@@ -221,11 +241,13 @@ class Runner:
             last = ev.get("event")
             if last == "done" and ev.get("message"):
                 final = str(ev["message"])
+            if last == "error":
+                err = str(ev.get("message") or "error")
             self._on_event(jid, ev)
-        return last, final, round(time.monotonic() - started)
+        return last, final, round(time.monotonic() - started), err
 
     def _finish(self, jid: int, last: str | None, code: int, want: str | None,
-                final: str, took: int) -> None:
+                final: str, took: int, err: str | None = None) -> None:
         if last == "done" and code == 0:
             self.store.update(jid, state="done", ended=now(), message=final,
                               stop_reason="finished")
@@ -241,7 +263,7 @@ class Runner:
         else:
             reason = f"worker stopped with exit code {code}; see the log {jid}.log"
             self.store.update(jid, state="error", ended=now(), stop_reason=reason,
-                              message=reason)
+                              message=err or reason)
             self.log(jid, f"error: {reason}")
 
     def _on_event(self, jid: int, ev: dict) -> None:
@@ -253,6 +275,14 @@ class Runner:
             i, n = _count(ev.get("i")), _count(ev.get("n"))
             self.store.update(jid, done=i or 0, total=n, message=f"{self._item} {i} of {n}")
             self.log(jid, "item " + json.dumps({k: v for k, v in ev.items() if k != "event"}))
+        elif e == "progress":   # a kind without items (playback copy): percent + message
+            pct = ev.get("percent")
+            fields = {"message": str(ev.get("message") or "")}
+            if isinstance(pct, (int, float)) and not isinstance(pct, bool):
+                fields.update(done=round(max(0, min(100, pct))), total=100)
+            self.store.update(jid, **fields)
+        elif e == "error":
+            self.log(jid, f"worker error: {ev.get('message')}")
         elif e in ("paused", "done"):
             self.log(jid, f"worker: {e}")
         else:
@@ -262,7 +292,7 @@ class Runner:
         if proc.poll() is None:
             self.log(job_id, f"worker did not pause within {self.pause_timeout_s} s; ending it "
                              "(at most the item in progress is lost)")
-            proc.kill()
+            end_worker(proc)
 
 
 def _count(v) -> int | None:

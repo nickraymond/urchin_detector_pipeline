@@ -15,7 +15,7 @@
     <td>{{ j.id }}</td><td>{{ j.kind }}{% if j.params.preview %} (preview){% endif %}</td>
     <td>{% if j.project_name %}<a href="/p/{{ j.project_name }}">{{ j.project_name }}</a>{% endif %}</td>
     <td><b>{{ j.state }}</b></td>
-    <td>{% if j.total %}{{ j.done }} / {{ j.total }}{% endif %}</td>
+    <td>{% if j.kind == "playback" %}{{ j.done }} %{% elif j.total %}{{ j.done }} / {{ j.total }}{% endif %}</td>
     <td>{{ j.message or "" }}{% if j.stop_reason and j.stop_reason != j.message and j.state not in ("done",) %} ({{ j.stop_reason }}){% endif %}</td>
     <td>{{ (j.created or "") | replace("T", " ") }}</td><td>{{ (j.ended or "") | replace("T", " ") }}</td>
     <td>

@@ -332,3 +332,33 @@ def test_a_left_over_worker_that_never_exits_is_ended_after_the_timeout(tmp_path
         assert_each_once(tmp_path, 6)
     finally:
         jc.close()
+
+def test_a_kind_that_cannot_pause_refuses_pause_and_cancel_ends_it(tmp_path):
+    """Playback copies (S4 bite 2): one ffmpeg run, no items. Pause is refused; Cancel ends
+    the worker and what it started at once."""
+    c = JobControl(tmp_path / "jobs")
+    k = fake_kind()
+    k.pausable = False
+    c.register(k)
+    try:
+        jid = c.submit("fake", params(tmp_path, n=40, delay=0.2, ignore_pause=True))
+        wait_for(lambda: len(writes(tmp_path)) >= 1)
+        with pytest.raises(JobError, match="cannot be paused"):
+            c.pause(jid)
+        t = time.monotonic()
+        c.cancel(jid)
+        job = wait_state(c, jid, "cancelled", timeout=10)
+        assert time.monotonic() - t < 3 and job["worker_pid"] is None
+        n = len(writes(tmp_path))
+        time.sleep(0.6)
+        assert len(writes(tmp_path)) == n < 40              # the worker is gone
+    finally:
+        c.close()
+
+
+def test_progress_event_sets_percent_and_message(jc, tmp_path):
+    jid = jc.submit("fake", params(tmp_path, n=1))
+    wait_state(jc, jid, "done")
+    jc.runner._on_event(jid, {"event": "progress", "percent": 42.4, "message": "copying"})
+    job = jc.status(jid)
+    assert (job["done"], job["total"], job["message"]) == (42, 100, "copying")

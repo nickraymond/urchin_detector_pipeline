@@ -8,6 +8,7 @@ from PIL import Image
 
 from app import db
 from app.stages import extract, ingest, review
+from tests import grab_hooks
 from tests.test_app_skeleton import client_for, write_config
 from tests.test_clips import wait_for
 from tests.test_ingest import digest, make_video
@@ -147,23 +148,15 @@ def test_restart_keeps_every_stage_and_extract_resumes(tmp_path, monkeypatch):
     client.post("/p/p/ingest/add", data={"folder": str(lib), "paths": [str(lib / "a.MP4")]})
     client.post("/p/p/extract/filter", data={"blur": "0", "dup": "0"})
 
-    # a stop in the middle of extraction: the third frame fails
-    calls = {"n": 0}
-    real = extract.grab
-
-    def flaky(path, t):
-        calls["n"] += 1
-        if calls["n"] == 3:
-            raise RuntimeError("stopped")
-        return real(path, t)
-    monkeypatch.setattr(extract, "grab", flaky)
+    # a stop in the middle of extraction: the third frame fails (inside the worker process)
+    monkeypatch.setattr(extract, "GRAB_HOOK", "tests.grab_hooks:fail_third")
     client.post("/p/p/extract/start", data={"every": "2", "cap": "300"})
     assert wait_for(lambda: client.get("/p/p/extract/status").json()["job"].get("state") == "error")
     folder = data / "projects" / "p"
     assert len(list((folder / "frames").glob("*.jpg"))) == 2
 
     # restart: a new app on the same settings file; nothing in memory survives
-    monkeypatch.setattr(extract, "grab", real)
+    monkeypatch.setattr(extract, "GRAB_HOOK", "tests.grab_hooks:counted")
     client.app.state.close_jobs()                              # the old app has quit
     client = client_for(cfg)
     dash = client.get("/p/p").text
@@ -172,7 +165,7 @@ def test_restart_keeps_every_stage_and_extract_resumes(tmp_path, monkeypatch):
     assert "stopped" in page.lower() and "carry on" in page
     client.post("/p/p/extract/start", data={"every": "2", "cap": "300"})
     assert wait_for(lambda: client.get("/p/p/extract/status").json()["job"].get("state") == "done")
-    assert calls["n"] == 3                                     # the first two not decoded again
+    assert grab_hooks.calls(folder) == 3 + 2                   # the first two not decoded again
     conn = sqlite3.connect(folder / "state.sqlite")
     files = [r[0] for r in conn.execute("SELECT file FROM frames ORDER BY timestamp_ms")]
     assert len(files) == 4
@@ -187,7 +180,7 @@ def test_restart_keeps_every_stage_and_extract_resumes(tmp_path, monkeypatch):
     assert client.post("/p/p/review/act", json={"key": "Z"}).json()["status"] == "kept"
     # re-running Extract redoes nothing and leaves review decisions alone
     client.post("/p/p/review/act", json={"file": files[1], "key": "D"})
-    monkeypatch.setattr(extract, "grab", lambda *a: (_ for _ in ()).throw(AssertionError))
+    monkeypatch.setattr(extract, "GRAB_HOOK", "tests.grab_hooks:never")
     client.post("/p/p/extract/start", data={"every": "2", "cap": "300"})
     assert wait_for(lambda: client.get("/p/p/extract/status").json()["job"].get("state") == "done")
     assert (folder / "rejected" / files[1]).is_file()
