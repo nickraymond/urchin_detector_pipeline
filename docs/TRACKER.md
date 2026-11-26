@@ -346,17 +346,17 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [ ] `THIRD_PARTY_LICENSES` with the SAM License text; README: setup, SAM access steps, 10-minute walkthrough
 - [ ] run every acceptance box of `docs/source/mvp_spec.md` on Nick's videos and tick it with its evidence
 
-**Bite 7 — SAM quality: tile seams on areas, anemone prompts** (D45; needs the GPU: run SAM only when no
+**Bite 7 — SAM quality: tile seams on areas, anemone prompts** (D45, D48, D49; PR 49; needs the GPU: run SAM only when no
 other SAM run is going)
-- [ ] area masks (rock, kelp) end in straight lines where tiles meet (Nick, 2026-11-25, S4 test frames): compare
+- [x] area masks (rock, kelp) end in straight lines where tiles meet (Nick, 2026-11-25, S4 test frames): compare
       areas on the whole frame (one extra image encoding per frame) with tiles on the same frames; pick by the
       overlays, seconds per frame and peak memory; numbers into DESIGN §Bench results
-- [ ] anemone (Nick, 2026-11-25: SAM calls urchins "anemone"): on frames where an urchin shows as an anemone,
+- [x] anemone (Nick, 2026-11-25: SAM calls urchins "anemone"): on frames where an urchin shows as an anemone,
       see whether SAM also finds it as an urchin; try other anemone prompts (e.g. "anemone", "sea anemone
       tentacles"); whether a confidence per class is needed (today 0.4 for all). Prompt and confidence choices
       are Lead calls; a rule that urchin beats anemone whatever the scores would contradict the spec's "keep
       the higher score" (D22 rule 1, D31): if the bench argues for it, it goes to Nick as a question
-- [ ] best settings into `app/sam/default_classes.yaml`
+- [x] best settings into `app/sam/default_classes.yaml`
 
 **Demo (Nick):** review 5 frames, tag the outlier urchins with `R` / `B` and the rest with "Tag all remaining as
 purple", add one missed urchin by clicking it, press "Export". The Export page shows the COCO load check PASS,

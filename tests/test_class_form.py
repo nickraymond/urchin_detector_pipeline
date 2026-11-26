@@ -151,7 +151,8 @@ def test_no_form_input_saves_a_file_that_fails_the_checks(tmp_path, seed):
             assert all(set(e) == {"row", "setting", "msg"} and e["msg"] for e in errors)
         else:
             saved_ok += 1
-            assert data == {"settings": body["settings"], "classes": body["classes"]}
+            assert data == {"settings": {**classes.OPTIONAL, **body["settings"]},   # D45 default
+                            "classes": body["classes"]}
             classes.form_save(folder, DEFAULT)                  # back to the start
     assert saved_ok > 10 and refused > 100
 
@@ -164,4 +165,4 @@ def test_settings_keep_the_starting_files_order(tmp_path):
     body["settings"] = dict(sorted(body["settings"].items()))
     assert classes.form_save(folder, body) == []
     lines = (folder / "classes.yaml").read_text().splitlines()
-    assert [ln.split(":")[0].strip() for ln in lines[1:7]] == list(classes.SETTINGS)
+    assert [ln.split(":")[0].strip() for ln in lines[1:8]] == list(classes.SETTINGS)

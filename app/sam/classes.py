@@ -38,7 +38,11 @@ SETTINGS = {
     "tile_above_px": (lambda v: _int(v) and v >= 0, "a whole number, 0 or more"),
     "min_mask_area_px": (lambda v: v is None or (_int(v) and v >= 0),
                          "null or a whole number, 0 or more"),
+    "areas_whole_px": (lambda v: _int(v) and (v == 0 or 1008 <= v <= 8192),
+                       "0 (areas in tiles) or a whole number from 1008 to 8192"),
 }
+# Settings a file from before may lack; parse fills them in (S5 bite 7, D45).
+OPTIONAL = {"areas_whole_px": 2016}
 # Colours per class id for tables and mask overlays; fixed, so a class keeps its colour.
 PALETTE = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0",
            "#f032e6", "#bcf60c", "#fabebe", "#008080", "#e6beff", "#9a6324", "#800000",
@@ -133,7 +137,7 @@ def parse(text: str, used: dict[int, str] | None = None) -> dict:
         elif not SETTINGS[k][0](v):
             errs.append((lines["settings"].get(k), f"{k} must be {SETTINGS[k][1]} (got {v!r})"))
     for k in SETTINGS:
-        if data.get("settings") is not None and k not in settings:
+        if data.get("settings") is not None and k not in settings and k not in OPTIONAL:
             errs.append((lines["top"].get("settings"), f"setting {k} is missing"))
     classes = data.get("classes")
     if not isinstance(classes, list) or not classes:
@@ -142,7 +146,8 @@ def parse(text: str, used: dict[int, str] | None = None) -> dict:
     errs += _check_classes(classes, lines["classes"], used or {})
     if errs:
         raise ClassesError(errs)
-    return {"settings": settings, "classes": classes}
+    return {"settings": {**settings, **{k: v for k, v in OPTIONAL.items() if k not in settings}},
+            "classes": classes}
 
 
 def _check_classes(classes: list, lines: list[dict], used: dict[int, str]) -> list:

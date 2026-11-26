@@ -27,6 +27,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+from PIL import Image
+
 from app import images
 from app.jobctl import worker as jw
 from app.review import state as review_state
@@ -95,9 +98,28 @@ def label_frame(pred, image, units: list[dict], settings: dict) -> dict[str, dic
                if tiled else [(0, 0, W, H)])
     found = {u["key"]: [] for u in units}
     secs = {u["key"]: 0.0 for u in units}
-    for region in regions:
+    whole_px = settings.get("areas_whole_px") or 0
+    areas_whole = [u for u in units if u["kind"] == "area"] if tiled and whole_px else []
+    if areas_whole:   # D45: one look at the whole frame (scaled, never up), so no tile seams
+        t = time.perf_counter()
+        w = min(W, whole_px)
+        small = image if w == W else image.resize((w, round(H * w / W)), Image.BILINEAR)
+        state = pred.set_image(small)
+        load = time.perf_counter() - t
+        for u in areas_whole:
+            t = time.perf_counter()
+            for prompt in u["prompts"]:
+                for mask, score in pred.find(state, prompt):
+                    if small is not image:
+                        mask = np.asarray(Image.fromarray(mask).resize((W, H), Image.NEAREST))
+                    det = tiles.from_region(mask, score, prompt, (0, 0, W, H))
+                    if det is not None:
+                        found[u["key"]].append(det)
+            secs[u["key"]] += time.perf_counter() - t + load / len(areas_whole)
+    tile_units = [u for u in units if u not in areas_whole]
+    for region in regions if tile_units else []:
         state = pred.set_image(image.crop(region) if tiled else image)
-        for u in units:
+        for u in tile_units:
             t = time.perf_counter()
             for prompt in u["prompts"]:
                 for mask, score in pred.find(state, prompt):

@@ -45,8 +45,11 @@ def raw_path(folder: Path, frame: str) -> Path:
 
 
 def unit_settings(unit: dict, settings: dict) -> dict:
-    return {"prompts": list(unit["prompts"]), "kind": unit["kind"],  # kind: areas are unioned
-            **{k: settings.get(k) for k in KEY_SETTINGS}}
+    out = {"prompts": list(unit["prompts"]), "kind": unit["kind"],  # kind: areas are unioned
+           **{k: settings.get(k) for k in KEY_SETTINGS}}
+    if unit["kind"] == "area" and settings.get("areas_whole_px"):  # D45; absent = S3 tiles,
+        out["areas_whole_px"] = settings["areas_whole_px"]         # so object keys never change
+    return out
 
 
 def settings_key(unit: dict, settings: dict) -> str:
