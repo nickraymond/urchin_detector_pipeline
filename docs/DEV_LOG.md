@@ -26,7 +26,9 @@ what broke, what's next.*
   tests `tests/test_missing_type.py`; full suite 296 passed.
 - Self-test: a scratch copy of the S5 project with the black urchin line removed showed the note; the button
   appended id 10 at the end, the note went away, and the frame's panel showed "black urchin (B)".
-- Broke: nothing seen. Next: QE; Nick clicks the button on his older project.
+- QE PR 58 nit fixed: a type removed after it had SAM results gets back the id its results hold (a new id would be
+  refused by the D6 check); test added, full suite 297 passed.
+- Broke: nothing seen. Next: Nick clicks the button on his older project.
 
 ## 2026-11-26 — Sprint S5 — Bites 4b, 5b, 6a, 6b (builder, overnight)
 **Branch:** sprint/5-fast-tagging (PR 54), 5-add-on-page (PR 55), 5-export-page (PR 56), 5-licences-readme (PR 57)
