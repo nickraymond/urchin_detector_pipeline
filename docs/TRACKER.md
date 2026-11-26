@@ -348,9 +348,10 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [x] an Export page: Export button (a job), the checks from bite 2 shown PASS / FAIL with what failed, counts per
       split and per class, a warning when the splits cannot be fair (D43)
 
-**Bite 6b — Licences, README, acceptance** (D42)
-- [ ] `THIRD_PARTY_LICENSES` with the SAM License text; README: setup, SAM access steps, 10-minute walkthrough
-- [ ] run every acceptance box of `docs/source/mvp_spec.md` on Nick's videos and tick it with its evidence
+**Bite 6b — Licences, README, acceptance** (D42; PR 57)
+- [x] `THIRD_PARTY_LICENSES` with the SAM License text; README: setup, SAM access steps, 10-minute walkthrough (PR 57)
+- [~] run every acceptance box of `docs/source/mvp_spec.md` on Nick's videos and tick it with its evidence (PR 57:
+      9 of 10 ticked with their evidence; the `frame_metrics.csv` spot check on 5 frames is Nick's, in the S5 demo)
 
 **Bite 7 — SAM quality: tile seams on areas, anemone prompts** (D45, D48, D49; PR 49; needs the GPU: run SAM only when no
 other SAM run is going)

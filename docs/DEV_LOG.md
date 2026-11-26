@@ -17,6 +17,18 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-26 — Sprint S5 — Bites 4b, 5b, 6a, 6b (builder, overnight)
+**Branch:** sprint/5-fast-tagging (PR 54), 5-add-on-page (PR 55), 5-export-page (PR 56), 5-licences-readme (PR 57)
+**Done:** fast urchin tagging on the Review page (Tab zooms to the next untagged urchin, P / R / B tag and move on,
+close-up panel, "Tag all remaining as purple"); add a missed object on the page (click or drag a box → a `sam_add`
+job; real SAM added a missed urchin, score 0.94); the Export page (Export as a job, checks PASS / FAIL, splits, the
+D43 warning, per-class counts); `THIRD_PARTY_LICENSES`, README, the CVAT check (docs only, not tested end to end),
+9 of 10 acceptance boxes ticked with evidence. Lead calls D47–D49 logged by the lead (PR 53).
+**Broke/surprised us:** the close-up `<img>` took the viewer's absolute-position rule and covered the panel; a
+clicked button kept focus so Enter could press it twice; the Export page did not refresh after the job until
+`data-reload-on` was added. Stacking PRs on merge commits made rebases slow: prefer one parent per PR.
+**Next:** the lead hands Nick the S5 test build; the open box is his `frame_metrics.csv` spot check on 5 frames.
+
 ## 2026-11-26 — Sprint S5 — Bites 3a, 3b, 5a (builder, overnight)
 **Branch:** sprint/5-review-page (PR 50), 5-review-checks (PR 51), 5-add-object (PR 52)
 **Done:** the label Review page (`/p/<name>/labels`): frame list, S2's viewer reused with a click hook, picture

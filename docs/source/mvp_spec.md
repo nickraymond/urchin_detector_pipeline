@@ -245,16 +245,16 @@ The GitHub repo is public. No real frames, video stills, people's names or token
 
 ### Acceptance criteria
 
-- [ ] Point at a folder with 2 GoPro videos; frames extract with blur and duplicate filtering; kept + dropped counts add up to the preview count
-- [ ] Frame review deletes to `rejected/` and undo works
-- [ ] Adding a class to `classes.yaml` and re-running labels only that class on existing frames
-- [ ] Estimate shows seconds per frame and finish time before Run
-- [ ] Pause mid-run, quit, restart, resume: no frame processed twice or skipped
-- [ ] Thread cap and low priority work: laptop stays usable during a run
-- [ ] Scheduled start runs unattended and writes a morning summary
-- [ ] `detector_coco.json` passes a `pycocotools` load check; `seg_masks/` PNGs match image sizes and use only ids in `classes.json`
-- [ ] `frame_metrics.csv` counts and cover match the reviewed labels on 5 spot-checked frames
-- [ ] README with setup, SAM 3.1 access steps and a 10-minute walkthrough
+- [x] Point at a folder with 2 GoPro videos; frames extract with blur and duplicate filtering; kept + dropped counts add up to the preview count — *S2 demo passed (Nick, 2026-11-25, TRACKER S2)*
+- [x] Frame review deletes to `rejected/` and undo works — *S2 demo passed (Nick, 2026-11-25)*
+- [x] Adding a class to `classes.yaml` and re-running labels only that class on existing frames — *S3 demo passed (Nick, 2026-11-25)*
+- [x] Estimate shows seconds per frame and finish time before Run — *S4 demo passed (Nick, 2026-11-25, TRACKER S4)*
+- [x] Pause mid-run, quit, restart, resume: no frame processed twice or skipped — *S4 demo passed (Nick, 2026-11-25)*
+- [x] Thread cap and low priority work: laptop stays usable during a run — *S4 demo passed (Nick, 2026-11-25)*
+- [x] Scheduled start runs unattended and writes a morning summary — *S4 demo passed (Nick, 2026-11-25)*
+- [x] `detector_coco.json` passes a `pycocotools` load check; `seg_masks/` PNGs match image sizes and use only ids in `classes.json` — *the Export page's checks (S5 bites 2, 6a) PASS on an export of 16, then 3, reviewed frames from one ReefCheck video (builder, 2026-11-26); Nick re-checks in the S5 test build*
+- [ ] `frame_metrics.csv` counts and cover match the reviewed labels on 5 spot-checked frames — *open: Nick's spot check in the S5 test build (the Export page's metrics check compares every frame's cover with its mask and counts with COCO)*
+- [x] README with setup, SAM 3.1 access steps and a 10-minute walkthrough — *README (S5 bite 6b); the steps are for SAM 3, the model in use (D10)*
 
 ### Build 1 milestones
 
