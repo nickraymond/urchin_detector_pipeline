@@ -7,6 +7,26 @@
   progress and ends the worker (the GPU is freed); Resume carries on with the items still missing. Cancel ends the
   job for good; finished items are kept. Records live in <code>{{ cfg.data_dir }}/jobs/</code>, with one log per job.</p>
 {% if note %}<p class="totals">{{ note }}</p>{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<h2>Limits</h2>
+<p class="hint">These apply to every job that starts from now on; each job keeps the limits it started with (shown
+  in its row). They keep the laptop usable while a long job runs.</p>
+<form method="post" action="/jobs/settings" class="limits">
+  <label>Device <select name="device">{% for d in devices %}<option value="{{ d }}" {% if limits.device == d %}selected{% endif %}>{{ {"auto": "auto (NVIDIA GPU, else Apple GPU, else CPU)", "mps": "Apple GPU", "cuda": "NVIDIA GPU", "cpu": "CPU"}[d] }}</option>{% endfor %}</select></label>
+  <label>CPU threads <input name="threads" type="number" min="1" max="{{ cores }}" step="1" value="{{ limits.threads }}">
+    <span class="hint">of {{ cores }} cores</span></label>
+  <label><input type="checkbox" name="low_priority" value="1" {% if limits.low_priority %}checked{% endif %}> Low priority
+    <span class="hint">(other programs come first)</span></label>
+  <label>Pause between frames <input name="pause_s" type="number" min="0" max="600" step="0.5" value="{{ limits.pause_s }}"> s</label>
+  <label><input type="checkbox" name="memory_guard" value="1" {% if limits.memory_guard %}checked{% endif %}> Memory guard: pause the job
+    when free memory is below <input name="memory_guard_gb" type="number" min="0.5" max="256" step="0.5" value="{{ limits.memory_guard_gb }}"> GB
+    <span class="hint">(free now: {{ free_gb }} GB)</span></label>
+  <label>Batch size <input type="number" value="1" disabled> <span class="hint">fixed at 1</span></label>
+  <button>Save limits</button>
+</form>
+
+<h2>Jobs</h2>
 {% if jobs %}
 <table class="jobs">
   <tr><th>#</th><th>Kind</th><th>Project</th><th>State</th><th>Progress</th><th>Message</th><th>Created</th><th>Ended</th><th></th></tr>
@@ -16,7 +36,9 @@
     <td>{% if j.project_name %}<a href="/p/{{ j.project_name }}">{{ j.project_name }}</a>{% endif %}</td>
     <td><b>{{ j.state }}</b></td>
     <td>{% if j.kind == "playback" %}{{ j.done }} %{% elif j.total %}{{ j.done }} / {{ j.total }}{% endif %}{% if j.active and j.eta_s %}<br><span class="hint">about {{ minutes(j.eta_s) }} left</span>{% endif %}</td>
-    <td>{{ j.message or "" }}{% if j.stop_reason and j.stop_reason != j.message and j.state not in ("done",) %} ({{ j.stop_reason }}){% endif %}</td>
+    <td>{{ j.message or "" }}{% if j.stop_reason and j.stop_reason != j.message and j.state not in ("done",) %} ({{ j.stop_reason }}){% endif %}
+      {% for w in j.warnings or [] %}<br><span class="warn-text">⚠ {{ w }}</span>{% endfor %}
+      {% if j.limits %}<br><span class="hint">{{ j.limits.device }}, {{ j.limits.threads }} threads{% if j.limits.low_priority %}, low priority{% endif %}{% if j.limits.pause_s %}, {{ j.limits.pause_s }} s pause{% endif %}{% if j.limits.memory_guard %}, guard {{ j.limits.memory_guard_gb }} GB{% endif %}</span>{% endif %}</td>
     <td>{{ (j.created or "") | replace("T", " ") }}</td><td>{{ (j.ended or "") | replace("T", " ") }}</td>
     <td>
       {% if j.state in ("queued", "running") %}<form method="post" action="/jobs/{{ j.id }}/pause" class="inline"><button class="small">Pause</button></form>{% endif %}

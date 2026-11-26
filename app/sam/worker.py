@@ -45,6 +45,8 @@ class SamPredictor:
         from sam3.model_builder import build_sam3_image_model
 
         self.torch, self.device = torch, device
+        if jw.threads(job):
+            torch.set_num_threads(jw.threads(job))   # D36: the CPU thread cap
         try:
             ckpt = hf_hub_download(job["repo_id"], job["checkpoint"], local_files_only=True)
         except Exception as e:
@@ -122,8 +124,31 @@ def item(i: int, n: int, rec: dict) -> None:
             counts=rec.get("masks", {}))
 
 
+FALLBACK = "fall back to run on the CPU"   # PyTorch's warning when an op is missing on MPS
+
+
+def report_cpu_fallback() -> None:
+    """D36: a CPU fallback on the Apple GPU becomes a warning on the job (once per op), and
+    still goes to the log as before."""
+    import warnings
+    shown = warnings.showwarning
+    seen: set[str] = set()
+
+    def show(message, category, filename, lineno, file=None, line=None):
+        text = str(message)
+        if FALLBACK in text:
+            op = text.split("'")[1] if text.count("'") >= 2 else text[:60]
+            if op not in seen:
+                seen.add(op)
+                jw.emit("warning", message=f"Apple GPU: {op} runs on the CPU (slower)")
+        shown(message, category, filename, lineno, file, line)
+    warnings.showwarning = show
+
+
 def main(job: dict) -> None:
     folder, settings = Path(job["folder"]), job["settings"]
+    if job.get("device") == "mps":
+        report_cpu_fallback()
     units = [{**u, "classes": {int(k): v for k, v in u["classes"].items()}} for u in job["units"]]
     ctl = jw.listen()
     t = time.perf_counter()
@@ -153,6 +178,7 @@ def main(job: dict) -> None:
                      "peak_process_gb": peak_process_gb(),
                      "peak_gpu_gb": round(getattr(pred, "peak_gpu", 0) / 1e9, 2)})
         item(i, n, recs[-1])
+        jw.rest(ctl, job)                       # D36: pause between frames (wakes on pause)
     if job.get("preview_file"):
         write_preview(Path(job["preview_file"]), [f["file"] for f in job["frames"]], load_s, recs)
     if job.get("estimate_file"):

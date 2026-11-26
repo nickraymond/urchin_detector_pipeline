@@ -284,6 +284,17 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   now" until the schedule (bite 5a) adds a start time. Remaining time of any job: the runner keeps the seconds of
   the last 20 timed items (skipped ones excluded) and stores `eta_s` = mean × items left on each item; the Labeling,
   Extract, Clips and Jobs pages show it.
+- **As built, bite 4 (PR 36).** `app/jobctl/limits.py`: `<data_dir>/jobs/settings.json` (device, threads, low
+  priority, pause between items, memory guard on/off and GB, batch 1), checked before saving from the Jobs page's
+  form; a missing or unreadable file gives the defaults. At each start the runner copies them into the job's row
+  and job file, starts the worker as `nice -n 10 python …` (nice execs, so the PID is the worker's) with
+  `OMP_NUM_THREADS` / `MKL_NUM_THREADS`, and starts a guard thread that reads `limits.free_gb()` every 2 s and
+  pauses the job below the threshold with the reason "memory guard: N GB free, below T GB". The guard's figure is
+  psutil's `virtual_memory().available` (free + inactive pages on macOS, psutil source); `vm_stat` "Pages free"
+  reached 0 GB during ordinary runs, so it cannot be the figure. SAM: device "auto" = NVIDIA, else Apple GPU, else
+  CPU (asked in a child process); `torch.set_num_threads`; a PyTorch "fall back to run on the CPU" warning becomes
+  a `warning` event, kept once per op on the job and shown on the Jobs and Labeling pages. Workers rest
+  `pause_s` between items through `worker.rest` (a pause wakes them).
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). Every kind's job file and log are `<data_dir>/jobs/<id>.json` / `.log` (bite 1b).
@@ -336,6 +347,19 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
 | D38 | 2026-11-25 | **Lead call** (planning lead): keep awake = one macOS keep-awake process (`caffeinate -i -s -w <app pid>`) started by the app when a keep-awake job is scheduled or queued and ended (by its own PID only) when no such job is left. The reminder says plugged in and lid open; the page warns when `pmset -g batt` reports battery power. The app never changes power settings. | The man page on this laptop (read 2026-11-25): `-i` prevents idle sleep, `-s` system sleep, `-w` waits for a PID to exit, so a crashed app releases it. A scheduled job needs the laptop awake before it starts. Lid-closed sleep is not covered, hence the reminder; the builder checks the real behaviour through the app. |
 
 ## Bench / test results
+
+**S4 bite 4, 2026-11-25 — free memory while SAM runs (memory guard, D36).** M1 Max, 32 GB, SAM 3 on the Apple GPU,
+default classes, limits 5 threads + low priority, guard off during the measurement. Sampled every 2 s by the
+guard's own function (`limits.free_gb`) next to `vm_stat` and `memory_pressure`. CSVs:
+`<data_dir>/mem/tiled_4k.csv`, `whole_53k.csv` (scratch data folder, not git).
+
+| Run (3 frames) | s / frame | Peak Apple GPU | Guard figure (psutil available) before / typical / min | `vm_stat` free min | `memory_pressure` free min |
+|---|---|---|---|---|---|
+| 4K tiled (1008 px tiles) | 63–66 | 16.2 GB | 20.5 / 5.5–8 / **3.5 GB** (1 of 112 samples < 4 GB) | 0.0 GB | 23 % |
+| 5.3K whole frame | 9–45 | 31.3 GB | 22.1 / 5–7 / **2.8 GB** (1 of 59 < 3 GB) | 0.0 GB | 16 % |
+
+Proposed default threshold: **2 GB** (no pause in either run; a 4 GB guard would have paused the ordinary tiled
+run). n = one run of 3 frames per mode: re-check on a long run.
 
 **S1, 2026-11-24 — SAM 3.1 (`sam3.1_multiplex.pt`) on the M1 Max, Apple GPU + CPU fallback,
 torch 2.10.0, 3 frames (4K HEVC) from one Mendocino Headlands ReefCheck video, cut-off 0.5.**

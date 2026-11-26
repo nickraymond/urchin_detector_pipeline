@@ -21,6 +21,7 @@ from collections import deque
 from datetime import datetime
 from pathlib import Path
 
+from app.jobctl import limits as limits_mod
 from app.jobctl.store import Store, now
 
 PAUSE_TIMEOUT_S = 600          # D34: a worker that has not paused within 10 min is ended
@@ -63,6 +64,9 @@ class Runner:
         self._waiting_since: dict[int, float] = {}   # left-over worker's job id -> first seen
         self._item = "item"
         self._times: deque[float] = deque(maxlen=ROLLING_ITEMS)   # the running job's items
+        self._reason: dict[int, str] = {}    # job id -> why the app paused it (memory guard)
+        self.free_gb = limits_mod.free_gb    # tests replace it
+        self.guard_every_s = limits_mod.GUARD_EVERY_S
         self._thread = threading.Thread(target=self._loop, name="jobctl", daemon=True)
 
     def start(self) -> None:
@@ -82,7 +86,7 @@ class Runner:
         with self._lock:
             return self._job_id
 
-    def request(self, job_id: int, what: str, kill: bool = False) -> bool:
+    def request(self, job_id: int, what: str, kill: bool = False, reason: str = "") -> bool:
         """Ask the running job to pause (what = "pause" or "cancel"). While its worker is
         still being started the request is kept and sent once it runs. kill: end the worker
         at once instead (a kind that cannot pause; its output is written under temporary
@@ -94,10 +98,12 @@ class Runner:
                 self._want.get(job_id, "pause")
             if kill:
                 self._want[f"kill-{job_id}"] = "kill"
+            if reason:
+                self._reason[job_id] = reason
             proc = self._proc
         self.store.set_state(job_id, "pausing", ("running",))
-        self.log(job_id, f"{what} asked; " + ("ending the worker" if kill else
-                                              "finishing the item in progress"))
+        self.log(job_id, f"{what} asked{' (' + reason + ')' if reason else ''}; " +
+                 ("ending the worker" if kill else "finishing the item in progress"))
         if proc is not None:
             self._send_pause(job_id, proc)
         return True
@@ -184,6 +190,7 @@ class Runner:
                     self._proc, self._job_id = None, None
                     self._want.pop(job["id"], None)
                     self._want.pop(f"kill-{job['id']}", None)
+                    self._reason.pop(job["id"], None)
 
     def _run(self, job: dict) -> None:
         jid, kind = job["id"], self.kinds.get(job["kind"])
@@ -195,15 +202,23 @@ class Runner:
         if kind.progress:
             done, total = kind.progress(job["params"])
             self.store.update(jid, done=done, total=total)
+        lim = limits_mod.load(self.root)          # D36: copied into the job when it starts
+        self.store.update(jid, limits=lim, warnings=None)
         job_file = self.root / f"{jid}.json"
-        job_file.write_text(json.dumps({"job_id": jid, **kind.prepare(job["params"])},
-                                       indent=1))
-        self.log(jid, f"start: kind {job['kind']}, worker {kind.module}")
+        job_file.write_text(json.dumps(
+            {"job_id": jid, "limits": lim, **kind.prepare({**job["params"], "limits": lim})},
+            indent=1))
+        self.log(jid, f"start: kind {job['kind']}, worker {kind.module}, limits "
+                      + json.dumps(lim))
+        threads = str(lim["threads"])
+        cmd = ((["nice", "-n", "10"] if lim["low_priority"] else []) +   # nice execs: same pid
+               [sys.executable, "-m", kind.module, str(job_file)])
         with open(self.root / f"{jid}.log", "a") as log:
             proc = subprocess.Popen(
-                [sys.executable, "-m", kind.module, str(job_file)],
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True,
-                bufsize=1, cwd=kind.cwd or REPO, env={**os.environ, **kind.env},
+                cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True,
+                bufsize=1, cwd=kind.cwd or REPO,
+                env={**os.environ, "OMP_NUM_THREADS": threads, "MKL_NUM_THREADS": threads,
+                     **kind.env},
                 start_new_session=True)   # Ctrl-C on the app must not cut an item in half
         try:
             self.store.update(jid, worker_pid=proc.pid)
@@ -212,6 +227,9 @@ class Runner:
                 want = self._want.get(jid)
             if want:   # Pause or Cancel came while the worker was being started
                 self._send_pause(jid, proc)
+            if lim["memory_guard"]:
+                threading.Thread(target=self._guard, args=(jid, proc, lim["memory_guard_gb"]),
+                                 name="memory-guard", daemon=True).start()
             last, final, took, err = self._follow(jid, proc)
         except BaseException as e:
             # Never leave a worker running while the queue moves on (D32, QE PR 32).
@@ -225,7 +243,8 @@ class Runner:
         with self._lock:
             want = self._want.get(jid)
             self._want.pop(f"kill-{jid}", None)
-        self._finish(jid, last, code, want, final, took, err)
+            reason = self._reason.pop(jid, None)
+        self._finish(jid, last, code, want, final, took, err, reason)
 
     def _follow(self, jid: int, proc: subprocess.Popen):
         """Read the worker's lines until it closes stdout. Returns (last event, the done
@@ -251,15 +270,33 @@ class Runner:
             self._on_event(jid, ev)
         return last, final, round(time.monotonic() - started), err
 
+    def _guard(self, jid: int, proc: subprocess.Popen, threshold_gb: float) -> None:
+        """D36: every 2 s while the worker runs, pause the job if free memory is below the
+        threshold. The worker finishes its item first, as with any Pause."""
+        while proc.poll() is None:
+            time.sleep(self.guard_every_s)
+            if proc.poll() is not None:
+                return
+            try:
+                free = self.free_gb()
+            except Exception as e:   # never stop a job because the figure cannot be read
+                self.log(jid, f"memory guard cannot read free memory: {e}")
+                return
+            if free < threshold_gb:
+                self.request(jid, "pause", reason=f"memory guard: {free:.1f} GB free, "
+                                                  f"below {threshold_gb:g} GB")
+                return
+
     def _finish(self, jid: int, last: str | None, code: int, want: str | None,
-                final: str, took: int, err: str | None = None) -> None:
+                final: str, took: int, err: str | None = None,
+                why: str | None = None) -> None:
         if last == "done" and code == 0:
             self.store.update(jid, state="done", ended=now(), message=final,
                               stop_reason="finished")
             self.log(jid, f"done in {took} s: {final}")
         elif want or last == "paused":
             state = "cancelled" if want == "cancel" else "paused"
-            reason = {"cancel": "cancelled", "pause": "paused"}.get(want, "worker paused")
+            reason = {"cancel": "cancelled", "pause": why or "paused"}.get(want, "worker paused")
             if last != "paused":
                 reason += f" (worker ended with code {code} before saying it paused)"
             self.store.update(jid, state=state, stop_reason=reason, message=reason,
@@ -295,6 +332,12 @@ class Runner:
             self.store.update(jid, **fields)
         elif e == "error":
             self.log(jid, f"worker error: {ev.get('message')}")
+        elif e == "warning":   # shown on the job (e.g. the Apple GPU fell back to the CPU)
+            text = str(ev.get("message") or "")
+            have = (self.store.get(jid) or {}).get("warnings") or []
+            if text and text not in have:
+                self.store.update(jid, warnings=have + [text])
+            self.log(jid, f"warning: {text}")
         elif e in ("paused", "done"):
             self.log(jid, f"worker: {e}")
         else:

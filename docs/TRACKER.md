@@ -241,14 +241,14 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
       frames' results are kept, so Run does not redo them
 - [x] during any job: remaining time from the rolling average of the last 20 items
 
-**Bite 4 — Resource limits** (D36)
-- [ ] settings panel on the Jobs page: device (auto / Apple GPU / NVIDIA GPU / CPU), CPU threads (default half the
+**Bite 4 — Resource limits** (D36; PR 36)
+- [x] settings panel on the Jobs page: device (auto / Apple GPU / NVIDIA GPU / CPU), CPU threads (default half the
       cores), low priority (`nice`, on by default), pause between frames (default 0 s), memory guard, batch size 1
       (shown, fixed); each job records the limits it ran with
-- [ ] memory guard: the app checks free memory every 2 s while a job runs and pauses it, saying why, below the
+- [x] memory guard: the app checks free memory every 2 s while a job runs and pauses it, saying why, below the
       threshold; the builder measures the guard's own free-memory figure (D36) during a tiled 4K and a whole-frame 5.3K run and proposes the
       default in the PR (D36)
-- [ ] a CPU fallback on the Apple GPU shows as a warning on the job
+- [x] a CPU fallback on the Apple GPU shows as a warning on the job
 
 **Bite 5a — Schedule** (D37)
 - [ ] "Start at" and optional "Stop by" on extraction and SAM Run; a queued job shows its start time, Start now

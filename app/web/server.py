@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import math
+import os
 import re
 import socket
 import sqlite3
@@ -28,6 +29,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
 from app.jobctl import JobControl, JobError
+from app.jobctl import limits as job_limits
 from app.sam import classes
 from app.stages import clips, extract, ingest, label, review
 
@@ -133,12 +135,34 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             "unfinished": unfinished, "name_help": project.NAME_HELP}, status_code=status)
 
     @app.get("/jobs", response_class=HTMLResponse)
-    def jobs_page(request: Request, note: str = ""):
+    def jobs_page(request: Request, note: str = "", error: str = ""):
         cfg = config.load(config_path)
         if not cfg.ok:
             return dashboard(request, status=503)
+        jc = jobctl(cfg)
         return templates.TemplateResponse(request, "jobs.html", {
-            "cfg": cfg, "note": note, "jobs": [job_view(j) for j in jobctl(cfg).list()]})
+            "cfg": cfg, "note": note, "error": error, "jobs": [job_view(j) for j in jc.list()],
+            "limits": job_limits.load(jc.root), "devices": job_limits.DEVICES,
+            "cores": os.cpu_count() or 1, "free_gb": round(job_limits.free_gb(), 1)})
+
+    @app.post("/jobs/settings")
+    def jobs_settings(request: Request, device: str = Form("auto"), threads: str = Form(""),
+                      low_priority: str = Form(""), pause_s: str = Form("0"),
+                      memory_guard: str = Form(""), memory_guard_gb: str = Form("")):
+        """Save the limits (D36); they apply to jobs that start from now on."""
+        cfg = config.load(config_path)
+        if not cfg.ok:
+            return dashboard(request, status=503)
+        try:
+            job_limits.save(jobctl(cfg).root, {
+                "device": device, "threads": threads, "low_priority": low_priority,
+                "pause_s": pause_s, "memory_guard": memory_guard,
+                "memory_guard_gb": memory_guard_gb})
+        except job_limits.LimitsError as e:
+            return RedirectResponse("/jobs?" + urlencode({"error": str(e)}), status_code=303)
+        return RedirectResponse("/jobs?" + urlencode(
+            {"note": "Saved. Jobs that start from now on use these limits; a running job "
+                     "keeps the ones it started with."}), status_code=303)
 
     def safe_back(back: str) -> str:
         """Only a path on this app: "/..." but not "//host"."""

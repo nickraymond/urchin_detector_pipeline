@@ -5,6 +5,8 @@ writes.log, so a test can prove no item was written twice or left out.
 
 Params: out, n, delay (s per item), ignore_pause, crash_at (item number), first_delay,
 hang_at (item number: the first worker to reach it hangs there for 120 s, a stuck item).
+It also writes env.json: its niceness, OMP_NUM_THREADS and the job's limits (S4 bite 4), and
+rests between items as the limits say.
 """
 
 import os
@@ -19,6 +21,10 @@ def main() -> None:
     job = worker.load_job()
     out, n = Path(job["out"]), job["n"]
     ctl = worker.listen()
+    import json
+    (out / "env.json").write_text(json.dumps({
+        "nice": os.nice(0), "omp": os.environ.get("OMP_NUM_THREADS"),
+        "mkl": os.environ.get("MKL_NUM_THREADS"), "limits": job.get("limits")}))
     worker.emit("loaded", seconds=0.0)
     for i in range(1, n + 1):
         if ctl.pause_requested() and not job.get("ignore_pause"):
@@ -45,6 +51,7 @@ def main() -> None:
             f.write(f"{i} {os.getpid()} {time.time():.3f}\n")
         worker.emit("item", i=i, n=n, name=target.name,
                     seconds=round(time.perf_counter() - t, 3), counts={"thing": 1})
+        worker.rest(ctl, job)
     worker.emit("done")
 
 

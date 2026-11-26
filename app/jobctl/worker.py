@@ -79,3 +79,13 @@ class Control:
 
 def listen(stream=None) -> Control:
     return Control(stream)
+
+
+def rest(ctl: Control, job: dict) -> bool:
+    """The pause between items from the job's limits (D36). True if a pause came meanwhile."""
+    return ctl.rest(float((job.get("limits") or {}).get("pause_s") or 0))
+
+
+def threads(job: dict) -> int | None:
+    """The job's CPU thread cap (D36), for a worker that sets it in its own library."""
+    return (job.get("limits") or {}).get("threads")

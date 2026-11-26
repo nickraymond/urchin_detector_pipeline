@@ -129,3 +129,6 @@ a.button { display: inline-block; font-size: 16px; padding: 4px 14px; border: 1p
 .cf-errors { padding: 8px 8px 8px 28px; }
 pre.yaml { background: #fff; padding: 6px; font-size: 13px; overflow-x: auto; }
 table.jobs td, table.jobs th { font-size: 14px; padding: 5px 6px; vertical-align: top; }
+form.limits { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; background: #fff; padding: 10px 12px; }
+form.limits input[type=number] { width: 5em; }
+.warn-text { color: #8a5a00; }
