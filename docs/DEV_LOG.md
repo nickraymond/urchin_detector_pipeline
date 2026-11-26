@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-26 — Sprint S5 — Bites 3a, 3b, 5a (builder, overnight, rotating)
+**Branch:** sprint/5-review-page (PR 50), 5-review-checks (PR 51), 5-add-object (PR 52)
+**Done:** the label Review page (`/p/<name>/labels`): frame list, S2's viewer reused with a click hook, picture
+modes, click to select, class picker, X / Enter / Z, collapsible panel; split check, fully checked per class, running
+totals over accepted frames; add-a-missed-object backend (SAM 3 click / box on a crop, job kind `sam_add`). Browser
+self-tests on the scratch copy with real SAM results; a real-SAM click: 16.9 s per add (D46: no kept worker).
+**Broke/surprised us:** the browser pane's viewport (1024x768) is not the screenshot frame (800x600): click by
+element reference, not by screenshot coordinates. PRs 47 and 50 both add an as-built bullet at the same place in
+DESIGN, so the second to merge needs a rebase. QE PR 44: a deleted mask hid another class (fixed: own run unit only).
+**Next:** bite 4b (P / R / B, Tab zoom, close-up, tag all) on the Review page; 5b (click / box on the page); 6.
+
 ## 2026-11-25 — Sprint S5 — Bites 1, 2, 4a, 7 (builder, overnight)
 **Branch:** sprint/5-review-state (PR 44), 5-export (PR 46), 5-urchin-tagging (PR 47), 5-sam-quality (PR 49)
 **Done:** review state in `state.sqlite` with stable mask ids, final masks after review, accept rule, undo (bite 1);
