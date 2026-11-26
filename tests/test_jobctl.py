@@ -230,3 +230,79 @@ def test_emit_writes_one_json_line(monkeypatch):
     jw.emit("item", i=1, n=2)
     line = buf.getvalue()
     assert line.startswith("@@ ") and json.loads(line[3:]) == {"event": "item", "i": 1, "n": 2}
+
+
+def test_quick_restart_and_resume_waits_for_the_old_worker(tmp_path):
+    """QE PR 32 finding 1: the app dies mid-item; a new app resumes at once. The resumed job
+    waits until the orphaned worker has finished its item, so no item is written twice."""
+    root = tmp_path / "jobs"
+    p = params(tmp_path, n=4, delay=3.0)
+    app = subprocess.Popen([sys.executable, "-c", APP.format(repo=str(REPO), root=str(root),
+                                                               params=p)],
+                           stdout=subprocess.PIPE, text=True, cwd=REPO)
+    jid = int(app.stdout.readline())
+    wait_for(lambda: len(writes(tmp_path)) >= 1)
+    time.sleep(0.5)                                   # well inside item 2
+    app.send_signal(signal.SIGKILL)
+    app.wait()
+    jc = JobControl(root)
+    jc.register(fake_kind())
+    try:
+        jc.resume(jid)
+        assert wait_for(lambda: "waiting for the worker" in (jc.status(jid)["message"] or ""), 5)
+        assert jc.status(jid)["state"] == "queued"
+        wait_state(jc, jid, "done", timeout=60)
+        assert_each_once(tmp_path, 4)
+        assert jc.status(jid)["worker_pid"] is None
+    finally:
+        jc.close()
+
+
+def test_an_app_error_while_following_a_worker_ends_that_worker(jc, tmp_path, monkeypatch):
+    """QE PR 32 finding 2: if reading a worker's events fails, the worker is ended before
+    the queue starts the next job (one job at a time)."""
+    def boom(jid, ev):
+        if ev.get("event") == "item":
+            raise OSError("log folder gone")
+    monkeypatch.setattr(jc.runner, "_on_event", boom)
+    a, b = tmp_path / "a", tmp_path / "b"
+    first = jc.submit("fake", params(a, n=20, delay=0.1))
+    job = wait_state(jc, first, "error")
+    assert "log folder gone" in job["stop_reason"] and job["worker_pid"] is None
+    monkeypatch.undo()
+    n_a = len(writes(a))
+    second = jc.submit("fake", params(b, n=2))
+    wait_state(jc, second, "done")
+    time.sleep(0.5)
+    assert len(writes(a)) == n_a < 20                     # the first worker was ended
+    assert "worker ended after an error" in (tmp_path / "jobs" / f"{first}.log").read_text()
+
+
+def test_malformed_item_counts_do_not_break_the_job(jc, tmp_path):
+    jid = jc.submit("fake", params(tmp_path, n=2))
+    wait_state(jc, jid, "done")
+    jc.runner._on_event(jid, {"event": "item", "i": {"bad": 1}, "n": "x"})
+    assert jc.status(jid)["total"] is None
+
+
+def test_pause_while_the_worker_is_being_started_is_kept(tmp_path):
+    """QE PR 32 nit 3: Pause during the start (progress counting) pauses, not "try again"."""
+    c = JobControl(tmp_path / "jobs")
+    slow = fake_kind()
+    count = slow.progress
+    slow.progress = lambda params: (time.sleep(1.5), count(params))[1]
+    c.register(slow)
+    try:
+        jid = c.submit("fake", params(tmp_path, n=6, delay=0.2))
+        wait_state(c, jid, "running")
+        c.pause(jid)
+        job = wait_state(c, jid, "paused")
+        assert job["stop_reason"] == "paused" and len(writes(tmp_path)) < 6
+    finally:
+        c.close()
+
+
+def test_a_second_app_on_the_same_data_folder_is_refused(jc, tmp_path):
+    """QE PR 32 nit 4: it would mark the first app's running job interrupted."""
+    with pytest.raises(JobError, match="Another copy of the app"):
+        JobControl(tmp_path / "jobs")

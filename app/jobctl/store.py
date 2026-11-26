@@ -35,9 +35,12 @@ CREATE TABLE IF NOT EXISTS jobs (
     started     TEXT,
     ended       TEXT,
     stop_reason TEXT,
-    summary     TEXT                  -- JSON (bite 5b)
+    summary     TEXT,                 -- JSON (bite 5b)
+    worker_pid  INTEGER               -- the worker process while it may be alive (QE PR 32)
 );
 """
+# Columns added after a jobs.sqlite may exist: name -> type (added on open).
+ADDED = {"worker_pid": "INTEGER"}
 JSON_COLUMNS = ("params", "limits", "summary")
 
 
@@ -52,6 +55,10 @@ class Store:
         self._conn = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA)
+        have = {r[1] for r in self._conn.execute("PRAGMA table_info(jobs)")}
+        for col, kind in ADDED.items():
+            if col not in have:
+                self._conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {kind}")
 
     def close(self) -> None:
         with self._lock:
@@ -101,6 +108,13 @@ class Store:
                 f"UPDATE jobs SET {sets} WHERE id = ? AND state IN ({marks})",
                 [*fields.values(), job_id, *from_states])
             return cur.rowcount == 1
+
+    def with_worker(self) -> list[dict]:
+        """Jobs with a worker PID recorded (it may still be finishing an item)."""
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM jobs WHERE worker_pid IS NOT NULL "
+                                      "ORDER BY id").fetchall()
+        return [_decode(r) for r in rows]
 
     def next_queued(self) -> dict | None:
         """The oldest queued job."""

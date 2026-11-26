@@ -13,6 +13,8 @@ job's params into the worker's job file, and may count items done / total from i
 
 from __future__ import annotations
 
+import fcntl
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -41,6 +43,16 @@ class JobControl:
         creates data_dir, D13)."""
         self.root = Path(root)
         self.root.mkdir(exist_ok=True)
+        # One app per data folder: a second one would mark the first one's job interrupted
+        # and run a second queue (QE PR 32). The lock ends with the process, even on a crash.
+        self._lock_fd = os.open(self.root / "app.lock", os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(self._lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(self._lock_fd)
+            raise JobError(f"Another copy of the app is already using {self.root}. Use that "
+                           "one (its address is in the terminal where it was started), or "
+                           "quit it first.") from None
         self.store = Store(self.root / "jobs.sqlite")
         self.interrupted = self.store.mark_interrupted()
         self.kinds: dict[str, Kind] = {}
@@ -115,3 +127,4 @@ class JobControl:
         """Tests: stop the queue thread and close the database."""
         self.runner.stop(join_s=30)
         self.store.close()
+        os.close(self._lock_fd)   # releases the lock
