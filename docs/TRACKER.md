@@ -214,12 +214,18 @@ to show only urchin masks. Add a class with the form (no typing of YAML) and Sav
 Built as its own module with no labeling-specific code (DESIGN D4). Design: DESIGN §Planned for S4;
 Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft PR per bite, about 300 lines each.
 
-**Bite 1 — Job module, pause / resume / cancel, SAM on it** (D32–D34)
+**Bite 1a — Job module core** (D32, D33)
 - [ ] `app/jobctl/`: one queue for the whole app, one job at a time; job records in `<data_dir>/jobs/jobs.sqlite`
       (kind, params, state, progress, times, stop reason); a job is a worker process speaking `@@ {json}` lines and
-      reading `pause` on stdin; nothing in it imports `app.stages` or `app.sam` (a test checks)
-- [ ] SAM Preview and Run go through it; Pause finishes the frame in progress, ends the worker (model unloaded);
-      Resume starts a new worker on the frames still missing; Cancel keeps finished frames. S3's Stop becomes Pause
+      reading `pause` on stdin; worker helpers (`app/jobctl/worker.py`); nothing in it imports `app.stages` or
+      `app.sam` (a test checks)
+- [ ] Pause / Resume / Cancel and "interrupted" after an app quit, tested end to end with a fake job kind (a tiny
+      worker that writes one file per item): resume never repeats or skips an item
+
+**Bite 1b — SAM on the job module; Jobs page** (D33, D34)
+- [ ] SAM Preview and Run go through it; the SAM worker's `frame` event becomes `item` and it answers `pause`;
+      Pause finishes the frame in progress and ends the worker (model unloaded); Resume starts a new worker on the
+      frames still missing; Cancel keeps finished frames. S3's Stop becomes Pause
 - [ ] progress per frame from the artifacts (`sam_raw/`): resume never repeats or skips a frame (test with the fake predictor)
 - [ ] app quit or crash mid-job: on the next start the job shows as "interrupted", and the dashboard offers Resume
 - [ ] a Jobs page (`/jobs`): every job with state, progress, Pause / Resume / Cancel; linked from the dashboard
@@ -240,13 +246,15 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
       cores), low priority (`nice`, on by default), pause between frames (default 0 s), memory guard, batch size 1
       (shown, fixed); each job records the limits it ran with
 - [ ] memory guard: the app checks free memory every 2 s while a job runs and pauses it, saying why, below the
-      threshold; the builder measures free memory during a tiled 4K and a whole-frame 5.3K run and proposes the
+      threshold; the builder measures the guard's own free-memory figure (D36) during a tiled 4K and a whole-frame 5.3K run and proposes the
       default in the PR (D36)
 - [ ] a CPU fallback on the Apple GPU shows as a warning on the job
 
-**Bite 5 — Schedule, keep awake, log and morning summary** (D37, D38)
+**Bite 5a — Schedule** (D37)
 - [ ] "Start at" and optional "Stop by" on extraction and SAM Run; a queued job shows its start time, Start now
       and Cancel; the schedule survives an app restart; "Stop by" pauses the job and says so
+
+**Bite 5b — Keep awake, log and morning summary** (D38)
 - [ ] "Keep laptop awake" toggle (macOS `caffeinate`) offered when a long or scheduled job starts, released when no
       such job is left; reminder: plugged in, lid open; a warning when the laptop runs on battery
 - [ ] one log file per job; a summary per job (items done, counts per class including urchins, errors, time taken,
