@@ -408,6 +408,16 @@ app/web/templates/export.html  the Export page
   file next to every file on the exFAT SSD (`com.apple.provenance`); the checks ignore `._*`.
   D43 date format: `<site>-<yy>-<mm>-<dd>-…` read as year-month-day (QE PR 46 on Nick's footage: 30 of 46 videos
   match, fields 22/24/25, 06–10, 11–29, so not dd-mm-yy; 6 site + date groups); the others use the folder name.
+- Review page (as-built, bite 3a): `/p/<name>/labels` (`app/stages/review_labels.py`, `review_labels.html`,
+  `static/labelreview.js`), linked from the project page's "Review labels + export" row. It lists the kept frames
+  that have results (accepted / to do) and opens them in S2's `viewer.js`, reused with two small hooks: a page
+  may take a click on the picture (`window.viewerPick`, image pixels; label review selects the mask there instead
+  of zooming), and `viewerZoom(factor)` for the zoom slider; keys typed into a box no longer move frames. The
+  server draws the picture (3200 px, never up) from the frame's final masks after review, in four modes (all,
+  objects only, areas only, final class map), with the selected mask outlined in white; `at?x=&y=` returns the
+  mask under a pixel (objects first, smallest first, then areas). Actions (`act`: class, delete, accept, reopen,
+  undo) answer the frame's new view or 400 with the reason, e.g. accept with untagged urchins. The page keeps
+  no review state of its own.
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 

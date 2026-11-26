@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Review labels · {{ info.name }}{% endblock %}
+{% block content %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
+<h1>Review labels</h1>
+{% if classes_broken %}
+<section class="problem"><p>classes.yaml has problems: fix them on the <a href="/p/{{ info.name }}/labeling">Labeling
+  page</a> first.</p></section>
+{% elif not frames %}
+<p>No labeled frames yet: run SAM on the <a href="/p/{{ info.name }}/labeling">Labeling page</a> first.</p>
+{% else %}
+<p class="hint">Open a frame to review it in the large viewer. Click a mask to select it (white outline); pick its
+  class in the box, <b>X</b> deletes it, <b>Enter</b> accepts the frame, <b>Z</b> undoes the last step on this
+  frame, <b>F</b> full screen, &larr; &rarr; the other frames. A frame with an untagged urchin (grey) cannot be
+  accepted. Only accepted frames are exported.</p>
+<p><b>{{ frames | length }}</b> labeled frames · <b id="todo-count">{{ todo }}</b> to do ·
+  <button type="button" id="next-todo">Review the next to do</button></p>
+<table class="stages" id="label-frames">
+  <thead><tr><th>#</th><th>Frame</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for f in frames %}
+  <tr data-file="{{ f.file }}"><td>{{ loop.index }}</td><td>{{ f.file }}</td>
+    <td class="st">{% if f.accepted %}accepted{% else %}to do{% endif %}</td>
+    <td><button type="button" class="small" data-i="{{ loop.index0 }}">Open</button></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="viewer has-legend" id="viewer" hidden>
+  <button class="v-close" data-v="close" title="Close (Esc)">&times; Close</button>
+  <button class="v-prev" data-v="prev" title="Previous frame (&larr;)">&lsaquo;</button>
+  <img alt="">
+  <button class="v-next" data-v="next" title="Next frame (&rarr;)">&rsaquo;</button>
+  <p class="v-caption"></p>
+  <div class="v-review" id="review-panel">
+    <div class="rv-row">
+      {% for m, label in [("all", "all"), ("objects", "objects only"), ("areas", "areas only"), ("map", "final class map")] %}
+      <label><input type="radio" name="rv-mode" value="{{ m }}"{% if m == "all" %} checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </div>
+    <div class="rv-row"><label>Zoom <input type="range" id="rv-zoom" min="1" max="8" step="0.25" value="1"></label></div>
+    <div class="rv-row" id="rv-selected">Click a mask to select it.</div>
+    <div class="rv-row"><input type="search" id="rv-class" list="rv-classes" placeholder="class for the selected mask" disabled>
+      <datalist id="rv-classes"></datalist></div>
+    <div class="rv-row">
+      <button type="button" data-rv="delete" disabled title="Delete the selected mask (X)">Delete (X)</button>
+      <button type="button" data-rv="accept" title="Accept this frame (Enter)">Accept (Enter)</button>
+      <button type="button" data-rv="reopen" hidden>Back to do</button>
+      <button type="button" data-rv="undo" title="Undo the last step on this frame (Z)">Undo (Z)</button>
+    </div>
+    <div class="rv-row rv-status" id="rv-status"></div>
+    <div class="rv-row rv-msg" id="rv-msg" role="status"></div>
+  </div>
+  <div class="legend v-legend" id="rv-legend"></div>
+</div>
+<script type="application/json" id="frame-list">{{ {
+  "base": "/p/" ~ info.name ~ "/labels/picture/",
+  "frames": []} | tojson }}</script>
+<script type="application/json" id="review-data">{{ {
+  "project": "/p/" ~ info.name ~ "/labels",
+  "frames": frames,
+  "class_info": class_list} | tojson }}</script>
+<script src="{{ static('viewer.js') }}"></script>
+<script src="{{ static('labelreview.js') }}"></script>
+{% endif %}
+{% endblock %}

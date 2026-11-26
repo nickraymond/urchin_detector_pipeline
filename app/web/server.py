@@ -33,7 +33,8 @@ from app.jobctl import limits as job_limits
 from app.jobctl import awake, schedule
 from app.jobctl.runner import GUARD_REASON
 from app.sam import classes
-from app.stages import clips, extract, ingest, label, review
+from app.review import state as review_state
+from app.stages import clips, extract, ingest, label, review, review_labels
 
 HOST = "127.0.0.1"  # never 0.0.0.0: images never leave the laptop (SPEC constraint 1)
 # Host and origin rule (DESIGN D14): pages answer only to these host names, and a POST is
@@ -803,6 +804,85 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             else:
                 errors = classes.form_save(info["folder"], body)
             return JSONResponse({"errors": errors}, 400 if errors else 200)
+        return with_project(request, name, work)
+
+    # ---- Label review (S5 bite 3a): frames list, viewer picture, click to select, actions ----
+
+    def review_classes(info) -> list[dict] | None:
+        cls = classes.read(info["folder"])
+        return cls["data"]["classes"] if cls["data"] else None
+
+    def review_frame_ok(conn, file: str) -> bool:
+        row = conn.execute("SELECT status FROM frames WHERE file = ?", (file,)).fetchone()
+        return bool(extract.FRAME_NAME.match(file) and row and row[0] in label.LABELED)
+
+    @app.get("/p/{name}/labels", response_class=HTMLResponse)
+    def labels_page(request: Request, name: str):
+        def work(cfg, info, conn):
+            cl = review_classes(info)
+            frames = review_labels.frame_list(info["folder"], conn) if cl else []
+            return templates.TemplateResponse(request, "review_labels.html", {
+                "cfg": cfg, "info": info, "frames": frames, "class_list": cl or [],
+                "classes_broken": cl is None,
+                "todo": sum(1 for f in frames if not f["accepted"]),
+                "colours": {c["id"]: classes.colour(c["id"]) for c in cl or []}})
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/labels/frame/{file}")
+    def labels_frame(request: Request, name: str, file: str):
+        def work(cfg, info, conn):
+            cl = review_classes(info)
+            if not cl or not review_frame_ok(conn, file):
+                return JSONResponse({"error": "not found"}, 404)
+            try:
+                return JSONResponse(review_labels.view(info["folder"], conn, file, cl),
+                                    headers={"Cache-Control": "no-store"})
+            except (review_state.ReviewError, ValueError) as e:
+                return JSONResponse({"error": str(e)}, 404)
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/labels/picture/{file}")
+    def labels_picture(request: Request, name: str, file: str, mode: str = "all",
+                       sel: int | None = None):
+        def work(cfg, info, conn):
+            cl = review_classes(info)
+            data = (review_labels.picture(info["folder"], conn, file, cl,
+                                          mode if mode in review_labels.MODES else "all", sel)
+                    if cl and review_frame_ok(conn, file) else None)
+            if data is None:
+                return PlainTextResponse("not found", status_code=404)
+            return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/labels/at/{file}")
+    def labels_at(request: Request, name: str, file: str, x: int, y: int):
+        def work(cfg, info, conn):
+            cl = review_classes(info)
+            if not cl or not review_frame_ok(conn, file):
+                return JSONResponse({"error": "not found"}, 404)
+            return JSONResponse({"mask_id": review_labels.mask_at(info["folder"], conn, file,
+                                                                  cl, x, y)})
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/labels/act/{file}")
+    async def labels_act(request: Request, name: str, file: str):
+        """One review action, JSON {action, mask_ids?, class_id?}. Answers the frame's new view
+        plus a note, or 400 {error} with nothing changed."""
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+
+        def work(cfg, info, conn):
+            cl = review_classes(info)
+            if not cl or not review_frame_ok(conn, file) or not isinstance(body, dict):
+                return JSONResponse({"error": "reload the page"}, 400)
+            try:
+                note = review_labels.act(info["folder"], conn, file, cl, body)
+            except (review_state.ReviewError, ValueError, TypeError) as e:
+                return JSONResponse({"error": str(e)}, 400)
+            return JSONResponse({"note": note,
+                                 **review_labels.view(info["folder"], conn, file, cl)})
         return with_project(request, name, work)
 
     def sam_job(cfg, info) -> dict:
