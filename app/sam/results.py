@@ -7,6 +7,11 @@ runs on a frame only if its saved settings key differs or is missing; on a re-ru
 unreviewed masks are replaced and reviewed ones stay, marked from_older_settings. Units not in
 this run (e.g. a class removed from classes.yaml) keep their saved results.
 
+Every mask has a stable `mask_id` (S5, D40): an integer unique within its frame file, never
+reused (`next_mask_id` counts on). Files written before S5 get ids in file order when read, so
+the same file always gives the same ids, and the next write saves them. Review state lives in
+state.sqlite under (frame, mask_id) (app/review/state.py).
+
 sam_raw/class_ids.json lists {id: name} of every class with results, so classes.yaml can keep
 those ids and names fixed (D6; app/sam/classes.py).
 """
@@ -112,12 +117,25 @@ def decode_box(rle: dict, box: list[int]) -> np.ndarray:
     return cols.T[y0:y1]
 
 
+def assign_ids(data: dict) -> dict:
+    """Give every mask without a `mask_id` the next free one, in file order (units, then
+    masks); sets `next_mask_id`. Deterministic: the same file always gets the same ids."""
+    masks = [m for u in data.get("units", {}).values() for m in u.get("masks", [])]
+    top = max((m["mask_id"] for m in masks if "mask_id" in m), default=0)
+    nxt = max(int(data.get("next_mask_id", 1)), top + 1)
+    for m in masks:
+        if "mask_id" not in m:
+            m["mask_id"], nxt = nxt, nxt + 1
+    data["next_mask_id"] = nxt
+    return data
+
+
 def read(folder: Path, frame: str) -> dict | None:
     p = raw_path(folder, frame)
     if not p.is_file():
         return None
     try:
-        return json.loads(p.read_text())
+        return assign_ids(json.loads(p.read_text()))
     except ValueError as e:
         raise ValueError(f"{p} cannot be read ({e}). Move it aside; the frame will be "
                          "labeled again on the next Run.") from e
@@ -137,21 +155,24 @@ def _atomic(p: Path, data: dict) -> None:
 
 
 def write_frame(folder: Path, frame: str, width: int, height: int, settings: dict,
-                done: dict[str, dict]) -> dict:
+                done: dict[str, dict], reviewed_ids: set[int] = frozenset()) -> dict:
     """Save one frame's results. `done` maps unit key -> {"unit", "seconds", "dets"}, dets
-    being detections as made by app.sam.tiles (box + cropped mask)."""
+    being detections as made by app.sam.tiles (box + cropped mask). `reviewed_ids`: the mask
+    ids state.sqlite marks reviewed on this frame (S5); they are kept with their ids."""
     raw_dir(folder).mkdir(parents=True, exist_ok=True)
-    data = read(folder, frame) or {"format": FORMAT, "frame": frame, "units": {}}
+    data = read(folder, frame) or assign_ids({"format": FORMAT, "frame": frame, "units": {}})
     data.update(width=width, height=height, model=settings.get("model"))
     for key, res in done.items():
         unit = res["unit"]
         old = data["units"].get(key, {}).get("masks", [])
         single = next(iter(unit["classes"])) if not unit["group"] else None
-        masks = [{**m, "from_older_settings": True} for m in old if m.get("reviewed")]
-        masks += [{"prompt": d["prompt"], "score": round(d["score"], 4), "box": d["box"],
+        masks = [{**m, "from_older_settings": True} for m in old
+                 if m.get("reviewed") or m["mask_id"] in reviewed_ids]
+        masks += [{"mask_id": data["next_mask_id"] + i, "prompt": d["prompt"], "score": round(d["score"], 4), "box": d["box"],
                    "area": int(d["mask"].sum()), "rle": encode(d, width, height),
                    "class_id": single, "reviewed": False, "from_older_settings": False}
-                  for d in res["dets"]]
+                  for i, d in enumerate(res["dets"])]
+        data["next_mask_id"] += len(res["dets"])
         data["units"][key] = {
             "settings_key": settings_key(unit, settings),
             "settings": unit_settings(unit, settings), "kind": unit["kind"],

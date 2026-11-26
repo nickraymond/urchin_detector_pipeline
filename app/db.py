@@ -27,6 +27,16 @@ CREATE TABLE IF NOT EXISTS stills (
 CREATE TABLE IF NOT EXISTS review_actions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, frame TEXT NOT NULL, old_status TEXT NOT NULL,
     new_status TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')));
+CREATE TABLE IF NOT EXISTS mask_review (
+    frame TEXT NOT NULL, mask_id INTEGER NOT NULL, class_id INTEGER,
+    deleted INTEGER NOT NULL DEFAULT 0, reviewed INTEGER NOT NULL DEFAULT 0,
+    at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')), PRIMARY KEY (frame, mask_id));
+CREATE TABLE IF NOT EXISTS frame_review (
+    frame TEXT PRIMARY KEY, accepted INTEGER NOT NULL DEFAULT 0, split_ok INTEGER,
+    checked TEXT NOT NULL DEFAULT '[]', at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')));
+CREATE TABLE IF NOT EXISTS label_review_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, frame TEXT NOT NULL, action TEXT NOT NULL,
+    before TEXT NOT NULL, at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')));
 """
 
 
