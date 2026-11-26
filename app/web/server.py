@@ -645,6 +645,10 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                     if row and extract.FRAME_NAME.match(file) and cls["data"] else None)
             except ValueError as e:  # unreadable sam_raw file (QE PR 22)
                 return PlainTextResponse(str(e), status_code=404)
+            except (KeyError, TypeError, AttributeError) as e:  # parses but wrong shape (QE PR 27)
+                return PlainTextResponse(f"sam_raw/{file}.json is missing or has a wrong field "
+                                         f"({type(e).__name__}: {e}); move it aside and Run "
+                                         "again.", status_code=404)
             if data is None:
                 return PlainTextResponse("not found", status_code=404)
             return Response(data, media_type="image/jpeg")
