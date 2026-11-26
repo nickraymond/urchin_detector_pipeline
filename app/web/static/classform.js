@@ -19,6 +19,7 @@
     ["tile_overlap", "Tile overlap", "share of a tile that overlaps the next (0 to 0.85)", 0.05, 0, 0.85],
     ["tile_above_px", "Tile frames wider than (px)", "narrower frames go to SAM whole", 1, 0, null],
     ["min_mask_area_px", "Minimum mask area (px)", "smaller masks are dropped; empty = keep all", 1, 0, null],
+    ["areas_whole_px", "Areas on the whole frame at (px wide)", "kelp, rock: one look at the whole frame, no tile seams; 0 = in tiles", 1, 0, 8192],
   ];
 
   function el(tag, attrs, ...kids) {

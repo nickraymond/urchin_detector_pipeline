@@ -572,3 +572,41 @@ A larger minimum would drop real far urchins.
 Two of the 6 frames have no kelp (a dive slate, a sea lion); zero is right there. Defaults: kelp shoot
 "young kelp", kelp (area) "kelp". No prompt gives one mask per plant, so shoot counts will need review (S5).
 n = 6 frames; re-check on more restoration footage when Nick has it.
+
+### S5 bite 7 (D45): areas on the whole frame vs tiles; anemone prompts (2026-11-25)
+
+Real SAM 3 on the Apple GPU, 10 frames from 4 videos (Caspar South 2025, Fullers 2022, Mendocino 2025 at
+3840×2160; South Wreck 2024 at 5312×2988). Areas (kelp "kelp", rock/substrate "rock") three ways: tiles (as S3,
+1008 px, 20 % overlap), the whole frame at full size, and the whole frame scaled to 2016 px wide (masks scaled back
+up). *Seam px* = mask edge pixels lying exactly on an inner tile edge (a straight cut).
+
+| Frame | Class | Cover % tiles / whole / whole 2016 | Seam px tiles / whole / 2016 | Seen on the overlays |
+|---|---|---|---|---|
+| Fullers 1 | rock | 4.6 / 19.1 / 19.3 | 59 / 29 / 16 | tiles: pieces; whole: the rocks |
+| Fullers 2 | rock | 16.9 / 37.1 / 36.1 | **1078** / 51 / 29 | tiles cut the big rock into rectangles; whole covers it |
+| Fullers 2 | kelp | 6.0 / 7.4 / 7.3 | 186 / 41 / 60 | same plants, whole is smoother |
+| South Wreck 2 | rock | 19.5 / 68.7 / 63.3 | **2110** / 168 / 91 | tiles: square patches; whole: the boulder and rocks |
+| Caspar 2 | kelp | 13.5 / 46.2 / 47.7 | 0 / 95 / 124 | whole also covers part of the reef top: mixed |
+| Caspar 1 | kelp | 12.5 / 0 / 0 | 521 / 0 / 0 | tiles find a hazy algae patch; whole finds nothing |
+| South Wreck 1 | rock | 6.1 / 0 / 0 | 580 / 0 / 0 | rock-face close-up: tiles find 2 square pieces, whole nothing |
+
+The other 3 frames have no areas in any mode. Time for both area prompts: whole 2.0–4.8 s, whole 2016 2.1–3.1 s
+(one image encoding); tiles share the 52–98 s per frame tile pass. Apple GPU memory after the whole-frame pass up
+to 26.9 GB on 5.3K, after whole 2016 at most 22.7 GB (no higher than the tiles). Whole 2016 vs whole: IoU 0.88–0.97.
+**Pick (proposed, Lead call):** areas on the whole frame at 2016 px (`areas_whole_px: 2016`; 0 = tiles); the two
+misses are frames where tiles found only fragments. n = 10 frames.
+
+*Anemone vs urchin* (tiles, after tile-edge duplicates; urchin masks at 0.4). Of the masks of each anemone prompt
+at 0.4, how many sit on an urchin (IoU > 0.5) and how many score higher than that urchin (rule 1 then keeps the
+anemone and the urchin is lost), on the 4 frames with urchins (94 urchin masks):
+
+| Prompt | On an urchin | Beats the urchin | Elsewhere (all scores ≥ 0.3) |
+|---|---|---|---|
+| "sea anemone" (S3 default) | 85 | **27** | 187, scores 0.30–0.77 |
+| "anemone" | 56 | 6 | 17, scores 0.30–0.52 |
+| "sea anemone tentacles" | 30 | 0 | 1 |
+
+Anemone masks on urchins score up to 0.93 ("sea anemone") and 0.82 ("anemone"), so a per-class confidence
+cannot separate them. **Pick (proposed, Lead call):** prompt "anemone". A rule that urchin beats anemone whatever
+the scores would contradict the spec's "keep the higher score" (D22 rule 1): not done; a question for Nick if
+review shows urchins still lost.

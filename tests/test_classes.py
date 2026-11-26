@@ -32,7 +32,10 @@ def test_default_file_is_valid_with_the_planned_ids_and_order():
     assert names.index("kelp") < names.index("rock/substrate")          # D22: kelp wins
     assert data["settings"] == {"model": "sam3", "confidence": 0.4, "tile_px": 1008,
                                 "tile_overlap": 0.2, "tile_above_px": 2000,
-                                "min_mask_area_px": 500}
+                                "min_mask_area_px": 500, "areas_whole_px": 2016}   # D45
+    # a file from before S5 bite 7 without areas_whole_px still loads, with the default
+    old = DEFAULT.replace("  areas_whole_px: 2016", "  # gone")
+    assert classes.parse(old)["settings"]["areas_whole_px"] == 2016
     shoot = next(c for c in data["classes"] if c["name"] == "kelp shoot")
     assert shoot["seg_as"] == "kelp" and shoot["kind"] == "object"
 
@@ -128,7 +131,7 @@ def test_labeling_page_shows_edits_saves_and_refuses(tmp_path):
     assert not (folder / "classes.yaml").exists()                        # a GET writes nothing
     bad = DEFAULT.replace("kind: area, prompts: [kelp]", "kind: area, prompts: kelp")
     r = client.post("/p/p/labeling/classes", data={"text": bad})
-    assert r.status_code == 400 and "Not saved" in r.text and "Line 24:" in r.text
+    assert r.status_code == 400 and "Not saved" in r.text and "Line 26:" in r.text
     assert "prompts: kelp" in r.text                                     # what was typed stays
     assert not (folder / "classes.yaml").exists()
     r = client.post("/p/p/labeling/classes",
@@ -143,10 +146,10 @@ def test_labeling_page_shows_edits_saves_and_refuses(tmp_path):
     # a list where a name belongs: a message with the line, not a server error (QE PR 20)
     listed = DEFAULT.replace("seg_as: kelp}", "seg_as: [kelp]}")
     r = client.post("/p/p/labeling/classes", data={"text": listed})
-    assert r.status_code == 400 and "Line 22: seg_as must be the name" in r.text
+    assert r.status_code == 400 and "Line 24: seg_as must be the name" in r.text
     (folder / "classes.yaml").write_text(listed)
     page = client.get("/p/p/labeling")
-    assert page.status_code == 200 and "Line 22: seg_as must be the name" in page.text
+    assert page.status_code == 200 and "Line 24: seg_as must be the name" in page.text
 
 
 # --- EXIF orientation (D27) ---
