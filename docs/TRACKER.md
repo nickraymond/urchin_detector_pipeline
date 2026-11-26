@@ -283,14 +283,20 @@ no other SAM run is going)
 - [ ] label review uses the app's one large-image viewer and its class legend (SPEC Q16, S3 bite 5)
 - [ ] label review page: class change, delete mask, add a missed object by click or box, accept
       frame, split check, fully-checked flags, running totals
-- [ ] urchin type: `P` / `R` tags the selected urchin purple or red; a frame with an untagged
-      urchin cannot be accepted; running totals count purple and red separately (D18)
+- [ ] urchin type: `P` / `R` / `B` tags the selected urchin purple, red or black; a frame with an untagged
+      urchin cannot be accepted; running totals count each type separately (D18, D39)
+- [ ] black urchin (SPEC Q18): a new class with the next free id in the default `classes.yaml`, in the
+      `urchin` group; existing projects can add it from the class form. The id never changes; a later rename
+      keeps the id and must be possible even after results exist (Lead call D39, lifting S3's name lock for renames)
+- [ ] fast tagging (Nick, 2026-11-25: most urchins are purple, find the outliers): `Tab` jumps to the next
+      untagged urchin and zooms the viewer onto it with some scene around it; a close-up panel shows the
+      selected urchin enlarged; "Tag all remaining as purple" tags every untagged urchin on the frame at once
 - [ ] export: `export/images/`, `detector_coco.json`, `seg_masks/` + `classes.json`, `splits/`
       (by site and dive date), `frame_metrics.csv`
 - [ ] export checks shown in the UI (COCO load, mask sizes and ids)
 - [ ] `THIRD_PARTY_LICENSES` file with the SAM License text
 - [ ] README: setup, SAM access steps, 10-minute walkthrough
-**Demo (Nick):** review 5 frames, tag their urchins with `P` / `R`, add one missed urchin by clicking it, press "Export". The Export
+**Demo (Nick):** review 5 frames, tag the outlier urchins with `R` / `B` and the rest with "Tag all remaining as purple", add one missed urchin by clicking it, press "Export". The Export
 page shows the COCO load check PASS, mask sizes matching their images, and `frame_metrics.csv`
 values matching those 5 frames. All acceptance boxes in `docs/source/mvp_spec.md` are ticked.
 **Needs:** S4; answers to SPEC Q9, Q11.
