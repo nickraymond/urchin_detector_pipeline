@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-26 — Sprint S5 — Fix: add a missing urchin type (D50)
+**Branch:** sprint/5-add-urchin-type
+- Done: projects made before D39 have no black urchin, so the Review page had no B key (found in Nick's S5 test).
+  The Review page now names each missing starting urchin type with one button, "Add black urchin": it appends the
+  class to the end of `classes.yaml` (id 10 if unused, else the next new id) with the usual checks; the other classes
+  and SAM results stay as they are. `classes.missing_types` / `add_type`, route `POST /p/<name>/labels/add-type`,
+  tests `tests/test_missing_type.py`; full suite 296 passed.
+- Self-test: a scratch copy of the S5 project with the black urchin line removed showed the note; the button
+  appended id 10 at the end, the note went away, and the frame's panel showed "black urchin (B)".
+- Broke: nothing seen. Next: QE; Nick clicks the button on his older project.
+
 ## 2026-11-26 — Sprint S5 — Bites 4b, 5b, 6a, 6b (builder, overnight)
 **Branch:** sprint/5-fast-tagging (PR 54), 5-add-on-page (PR 55), 5-export-page (PR 56), 5-licences-readme (PR 57)
 **Done:** fast urchin tagging on the Review page (Tab zooms to the next untagged urchin, P / R / B tag and move on,

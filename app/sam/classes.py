@@ -337,3 +337,40 @@ def ensure(folder: Path) -> dict:
         shutil.copyfile(DEFAULT_FILE, tmp)
         os.replace(tmp, p)
     return parse(p.read_text(), used_ids(folder))
+
+
+# --- Urchin types missing from an older project (S5 fix, D50) ---
+
+def missing_types(folder: Path, class_list: list[dict]) -> list[dict]:
+    """The starting file's urchin types (sam_group classes) this project lacks, e.g. black urchin
+    in a project made before D39. A type counts as present if its name is in the file, or its id
+    in the same group (a renamed type keeps its id). Each comes with the id it would get: its
+    starting id if no class in the file or in the SAM results ever used it, else the next new
+    id. Only groups the project already has are offered."""
+    groups = {c.get("sam_group") for c in class_list if c.get("sam_group")}
+    ids = {c["id"] for c in class_list} | set(used_ids(folder))
+    names = {c["name"] for c in class_list}
+    typed = {(c["id"], c.get("sam_group")) for c in class_list}
+    out = []
+    for c in parse(DEFAULT_FILE.read_text())["classes"]:
+        g = c.get("sam_group")
+        if g in groups and c["name"] not in names and (c["id"], g) not in typed:
+            new = c["id"] if c["id"] not in ids else max(ids) + 1
+            out.append({**c, "id": new})
+            ids.add(new)
+    return out
+
+
+def add_type(folder: Path, name: str) -> dict:
+    """Append one missing urchin type (missing_types) to the end of classes.yaml and save it with
+    the usual checks; the other classes are kept as they are. Returns the class added. Raises
+    ClassesError if `name` is not missing or the file has problems."""
+    cur = read(folder)
+    if cur["data"] is None:
+        raise ClassesError(cur["errors"])
+    data = cur["data"]
+    new = next((c for c in missing_types(folder, data["classes"]) if c["name"] == name), None)
+    if new is None:
+        raise ClassesError([(None, f"{name!r} is not a missing urchin type of this project")])
+    save(folder, dump({"settings": data["settings"], "classes": [*data["classes"], new]}))
+    return new

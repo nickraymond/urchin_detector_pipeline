@@ -4,6 +4,15 @@
 <p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a></p>
 <h1>Review labels</h1>
 <p class="hint">When the frames are reviewed: <a href="/p/{{ info.name }}/export">Export</a>.</p>
+{% if error %}<section class="problem"><p>{{ error }}</p></section>{% endif %}
+{% for t in missing_types %}
+<section class="problem" id="missing-type-{{ t.id }}"><form method="post" action="/p/{{ info.name }}/labels/add-type">
+  <p>This project has no <b>{{ t.name }}</b> type (the starting classes gained it after this project was made), so
+    there is no {{ t.name[:1] | upper }} key. <input type="hidden" name="type" value="{{ t.name }}">
+    <button type="submit">Add {{ t.name }}</button> adds it to the end of this project's classes.yaml as class id
+    {{ t.id }}, an urchin type of the "{{ t.sam_group }}" SAM prompt; the other classes and the SAM results stay as
+    they are.</p></form></section>
+{% endfor %}
 {% if classes_broken %}
 <section class="problem"><p>classes.yaml has problems: fix them on the <a href="/p/{{ info.name }}/labeling">Labeling
   page</a> first.</p></section>
