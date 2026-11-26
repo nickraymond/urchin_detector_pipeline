@@ -340,8 +340,8 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
 - [x] SAM 3's click / box prompt on a crop around the spot (`app/sam/add.py`, `app/sam/add_worker.py`), job kind
       `sam_add` on the job module; saved under the unit `added`, marked added by hand and reviewed
 
-**Bite 5b — Add a missed object on the Review page** (D46)
-- [ ] click on it or drag a box; SAM returns a mask for that spot (S1: SAM 3's click and box prompts work);
+**Bite 5b — Add a missed object on the Review page** (D46; PR 55)
+- [x] click on it or drag a box; SAM returns a mask for that spot (S1: SAM 3's click and box prompts work);
       pick its class; saved like any mask, marked added by hand; runs through the job module
 
 **Bite 6a — Export page** (D43; PR 56; split by the builder)

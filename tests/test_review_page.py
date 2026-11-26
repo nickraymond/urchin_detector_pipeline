@@ -154,3 +154,29 @@ def test_urchin_types_tab_order_tag_tag_all_and_closeup(tmp_path):
     assert cu.status_code == 200 and Image.open(io.BytesIO(cu.content)).width == 480
     assert client.get(f"/p/p/labels/closeup/{F}?mask=999").status_code == 404
     assert 'id="rv-tag-all"' in client.get("/p/p/labels").text
+
+
+def test_add_a_missed_object_through_the_job_module(tmp_path, monkeypatch):
+    """Bite 5b: the page's add route queues a sam_add job; when it is done the frame view has
+    the new mask, added by hand, with the class picked."""
+    from app.stages import label
+    from tests.test_clips import wait_for
+    monkeypatch.setattr(label, "ADD_PREDICTOR", "tests.fake_sam:FakeClickPredictor")
+    client, folder = labeled(tmp_path)
+    star = client.get(f"/p/p/labels/at/{F}?x=2050&y=550").json()["mask_id"]
+    client.post(f"/p/p/labels/act/{F}", json={"action": "delete", "mask_ids": [star]})
+    for bad, msg in (({"point": [5, 5]}, "object class"),
+                     ({"point": [5, 5], "class_id": 9}, "object class"),            # kelp: an area
+                     ({"point": [9999, 5], "class_id": 3}, "outside"),
+                     ({"box": [1, 1, 2, 2], "class_id": 3}, "at least 4"),
+                     ({"point": "x", "class_id": 3}, "Bad request")):
+        r = client.post(f"/p/p/labels/add/{F}", json=bad)
+        assert r.status_code == 400 and msg in r.json()["error"], (bad, r.json())
+    r = client.post(f"/p/p/labels/add/{F}", json={"box": [1980, 480, 2120, 620], "class_id": 4})
+    jid = r.json()["job_id"]
+    wait_for(lambda: client.get(f"/p/p/labels/job/{jid}").json()["state"] == "done", 60)
+    assert "added mask" in client.get(f"/p/p/labels/job/{jid}").json()["message"]
+    v = client.get(f"/p/p/labels/frame/{F}").json()
+    added = [m for m in v["masks"] if m.get("added")]
+    assert [(m["name"], m["box"]) for m in added] == [("sunflower sea star", [2000, 500, 2101, 601])]
+    assert client.get("/p/p/labels/job/99999").status_code == 404
