@@ -336,7 +336,11 @@ Design: DESIGN §Planned for S5; Lead calls D40–D46 (they answer SPEC Q9 and Q
       untagged urchin and zooms the viewer onto it with some scene around it; a close-up panel shows the
       selected urchin enlarged; "Tag all remaining as purple" tags every untagged urchin on the frame at once
 
-**Bite 5 — Add a missed object** (D46)
+**Bite 5a — Add a missed object, backend** (D46; PR 52; split by the builder: the clicks need bite 3's page)
+- [x] SAM 3's click / box prompt on a crop around the spot (`app/sam/add.py`, `app/sam/add_worker.py`), job kind
+      `sam_add` on the job module; saved under the unit `added`, marked added by hand and reviewed
+
+**Bite 5b — Add a missed object on the Review page** (D46)
 - [ ] click on it or drag a box; SAM returns a mask for that spot (S1: SAM 3's click and box prompts work);
       pick its class; saved like any mask, marked added by hand; runs through the job module
 

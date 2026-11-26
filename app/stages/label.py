@@ -24,6 +24,7 @@ MODELS = {"sam3": ("facebook/sam3", "sam3.pt"),           # D10
           "sam3.1": ("facebook/sam3.1", "sam3.1_multiplex.pt")}
 LABELED = ("kept", "kept_hand")
 PREDICTOR: str | None = None  # tests set a fake ("module:Class"); None = real SAM
+ADD_PREDICTOR: str | None = None  # the same for "add a missed object" (bite 5)
 
 
 class LabelError(RuntimeError):
@@ -99,6 +100,43 @@ def sam_kind() -> Kind:
     # S1: the CPU fallback on (D8)
     return Kind("sam", module="app.sam.worker", prepare=build_job, progress=progress,
                 env={"PYTORCH_ENABLE_MPS_FALLBACK": "1"}, item="frame")
+
+
+# --- Add a missed object (S5 bite 5, D46): one click or box per job of the "sam_add" kind ---
+
+def add_params(folder: Path, frame: str, class_id: int, point: list[int] | None = None,
+               box: list[int] | None = None) -> dict:
+    import uuid
+    return {"folder": str(folder), "frame": frame, "class_id": class_id, "point": point,
+            "box": box, "request": uuid.uuid4().hex[:12], "predictor": ADD_PREDICTOR}
+
+
+def build_add_job(params: dict) -> dict:
+    """The add worker's job file. SAM 3 always: SAM 3.1 has no click / box weights (S1, D10)."""
+    folder = Path(params["folder"])
+    p = extract.find_file(folder, params["frame"])
+    if p is None:
+        raise LabelError(f"The file of frame {params['frame']} is missing from the project folder.")
+    repo_id, ckpt = MODELS["sam3"]
+    predictor = params.get("predictor")
+    return {**params, "path": str(p), "repo_id": repo_id, "checkpoint": ckpt,
+            "device": params.get("device") or ("cpu" if predictor else
+                                               pick_device(params.get("limits") or {}))}
+
+
+def add_progress(params: dict) -> tuple[int, int]:
+    from app.sam import add
+    try:
+        done = params["request"] in add.done_requests(Path(params["folder"]), params["frame"])
+    except ValueError:
+        done = False
+    return int(done), 1
+
+
+def add_kind() -> Kind:
+    return Kind("sam_add", module="app.sam.add_worker", prepare=build_add_job,
+                progress=add_progress, env={"PYTORCH_ENABLE_MPS_FALLBACK": "1"},
+                item="object", pausable=False)
 
 
 def job_params(folder: Path, files: list[str], preview: bool = False,

@@ -25,6 +25,29 @@ class FakePredictor:
         return [(labels == i, 0.9 - i / 100) for i in range(1, n + 1)]
 
 
+class FakeClickPredictor:
+    """Add a missed object (S5 bite 5): the blob of one pure colour under the click, or the
+    largest such blob inside the box; None on water."""
+    def __init__(self, job):
+        pass
+
+    def click(self, crop, point=None, box=None):
+        a = np.asarray(crop.convert("RGB")).astype(int)
+        best = None
+        for colour in COLOURS.values():
+            labels, n = ndimage.label(np.abs(a - colour).sum(axis=2) < 30)
+            for i in range(1, n + 1):
+                m = labels == i
+                if point is not None and m[point[1], point[0]]:
+                    return m, 0.95
+                if box is not None:
+                    x0, y0, x1, y1 = box
+                    inside = m[y0:y1, x0:x1].sum()
+                    if inside == m.sum() and (best is None or inside > best.sum()):
+                        best = m
+        return (best, 0.9) if best is not None else None
+
+
 class SlowFakePredictor(FakePredictor):
     """The fake, slowed down so a test can pause a job mid-run."""
     DELAY = 0.1

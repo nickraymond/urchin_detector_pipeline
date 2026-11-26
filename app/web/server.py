@@ -95,6 +95,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         if key not in controls:
             jc = JobControl(cfg.data_dir / "jobs", awake_cmd=AWAKE_CMD)
             jc.register(label.sam_kind())
+            jc.register(label.add_kind())
             jc.register(extract.extract_kind())
             jc.register(clips.playback_kind())
             controls[key] = jc
