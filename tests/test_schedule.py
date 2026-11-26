@@ -95,6 +95,19 @@ def test_stop_by_pauses_a_running_job_and_resume_carries_on(jc, tmp_path):
     assert_each_once(tmp_path, 30)
 
 
+def test_a_pause_and_resume_before_the_stop_by_keeps_it(jc, tmp_path):
+    """QE PR 37: Resume clears a Stop by only once it has passed."""
+    stop = datetime.now().replace(microsecond=0) + timedelta(seconds=4)
+    jid = jc.submit("fake", params(tmp_path, n=60, delay=0.2), stop_by=stop)
+    wait_for(lambda: len(writes(tmp_path)) >= 2)
+    jc.pause(jid)
+    wait_state(jc, jid, "paused")
+    jc.resume(jid)
+    assert jc.status(jid)["stop_by"] == stop.isoformat()     # still holds
+    job = wait_state(jc, jid, "paused", timeout=30)
+    assert job["stop_reason"].startswith("stop by ") and len(writes(tmp_path)) < 60
+
+
 def test_a_stop_by_that_passes_while_queued_leaves_it_paused(jc, tmp_path):
     first = jc.submit("fake", params(tmp_path / "a", n=10, delay=0.3))
     stop = datetime.now() + timedelta(seconds=1)

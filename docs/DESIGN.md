@@ -300,7 +300,7 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   the queue thread checks every second (D37 said 15 s; the check is one query) and queues a job whose start has
   come, also after a restart, unless its Stop by has passed too: then it is `missed` (a new finished state). A
   running job gets a watcher that pauses it at Stop by ("stop by 7:35 PM"); a queued job whose Stop by passes while
-  it waits becomes paused; Resume clears the Stop by. `start_now` and Cancel work on a scheduled job; a project
+  it waits becomes paused; Resume clears a Stop by that has passed and keeps one still to come (QE PR 37). `start_now` and Cancel work on a scheduled job; a project
   with a scheduled extraction or SAM job refuses another until it is started or cancelled. The Labeling page's
   finish time counts from the scheduled start.
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per

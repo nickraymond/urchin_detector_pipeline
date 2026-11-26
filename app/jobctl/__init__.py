@@ -143,9 +143,13 @@ class JobControl:
     def resume(self, job_id: int) -> dict:
         """A paused or interrupted job is queued again; its new worker skips finished items."""
         job = self.status(job_id)
-        # Resume later after a Stop by (D37): the old Stop by no longer applies.
+        # D37 "Resume later": once its Stop by has passed it no longer applies. Before that
+        # time it still holds (QE PR 37: a 22:00-07:00 run paused and resumed at 23:00 must
+        # still stop at 07:00).
+        stop = schedule.parse(job.get("stop_by"))
+        passed = {"stop_by": None} if stop is not None and stop <= datetime.now() else {}
         if not self.store.set_state(job_id, "queued", ("paused", "interrupted"),
-                                    message="waiting", stop_reason=None, stop_by=None):
+                                    message="waiting", stop_reason=None, **passed):
             raise JobError(f"Job {job_id} is {job['state']}; only a paused or interrupted "
                            "job can be resumed.")
         self.runner.log(job_id, f"resume (was {job['state']})")
