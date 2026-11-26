@@ -287,7 +287,7 @@ no other SAM run is going)
       urchin cannot be accepted; running totals count each type separately (D18, D39)
 - [ ] black urchin (SPEC Q18): a new class with the next free id in the default `classes.yaml`, in the
       `urchin` group; existing projects can add it from the class form. The id never changes; a later rename
-      keeps the id and must be possible even after results exist (D39 amends D6's name lock for this case)
+      keeps the id and must be possible even after results exist (Lead call D39, lifting S3's name lock for renames)
 - [ ] fast tagging (Nick, 2026-11-25: most urchins are purple, find the outliers): `Tab` jumps to the next
       untagged urchin and zooms the viewer onto it with some scene around it; a close-up panel shows the
       selected urchin enlarged; "Tag all remaining as purple" tags every untagged urchin on the frame at once
