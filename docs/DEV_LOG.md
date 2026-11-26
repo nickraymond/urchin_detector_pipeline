@@ -17,6 +17,16 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S4 — Closed (planning lead)
+**Branch:** sprint/4-close (docs only)
+**Done:** S4 marked `[x]`. Nick passed the checklist at 10:13 PM (lead chat). His feedback from the test went in as
+bites 6 (PR 41: Run panel order, Cancel at once, harmless CPU fallback in the log), 6b (PR 42: Resume, progress,
+pages in sync, memory-guard message and auto-resume, project page) and 6c (PR 45: "Labelled so far", project row
+from disk); Nick re-checks them in the S5 test build. Lead calls D34a, D36a–D36c.
+**Broke/surprised us:** the memory guard paused Nick's run while he used the laptop (1.8 GB free); the reason was in
+the log only, now on every page, with auto-resume.
+**Next:** S5 bites, overnight.
+
 ## 2026-11-25 — Sprint S4 — Bite 6c: Labeled so far, project row from disk (builder)
 **Branch:** sprint/4-labeled (stacked on sprint/4-feedback-b)
 **Done:** Nick's items 9, 9a, 8a: a "Labeled so far" grid on the Labeling page (newest first, live while Run goes
