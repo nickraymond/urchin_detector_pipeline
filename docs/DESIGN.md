@@ -430,6 +430,13 @@ app/web/templates/export.html  the Export page
   class on the **accepted** frames that go to the detector (split check not "no") and the number of such frames,
   against the 150–200 target, plus the objects on accepted split-"no" frames apart (cover only, QE PR 51); each
   frame's counts are cached in the app process until its `sam_raw` file, its review rows or the class list change.
+- Add a missed object (as-built, bite 5a): a job of the kind `sam_add` (not pausable; one click or box per job,
+  so it queues behind a Run and never shares the GPU, D32). The worker loads SAM 3 with its click / box head
+  (always SAM 3: SAM 3.1 has none of those weights, D10), looks at a square crop around the spot (1008 px, or twice
+  the box), and saves the mask under the unit `added` with `added_by_hand`, `reviewed: true` (a re-run never
+  replaces it; it wins rule 1 against unreviewed masks, D31) and the job's request id (a resumed job never adds
+  it twice). Real SAM on a 4K frame: model load 14.1 s + click 2.0 s = **16.9 s per add**, under D46's 20 s, so
+  no worker is kept loaded; the clicked urchin's mask matched SAM's own text mask of it at IoU 0.87.
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 
