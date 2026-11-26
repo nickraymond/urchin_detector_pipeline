@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.jobctl import limits as limits_mod
+from app.jobctl import schedule
 from app.jobctl.store import Store, now
 
 PAUSE_TIMEOUT_S = 600          # D34: a worker that has not paused within 10 min is ended
@@ -157,9 +158,35 @@ class Runner:
             out.append((job["id"], pid))
         return out
 
+    def fire_scheduled(self, at: datetime | None = None) -> None:
+        """D37: a scheduled job whose start time has come joins the queue; also one whose start
+        passed while the app was closed, unless its Stop by has passed too ("missed")."""
+        at = at or datetime.now()
+        for job in self.store.scheduled():
+            start, stop = schedule.parse(job["start_at"]), schedule.parse(job["stop_by"])
+            if start is None or start > at:
+                continue
+            if stop is not None and stop <= at:
+                if self.store.set_state(job["id"], "missed", ("scheduled",), ended=now(),
+                                        stop_reason="missed: its start time and its Stop by "
+                                                    "passed while the app was not running",
+                                        message="missed"):
+                    self.log(job["id"], "missed: start and Stop by both passed")
+            elif self.store.set_state(job["id"], "queued", ("scheduled",), message="waiting"):
+                self.log(job["id"], f"start time {job['start_at']} came: queued")
+
     def _loop(self) -> None:
         while not self._stop.is_set():
+            self.fire_scheduled()
             job = self.store.next_queued()
+            stop = schedule.parse(job["stop_by"]) if job else None
+            if job is not None and stop is not None and stop <= datetime.now():
+                # its Stop by came while it waited for another job: it waits as paused
+                if self.store.set_state(job["id"], "paused", ("queued",),
+                                        stop_reason="stop by: the time passed before it could "
+                                                    "start", message="paused (stop by)"):
+                    self.log(job["id"], "paused: Stop by passed while it was queued")
+                continue
             if job is not None:
                 old = self.lingering()
                 if old:
@@ -227,6 +254,10 @@ class Runner:
                 want = self._want.get(jid)
             if want:   # Pause or Cancel came while the worker was being started
                 self._send_pause(jid, proc)
+            stop_by = schedule.parse(job.get("stop_by"))
+            if stop_by is not None:
+                threading.Thread(target=self._stop_at, args=(jid, proc, stop_by),
+                                 name="stop-by", daemon=True).start()
             if lim["memory_guard"]:
                 threading.Thread(target=self._guard, args=(jid, proc, lim["memory_guard_gb"]),
                                  name="memory-guard", daemon=True).start()
@@ -269,6 +300,14 @@ class Runner:
                 err = str(ev.get("message") or "error")
             self._on_event(jid, ev)
         return last, final, round(time.monotonic() - started), err
+
+    def _stop_at(self, jid: int, proc: subprocess.Popen, stop_by: datetime) -> None:
+        """D37: pause the job when its Stop by comes; Resume carries on later."""
+        while proc.poll() is None:
+            if datetime.now() >= stop_by:
+                self.request(jid, "pause", reason=f"stop by {schedule.show(schedule.iso(stop_by))}")
+                return
+            time.sleep(1.0)
 
     def _guard(self, jid: int, proc: subprocess.Popen, threshold_gb: float) -> None:
         """D36: every 2 s while the worker runs, pause the job if free memory is below the

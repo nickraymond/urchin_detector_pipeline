@@ -3,7 +3,8 @@
 (function () {
   "use strict";
   const job = document.getElementById("sam-job");
-  const busy = st => st === "queued" || st === "running" || st === "pausing";
+  // a scheduled job is followed too, so the page updates when its start time comes
+  const busy = st => ["scheduled", "queued", "running", "pausing"].includes(st);
   if (job && busy(job.dataset.state)) {
     const text = document.getElementById("sam-job-text");
     const tick = () => fetch(job.dataset.status).then(r => r.json()).then(st => {
