@@ -247,6 +247,22 @@ def frame_counts(folder: Path, frame: str, units: list[dict], settings: dict) ->
     return out
 
 
+def labeled_frames(folder: Path, files: list[str]) -> list[tuple[str, int]]:
+    """S4 bite 6c ("Labeled so far"): the kept frames that have a sam_raw results file, newest
+    first, with the file's mtime (ns). Only stats the folder, so a page can ask often."""
+    import os
+
+    from app.sam import results
+    raw = results.raw_dir(folder)
+    try:
+        times = {e.name: e.stat().st_mtime_ns for e in os.scandir(raw)
+                 if e.name.endswith(".json")}
+    except FileNotFoundError:
+        return []
+    have = [(f, times[f + ".json"]) for f in files if f + ".json" in times]
+    return sorted(have, key=lambda ft: (-ft[1], ft[0]))
+
+
 def unit_colour(unit: dict) -> str:
     """A group's masks have no class until tagged: grey (D22 rule 7); else the class colour."""
     return classes.UNTAGGED_COLOUR if unit["group"] else classes.colour(next(iter(unit["classes"])))

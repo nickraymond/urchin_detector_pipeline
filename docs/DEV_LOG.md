@@ -17,6 +17,15 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S4 — Bite 6c: Labeled so far, project row from disk (builder)
+**Branch:** sprint/4-labeled (stacked on sprint/4-feedback-b)
+**Done:** Nick's items 9, 9a, 8a: a "Labeled so far" grid on the Labeling page (newest first, live while Run goes
+on, legend and large viewer shared with the preview), and the project page's SAM labeling row counted from disk.
+Self-tested with real SAM: a new frame appeared first in the grid during Run with no page reload.
+**Broke/surprised us:** the large viewer only existed with a preview; it is now always on the page. I first
+numbered this "bite 8"; renamed to the lead's 6c.
+**Next:** QE on PRs 42 and 45; the lead closes S4 after they merge.
+
 ## 2026-11-25 — Sprint S4 — Bite 6b: live job boxes, Resume, memory-guard auto-resume (builder)
 **Branch:** sprint/4-feedback-b (stacked on sprint/4-feedback)
 **Done:** Nick's items 4–8: one job panel and banner (`_job.html`) on every page, live fragments + `live.js`

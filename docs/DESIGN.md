@@ -335,6 +335,16 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   or above twice the job's own limit for `RECOVER_S` (60 s), logging it; the summary counts `memory_pauses` and
   `auto_resumes`. Pauses by hand, Stop by and Cancel never resume by themselves; a guard-paused job whose Stop by
   has passed stays paused and its reason becomes that Stop by (QE PR 42).
+- **As built, bite 6c (PR 45; Nick's S4 test, items 9, 9a, 8a).** `label.labeled_frames(folder, files)` lists the
+  kept frames with a `sam_raw` file, newest first, by a directory listing only. `GET /p/<name>/labeling/labeled?n=&since=`
+  returns the newest n with counts per run unit and a `sig` (count + newest mtime + n); when `since` equals it the
+  reply is just `{"sig", "same"}`, so the page polls it every 3 s cheaply. `labeling.js` keeps a list of grids
+  (preview, "Labeled so far") sharing one legend state and the large viewer; the "Labeled so far" tiles are built
+  in JS and carry `v=<mtime>` on the overlay URL so a relabeled frame is not served from the browser cache; the
+  grid is not rebuilt while the large viewer shows it. The viewer and `#frame-list` are on the page without a
+  preview too. 48 tiles at a time ("Show 48 more", `?n=`). Project page: the SAM labeling row's state and counts
+  come from the results on disk ("done" = every kept frame has a results file; a class added later shows in the
+  Run plan, not here). UI spelling "Labeled" (American English, team rules §7).
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). Every kind's job file and log are `<data_dir>/jobs/<id>.json` / `.log` (bite 1b).
