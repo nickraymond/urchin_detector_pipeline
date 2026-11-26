@@ -265,7 +265,16 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   interrupted job's counts are recounted from its artifacts. Pause / Resume / Cancel are `POST /jobs/<id>/<action>`
   with a same-app `back` path. A kind names its items (`Kind.item`: SAM says "frame 3 of 6").
   Known gap until bite 2: extraction still runs on `app/jobs.py`, so an extraction in one project and a SAM job in
-  another can run at the same time; bite 2 puts extraction on the job module and closes it.
+  another can run at the same time; bite 2 puts extraction on the job module and closes it (PR 34).
+- **As built, bite 2 (PR 34).** Extraction is a job of kind `extract` (`app/stages/extract_worker.py`; params: the
+  plan as it was when Extract was pressed, blur and duplicate values); `extract.run` checks for a pause before each
+  frame and skips frames on disk, as before. Playback copies are jobs of kind `playback`
+  (`app/stages/playback_worker.py`, one per video); it cannot pause (`Kind.pausable = False`): Cancel kills the
+  worker's whole process group, ffmpeg included, and its output is under temporary names (D15). Workers send
+  `progress` (percent + message, for a kind without items) and `error` (the message the page shows, e.g. "Video not
+  found: …") events. `app/jobs.py` is removed, so every background job in the app is on the one queue. Extract
+  frames with new settings cancels a paused or interrupted extraction (the new plan replaces it). Tests reach the
+  extract worker through `extract.GRAB_HOOK` (as SAM's `PREDICTOR`), since a test cannot patch another process.
 - **Job kinds (app side).** `sam` (preview, estimate, run; worker `app.sam.worker`, items = frames, counts per
   run unit), `extract` (worker new in bite 2, items = planned frames), `playback` (copy + strip per video; no
   pause needed). Every kind's job file and log are `<data_dir>/jobs/<id>.json` / `.log` (bite 1b).

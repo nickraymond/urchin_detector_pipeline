@@ -230,10 +230,10 @@ Lead calls D32–D38 (they answer the memory-guard part of SPEC Q10). One draft 
 - [x] app quit or crash mid-job: on the next start the job shows as "interrupted", and the dashboard offers Resume
 - [x] a Jobs page (`/jobs`): every job with state, progress, Pause / Resume / Cancel; linked from the dashboard
 
-**Bite 2 — Extraction and playback copies on the job module; `app/jobs.py` retired** (D32)
-- [ ] frame extraction runs as a job-module worker process with Pause / Resume / Cancel (skips frames on disk, as today)
-- [ ] playback copies and thumbnail strips queue on the same module (no pause needed); `app/jobs.py` is removed
-- [ ] the Extract and Labeling pages show the job's state from the module; one job at a time across all stages
+**Bite 2 — Extraction and playback copies on the job module; `app/jobs.py` retired** (D32; PR 34)
+- [x] frame extraction runs as a job-module worker process with Pause / Resume / Cancel (skips frames on disk, as today)
+- [x] playback copies and thumbnail strips queue on the same module (no pause needed); `app/jobs.py` is removed
+- [x] the Extract and Labeling pages show the job's state from the module; one job at a time across all stages
 
 **Bite 3 — Estimate and remaining time** (D35)
 - [ ] "Estimate" on the Labeling page: 1 warm-up frame (not counted) + 5 frames from those Run would label, at the
