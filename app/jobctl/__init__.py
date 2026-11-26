@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import fcntl
 import os
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
 from app.jobctl import schedule
+from app.jobctl.awake import Awake
 from app.jobctl.runner import Runner
 from app.jobctl.store import FINISHED, Store, now
 
@@ -42,7 +44,7 @@ class Kind:
 
 
 class JobControl:
-    def __init__(self, root: Path, start: bool = True):
+    def __init__(self, root: Path, start: bool = True, awake_cmd: list[str] | None = None):
         """root = <data_dir>/jobs, created on first use; its parent must exist (the app never
         creates data_dir, D13)."""
         self.root = Path(root)
@@ -63,8 +65,22 @@ class JobControl:
         self.runner = Runner(self.store, self.root, self.kinds)
         for jid in self.interrupted:
             self.runner.log(jid, "interrupted: the app quit or crashed during the job")
+        # D38: one keep-awake process while any keep-awake job waits or runs (tests: a fake cmd)
+        self.awake = Awake(awake_cmd)
+        self._awake_stop = threading.Event()
         if start:
             self.runner.start()
+            threading.Thread(target=self._keep_awake, name="keep-awake", daemon=True).start()
+
+    def _keep_awake(self) -> None:
+        while not self._awake_stop.wait(2.0):
+            try:
+                self.awake.update(self.store.keep_awake_needed())
+            except Exception as e:   # never stop the app over this; the page shows the error
+                self.awake.error = f"keep awake: {e}"
+
+    def last_summary(self) -> dict | None:
+        return self.store.last_summary()
 
     def register(self, kind: Kind) -> None:
         """Also recounts this kind's interrupted jobs from their artifacts: the app may have
@@ -82,7 +98,8 @@ class JobControl:
                 self.store.update(job["id"], done=done, total=total)
 
     def submit(self, kind: str, params: dict, project: str | None = None,
-               start_at: datetime | None = None, stop_by: datetime | None = None) -> int:
+               start_at: datetime | None = None, stop_by: datetime | None = None,
+               keep_awake: bool = False) -> int:
         """Queue a job; with start_at it waits as "scheduled" until then (D37). stop_by pauses
         it at that time with the reason "stop by"."""
         if kind not in self.kinds:
@@ -92,11 +109,14 @@ class JobControl:
         state = "scheduled" if start_at else "queued"
         msg = f"starts at {schedule.show(schedule.iso(start_at))}" if start_at else "waiting"
         jid = self.store.add(kind, params, project=project, state=state, message=msg,
-                             start_at=schedule.iso(start_at), stop_by=schedule.iso(stop_by))
+                             start_at=schedule.iso(start_at), stop_by=schedule.iso(stop_by),
+                             keep_awake=int(keep_awake))
         self.runner.log(jid, f"{state}: kind {kind}, project {project}"
                         + (f", start at {schedule.iso(start_at)}" if start_at else "")
                         + (f", stop by {schedule.iso(stop_by)}" if stop_by else ""))
         self.runner.wake()
+        if keep_awake:
+            self.awake.update(True)          # at once, not 2 s later
         return jid
 
     def start_now(self, job_id: int) -> dict:
@@ -176,5 +196,7 @@ class JobControl:
     def close(self) -> None:
         """Tests: stop the queue thread and close the database."""
         self.runner.stop(join_s=30)
+        self._awake_stop.set()
+        self.awake.stop()
         self.store.close()
         os.close(self._lock_fd)   # releases the lock

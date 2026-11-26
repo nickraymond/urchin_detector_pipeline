@@ -30,7 +30,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app import config, db, project
 from app.jobctl import JobControl, JobError
 from app.jobctl import limits as job_limits
-from app.jobctl import schedule
+from app.jobctl import awake, schedule
 from app.sam import classes
 from app.stages import clips, extract, ingest, label, review
 
@@ -51,6 +51,7 @@ def static_url(name: str) -> str:
 
 
 templates.env.globals["static"] = static_url
+AWAKE_CMD: list[str] | None = None   # tests: a fake keep-awake command (D38); None = the real one
 # A duration as the pages show it: "7 min", or "2.5 h" from 90 min on.
 templates.env.globals["minutes"] = lambda s: (
     f"{max(1, math.ceil(s / 60))} min" if s < 5400 else f"{s / 3600:.1f} h")
@@ -89,7 +90,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         or crash as interrupted (D34). Only called when cfg.ok (data_dir exists, D13)."""
         key = str(cfg.data_dir)
         if key not in controls:
-            jc = JobControl(cfg.data_dir / "jobs")
+            jc = JobControl(cfg.data_dir / "jobs", awake_cmd=AWAKE_CMD)
             jc.register(label.sam_kind())
             jc.register(extract.extract_kind())
             jc.register(clips.playback_kind())
@@ -124,6 +125,9 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "percent": round(100 * job["done"] / total, 1) if total else 0.0,
                 "active": job["state"] in ("queued", "running", "pausing"),
                 "start_show": schedule.show(job.get("start_at")),
+                # the summary's counts, urchins first (the number the morning summary is for)
+                "found": sorted(((job.get("summary") or {}).get("counts") or {}).items(),
+                                key=lambda kv: ("urchin" not in kv[0], -kv[1], kv[0])),
                 "stop_show": schedule.show(job.get("stop_by"))}
 
     def read_schedule(start: str, stop: str):
@@ -140,7 +144,24 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                       if cfg.ok else [])
         return templates.TemplateResponse(request, "dashboard.html", {
             "cfg": cfg, "projects": projects, "error": error, "name": name,
-            "unfinished": unfinished, "name_help": project.NAME_HELP}, status_code=status)
+            "unfinished": unfinished, "name_help": project.NAME_HELP,
+            "last": job_view(jobctl(cfg).last_summary()) if cfg.ok else {}},
+            status_code=status)
+
+    def awake_view(jc) -> dict:
+        """Keep-awake state for the pages (D38)."""
+        return {"pid": jc.awake.pid(), "error": jc.awake.error, "battery": awake.on_battery()}
+
+    @app.get("/jobs/{job_id}/log")
+    def job_log(job_id: int):
+        """The job's log as plain text (reads only)."""
+        cfg = config.load(config_path)
+        if not cfg.ok:
+            return PlainTextResponse("Setup problem; open the dashboard.", status_code=503)
+        p = jobctl(cfg).root / f"{job_id}.log"
+        if not p.is_file():
+            return PlainTextResponse(f"No log for job {job_id}.", status_code=404)
+        return PlainTextResponse(p.read_text(errors="replace"))
 
     @app.get("/jobs", response_class=HTMLResponse)
     def jobs_page(request: Request, note: str = "", error: str = ""):
@@ -151,7 +172,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return templates.TemplateResponse(request, "jobs.html", {
             "cfg": cfg, "note": note, "error": error, "jobs": [job_view(j) for j in jc.list()],
             "limits": job_limits.load(jc.root), "devices": job_limits.DEVICES,
-            "cores": os.cpu_count() or 1, "free_gb": round(job_limits.free_gb(), 1)})
+            "cores": os.cpu_count() or 1, "free_gb": round(job_limits.free_gb(), 1),
+            "awake": awake_view(jc)})
 
     @app.post("/jobs/settings")
     def jobs_settings(request: Request, device: str = Form("auto"), threads: str = Form(""),
@@ -484,7 +506,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "cfg": cfg, "info": info, "every": st["seconds_between_samples"],
                 "cap": st["frame_cap"], "live": live, "planned": len(samples),
                 "videos": len(ingest.added(conn)), "counts": extract.counts(conn, planned_names(samples)),
-                "job": extract_job(cfg, info), "frames": frames,
+                "job": extract_job(cfg, info), "frames": frames, "battery": awake.on_battery(),
                 "blur": blur, "dup": dup, "error": error, "note": note,
                 "stage": next(s for s in db.stage_statuses(conn) if s["stage"] == "extract")})
         return with_project(request, name, work)
@@ -527,7 +549,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     @app.post("/p/{name}/extract/start")
     def extract_start(request: Request, name: str, every: float = Form(2.0),
-                      cap: int = Form(300), start: str = Form(""), stop: str = Form("")):
+                      cap: int = Form(300), start: str = Form(""), stop: str = Form(""),
+                      keep_awake: str = Form("")):
         def work(cfg, info, conn):
             problem = check_settings(every, cap)
             start_at, stop_by, when = read_schedule(start, stop)
@@ -550,7 +573,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 except JobError:
                     pass
             jc.submit("extract", extract.job_params(info["folder"], samples),
-                      project=str(info["folder"]), start_at=start_at, stop_by=stop_by)
+                      project=str(info["folder"]), start_at=start_at, stop_by=stop_by,
+                      keep_awake=bool(keep_awake))
             return RedirectResponse(f"/p/{name}/extract", status_code=303)
         return with_project(request, name, work)
 
@@ -657,7 +681,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                      "models": list(classes.MODELS), "untagged": classes.UNTAGGED_COLOUR,
                      "palette": classes.PALETTE,
                      "save": f"/p/{info['name']}/labeling/classes/form"} if data else None,
-            "job": sam_job(cfg, info), "estimate": estimate,
+            "job": sam_job(cfg, info), "estimate": estimate, "battery": awake.on_battery(),
             "finish": (finish_time(plan["estimate_s"], sam_job(cfg, info).get("start_at")
                                    if sam_job(cfg, info).get("state") == "scheduled" else None)
                        if plan and plan.get("estimate_s") else None),
@@ -710,7 +734,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return bool(sam_job(cfg, info).get("active"))
 
     def start_sam(cfg, info, conn, preview: bool, other: bool = False,
-                  estimate: bool = False, start: str = "", stop: str = "") -> str:
+                  estimate: bool = False, start: str = "", stop: str = "",
+                  keep_awake: bool = False) -> str:
         """Queue a SAM Preview or Run on the job module; returns a note if it was refused.
         An older paused or interrupted SAM job of this project is cancelled first: the new
         job skips whatever that one finished (D33)."""
@@ -749,7 +774,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             picks = label.preview_frames(files, other=other) if preview else files
         jc.submit("sam", label.job_params(info["folder"], picks, preview=preview,
                                           estimate=estimate),
-                  project=str(info["folder"]), start_at=start_at, stop_by=stop_by)
+                  project=str(info["folder"]), start_at=start_at, stop_by=stop_by,
+                  keep_awake=keep_awake)
         return ""
 
     @app.post("/p/{name}/labeling/estimate")
@@ -771,12 +797,14 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return with_project(request, name, work)
 
     @app.post("/p/{name}/labeling/run")
-    def labeling_run(request: Request, name: str, start: str = Form(""), stop: str = Form("")):
+    def labeling_run(request: Request, name: str, start: str = Form(""), stop: str = Form(""),
+                     keep_awake: str = Form("")):
         """Label every kept frame (D26): units whose results are current are skipped, so Run
         after a pause, a quit or a class change does only what is missing (SPEC Q7). Optional
         Start at / Stop by clock times (D37)."""
         def work(cfg, info, conn):
-            note = start_sam(cfg, info, conn, preview=False, start=start, stop=stop)
+            note = start_sam(cfg, info, conn, preview=False, start=start, stop=stop,
+                             keep_awake=bool(keep_awake))
             return RedirectResponse(f"/p/{name}/labeling" + (
                 "?" + urlencode({"note": note}) if note else ""), status_code=303)
         return with_project(request, name, work)

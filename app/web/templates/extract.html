@@ -21,6 +21,7 @@ inside your clips, or across the whole video if it has none. Saved as JPEG quali
   <button type="submit" {% if running or job.state == "scheduled" %}disabled{% endif %}>Extract frames</button>
   <span class="hint">About 0.5–0.8 s per frame. Frames already extracted are kept and skipped.</span>
   <label>Start at <input name="start" type="time"></label> <label>Stop by <input name="stop" type="time"></label>
+  {% include "_awake.html" %}
   <span class="hint">Start at / Stop by (optional, e.g. 02:00): the next time that clock time comes. The app must
     stay running, and the laptop awake, for a schedule to fire.</span>
 </form>

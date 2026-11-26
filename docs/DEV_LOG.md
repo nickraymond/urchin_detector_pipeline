@@ -17,6 +17,22 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-25 — Sprint S4 — Bites 1a–5b (builder)
+**Branch:** sprint/4-jobctl-core, 4-sam-jobs, 4-extract-jobs, 4-estimate, 4-limits, 4-schedule, 4-awake (PRs 32–37, 39)
+**Done:** job control as `app/jobctl/` (one queue, records in `<data_dir>/jobs/`, workers in their own session with
+`pause` on stdin, interrupted after a quit, one app per data folder); SAM, extraction and playback copies on it
+(`app/jobs.py` removed; Stop became Pause); Jobs page and dashboard "Unfinished job"; Estimate (1 + 5 frames) and
+rolling remaining time; limits (device, threads, nice, pause, memory guard on psutil available, measured: D36a
+2 GB) and the CPU-fallback warning; Start at / Stop by with Start now and missed; keep awake, per-job summary,
+morning summary, log page. Each bite self-tested in the browser, most with real SAM on the scratch data folder.
+QE found real races: a quick restart + Resume ran an item twice (fixed: worker PID kept in the row, the queue
+waits for it); an Apply while paused was undone on Resume; Resume dropped a future Stop by.
+**Broke/surprised us:** my scripted TRACKER edit once matched S2's "Bite 2" and pasted 117 lines (fixed; edits are
+now scoped to the S4 section). `vm_stat` "Pages free" reaches 0 GB in ordinary SAM runs; psutil available does not.
+A test raced the runner (files ready before the job row said done); fixed. The laptop was on battery during the
+keep-awake self-test: the warning showed, and macOS listed the process's idle and system sleep assertions.
+**Next:** QE on PRs 37 and 39; then the lead hands Nick the S4 test build (TRACKER Demo).
+
 ## 2026-11-25 — Sprint S4 — Plan (planning lead)
 **Branch:** sprint/4-plan (docs only)
 **Done:** S4 (job control) planned under CLAUDE.md rule 7: five bites in TRACKER S4, DESIGN §Planned for S4, Lead

@@ -99,6 +99,7 @@
 <form method="post" action="/p/{{ info.name }}/labeling/run" class="inline">
   <button {% if job.active or job.state == "scheduled" or (plan and not plan.frames) %}disabled{% endif %}>Run</button>
   <label>Start at <input name="start" type="time"></label> <label>Stop by <input name="stop" type="time"></label>
+  {% include "_awake.html" %}
   <span class="hint">Start at / Stop by (optional, e.g. 02:00): the next time that clock time comes. The app must
     stay running, and the laptop awake, for a schedule to fire.</span>
 </form>

@@ -64,6 +64,7 @@ class Runner:
         self._want: dict[int, str] = {}      # job id -> "pause" | "cancel"
         self._waiting_since: dict[int, float] = {}   # left-over worker's job id -> first seen
         self._item = "item"
+        self._summary: dict = {}             # the running job's summary (D38)
         self._times: deque[float] = deque(maxlen=ROLLING_ITEMS)   # the running job's items
         self._reason: dict[int, str] = {}    # job id -> why the app paused it (memory guard)
         self.free_gb = limits_mod.free_gb    # tests replace it
@@ -225,6 +226,9 @@ class Runner:
             raise RuntimeError(f"no job kind {job['kind']!r} is registered in this app")
         self._item = kind.item
         self._times.clear()
+        # D38: the summary carries on across Pause / Resume (one per job, not per worker)
+        self._summary = {"items": 0, "counts": {}, "errors": 0, "seconds": 0,
+                         **(job.get("summary") or {}), "item": kind.item}
         self.store.update(jid, eta_s=None)
         if kind.progress:
             done, total = kind.progress(job["params"])
@@ -271,11 +275,18 @@ class Runner:
             raise
         code = proc.wait()
         self.store.update(jid, worker_pid=None, eta_s=None)
+        self._summary["seconds"] = self._summary.get("seconds", 0) + took
         with self._lock:
             want = self._want.get(jid)
             self._want.pop(f"kill-{jid}", None)
             reason = self._reason.pop(jid, None)
         self._finish(jid, last, code, want, final, took, err, reason)
+        done = self.store.get(jid) or {}
+        self._summary.update(state=done.get("state"), stop_reason=done.get("stop_reason"),
+                             done=done.get("done"), total=done.get("total"),
+                             warnings=len(done.get("warnings") or []))
+        self.store.update(jid, summary=self._summary)
+        self.log(jid, "summary " + json.dumps(self._summary))
 
     def _follow(self, jid: int, proc: subprocess.Popen):
         """Read the worker's lines until it closes stdout. Returns (last event, the done
@@ -358,6 +369,13 @@ class Runner:
             if isinstance(secs, (int, float)) and not isinstance(secs, bool) \
                     and not ev.get("skipped"):
                 self._times.append(float(secs))
+            if not ev.get("skipped"):        # D38: items done and counts per label
+                self._summary["items"] = self._summary.get("items", 0) + 1
+                counts = self._summary.setdefault("counts", {})
+                for label, k in (ev.get("counts") or {}).items():
+                    if isinstance(k, int) and not isinstance(k, bool):
+                        counts[str(label)] = counts.get(str(label), 0) + k
+                self.store.update(jid, summary=self._summary)
             eta = (round(sum(self._times) / len(self._times) * (n - i))
                    if self._times and i is not None and n is not None and n >= i else None)
             self.store.update(jid, done=i or 0, total=n, eta_s=eta,
@@ -370,6 +388,7 @@ class Runner:
                 fields.update(done=round(max(0, min(100, pct))), total=100)
             self.store.update(jid, **fields)
         elif e == "error":
+            self._summary["errors"] = self._summary.get("errors", 0) + 1
             self.log(jid, f"worker error: {ev.get('message')}")
         elif e == "warning":   # shown on the job (e.g. the Apple GPU fell back to the CPU)
             text = str(ev.get("message") or "")

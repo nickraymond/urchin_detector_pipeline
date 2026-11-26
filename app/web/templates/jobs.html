@@ -9,6 +9,10 @@
   progress and ends the worker (the GPU is freed); Resume carries on with the items still missing. Cancel ends the
   job for good; finished items are kept. Records live in <code>{{ cfg.data_dir }}/jobs/</code>, with one log per job.</p>
 {% if note %}<p class="totals">{{ note }}</p>{% endif %}
+{% if awake.pid %}<p class="totals">Keeping the laptop awake (process {{ awake.pid }}) while a keep-awake job waits or
+  runs; it stops when none is left. Keep it plugged in with the lid open.{% if awake.battery %}
+  <span class="warn-text">⚠ The laptop is on battery power now.</span>{% endif %}</p>{% endif %}
+{% if awake.error %}<p class="error">{{ awake.error }}</p>{% endif %}
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
 <h2>Limits</h2>
@@ -34,7 +38,8 @@
   <tr><th>#</th><th>Kind</th><th>Project</th><th>State</th><th>Progress</th><th>Message</th><th>Created</th><th>Ended</th><th></th></tr>
   {% for j in jobs %}
   <tr>
-    <td>{{ j.id }}</td><td>{{ j.kind }}{% if j.params.preview %} (preview){% endif %}</td>
+    <td>{{ j.id }}</td><td>{{ j.kind }}{% if j.params.preview %} (preview){% elif j.params.estimate %} (estimate){% endif %}{% if j.keep_awake %}<br><span class="hint">keep awake</span>{% endif %}
+      <br><a class="hint" href="/jobs/{{ j.id }}/log">log</a></td>
     <td>{% if j.project_name %}<a href="/p/{{ j.project_name }}">{{ j.project_name }}</a>{% endif %}</td>
     <td><b>{{ j.state }}</b></td>
     <td>{% if j.kind == "playback" %}{{ j.done }} %{% elif j.total %}{{ j.done }} / {{ j.total }}{% endif %}{% if j.active and j.eta_s %}<br><span class="hint">about {{ minutes(j.eta_s) }} left</span>{% endif %}</td>
