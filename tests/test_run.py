@@ -137,7 +137,7 @@ def test_app_killed_mid_run_shows_unfinished_job_and_resumes(tmp_path, monkeypat
     client, folder = make_project(tmp_path, n=8)
     files = [f"v_aaaaaa_{i}.png" for i in range(8)]
     config = str(tmp_path / "config.local.toml")
-    del client                                   # this app object is dropped, like a quit
+    client.app.state.close_jobs()                # this app has quit
     app = subprocess.Popen([sys.executable, "-c", APP.format(repo=str(REPO), slow=SLOW,
                                                              config=config)],
                            stdout=subprocess.PIPE, text=True, cwd=REPO)

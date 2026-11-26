@@ -89,7 +89,14 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             controls[key] = jc
         return controls[key]
 
+    def close_jobs() -> None:
+        """Release the job module (tests that start a second app in the same process)."""
+        for jc in controls.values():
+            jc.close()
+        controls.clear()
+
     app.state.jobctl = jobctl
+    app.state.close_jobs = close_jobs
     first = config.load(config_path)
     if first.ok:
         jobctl(first)
@@ -801,10 +808,14 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(f"Port {args.port} is already in use. If the app is already running, open "
                  f"{url} in the browser. Otherwise start on another port: "
                  f"uv run app --port {args.port + 1}")
+    try:
+        app = create_app(args.config)
+    except JobError as e:   # another copy already runs on this data folder (QE PR 32)
+        sys.exit(str(e))
     print(f"Labeling tool: {url}  (settings: {Path(args.config).absolute()})  Ctrl-C to stop.")
     if not args.no_open:
         threading.Timer(1.0, webbrowser.open, [url]).start()
-    uvicorn.run(create_app(args.config), host=HOST, port=args.port, log_level="info")
+    uvicorn.run(app, host=HOST, port=args.port, log_level="info")
 
 
 if __name__ == "__main__":
