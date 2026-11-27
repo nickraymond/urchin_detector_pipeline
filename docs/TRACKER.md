@@ -1,7 +1,7 @@
 # TRACKER.md — Sprint Ladder & Rules
 
 *The agent entry point. Newest state lives here.*
-*Last updated: 2026-11-25 · Owner/gate: **Nick***
+*Last updated: 2026-11-26 · Owner/gate: **Nick***
 
 ---
 
@@ -376,6 +376,182 @@ mask sizes matching their images, and `frame_metrics.csv` values matching those 
 pages in sync, memory-guard message, project page, "Labelled so far").
 **Needs:** S4 (demo passed); SPEC Q9 and Q11 answered by Lead calls D41, D42 (Nick can reverse them).
 
+### Build 2 — what runs where, then train, compare and bench test (S6–S11)
+Source: `docs/source/build2_spec.md` (Nick's answers of 2026-11-26 and 2026-11-27 are in it). Order (Nick,
+2026-11-27): first what each camera can run for each kind of model, then training and the accuracy comparison.
+The lead writes each sprint's design in DESIGN before its first bite and splits bites to about 300 lines; S7 and
+S9–S11 below are outlines until then. Nothing here touches `app/review/` or `app/export/` beyond reading the export.
+
+### S6 — What runs where, on the laptop  `[ ]`
+**Goal:** the first version of the "what runs where" table (spec §First result): every candidate architecture of
+the three kinds, untrained, converted to 8-bit and put through each camera's compiler. No hardware, no training,
+no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV/ml/` (`yolox_urchin/export.py`,
+`compile_model.sh`) and its compile-gate method (`ml/compile_gate_report.md`).
+
+**Bite 1 — Prior art, toolchains, licences (plan nibble + setup, no app pages)**
+- [ ] re-read the earlier export and compile scripts and say what is reused and how it is brought in
+- [ ] set up as documented, versions and licences recorded: the PyTorch → 8-bit route, ST Edge AI Core 4.1.0 (Nick said yes to
+      ST's licence terms, 2026-11-27: read them first, save a copy in the data folder, stop on anything unusual), Arm Vela (Apache-2.0), and the Pi runtime candidates on the laptop
+- [ ] known-good first: reproduce the earlier YOLOX-Nano result on both compilers (AE3 one `ethos-u` block; N6
+      about 117 + 2 + 0 of 119, the earlier trained export; untrained it was 116 + 2 + 0 of 118) before changing anything
+- [ ] decide and log in DESIGN: where these tools' Python packages live (the app's PyTorch is pinned to 2.10.0,
+      D7), the `models/` layout, what a "recipe" holds
+
+**Bites 2a, 2b, 2c — Candidate list, one bite per kind**
+- [ ] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
+      each as a model definition the app can build untrained at a given input size; anything not permissive
+      stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
+      instance segmenter (RF-DETR-Seg Nano and one or two small conv ones)
+- [ ] 2d: RF-DETR Atto / Femto / Pico (PML 1.0; evaluation only, SPEC constraint 6): Nick has
+      accepted Roboflow's terms on his own account (2026-11-27); the builder confirms the account's plan covers `rfdetr[plus]` and first shows what the package sends out (no frames go
+      through it before that); marked "Roboflow licence" in the table
+
+**Bites 3a, 3b, 3c — Convert job (3a the job and the 8-bit step with a fake compiler; 3b the N6 and AE3
+compilers; 3c the Pi)**
+- [ ] job kind `convert` on `app/jobctl/`: one candidate × one camera → 8-bit model → the camera's compiler →
+      a fit report as data (converts yes / no; layers on the NPU / hybrid / CPU; file size and memory against
+      the board's limits; the compiler's own speed estimate, marked as an estimate; the failing layers by name);
+      a failed conversion is a result, not a job error; tested with a fake compiler
+
+**Bite 4 — "What runs where" page**
+- [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
+      runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
+      their date; "Run all" queues every missing cell
+- [ ] several models on one camera, laptop part: for each pair and all three of the best candidates per
+      camera, whether their files fit side by side in the model area (N6, AE3) or in storage and memory (Pi), and how
+      much room is left
+- [ ] the AE3 column is under the one-day time box: what is not converted in that time is recorded with its reason
+
+**Demo (Nick):** open "What runs where" and press "Run all": the table fills, cell by cell, for the three kinds
+on the N6, the Pi and the AE3. Click a cell: per candidate, the layers on the NPU and on the CPU, sizes against
+the limits, and for a failure the layers that stopped it.
+**Needs:** the Build 2 spec on main.
+
+### S7 — What runs where, on the boards  `[ ]`
+**Goal:** the table complete with measured numbers: each candidate that compiled is loaded on its board and
+timed. The team's test session runs it on Nick's Pi Zero 2W bench rig (IMX708, N6, AE3), which it owns from
+Nick's hand-over; builders and QE use a fake board. Nick is asked only for physical actions.
+- [ ] **rig backup first, before any change** (SPEC constraint 9): list what runs on the rig; stop its services;
+      image the Pi's whole SD card over SSH into `<data_dir>`'s rig-backup folder; read back each camera's file
+      flash, model area and firmware version over USB; checksums for every piece; written restore steps; check
+      the backup (the image mounts and its files compare; read-backs match their checksums). The method for each
+      camera is read from OpenMV's docs and the earlier work first, not guessed. Nothing else on the rig starts
+      until this passes QE
+- [ ] a rig log: every change made on the rig after the backup; "Restore the rig" steps kept true to it
+- [ ] bench units in `config.local.toml` (no names or addresses in git); any other target is refused; a fake board
+- [ ] test card page: question, units, frames and repeats, metric, pass bar, stop rules; saved with the run;
+      Run is refused without it
+- [ ] timing run: load a model file through each board's documented route (after the rig backup; every change in the rig log;
+      firmware only if a model route needs it), run it a fixed number of times, read back ms per inference and memory
+- [ ] several models on one camera, board part: load two (then three) of the best candidates together and
+      measure peak memory; if they do not fit together, load, run and unload one after the other and time the
+      whole sequence; headline per camera: both at once / one after the other / one kind only
+- [ ] Pi: the runtime candidates timed on the bench Pi; one picked, with its licence recorded
+- [ ] power is optional and never blocks a run (Nick, 2026-11-27: he adds a meter on the Pi 5 for the Pi Zero
+      2W, the N6 and the AE3 later): without a meter every run works and shows "not measured"; a meter listed
+      for a unit in `config.local.toml` adds a power log per run, energy per inference and a power-over-time
+      chart; "not validated" until a known-load check has passed; tested with a fake meter
+- [ ] the table shows measured numbers next to the compiler's estimates; a one-page "what runs where" report
+**Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
+measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
+several models at once or only one kind at a time.
+**Needs:** S6; the rig set up by Nick and handed to the test session; SPEC hard constraint 9.
+
+### S8 — Dataset versions and the first detector  `[ ]`
+**Goal:** spec stages 7 and 8 for one model type already known to run on the cameras (YOLOX, earlier work): freeze a dataset version from a Build 1 export and train a
+YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SPI_OpenMV/ml/yolox_urchin/`.
+
+**Bite 1 — Prior art and licences (plan nibble, no app code)**
+- [ ] re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` (trainer, export, decode) and say what is reused and how it is
+      brought in; read the licences of YOLOX's code and of any starting weights at the source; add them to
+      `THIRD_PARTY_LICENSES`
+- [ ] decide and log in DESIGN: the layout of `datasets/` and what training adds to S6 bite 1's decisions
+      (package location, `models/` layout, recipe)
+
+**Bite 2a — Dataset versions**
+- [ ] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
+      reference, splits, class list, counts per class and split, a hash; versions are numbered and never changed
+- [ ] a new version keeps every site-and-date group in the split it had in the version before; new groups are
+      dealt to keep about 70 / 20 / 10 (the export's own `splits/` may re-deal on each run, D43)
+
+**Bite 2b — What training will see**
+- [ ] the page shows what training will see: objects and frames per class and split, classes under the 150–200
+      target, frames left out by the split check, classes not fully checked per frame
+- [ ] loaders for training: a class not fully checked on a frame is skipped for that frame; split check "no"
+      frames are left out of detector data; synthetic tests
+
+**Bite 3 — Outside data and starting weights**
+- [ ] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
+      use (not the DUO set: Nick, 2026-11-27); the page lists each source with its licence and counts; its
+      boxes are one class, "urchin", used for pre-training the detector only, never in the test split; the
+      folder is a setting in `config.local.toml`
+- [ ] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or
+      published weights with a recorded licence
+
+**Bite 4a — Train job**
+- [ ] job kind `train` on `app/jobctl/`: a worker process that writes a checkpoint and a metrics line per epoch;
+      Pause finishes the step, saves and unloads; Resume continues from the last checkpoint; Cancel keeps
+      checkpoints; tested end to end with a tiny fake trainer (no torch)
+
+**Bite 4b — YOLOX trainer**
+- [ ] classes: sea stars and urchins only (Nick, 2026-11-27): purple, red and black urchin, sea star, sunflower
+      sea star by default; still a setting per run
+- [ ] YOLOX-Nano with the plain first layer, tiles as part of the recipe, an augmentation preset that
+      includes blur and haze; every run records dataset version,
+      recipe, code version, seed, library versions and device
+
+**Bite 5 — Train page**
+- [ ] pick a dataset version, model type and size, classes and recipe (defaults with a short "why"); Estimate
+      (time a few steps), Run, Start at / Stop by, Keep laptop awake, limits
+- [ ] live: loss and validation curves, a few validation frames with boxes drawn, time left; the finished
+      model appears in a plain model list
+
+**Demo (Nick):** on a project with an export, open Datasets and press "Freeze a version": the page shows counts
+per class and split. Open Train, pick YOLOX-Nano, press Estimate, then Run: the loss curve moves and validation
+frames show boxes. Pause, quit the app, start it, Resume: training continues from the last checkpoint. The
+model is in the list when it ends.
+**Needs:** S5's export (on main); Nick's merge of the Build 2 spec; S6 bite 1's DESIGN decisions. After that
+it can run beside S6–S7.
+
+### S9 — Evaluate, model list, compare  `[ ]`
+**Goal:** spec stages 9 and 10 for detectors.
+- [ ] evaluate job on the test split with the recipe's tiling: count error per class and frame (share within
+      ±20%), precision / recall / mAP50 per class, small-object breakdown; how many frames and objects stand
+      behind each figure
+- [ ] per-frame view: ground truth and predictions drawn, sorted by worst error, in the app's large viewer
+- [ ] model list with status, scores, notes, archive; compare page: table, one chart per metric, the same
+      frames side by side; differences in dataset version or test set are called out
+- [ ] re-evaluate older models on a newer version's test split; RF-DETR as a second trainable detector type
+      (Nano; Atto / Femto / Pico only under SPEC constraint 6's exception)
+**Demo (Nick):** train a second detector with a different size or recipe; the compare page shows old vs new on
+the same test frames, and which frames each one gets wrong.
+**Needs:** S8.
+
+### S10 — Segmenter and instance segmenter  `[ ]`
+**Goal:** the other two kinds go through the same train / evaluate / compare pages.
+- [ ] camera models only from architectures that run in S6–S7's table; others are laptop references
+- [ ] Lead call in DESIGN before training: how the segmenter treats "unknown" (a class in the MVP spec) and
+      classes not fully checked on a frame (`seg_masks/` cannot show them; the flags are in `frame_metrics.csv`)
+- [ ] per-pixel segmenter from `seg_masks/`, classes as in S8 with every other pixel as "other";
+      cover error in percentage points per class (share within 10 points), IoU per class, largest object % error
+- [ ] instance segmenter from the COCO outlines, laptop first; its counts and cover scored like the other two
+**Demo (Nick):** train a segmenter and an instance segmenter; the compare page shows % cover error per class
+and the same frames with each model's masks.
+**Needs:** S9; S6–S7's table.
+
+### S11 — Trained models on the cameras  `[ ]`
+**Goal:** spec stages 11 and 12 for trained models: what converting costs, and accuracy on the boards.
+- [ ] a trained model goes through S6's convert job with calibration frames from the training split; the 8-bit
+      model is evaluated on the laptop like any model; the compare page shows what converting cost
+- [ ] accuracy run on S7's bench runner: send the test frames, read back raw outputs, score as in S9 / S10; the
+      gap to the laptop's 8-bit result is shown (a gap means a runtime bug)
+- [ ] pick: one detector and one segmenter per camera marked "picked for the bake-off"; a one-page report
+**Demo (Nick):** press "Fit to cameras" on a trained detector and a segmenter; the test session runs the
+card on the rig: on-camera scores next to the laptop's. When the card's repeats are done, mark a pick and open the report (the
+page refuses a pick from a single run).
+**Needs:** S10 (S9 for the detector alone); S7; the rig with the test session. At the end of S11's bench work
+the rig is restored to the backup unless Nick says to keep it.
+
 ---
 
 ## Icebox (captured, not scheduled)
@@ -384,4 +560,6 @@ pages in sync, memory-guard message, project page, "Labelled so far").
 - Re-check the kelp prompts (D29) and urchin defaults on more restoration-site footage once the full pipeline
   works and more video is available (Nick, 2026-11-25: only the SSD's videos for now).
 - Import CVAT outline fixes back into the project (D42; not asked for in Build 1).
-- Later MVP milestones (train, quantize, bench test, quality gate, bake-off, Iridium packet): not this repo's Build 1.
+- Later MVP milestones (quality gate, on-camera metrics, bake-off, Iridium packet): after Build 2.
+- Build 2: the screen-in-loop bench method on the Pi 5 screen rig (reuse `ADIN_SPI_OpenMV/pi/hil/`); pre-labeling new
+  frames with a trained model; a model type per camera when one recipe cannot serve all three.

@@ -17,6 +17,28 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-26 — Build 2 — Spec written with Nick (spec lead)
+**Branch:** sprint/6-build2-spec (docs only)
+**Done:** `docs/source/build2_spec.md` (train, evaluate, compare, fit to the cameras, bench test, in the same app);
+SPEC goal, inventory, hard constraints 1, 6 and new 9, non-goals, Q19–Q24; TRACKER ladder S6–S11. Nick answered seven
+questions in the spec lead's chat (instance segmentation laptop first; permissive only; test frames may go to his bench
+units; two of his rigs as bench units, he runs bench tests; frames from file first; outside data from his earlier work).
+Prior art read: `ADIN_SPI_OpenMV/ml/` (YOLOX on both NPUs, measured), its `pi/hil/` rig and dataset licence records.
+Licences and toolchain facts carry "lead" (read at the source by the spec lead) or "helper" (to be re-read by the
+builder) in the spec.
+**Broke/surprised us:** hard constraint 1 ("images never leave the laptop") ruled out any bench test with real frames
+until Nick allowed bench units. ST's own zoo models may run only on ST chips, so they cannot be the shared model.
+Ultralytics is AGPL for trained models too. The Pi has no inference code in any of Nick's repos yet.
+**2026-11-27, Nick's comments:** "what hardware can run each type of model" comes first, so the ladder is reordered
+(S6–S7 the "what runs where" table for three kinds × three cameras, untrained models; training from S8); RF-DETR Nano
+and the sizes below it become candidates, the PML sizes for evaluation only; the table also answers whether a camera can hold and run several models at once. Nick has a Roboflow
+account and agreed to its terms, so the PML sizes can be tested (no email to Roboflow). Power monitoring on the Pi 5
+is an optional bench metric he wires later; the software does not wait for it. Nick wants to be left out of the
+build and test cycle: one team test session owns the Pi Zero 2W rig, backs it up fully first (Pi image over SSH, the
+cameras' flash, model area and firmware), may then change anything, and restores it after. Training covers sea stars and urchins only for now. Read at the source: PML 1.0 needs an
+accepted Roboflow platform plan and allows usage tracking; RF-DETR-Seg is Apache-2.0 at every size.
+**Next:** Nick merges the spec PR (spec, goal, scope and hard constraints are his merge); then S6 bite 1.
+
 ## 2026-11-26 — Sprint S5 — Fix: add a missing urchin type (D50)
 **Branch:** sprint/5-add-urchin-type
 - Done: projects made before D39 have no black urchin, so the Review page had no B key (found in Nick's S5 test).

@@ -2,7 +2,7 @@
 
 *What Nick wants. Stable reference — agents skim this. Changes to the goal, scope or hard constraints
 need Nick's approval and his own merge; recording his answers and verified facts does not (CLAUDE.md, rule 3).*
-*Last updated: 2026-11-25*
+*Last updated: 2026-11-26*
 
 ## Goal
 
@@ -13,14 +13,30 @@ walk six stages in the UI (ingest → pick clips → extract frames → review f
 labeling → review + export) on his ReefCheck videos (or on folders of still images), and the export passes the acceptance
 criteria in `docs/source/mvp_spec.md`.
 
+**Build 2 (added 2026-11-26; source `docs/source/build2_spec.md`):** in the same app, go from that
+export to models proven on the bench cameras. First (Nick, 2026-11-27): one table of what each camera
+(N6, Pi Zero 2W, AE3) can run for each kind of model (detector, segmenter, instance segmenter):
+converts, fits, speed, memory, energy, and whether a camera can hold and run several models at once or
+only one kind at a time; it needs no trained model. Then training. Done when Nick can, in the browser, train a detector
+and a segmenter on a Build 1 export, compare them with older models and other model types, convert
+both for the OpenMV N6 and the Raspberry Pi Zero 2W (and the AE3, inside the MVP spec's one-day time box), run them on the
+bench units, and read one comparison page that says which model to put on which camera and why.
+An instance segmenter can be trained and compared on the laptop; it is trained for a camera only if
+the table shows that camera can run one.
+
 ## Background
 
 - Full spec: `docs/source/mvp_spec.md` ("Urchin Monitoring MVP — Spec", Nick, 2026-11-24).
   That file is the source; this file is the condensed contract. If they disagree, stop and
   ask Nick.
 - MVP purpose: choose the go-to-market camera (OpenMV N6 vs Raspberry Pi) from a one-day
-  dawn-to-dusk bake-off measuring urchins, sea stars and kelp. This repo is Build 1 only
-  (the labeling tool).
+  dawn-to-dusk bake-off measuring urchins, sea stars and kelp. This repo is Build 1 (the
+  labeling tool) and Build 2 (train, compare, fit to the cameras, bench test: MVP milestones 2–3).
+- Prior art for Build 2, read 2026-11-26, to be re-read by the builder before reuse: the local repo
+  `ADIN_SPI_OpenMV/ml/` (YOLOX-Nano / -Tiny trainer, 8-bit export, compile scripts for both NPUs,
+  on-board decode; results in `ml/yolox_urchin/STAGE1.md` and `ml/compile_gate_report.md`), its
+  `pi/hil/` screen-in-loop rig, and its dataset licence records (`ml/urchin_data/`,
+  `docs/urchin_datasets.md`); the data and earlier runs are in `~/nereus_ml/` (outside git).
 - Prior art to inspect before writing code (S1 plan nibble), in the local repo
   `ADIN_SPI_OpenMV/ml/`:
   - `fomo/label_gui.py` + `test_label_gui.py`: a stdlib-only browser GUI that reviews
@@ -42,6 +58,9 @@ criteria in `docs/source/mvp_spec.md`.
 | Raspberry Pi: 12 MP IMX708, 2 MP STARVIS IMX462 | — | bake-off cameras (later milestones; from the full spec) |
 | OpenMV N6: 5 MP rolling shutter, 1 MP global shutter | — | bake-off cameras (later milestones; from the full spec) |
 | OpenMV AE3: 1 MP global shutter | — | stretch goal (later milestones; from the full spec) |
+| Bench unit: a Pi Zero 2W rig with the IMX708, an N6 and the AE3 (name in `config.local.toml`) | 1 | Build 2 bench rig; Nick sets it up, then one team test session owns it (chat 2026-11-27; make-up from the rig repo's SPEC, not re-checked on the unit) |
+| A Pi 5, added by Nick later (name in `config.local.toml`) | 1 | drives the LCD screen and the power meter once bench tests run (Nick, chat 2026-11-27) |
+| Public urchin datasets and earlier model runs in `~/nereus_ml/` | — | extra detector training data and starting weights, each with its recorded licence (Nick, chat 2026-11-26); the earlier YOLOX weights are not used for camera models (they include the DUO set; Nick, 2026-11-27) |
 
 ## Confirmed facts (verified, with sources)
 
@@ -63,20 +82,38 @@ criteria in `docs/source/mvp_spec.md`.
 
 ## Safety / hard constraints (non-negotiable)
 
-1. **Images never leave the laptop.** No cloud APIs and no uploads. Only exception: Claude
-   coding sessions may view frames (Nick, 2026-11-24).
+1. **Images never leave the laptop.** No cloud APIs and no uploads. Exceptions: Claude
+   coding sessions may view frames (Nick, 2026-11-24); Build 2's bench test may send test frames
+   to Nick's own bench units, over USB, the home network or Tailscale (Nick, 2026-11-26).
 2. **No tokens or secrets in git.** Hugging Face access only through `hf auth login`; the
    app never stores the token.
 3. **Videos, frames, datasets and model weights stay out of git**, in the data folder named
    in `config.local.toml` (on the SSD). Source code lives in git.
 4. **Source videos are read-only.** Never modify, move or delete them.
 5. **Delete means move to `rejected/`**, never erase.
-6. **Licenses:** on-camera models permissive only (Apache / MIT). The SAM License is
-   acceptable for the labeling tool only.
+6. **Licenses:** on-camera models permissive only (Apache / MIT; BSD-3-Clause added with Build 2). The SAM License is
+   acceptable for the labeling tool only. Build 2 (Nick, 2026-11-26): the same rule for every model
+   the app can train, laptop-only ones included (no Ultralytics YOLO, which is AGPL-3.0); a model
+   type is offered only when the licences of its code, its starting weights and any outside data
+   are recorded in `THIRD_PARTY_LICENSES`. One exception, evaluation only (Nick, 2026-11-27): RF-DETR
+   Atto, Femto and Pico (PML 1.0: needs a Roboflow platform plan; commercial self-hosting needs their Enterprise
+   add-on) may be compiled, timed on the bench units and trained on the laptop, now that Nick has accepted Roboflow's
+   terms on his own account (2026-11-27), once the builder has shown the package sends no frames out (constraint 1 wins). Their weights,
+   trained ones included, stay under PML: never on a field unit or in a product until Nick has the licence and
+   changes this constraint. They are marked "Roboflow licence" in the app. XL / 2XL stay out.
 7. **Every stage has a browser UI.** The terminal is used only to start the app. Basic and
    functional, not flashy (Nick, chat 2026-11-24).
 8. **The repo is public** (Nick, chat 2026-11-24). No real frames, video stills, people's
    names or tokens in git, PRs, issues or test fixtures. Tests use synthetic images.
+9. **Hardware (Build 2; Nick, 2026-11-27).** The app and the team touch only the bench rig Nick named and, once he
+   adds it, the Pi 5 for the screen and power (SPEC inventory; names and addresses in `config.local.toml`), never a field unit. One team test
+   session owns the rig; builder and QE sessions never touch hardware and test against a fake board.
+   Before any change the test session takes a full backup (the Pi's SD card image over SSH; each
+   camera's file flash, model area and firmware version; checksums; restore steps) and checks it.
+   After that the team may change anything on the rig, camera firmware included, logs each change, and restores the rig to
+   the backup at the end or when Nick asks. Every bench run has a test card first. Nick is asked
+   only for physical actions. Backups stay in the data folder. No unit names, addresses or serial
+   numbers in git.
 
 ## Success criteria by sprint
 
@@ -84,7 +121,9 @@ See TRACKER.md — every sprint ends with a live demo Nick can run.
 
 ## Non-goals (this project)
 
-- Training, quantizing, camera firmware, the hourly Iridium packet (later milestones).
+- Camera firmware, the quality gate, on-camera metrics, the hourly Iridium packet, the field
+  bake-off (MVP milestones 4–5). Training and quantizing are Build 2 (2026-11-26).
+- Cloud training; automatic search over model settings; pre-labeling new frames with a trained model.
 - Hand-editing mask outlines; colour correction of frames.
 - Panoptic export; tracking individual animals; kelp growth rates in cm/day.
 - Multi-user, cloud, login.
@@ -166,3 +205,36 @@ Answered (Nick, chat 2026-11-25):
   them. This replaces "No third urchin class now" under Q14. Most urchins are purple: review should find
   and tag the outliers, not make Nick click every urchin (D39). Open for the later packet milestone: the
   hourly packet in `docs/source/mvp_spec.md` has 2 urchin types (count 4 bytes, cover per type).
+
+Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.md`):
+- Q19. Instance segmentation: trained and compared on the laptop; on a camera only if it converts,
+  fits and runs in about a day, like the AE3.
+- Q20. Licences: permissive only for every model in the app; start with YOLOX (Apache-2.0).
+- Q21. Test frames may go to his own bench units over any link; never to a cloud.
+- Q22. Bench unit: his Pi Zero 2W rig (IMX708, N6, AE3). Owner and who runs bench tests: see Q30.
+- Q23. Bench method: frames from file first; the screen-in-loop rig stays an option.
+- Q25 (2026-11-27). Order: "what hardware can run each type of model" comes first, for all three kinds and
+  all three cameras, before training; the accuracy comparison follows.
+- Q26 (2026-11-27). RF-DETR Nano and the sizes below it are candidates; the sizes below Nano are under Roboflow's
+  PML 1.0 and are for evaluation only (hard constraint 6). RF-DETR's segmentation models are Apache-2.0.
+- Q27 (2026-11-27). The table also says whether each camera can hold and run several models at once or only
+  one kind at a time.
+- Q28 (2026-11-27). Nick has a Roboflow account and agreed to its terms: the PML sizes can be tested now.
+- Q29 (2026-11-27). Power monitoring on the Pi 5 for the Pi Zero 2W, the N6 and the AE3 is an add-on metric Nick
+  wires later; the software must not wait for it. No email to Roboflow.
+- Q30 (2026-11-27). Nick wants to be left out of the build and test cycle: he sets the Pi Zero 2W rig up; one
+  team test session owns it and runs the bench tests; first a full backup of the Pi and the cameras so the rig
+  can be put back exactly; after that the team may change anything on it ("Anything, restore after"). A Pi 5
+  comes later for the LCD screen and power.
+- Q31 (2026-11-27). Build 2 trains on sea stars and urchins only. Lead call: that is purple, red and black
+  urchin, sea star and sunflower sea star; the other classes stay labeled and wait. Nick can reverse it.
+- Q32 (2026-11-27). Nick approved the plan; the spec lead merges the spec PR for him at the QE-passed head. Yes
+  to ST's licence terms for ST Edge AI Core 4.1.0. No to DUO-trained weights as a starting point for a camera model.
+- Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
+  on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
+
+Open for Build 2 (flag, don't guess; `docs/source/build2_spec.md` §Open questions): the Pi's runtime
+and whether the bench Pi is 64-bit; a segmenter architecture that places fully on the N6's NPU; the
+licence of each set of published starting weights; what else runs on the bench rig; which
+meter Nick adds to the Pi 5 for power (optional; never blocks a bench run); what the
+`rfdetr[plus]` package sends out (S6 builder, before any frame goes through it).
