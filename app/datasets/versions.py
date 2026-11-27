@@ -178,7 +178,9 @@ def plan(folder: Path, name: str = "") -> dict:
 
 
 def _copy_once(src: Path, dst: Path) -> None:
-    """Copy under a temporary name, then rename: a stopped copy never leaves half a file."""
+    """Copy under a temporary name, then rename: a stopped copy never leaves half a file. A file
+    already there with the same size is trusted here (its name is its content hash); the loader
+    checks the hash itself before a frame is first used (loaders.verify_image)."""
     if dst.is_file() and dst.stat().st_size == src.stat().st_size:
         return
     tmp = dst.with_name(f".{dst.name}.tmp")
