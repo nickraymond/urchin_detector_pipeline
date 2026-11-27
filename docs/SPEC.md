@@ -58,8 +58,8 @@ the table shows that camera can run one.
 | Raspberry Pi: 12 MP IMX708, 2 MP STARVIS IMX462 | — | bake-off cameras (later milestones; from the full spec) |
 | OpenMV N6: 5 MP rolling shutter, 1 MP global shutter | — | bake-off cameras (later milestones; from the full spec) |
 | OpenMV AE3: 1 MP global shutter | — | stretch goal (later milestones; from the full spec) |
-| Bench unit: a Pi Zero 2W rig with the IMX708, an N6 and the AE3 (name in `config.local.toml`) | 1 | Build 2 bench tests; owner Nick (chat 2026-11-26; make-up from the rig repo's SPEC, not re-checked on the unit) |
-| Bench unit: a Pi 5 with the screen-in-loop rig (name in `config.local.toml`) | 1 | Build 2 bench tests, optional screen method; owner Nick (chat 2026-11-26) |
+| Bench unit: a Pi Zero 2W rig with the IMX708, an N6 and the AE3 (name in `config.local.toml`) | 1 | Build 2 bench rig; Nick sets it up, then one team test session owns it (chat 2026-11-27; make-up from the rig repo's SPEC, not re-checked on the unit) |
+| A Pi 5, added by Nick later (name in `config.local.toml`) | 1 | drives the LCD screen and the power meter once bench tests run (Nick, chat 2026-11-27) |
 | Public urchin datasets and earlier model runs in `~/nereus_ml/` | — | extra detector training data and starting weights, each with its recorded licence (Nick, chat 2026-11-26); the earlier YOLOX weights wait for Nick's answer on the DUO set |
 
 ## Confirmed facts (verified, with sources)
@@ -105,11 +105,15 @@ the table shows that camera can run one.
    functional, not flashy (Nick, chat 2026-11-24).
 8. **The repo is public** (Nick, chat 2026-11-24). No real frames, video stills, people's
    names or tokens in git, PRs, issues or test fixtures. Tests use synthetic images.
-9. **Hardware (Build 2).** The app talks only to the two bench units Nick named (SPEC inventory;
-   names and addresses in `config.local.toml`), never to a field unit. Nick owns them and runs every bench test himself from the
-   app; builder and QE sessions never touch hardware and test against a fake board. Every bench run
-   has a test card first. The app never flashes firmware; it loads model files only, backs up what
-   it replaces and can restore it. No unit names, addresses or serial numbers in git.
+9. **Hardware (Build 2; Nick, 2026-11-27).** The app and the team touch only the bench rig Nick named
+   (SPEC inventory; names and addresses in `config.local.toml`), never a field unit. One team test
+   session owns the rig; builder and QE sessions never touch hardware and test against a fake board.
+   Before any change the test session takes a full backup (the Pi's SD card image over SSH; each
+   camera's file flash, model area and firmware version; checksums; restore steps) and checks it.
+   After that the team may change anything on the rig, logs each change, and restores the rig to
+   the backup at the end or when Nick asks. Every bench run has a test card first. Nick is asked
+   only for physical actions. Backups stay in the data folder. No unit names, addresses or serial
+   numbers in git.
 
 ## Success criteria by sprint
 
@@ -207,7 +211,7 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   fits and runs in about a day, like the AE3.
 - Q20. Licences: permissive only for every model in the app; start with YOLOX (Apache-2.0).
 - Q21. Test frames may go to his own bench units over any link; never to a cloud.
-- Q22. Bench units: his Pi Zero 2W rig (IMX708, N6, AE3) and his Pi 5 screen rig; Nick is the owner and runs bench tests from the app.
+- Q22. Bench unit: his Pi Zero 2W rig (IMX708, N6, AE3). Owner and who runs bench tests: see Q30.
 - Q23. Bench method: frames from file first; the screen-in-loop rig stays an option.
 - Q25 (2026-11-27). Order: "what hardware can run each type of model" comes first, for all three kinds and
   all three cameras, before training; the accuracy comparison follows.
@@ -218,6 +222,12 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
 - Q28 (2026-11-27). Nick has a Roboflow account and agreed to its terms: the PML sizes can be tested now.
 - Q29 (2026-11-27). Power monitoring on the Pi 5 for the Pi Zero 2W, the N6 and the AE3 is an add-on metric Nick
   wires later; the software must not wait for it. No email to Roboflow.
+- Q30 (2026-11-27). Nick wants to be left out of the build and test cycle: he sets the Pi Zero 2W rig up; one
+  team test session owns it and runs the bench tests; first a full backup of the Pi and the cameras so the rig
+  can be put back exactly; after that the team may change anything on it ("Anything, restore after"). A Pi 5
+  comes later for the LCD screen and power.
+- Q31 (2026-11-27). Build 2 trains on sea stars and urchins only. Lead call: that is purple, red and black
+  urchin, sea star and sunflower sea star; the other classes stay labeled and wait. Nick can reverse it.
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 

@@ -50,8 +50,13 @@ Training honors Build 1's review flags:
 - Frames with split check "no" stay out of detector and instance training; they still count for cover.
 - The train / valid / test splits come from the dataset version (first taken from the export's
   `splits/`, then kept per site-and-date group); nothing is re-split by frame.
-- Class ids are the export's ids. Which classes a model learns is a choice per training run
-  (for example the detector: purple, red and black urchin, sea star, kelp shoot).
+- Class ids are the export's ids. Which classes a model learns is a choice per training run.
+- **Build 2 trains on sea stars and urchins only (Nick, 2026-11-27):** purple, red and black urchin,
+  sea star and sunflower sea star. Kelp, kelp shoot, rock, anemone and fish stay labeled in Build 1
+  and wait for a later round. For the segmenters every other pixel is one class, "other". The
+  class choice stays a setting per run, so adding kelp later is not a rebuild. (Lead call: the
+  sunflower sea star counts as a star fish class, and the urchin types stay separate; Nick can
+  reverse either.)
 
 ## Models that are safe to use
 
@@ -119,7 +124,7 @@ One page in the app, a table of model kind × camera, filled in before any model
   by layer. A cell's headline is its best candidate: "runs", "runs, partly on the CPU" or "does
   not run", with the numbers.
 - **Two steps.** On the laptop first: convert and compile (no hardware). Then on the bench units:
-  load and time (Nick runs it, with a test card).
+  load and time (the team's test session runs it, with a test card).
 - **The AE3 is a full column here**, still under the MVP spec's time box: about one working day in
   total across the three kinds, compile and timing together; what does not convert in that time is recorded as "does not run"
   with its reason.
@@ -176,7 +181,8 @@ ladder at the end: stage 11's untrained fit check and stage 12's timing run come
 ### 8. Train
 
 - Pick a dataset version, a kind (detector / segmenter / instance segmenter), a model type and size
-  from the checked list, the classes, and the recipe: input size, tiling, epochs, augmentation
+  from the checked list, the classes (default: the urchin types and the two sea star classes), and
+  the recipe: input size, tiling, epochs, augmentation
   preset (including blur and haze for turbid water). Sensible defaults; a short "why" next to each.
 - Training is a job in Build 1's job module: **Estimate** (time a few steps first), Run, Pause /
   Resume from the last checkpoint, Cancel, Start at / Stop by, Keep laptop awake, resource limits,
@@ -275,9 +281,21 @@ on the real boards; the app collects what came back and scores it exactly as in 
 - **Test card first (team rule):** before any bench run the app shows the card (question, units,
   number of frames and repeats, metric, pass bar, stop rules); it is saved with the run. No
   recommendation from a single run.
-- **Bench units only.** The app talks only to units Nick has listed as bench units in the settings
-  file; field units are refused by name. The app never flashes firmware; it only loads model files
-  through each board's documented route, backs up what it replaces and can restore it.
+- **Bench units only.** The app talks only to units listed as bench units in the settings file;
+  field units are refused by name.
+- **Rig backup first (Nick, 2026-11-27).** Before anything on the rig is changed, the test session
+  takes a full backup and proves it can be put back: an image of the Pi's whole SD card, copied over
+  SSH with the rig's services stopped; from each camera, over USB, its file flash, its model area
+  and its firmware version; a checksum for every piece; and written restore steps. The backup is
+  checked (the Pi image mounts and its files compare with the live ones; the cameras' read-backs
+  match their checksums) before the first change. It lives in the laptop's data folder, never in
+  git. "Restore the rig" puts everything back to that point; it is run at the end of Build 2's
+  bench work or whenever Nick asks.
+- **After the backup, the team has full control of the rig** (Nick, 2026-11-27: "Anything, restore
+  after"): packages on the Pi, model files, the cameras' model areas, and camera firmware if a
+  model route needs it. Each change is written to the rig's log so the restore steps stay true.
+  On the N6, models load only by writing the whole model area over USB, so the vendor's models are
+  kept in every image written (earlier work).
 - **Pick:** on the compare page, mark one detector and one segmenter per camera as "picked for the
   bake-off"; the app writes a one-page report with the numbers behind the pick.
 
@@ -301,9 +319,11 @@ Model weights, datasets and bench results live in the data folder, never in git.
   only; nothing new without all three checks.
 - **Hardware:** bench units only: the two Nick named on 2026-11-26, a Pi Zero 2W rig with the
   IMX708, an N6 and the AE3, and a Pi 5 with the screen rig. Their names and addresses live in
-  `config.local.toml`, not in git. Nick is their owner and runs
-  every bench test himself from the app; builders and QE test against a fake board and never touch
-  the hardware. A test card before every run. Field units are never a target.
+  `config.local.toml`, not in git. Nick sets the Pi Zero 2W rig up and hands it to one team test
+  session, which owns it from then on: it takes the backup, runs the test cards the lead writes and
+  QE reviews, and restores the rig. Builders and QE test against a fake board and never touch the
+  hardware. Nick is asked only for physical actions (plug, power, wiring). A test card before every
+  run. Field units are never a target.
 - Everything else in SPEC's hard constraints stays as it is, including the browser-only rule and
   the public-repo rule (no real frames, names, unit addresses or serial numbers in git).
 
@@ -318,7 +338,7 @@ Model weights, datasets and bench results live in the data folder, never in git.
    is already on the laptop with its licences recorded ("Look for my old work training the DETR-TR
    transformer for urchin detection and there are tons of images with the correct license I've
    captured already").
-7. **Bench owner:** Nick; he runs bench tests from the app.
+7. **Bench owner:** Nick; he runs bench tests from the app. *Replaced by answer 13.*
 8. **Order (2026-11-27):** "it's actually more important to understand what hardware can run each
    type of model, detector vs segmenter vs instance segmenter. That in it-self will be valuable to
    know, then the bake later with results." So "what runs where" comes first, for all three kinds
@@ -342,6 +362,14 @@ Model weights, datasets and bench results live in the data folder, never in git.
     monitor the power on Pi Zero, N6 and Ae3 so we get power as a function of model run also. But
     don't let any of that block the software buildout". Power is an optional metric on bench runs;
     Nick adds the meter to the rig himself, later. Also: "we are not emailing roboflow".
+13. **Leave Nick out of the build and test cycle (2026-11-27):** "I want to be left out of this build
+    and test cycle as much as possible - I will setup nereus with the zero and N6 and AE3 (I need
+    you to make an image of everything on that pi and the cameras so that you can reinstall and get
+    the whole test rig back up to the same exacts spot it was prior to this new testing". Then, to
+    four questions: the rig is the Pi Zero 2W rig ("I will add Pi5 later to control the LCD screen
+    and run power monitoring once we do HIL testing"); one team test session owns it and runs the
+    bench tests; the team may do "Anything, restore after"; the Pi is imaged over SSH, no hands.
+14. **Classes for training (2026-11-27):** "For trainiung lets just do star fish and urchins".
 
 ## Open questions
 
@@ -361,10 +389,9 @@ Model weights, datasets and bench results live in the data folder, never in git.
 - Which runtime on the Pi Zero 2W (measured in S7), and whether the bench Pi runs a 64-bit system.
 - Which segmenter architecture places fully on the N6's NPU (compile check in S6).
 - The licence of each set of published starting weights (checked per model type before it is offered).
-- The Pi 5 screen rig is also the console monitor host for another bench; an older test card says
-  nothing may run on the Pi Zero 2W rig, and one older skill calls it a field camera rig. Nick's
-  answer 4 names both as bench units for Build 2's bench tests; the first test card
-  names what else must be stopped or left alone on each unit.
+- An older test card says nothing may run on the Pi Zero 2W rig, and one older skill calls it a
+  field camera rig. Nick's answers 4 and 13 name it as the bench unit for Build 2; the backup step
+  first lists what is running on it, and the first test card names what must be stopped.
 - Power: which meter and wiring Nick adds to the Pi 5 (answer 12), and a known-load check of its
   readings. Without a meter energy shows as "not measured"; with one, as "not validated" until the check.
 

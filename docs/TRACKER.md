@@ -429,7 +429,15 @@ the limits, and for a failure the layers that stopped it.
 
 ### S7 — What runs where, on the boards  `[ ]`
 **Goal:** the table complete with measured numbers: each candidate that compiled is loaded on its board and
-timed. Nick runs it on his Pi Zero 2W bench rig (IMX708, N6, AE3); builders and QE use a fake board.
+timed. The team's test session runs it on Nick's Pi Zero 2W bench rig (IMX708, N6, AE3), which it owns from
+Nick's hand-over; builders and QE use a fake board. Nick is asked only for physical actions.
+- [ ] **rig backup first, before any change** (SPEC constraint 9): list what runs on the rig; stop its services;
+      image the Pi's whole SD card over SSH into `<data_dir>`'s rig-backup folder; read back each camera's file
+      flash, model area and firmware version over USB; checksums for every piece; written restore steps; check
+      the backup (the image mounts and its files compare; read-backs match their checksums). The method for each
+      camera is read from OpenMV's docs and the earlier work first, not guessed. Nothing else on the rig starts
+      until this passes QE
+- [ ] a rig log: every change made on the rig after the backup; "Restore the rig" steps kept true to it
 - [ ] bench units in `config.local.toml` (no names or addresses in git); any other target is refused; a fake board
 - [ ] test card page: question, units, frames and repeats, metric, pass bar, stop rules; saved with the run;
       Run is refused without it
@@ -444,10 +452,10 @@ timed. Nick runs it on his Pi Zero 2W bench rig (IMX708, N6, AE3); builders and 
       for a unit in `config.local.toml` adds a power log per run, energy per inference and a power-over-time
       chart; "not validated" until a known-load check has passed; tested with a fake meter
 - [ ] the table shows measured numbers next to the compiler's estimates; a one-page "what runs where" report
-**Demo (Nick):** approve the test card and press Run: the table's cells fill with ms per inference and memory
-measured on the N6, the Pi and the AE3. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
+**Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
+measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.
-**Needs:** S6; Nick at the bench; SPEC hard constraint 9.
+**Needs:** S6; the rig set up by Nick and handed to the test session; SPEC hard constraint 9.
 
 ### S8 — Dataset versions and the first detector  `[ ]`
 **Goal:** spec stages 7 and 8 for one model type already known to run on the cameras (YOLOX, earlier work): freeze a dataset version from a Build 1 export and train a
@@ -486,6 +494,8 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       checkpoints; tested end to end with a tiny fake trainer (no torch)
 
 **Bite 4b — YOLOX trainer**
+- [ ] classes: sea stars and urchins only (Nick, 2026-11-27): purple, red and black urchin, sea star, sunflower
+      sea star by default; still a setting per run
 - [ ] YOLOX-Nano with the plain first layer, tiles as part of the recipe, an augmentation preset that
       includes blur and haze; every run records dataset version,
       recipe, code version, seed, library versions and device
@@ -522,7 +532,7 @@ the same test frames, and which frames each one gets wrong.
 - [ ] camera models only from architectures that run in S6–S7's table; others are laptop references
 - [ ] Lead call in DESIGN before training: how the segmenter treats "unknown" (a class in the MVP spec) and
       classes not fully checked on a frame (`seg_masks/` cannot show them; the flags are in `frame_metrics.csv`)
-- [ ] per-pixel segmenter from `seg_masks/`;
+- [ ] per-pixel segmenter from `seg_masks/`, classes as in S8 with every other pixel as "other";
       cover error in percentage points per class (share within 10 points), IoU per class, largest object % error
 - [ ] instance segmenter from the COCO outlines, laptop first; its counts and cover scored like the other two
 **Demo (Nick):** train a segmenter and an instance segmenter; the compare page shows % cover error per class
@@ -536,10 +546,11 @@ and the same frames with each model's masks.
 - [ ] accuracy run on S7's bench runner: send the test frames, read back raw outputs, score as in S9 / S10; the
       gap to the laptop's 8-bit result is shown (a gap means a runtime bug)
 - [ ] pick: one detector and one segmenter per camera marked "picked for the bake-off"; a one-page report
-**Demo (Nick):** press "Fit to cameras" on a trained detector and a segmenter; approve a test card and Run:
-on-camera scores next to the laptop's. When the card's repeats are done, mark a pick and open the report (the
+**Demo (Nick):** press "Fit to cameras" on a trained detector and a segmenter; the test session runs the
+card on the rig: on-camera scores next to the laptop's. When the card's repeats are done, mark a pick and open the report (the
 page refuses a pick from a single run).
-**Needs:** S10 (S9 for the detector alone); S7; Nick at the bench.
+**Needs:** S10 (S9 for the detector alone); S7; the rig with the test session. At the end of S11's bench work
+the rig is restored to the backup unless Nick says to keep it.
 
 ---
 

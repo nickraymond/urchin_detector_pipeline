@@ -33,7 +33,9 @@ Ultralytics is AGPL for trained models too. The Pi has no inference code in any 
 (S6–S7 the "what runs where" table for three kinds × three cameras, untrained models; training from S8); RF-DETR Nano
 and the sizes below it become candidates, the PML sizes for evaluation only; the table also answers whether a camera can hold and run several models at once. Nick has a Roboflow
 account and agreed to its terms, so the PML sizes can be tested (no email to Roboflow). Power monitoring on the Pi 5
-is an optional bench metric he wires later; the software does not wait for it. Read at the source: PML 1.0 needs an
+is an optional bench metric he wires later; the software does not wait for it. Nick wants to be left out of the
+build and test cycle: one team test session owns the Pi Zero 2W rig, backs it up fully first (Pi image over SSH, the
+cameras' flash, model area and firmware), may then change anything, and restores it after. Training covers sea stars and urchins only for now. Read at the source: PML 1.0 needs an
 accepted Roboflow platform plan and allows usage tracking; RF-DETR-Seg is Apache-2.0 at every size.
 **Next:** Nick merges the spec PR (spec, goal, scope and hard constraints are his merge); then S6 bite 1.
 
