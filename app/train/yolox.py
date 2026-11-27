@@ -23,8 +23,10 @@ Pre-training (spec stage 7; TRACKER S8 bite 3): a run whose recipe says `data: "
 trains on the version's public sources only (app/datasets/outside.py `samples`; their train and
 valid splits, one class, "urchin") and records them in `outside_used`. Another run may start from
 such a model (`start.kind: "pretrained"`): at its first start the EMA weights of that model's
-`checkpoints/best.pt` are loaded into every tensor of the same name and shape; with a different
-class list the class-score layers keep their fresh values. What was loaded is in the run record.
+`checkpoints/best.pt` are loaded into every tensor of the same name and shape, except the
+class-score layers (`head.cls_preds.*`) when the two models' class lists differ: those keep
+their fresh values, also when only the number of classes is the same. What was loaded is in the
+run record.
 Published weights are never loaded (none is offered, D62).
 
 Each epoch ends with a check on fixed validation canvases (same crops every epoch, no colour,
@@ -163,6 +165,10 @@ class Trainer:
         for e in entries:
             if not outside.BY_KEY.get(e["key"], {}).get("allowed"):
                 raise RuntimeError(f"{e['key']} is not an allowed outside source.")
+            rows = vdir / "outside" / e["rows"]       # the frozen list of images and boxes
+            if not rows.is_file() or versions.sha256_file(rows) != e["sha256"]:
+                raise RuntimeError(f"{rows} is missing or no longer matches the hash in the "
+                                   "version's manifest: the dataset version was changed by hand.")
             for split in got:
                 for r in outside.samples(Path(outside_dir), vdir, e, split):
                     got[split].append({**r, "boxes": [[0, *b] for b in r["boxes"]],
@@ -185,14 +191,18 @@ class Trainer:
         if not src.is_file():
             raise RuntimeError(f"The starting model's weights are missing: {src}.")
         have = torch.load(src, map_location="cpu", weights_only=True)["model"]
+        from app.train import models
+        theirs = models.read_recipe(src.parents[1])["arch"].get("classes")
+        same_classes = theirs == self.arch["classes"]   # "urchin" is not "sea star" (QE PR 90)
         mine = self.model.state_dict()
         take = {k: v.to(mine[k].dtype) for k, v in have.items()
-                if k in mine and mine[k].shape == v.shape}
+                if k in mine and mine[k].shape == v.shape
+                and (same_classes or not k.startswith("head.cls_preds."))}
         self.model.load_state_dict(take, strict=False)
         fresh = sorted(k for k in mine if k not in take)
         self.start_used = {"kind": "pretrained", "model": self.start["model"],
                            "tensors_loaded": len(take), "tensors_fresh": len(fresh),
-                           "fresh": fresh[:12]}
+                           "fresh": fresh[:12], "its_classes": theirs}
 
     def describe(self) -> dict:
         import torchvision

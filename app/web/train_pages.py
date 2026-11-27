@@ -51,7 +51,9 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             if len(models.read_metrics(models.root(folder) / mid)) >= (t.get("epochs") or 1e9):
                 # the sources the run really trained on, as its trainer recorded them: a
                 # version that merely holds Urchinbot does not make a model "pre-trained"
-                used = [s for r in t.get("recorded", []) for s in r.get("outside_used", [])]
+                # (once each: a paused run has one record per start)
+                used = list({s["key"]: s for r in t.get("recorded", [])
+                             for s in r.get("outside_used", [])}.values())
                 out[mid] = {"outside": used, "start": t.get("start"), "arch": rec.get("arch", {})}
         return out
 

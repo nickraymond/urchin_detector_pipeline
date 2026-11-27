@@ -272,7 +272,12 @@ def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monk
     rows = {s: [{"file": f["file"], "image": f["image"], "bytes": __import__("os").path.getsize(f["image"]),
                  "width": 320, "height": 240, "boxes": [b[1:] for b in f["boxes"]]}
                 for f in frames(tmp_path, n, s)] for s, n in (("train", 8), ("valid", 4))}
-    entry = {"key": "urchinbot", "licence": "CC-BY-4.0", "folder": "urchinbot", "rows": "urchinbot.jsonl"}
+    from app.datasets import versions
+    rows_file = versions.root(tmp_path / "a") / "v1" / "outside" / "urchinbot.jsonl"
+    rows_file.parent.mkdir(parents=True)
+    rows_file.write_text("frozen rows\n")
+    entry = {"key": "urchinbot", "licence": "CC-BY-4.0", "folder": "urchinbot", "rows": "urchinbot.jsonl",
+             "sha256": versions.sha256_file(rows_file)}
     monkeypatch.setattr(loaders, "load", lambda folder, number: ({"number": 1, "outside": [entry]}, {}))
     monkeypatch.setattr(outside, "samples", lambda root, vdir, e, split: rows[split])
     pre_recipe = {"arch": ydef.arch("nano", 96, ["urchin"]),
@@ -291,6 +296,11 @@ def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monk
     rows["train"][0]["bytes"] += 1                             # the folder changed since the freeze
     with pytest.raises(RuntimeError, match="no longer the size the version froze"):
         Trainer(pre_dir, pre_recipe, job)
+    rows["train"][0]["bytes"] -= 1
+    rows_file.write_text("edited by hand\n")                  # the version's own rows file changed
+    with pytest.raises(RuntimeError, match="no longer matches the hash in the version's manifest"):
+        Trainer(pre_dir, pre_recipe, job)
+    rows_file.write_text("frozen rows\n")
     # the project run (2 classes) starts from it: everything but the class-score layers is loaded
     start = {**recipe, "train": {**recipe["train"], "start": {"kind": "pretrained", "model": pre_dir.name}}}
     t = trainer(mdir, start)
@@ -299,6 +309,7 @@ def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monk
     used = t.describe()["start_loaded"]
     assert used["kind"] == "pretrained" and used["model"] == pre_dir.name
     assert used["tensors_fresh"] == 6 and all(k.startswith("head.cls_preds.") for k in used["fresh"])
+    assert used["its_classes"] == ["urchin"]
     got = t.model.state_dict()
     assert torch.equal(got["backbone.backbone.stem.conv.weight"], best["backbone.backbone.stem.conv.weight"])
     assert got["head.cls_preds.0.weight"].shape[0] == 2 and best["head.cls_preds.0.weight"].shape[0] == 1
@@ -306,6 +317,24 @@ def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monk
     t.save(0, 1)
     again = trainer(mdir, start)
     assert again.load() == (0, 1) and again.describe()["start_loaded"]["note"] == "loaded at the run's first start"
+    # one class to one class, but another class: the class scores are not taken over (QE PR 90)
+    star = {"arch": ydef.arch("nano", 96, ["sea star"]),
+            "train": {**recipe["train"], "class_ids": [3], "start": {"kind": "pretrained", "model": pre_dir.name}}}
+    star_dir = models.create(tmp_path / "a", "yolox-nano-conv-96-c1", star)
+    monkeypatch.undo()                                         # the project's own loader again ...
+    monkeypatch.setattr(loaders, "detector_samples", lambda folder, version, split, ids=None: {
+        "samples": [{**f, "boxes": [b for b in f["boxes"] if b[0] in ids], "checked": list(ids)}
+                    for f in frames(tmp_path, 8 if split == "train" else 4, split)], "left_out": []})
+    monkeypatch.setattr(loaders, "verify_image", lambda s: None)
+    t3 = trainer(star_dir, star)
+    t3.load()
+    assert t3.describe()["start_loaded"]["tensors_fresh"] == 6
+    assert not torch.equal(t3.model.state_dict()["head.cls_preds.0.weight"], best["head.cls_preds.0.weight"])
+    same = {"arch": ydef.arch("nano", 96, ["urchin"]), "train": star["train"]}
+    same_dir = models.create(tmp_path / "a", "yolox-nano-conv-96-c1", same)
+    t4 = trainer(same_dir, same)
+    t4.load()
+    assert t4.describe()["start_loaded"]["tensors_fresh"] == 0     # the same class list: all of it
     # missing weights and other kinds of start stop the run with the reason
     gone = {**recipe, "train": {**recipe["train"], "start": {"kind": "pretrained", "model": "m9-none"}}}
     other, _ = run("b")
