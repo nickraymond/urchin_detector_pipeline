@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Fix: a LiteRT fault on the Pi step is a job error (S6 builder 2)
+**Branch:** sprint/6-pi-tool-fault
+**Done:** QE's nit 1 on PR 79 (must-fix before the test build, Lead call): `pi_run` exits with its own code when
+LiteRT cannot be imported or its operator-listing method is gone, and `pi.compile` raises the job error with a
+fix ("set the tools up again") for that code. Before, any failure of the run wrote "does not run on the Pi".
+A model LiteRT refuses is still a result. Nits 2 and 3: a comment at the private LiteRT call; the laptop note
+says the peak memory is the whole Python process.
+**Self-test:** the real `pi_run` on `plainseg-s-256-c6` in `convert-venv`: still 30 operators, exit 0; with the
+app's own Python (no LiteRT): exit 3, "tool fault: ModuleNotFoundError".
+**Next:** PRs 80–83, bite 2e, 2c-ii.
+
 ## 2026-11-27 — Sprint S6 — Bite 3c: the Pi step (S6 builder)
 **Branch:** sprint/6-pi-step
 **Done:** `app/fit/pi.py` + `pi_run.py`: for the Pi Zero 2W the convert job runs the 8-bit TFLite once under LiteRT
