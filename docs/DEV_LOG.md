@@ -35,6 +35,23 @@ gave wrong gradients (a channels-last batch; fix in PR 84). A lead cannot start 
 frames, bite 5 part 2, docs. S7: the Pi image, QE on the backup evidence, then the bench runner's design.
 What waits for Nick is listed in SPEC ("Waiting for Nick").
 
+## 2026-11-27 — Sprint S6 — Bite 3d: "Set up the tools" (S6 builder)
+**Branch:** sprint/6-tools-setup
+**Done:** job kind `tools_setup` and a Tools section on `/fit`: each tool environment and the YOLOX checkout with
+"ready" or the reason it is not, the N6 compiler's pieces (SDK, OpenMV tree, Docker image) as found / not found,
+one button. An environment is ready only when it was finished by this job for the current requirements files (a
+mark file with their hash), so a hand-made or outdated one is made again. A failed install stops the job with
+`uv`'s last lines. 7 tests with stand-ins for `uv` and `git`.
+**Self-test:** on Nick's real tools folder the page's status reads all four environments "not ready: not finished,
+or made by hand" (true: the builder made them by hand) and the YOLOX checkout "ready"; SDK, OpenMV tree and
+Docker image "found". Then the job itself on the real folder (after the RF-DETR run had finished): "done", 5 of
+5, in 1 s; `uv` installed and removed nothing (the hand-made environments already matched the pins); all five
+read "ready" afterwards and `convert-venv` still imports torch 2.13.0 and TensorFlow 2.19.0
+(`s6/selftest_3d/jobs/1.log`).
+**Next:** RF-DETR results into DESIGN; 2c-ii.
+**Changed before merge (S6 builder 2, QE's nits 2–3):** the page says what "ready" means (at least the
+requirements; hand-installed extras stay) and Docker is asked at most once a minute, not on every page load.
+
 ## 2026-11-27 — Sprint S6 — Bite 4b: several models on one camera, stored together (S6 builder)
 **Branch:** sprint/6-stored-together
 **Done:** `table.stored_together`: per camera, the best candidate of each kind that runs there (smallest file among
