@@ -37,6 +37,28 @@ def train_kind():
 #         "augment", "seed"}, "why": {field: one short sentence}, "licence"}
 MODEL_TYPES: dict[str, dict] = {}
 
+# YOLOX (bite 4b): S6's definition (app/modeldefs/yolox.py), trained by app/train/yolox.py.
+# Defaults are the earlier work's known-good recipe (ADIN_SPI_OpenMV ml/yolox_urchin/STAGE1.md).
+TRAINERS["yolox"] = "app.train.yolox:Trainer"
+_YOLOX_WHY = {
+    "input": "256 px is the size that compiled for both camera chips and was timed on them; "
+             "training tiles are cut so urchins are 24-64 px, as the cameras see them.",
+    "epochs": "The earlier Nano run kept improving to 120 epochs (mAP50 0.44 at epoch 20, 0.65 "
+              "at 120, on public urchin data).",
+    "augment": "Blur and haze stand in for turbid water; haze is new and not yet measured "
+               "(the earlier work found it hurt Nano), so compare a run without it."}
+for _size, _note in (("nano", "smallest; 10.6 ms on the N6 and 26.4 ms on the AE3 in the earlier "
+                              "work."),
+                     ("tiny", "more accurate in the earlier work (mAP50 0.73 against 0.65), about "
+                              "3x slower on the N6; on the AE3 it runs from the model area only.")):
+    MODEL_TYPES[f"yolox-{_size}-conv"] = {
+        "name": f"YOLOX-{_size.capitalize()} (plain first layer)", "kind": "detector",
+        "trainer": "yolox", "modeldef": "app.modeldefs.yolox", "family": "yolox", "size": _size,
+        "variant": "conv", "inputs": [256, 320],
+        "presets": ["standard + blur + haze", "standard", "none"],
+        "defaults": {"epochs": 120, "input": 256, "augment": "standard + blur + haze", "seed": 0},
+        "why": {"type": _note, **_YOLOX_WHY}, "licence": "Apache-2.0"}
+
 
 def arch_key(mtype: dict, input_px: int, n_classes: int) -> str:
     """D53: <family>-<size>[-<variant>]-<input px>-c<classes>, e.g. yolox-nano-conv-256-c5."""
@@ -66,13 +88,22 @@ def build_recipe(mtype_key: str, form: dict, manifest: dict, class_ids: list[int
     if augment not in mtype["presets"]:
         raise ValueError(f"Unknown augmentation preset {augment!r}.")
     names = {c["id"]: c["name"] for c in manifest["classes"]}
-    arch = {"kind": mtype["kind"], "family": mtype["family"], "size": mtype["size"],
-            "variant": mtype.get("variant") or "", "input": [input_px, input_px],
-            "classes": [names[i] for i in class_ids], "licence": mtype.get("licence", "")}
+    if mtype.get("modeldef"):                 # a real model type: S6's arch and arch key (D53, D54)
+        import importlib
+
+        from app import modeldefs
+        arch = importlib.import_module(mtype["modeldef"]).arch(
+            mtype["size"], input_px, [names[i] for i in class_ids])
+        key = modeldefs.arch_key(arch)
+    else:
+        arch = {"kind": mtype["kind"], "family": mtype["family"], "size": mtype["size"],
+                "variant": mtype.get("variant") or "", "input": [input_px, input_px],
+                "classes": [names[i] for i in class_ids], "licence": mtype.get("licence", "")}
+        key = arch_key(mtype, input_px, len(class_ids))
     train = {"model_type": mtype_key, "trainer": mtype["trainer"],
              "dataset": {"version": manifest["number"], "hash": manifest["hash"],
                          "outside": [{"key": o["key"], "licence": o["licence"]}
                                      for o in manifest.get("outside", [])]},
              "class_ids": class_ids, "tile": input_px, "epochs": epochs, "augment": augment,
              "seed": seed, "start": start}
-    return arch_key(mtype, input_px, len(class_ids)), {"arch": arch, "train": train}
+    return key, {"arch": arch, "train": train}

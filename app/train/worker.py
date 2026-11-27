@@ -79,6 +79,8 @@ def main() -> None:
         "platform": platform.platform(), "limits": job.get("limits"), **trainer.describe()})
     models.write_json(mdir / "recipe.json", recipe)
     jw.emit("loaded", seconds=round(time.perf_counter() - t0, 2))
+    if recipe["train"]["recorded"][-1].get("warning"):     # e.g. a trainer that fell back to the CPU
+        jw.emit("warning", message=recipe["train"]["recorded"][-1]["warning"])
     for done in range(1, epoch + 1):           # epochs an earlier worker finished
         jw.emit("item", i=done, n=epochs, name=f"epoch {done}", skipped=True)
     try:
