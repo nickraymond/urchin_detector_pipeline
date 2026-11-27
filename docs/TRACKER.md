@@ -409,6 +409,10 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       with the network refused), model definition at 384 and 256 px; its own tool environment and export settings (D56)
 - [x] 2b: segmenters (D57): torchvision LR-ASPP and DeepLabV3 on MobileNetV3-Large, and a plain conv net of our
       own in two sizes; 256 px, the five classes plus "other"; built untrained in the app's own tests
+- [x] 2c-i: instance segmenters (D58): RF-DETR-Seg Nano (312 px) and YOLOX Nano / Tiny with prototype masks (our
+      own small conv one, 256 px)
+- [ ] 2c-ii: RTMDet-Ins-tiny (Apache-2.0) as a published small conv instance segmenter: needs the mmdetection
+      stack in its own tool environment; time-boxed, and recorded with its reason if it does not install
 - [ ] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
       each as a model definition the app can build untrained at a given input size; anything not permissive
       stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
