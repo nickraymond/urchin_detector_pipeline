@@ -41,7 +41,7 @@
   {% set busy = job.state in ("scheduled", "queued", "running", "pausing", "paused", "interrupted") %}
   <p><button formaction="/p/{{ info.name }}/train/estimate" data-job-lock="scheduled queued running pausing paused interrupted"{% if busy %} disabled{% endif %}>Estimate</button>
     <button class="primary" data-job-lock="scheduled queued running pausing paused interrupted"{% if busy %} disabled{% endif %}>Run</button>
-    <span class="hint">Estimate trains {{ estimate_steps }} steps (after 1 warm-up step) and checks the validation frames once, as a short job; it makes no model.</span></p>
+    <span class="hint">Estimate trains {{ estimate_steps }} steps (after 1 warm-up step) and checks the validation frames once, as a short job; it makes no model. Cancel stops it (a paused estimate starts over on Resume).</span></p>
 </form>
 <script type="application/json" id="model-types">{{ types | tojson }}</script>
 {% if estimate %}{% set er = estimate.recipe %}
@@ -49,7 +49,7 @@
   ({{ estimate.seconds_per_epoch }} s per epoch) on {{ "the Apple GPU" if estimate.device == "mps" else "the CPU" if estimate.device == "cpu" else estimate.device }}.
   <span class="hint">{{ estimate.at | replace('T', ' ') }} · {{ types[er.train.model_type].name if er.train.model_type in types else er.train.model_type }}, {{ er.train.tile }} px,
   {{ er.arch.classes | join(", ") }}, dataset version {{ er.train.dataset.version }}, augmentation {{ er.train.augment }} ·
-  {{ estimate.steps_per_epoch }} step(s) per epoch × {{ estimate.seconds_per_step }} s + {{ estimate.validation_seconds }} s for validation ·
+  {{ estimate.steps_per_epoch }} step(s) per epoch × {{ estimate.seconds_per_step }} s + {{ estimate.validation_seconds }} s for validation, + {{ estimate.load_seconds }} s to load ·
   {{ estimate.train_frames }} training frames. Other settings take another Estimate.</span></p>
 {% if estimate.warning %}<p class="problem">{{ estimate.warning }}</p>{% endif %}
 {% endif %}
