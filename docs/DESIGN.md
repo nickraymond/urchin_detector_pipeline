@@ -582,7 +582,7 @@ app/web/templates/datasets.html, train.html
   validation frames per epoch for the Train page. Bite 4a builds the job kind with a fake trainer against
   exactly these files, so 4b only swaps the trainer in.
 
-**As built (S8, 2026-11-27; PRs 63–67, 69, 71, 72, 84, 86, 87).** The plan above holds; what was added or
+**As built (S8, 2026-11-27; PRs 63–67, 69, 71, 72, 84, 86, 87, 90).** The plan above holds; what was added or
 came out differently:
 
 - **Files.** As listed, plus `app/train/job.py` (trainers and model types the page offers, the recipe from
@@ -617,9 +617,16 @@ came out differently:
   test frames. `checkpoints/best.pt` keeps the EMA weights of the epoch with the highest recall + precision.
   `val_frames/` holds the first four validation crops with labels (white) and predictions (yellow), redrawn
   each epoch. Device: D65.
-- **Not built in the trainer:** starting from anything but scratch (refused, by the form and again by the
-  trainer) and reading a version's outside data (`outside_used` is recorded empty). So bite 3's
-  "pre-trained on the allowed sources" has its checks and its record but no model that qualifies yet.
+- **Pre-training and starting from it (bite 3's second half, PR 90).** "Train on: the version's outside
+  data" makes an ordinary model in `models/` whose recipe says `train.data: "outside"`: it reads every
+  outside source of the version (`outside.samples`; train and valid splits, never test), learns one class,
+  "urchin", and records the sources in `outside_used`. The outside folder's path goes into the job file only
+  for such a run. A finished model with `outside_used` is offered under "pre-trained here"; a run that picks
+  it must be the same family, size and first layer. At that run's first start the trainer loads the EMA
+  weights of the model's `checkpoints/best.pt` into every tensor of the same name and shape (with another
+  class list the six class-score tensors stay fresh) and records what it loaded (`start_loaded`). Published
+  weights are still not loaded by anything (D62). Cost seen: about 3 s per step of 32 on Urchinbot (decoding
+  12-megapixel JPEGs), 13 min per epoch.
 - **Train page (bite 5).** New-run form from `train_job.MODEL_TYPES` (each type's sizes, presets, defaults
   and "why" texts; the fields follow the type picked), Run as a job with Start at / Stop by and Keep laptop
   awake, one training job per project at a time, one small chart per metric polled every 3 s, the

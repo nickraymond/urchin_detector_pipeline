@@ -531,16 +531,16 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       *As built (D66): stricter. A detector run uses a frame only when every class of the run is fully checked
       on it; the page counts by the same function.*
 
-**Bite 3 — Outside data and starting weights** (PR 66)
+**Bite 3 — Outside data and starting weights** (PRs 66, 90)
 - [x] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
       use (not the DUO set: Nick, 2026-11-27); the page lists each source with its licence and counts; its
       boxes are one class, "urchin", used for pre-training the detector only, never in the test split; the
       folder is a setting in `config.local.toml`
-- [~] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or
+- [x] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or
       published weights with a recorded licence
-      *Done: the choice, its checks and its record (`app/train/starting.py`); no published weights are offered
-      (D62). Open: the YOLOX trainer starts from scratch only. It does not read a version's outside data yet,
-      so no "pre-trained" model can exist and that choice is greyed out on the Train page.*
+      *The choice, its checks and its record are `app/train/starting.py`; no published weights are offered
+      (D62). Pre-training is a run with "Train on: the version's outside data" (one class, "urchin"); when it
+      has finished, a run of the same model type can start from it (PR 90).*
 
 **Bite 4a — Train job** (PR 67)
 - [x] job kind `train` on `app/jobctl/`: a worker process that writes a checkpoint and a metrics line per epoch;
@@ -554,7 +554,9 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       includes blur and haze; every run records dataset version,
       recipe, code version, seed, library versions and device
       *Also Tiny. Trains on the Apple GPU, with a check against the CPU before every start (D65). Not in: mosaic.*
-- [ ] pre-training on a version's outside data, and starting a run from such a model (bite 3's open half)
+- [x] pre-training on a version's outside data, and starting a run from such a model (bite 3's open half; PR 90)
+- [ ] pre-training is slow to feed: about 3 s per step of 32 on Urchinbot's 12-megapixel photos against 0.9 s
+      on small frames (decoding, not the GPU); keep shrunk copies of outside images in the data folder
 - [ ] frames where only some of the run's classes are fully checked: use them for their labeled boxes (asked of
       the spec lead 2026-11-27; today they are left out, D66)
 - [ ] measure the haze preset against "standard" on real frames (the earlier work found haze hurt Nano)
