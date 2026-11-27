@@ -1,7 +1,7 @@
 # DESIGN.md — Architecture & Decisions (as-built)
 
 *What it did / how it's shaped. Agents append; never silently rewrite history.*
-*Last updated: 2026-11-25*
+*Last updated: 2026-11-27*
 
 ## System topology
 
@@ -466,6 +466,138 @@ app/web/templates/export.html  the Export page
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 
+### Planned for S6 (what runs where, on the laptop) — S6 builder's bite 1, 2026-11-27; becomes as-built as bites land
+
+**What is reused** from `ADIN_SPI_OpenMV/ml/` (Nick's earlier work; read 2026-11-27; nothing is written there):
+
+| Earlier piece | Reused as | How it is brought in |
+|---|---|---|
+| `yolox_urchin/model.py` `build_model` (conv stem) and `RawExport` (three raw head maps, sigmoids baked in); the same code in the gate's `export_candidates.py` | the YOLOX candidate's model definition (bite 2a) | adapted into `app/modeldefs/`; Megvii's YOLOX stays an unmodified checkout at `6ddff48` (D51) |
+| `yolox_urchin/export.py`: ONNX (opset 13, classic exporter) → `onnx2tf -oiqt` with a calibration file → `*_full_integer_quant.tflite`; pre-seeding onnx2tf's sample-data file | the 8-bit step of the `convert` job (bite 3a) | adapted into `app/fit/`; the DUO calibration frames are not reused (D55) |
+| `compile_model.sh`: the two compilers' arguments, run through OpenMV's `tools/modelc.py` in the `firmware-builder` container | the N6 compiler step (bite 3b), with the SDK, the OpenMV tree and the input mounted read-only | the command is rebuilt in `app/fit/`; the script itself is not called |
+| the Vela arguments in `compile_model.sh` and OpenMV's `tools/vela.ini` | the AE3 compiler step (bite 3b), run natively (D52) | same arguments; `vela.ini` read from the OpenMV tree |
+| `compile_gate_report.md`'s method: untrained model, placement from the compilers' own reports (Vela's summary CSV and operator counts; ST's `network_generate_report.txt` "Epochs details") | the fit report's fields and parsers (bites 3a, 3b) | the two real reports of the known-good run become parser test fixtures (text only, no weights) |
+| `build_romfs_n6.sh` (one model image holding ours and the vendor's models) | S7's load step and bite 4's "stored together" check | read only in S6: the 24 MiB model area (`boards/OPENMV_N6/board_config.h`, `OMV_ROMFS_PART0_LENGTH 0x01800000`) is the limit a file is checked against |
+
+**Flow of one cell** (candidate × camera): build the model untrained in the conversion environment → ONNX →
+8-bit TFLite → the camera's compiler → `fit.json`. The job worker runs in the app's environment (no torch needed)
+and starts each step as a child process in the tool environment it needs (D51). Each step's output on disk is
+its progress (D33): a step whose output exists is skipped on Resume.
+
+**Folders** (D53):
+
+```
+<tools_dir>/                         on the laptop's own disk (D51); never in git
+  convert-venv/                      Python 3.11; torch → ONNX → 8-bit TFLite; LiteRT
+  vela-5.0.0-venv/                   Arm Vela (AE3)
+  third_party/<name>/                model code checked out at a pinned commit (YOLOX 6ddff48, ...)
+  licences/                          licence texts read before use (ST's); also copied to <data_dir>/fit/licences/
+<data_dir>/fit/<arch key>/           untrained candidates: app-wide, no project
+<data_dir>/projects/<name>/models/<model id>/    trained models (S8)
+  recipe.json                        D54
+  checkpoints/  train.jsonl          S8 adds these
+  int8/                              model.onnx, model_int8.tflite, int8.json (how it was made), convert.log
+  targets/<n6|ae3|pi>/               the compiler's output file, compile.log, the compiler's own report, fit.json
+```
+
+`fit.json` (one per model × camera; the "What runs where" page reads only these): `converts` yes / no;
+`placement` {npu, hybrid, cpu, total, unit: "epochs" (N6) or "operators" (AE3)}; `failing_layers` [{name, type,
+why}]; `file_bytes` and `limit_bytes` with the limit's source; `memory_bytes`; `estimate_ms` marked as the
+compiler's estimate; `tool` name and version; `error` (the compiler's message when it does not convert). A failed
+conversion writes `fit.json` with `converts: false`; the job itself ends "done".
+### Planned for S8 (dataset versions and the first detector) — builder's plan 2026-11-27 (TRACKER S8 bite 1); becomes as-built as bites land
+
+```
+app/datasets/versions.py   freeze a version from export/ (manifest, hash), list and read versions
+app/datasets/splits.py     carry each group's split from the version before; deal new groups (D61)
+app/datasets/view.py       what training will see: counts, classes under target, frames left out (bite 2b)
+app/datasets/loaders.py    detector samples from a version, honoring "fully checked" and the split check (bite 2b)
+app/datasets/outside.py    public sources from the outside-data folder, with their licence records (bite 3)
+app/datasets/worker.py     the `freeze` job kind
+app/train/worker.py        the `train` job kind: epochs as items, checkpoint + metrics line per epoch (bite 4a)
+app/train/yolox.py         the YOLOX trainer behind it (bite 4b; needs S6 bite 1's decisions)
+app/web/templates/datasets.html, train.html
+```
+
+- **Layout of `datasets/` (D60).** Per project:
+  ```
+  datasets/images/<sha256>.<jpg|png>   every frame any version uses, stored once under its content hash
+  datasets/v<N>/manifest.json          see below; written once, never changed
+  datasets/v<N>/detector_coco.json     the export's file with each image's `split` set to the version's
+  datasets/v<N>/frame_metrics.csv      the export's file with the `split` column set to the version's
+  datasets/v<N>/seg_masks/             copied from export/ (8-bit PNGs + classes.json)
+  datasets/v<N>/splits/                train.txt, valid.txt, test.txt (the version's, not the export's)
+  ```
+  Labels are frozen by copy (they are small). The export's own `split` fields would be wrong from version 2
+  on (D61), so the version's copies carry the version's splits and the manifest is the authority.
+  "Frames by reference" (spec §Outputs) = the manifest names each frame by its content hash and the file
+  lives once in `datasets/images/`, shared by every version that uses it. A reference into `export/images/`
+  or `frames/` would not hold: the export is rebuilt from scratch on every Export (D41), a frame rejected
+  later moves to `rejected/`, and rotated stills are re-saved (D44). The SSD is exFAT (as-built S5), so hard
+  links are not available. Cost: one extra copy of each accepted frame per project, not per version.
+  A version is built in `datasets/v<N>.new/` and renamed when complete; a half-built one is removed on the
+  next freeze. Nothing in the app rewrites or removes a `v<N>/` folder or a file in `datasets/images/`.
+- **`manifest.json`.** `number`, `name` (Nick's words, optional), `created`, `hash`; `export` (the export's
+  `summary.json` time and counts); `classes` (the export's `classes.json` list); `files` (sha256 of each
+  copied label file); `frames`: one row per frame with `file`, `image` (sha256 + extension), `width`,
+  `height`, `source`, `group`, `split`, `split_ok`, `checked_classes`; `groups` (`group`, `split`, `frames`,
+  `carried` from which version or `new`); `grouped_by` and the export's split warning; `counts` (objects and
+  frames per class and split); `outside` (bite 3: sources with licence, counts and their own content hash);
+  `previous` (the version it carried splits from). `hash` = sha256 of the canonical JSON of `classes`,
+  `files`, `frames`, `groups` and `outside`: the same content gives the same hash whatever its number, name
+  or date, and Freeze says "nothing changed since v<N>" instead of writing an identical version.
+- **Freeze is a job** (kind `freeze`, not pausable: it copies files into `v<N>.new/` and starts over if
+  stopped). Refused with no export, with an export whose checks did not pass (`summary.json` `ok`), or while
+  an export job is queued or running.
+- **Splits across versions (D61).** Version 1 takes the export's groups and splits as they are. Later
+  versions never ask the export where a frame goes: a frame that was in any earlier version keeps the split
+  it had in the newest version that holds it (so a frame left out of one version and back in the next is not
+  dealt again); a group (site + dive date, or video when the export had to fall back, D43) that was in an
+  earlier version keeps its split the same way, and its new frames join it. "The same frame" is the same
+  file name, not the same image hash: a rotated still is re-encoded on every Export (D44), so its bytes can
+  change while it is still that frame (QE PR 61). New groups are dealt, largest first, to the split furthest
+  below 70 / 20 / 10 counting the frames already placed (the export's rule, started from the carried
+  counts). One case the spec does not cover: the export's grouping changes from "video" to "site and dive
+  date" once a project has 3 dives, and a dive whose videos sat in different splits becomes one group. Its
+  old frames keep their splits (a test frame never moves to train); its new frames go to the most held-out
+  split its old frames are in (test before valid before train), and the page lists such groups.
+- **Training reads a version, never the export** (spec stage 7): the loaders take `datasets/v<N>/` and
+  `datasets/images/` and check each image's hash on first use.
+- **What training adds to S6 bite 1's decisions** (package location, `models/` layout, recipe: the S6
+  builder's calls, now Lead calls D51, D53 and D54; nothing here changes them). S8 uses that layout's names as they
+  are: a trained model is `projects/<name>/models/m<number>-<arch key>/` with `recipe.json`, `checkpoints/`
+  and `train.jsonl`. What S8 puts in them: `recipe.json` → `train` holds the dataset version and its hash,
+  classes, tiling, epochs, augmentation preset, seed and the starting weights with their licence record
+  (D54), and the train job appends one `recorded` entry per start or resume (time, where it continued from,
+  code commit, library versions, device, limits); `checkpoints/last.*` is where Resume continues (model,
+  optimizer, EMA, epoch and step: the earlier trainer's dict plus the step) next to the best one by
+  validation; `train.jsonl` has one line per finished epoch; `val_frames/` (new, S8) holds a few drawn
+  validation frames per epoch for the Train page. Bite 4a builds the job kind with a fake trainer against
+  exactly these files, so 4b only swaps the trainer in.
+
+**Reuse from the earlier YOLOX work** (`ADIN_SPI_OpenMV` @ `994b8c2`, `ml/yolox_urchin/`, read 2026-11-27;
+read only, nothing is imported from that repo: pieces are adapted into `app/train/` with a note in each file).
+
+| Earlier file | What it is | Reused in S8 |
+|---|---|---|
+| `train.py` | the loop: SGD + Nesterov, peak lr 0.01 / 64 × batch, 3-epoch linear warm-up (at most 1500 steps), cosine decay to 5 %, EMA with ramped decay (fixed decay scored 0.478 against 0.573, its own note), BatchNorm eps 1e-3 / momentum 0.03, mosaic off for the last 10 epochs, checkpoint dict `{model, opt, ema, epoch}`, resume, run record (config, git sha, corpus hash) | **Adapted** (4b): same loop and numbers as the known-good start (value 5). Changed: SIGTERM stop → the job module's `pause` on stdin; `~/nereus_ml/runs` → the model's folder; one class → the run's class list; one `@@` metrics line and checkpoint per epoch |
+| `model.py` | `build_model` (YOLOX-Nano / -Tiny from YOLOX's own `exp`, Focus stem swapped for a stride-2 conv, the variant that compiled for both NPUs), three run-time patches for the Apple GPU (legacy `.type()` casts), `RawExport`, `decode_raw` | **Shared with S6** bite 2a (the detector's model definition is the S6 builder's); the trainer calls that definition. The Apple GPU patches are training-only and move to `app/train/` |
+| `data.py` | samples: scale so the median box lands in the 24–64 px band, box-aware crop to a 256 px canvas (15 % random), mosaic, flip, HSV, Gaussian blur on its own random stream so turning blur on never moves a box; boxes under 8 px dropped | **Adapted** (4b) as the recipe's tiling and augmentation. Uses OpenCV, which the app does not depend on: 4b first tries Pillow / numpy / scipy (already dependencies) and adds OpenCV only with its licence read. **New:** haze (TRACKER 4b asks for it; the earlier file left haze out on purpose: "measured harmless to tiny", hurt only Nano) |
+| `test_data_aug.py` | boxes unchanged by blur, same seed → same sample, evaluation never blurs | **Adapted** as tests (4b), on synthetic images |
+| `train_ctl.py`, the LaunchAgent in `README.md` | its own control page, SIGSTOP pause, night schedule | **Not reused**: `app/jobctl` does all of it (D4, D32–D38) |
+| `export.py`, `decode_np.py`, `eval_rung_a.py` | 8-bit export and compiles; numpy decode + NMS; COCOeval scoring | Not S8: S6 (convert) and S9 (evaluate) |
+| `train_species.py`, `stage2_autobox.py`, `harvest_crops.py`, `hil_stills.py`, `plot_curves.py` | the two-stage species head and rig tools | Not reused: Build 2 trains the urchin types as detector classes |
+| `~/nereus_ml/datasets/corpus_v1/` and the runs' weights | Urchinbot + DUO + RF100 corpus; stage-1 weights trained on it | **Not used** (spec, Nick 2026-11-27: no DUO, no DUO-trained weights); bite 3 builds its own view of the allowed sources |
+
+Licences for S8, read at the source 2026-11-27 (texts and details in `THIRD_PARTY_LICENSES`):
+YOLOX code Apache-2.0 (`Megvii-BaseDetection/YOLOX` `LICENSE` at `6ddff48`, the head of `main`; GitHub's
+licence API says Apache-2.0; the local checkout `~/nereus_ml/third_party/YOLOX` is the same commit and its
+`LICENSE` has the same sha256). YOLOX's published COCO weights: the repository has no separate licence
+statement for them; they are release files of that repository, trained on COCO, whose terms put the
+annotations under CC BY 4.0 and leave the images under Flickr's terms (`cocodataset.github.io`
+`dataset/termsofuse.htm`, the file the site's Terms of Use tab loads, read from its GitHub repository). So the weights' licence is **not verified as
+permissive**: S8 offers "from scratch" and "pre-trained on the allowed sources" only (Lead call D62).
+
 ## Decision log
 
 | # | Date | Decision | Rationale |
@@ -528,6 +660,16 @@ app/web/templates/export.html  the Export page
 | D48 | 2026-11-26 | **Lead call** (planning lead, D45): area classes (rock, kelp) run on the whole frame scaled to 2016 px (`areas_whole_px: 2016` in `classes.yaml`; 0 = tiles as before); objects stay in tiles. A `classes.yaml` without the setting gets 2016 too, so existing projects switch as well and re-run their areas (only) on the next Run; setting 0 in the class form keeps tiles. | S5 bite 7 bench (PR 49), real SAM 3, 10 frames from 4 videos incl. 5.3K: seam pixels 1078 → 29 and 2110 → 91; 2–5 s per frame; peak Apple GPU 22.7 GB; whole-frame areas missed 2 of 10 frames (a rock-face close-up, a hazy algae patch) where tiles found only fragments. Nick can reverse it. |
 | D49 | 2026-11-26 | **Lead call** (planning lead, S5 bite 7): the anemone prompt is "anemone" (was "sea anemone"); no confidence per class. | Same bench: urchins lost to an anemone mask under D22 rule 1: 27 of ~94 with "sea anemone", 6 with "anemone"; "sea anemone tentacles" took none but found almost no anemones. Anemone masks on urchins scored up to 0.93, so a per-class confidence would not separate them. The remaining 6 stay under the spec's "keep the higher score" and are fixed in review; whether urchin should beat anemone is a question for Nick. Nick can reverse it. |
 | D50 | 2026-11-26 | **Lead call** (planning lead, S5 fix): a project made before D39 has no black urchin, so its Review page has no B key. The Review page names each starting urchin type the project lacks and offers one button, "Add black urchin", which appends that class to the end of the project's `classes.yaml` (id 10 if no class or SAM result ever used it, else the next new id) through the usual checks; nothing else in the file and no SAM result changes. A type counts as present by name, or by id in the same group (renamed). | Found while Nick tested S5 on an older project. Smaller than a class-form offer: one route and one note, on the page where the key is missing. Adding a class to the urchin group does not change the group's settings key, so no re-run is needed. Nick can reverse it. |
+| D51 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S6 builder, bite 1): Build 2's tools live in their own Python environments under `tools_dir`, outside the app's environment and outside git. `tools_dir` is an optional key in `config.local.toml`, default `~/NereusData/urchin_detector_pipeline/tools`. `convert-venv` (Python 3.11) is built with `uv` from `app/fit/toolchain/requirements-convert.txt`, the exact pins of the earlier "gate" environment; Vela has its own small environment. A job worker runs in the app's environment and starts tool steps as child processes with the tool environment's Python. Model definitions live in `app/modeldefs/`: plain PyTorch that imports nothing else from `app`, so the conversion environment (torch 2.13.0, CPU) and the trainer (the app's torch 2.10.0, Apple GPU) build the same model from the same code; weights move between them as a `state_dict`. Third-party model code is a git checkout at a pinned commit under `tools_dir/third_party/`, put on `sys.path` by `app/modeldefs/`; it is not pip-installed, so its own requirements file is not applied. Setting the tools up is a job with a button (bite 3), not a terminal step. | The app pins torch 2.10.0 and numpy < 2 (D7, `pyproject.toml`); the known-good conversion route needs TensorFlow 2.19.0, onnx2tf 1.28.8 and numpy 2.1.3 (`pip freeze` of `~/nereus_ml/venvs/gate`), and Vela pins its own flatbuffers. Not on the SSD: it is exFAT (`diskutil info`), which cannot hold a Python environment's links. The earlier work imported YOLOX the same way (`yolox_urchin/model.py`). Measured: `convert-venv` 2.2 GB, each Vela environment 28 MB. SPEC constraint 7 (browser only). Nick can reverse it. |
+| D52 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S6 builder): compilers. Every cell of the table states the compiler and its version. **N6:** ST Edge AI Core 4.0.0 (`v4.0.0-20500`), run as the earlier work did: OpenMV's `tools/modelc.py` inside the `firmware-builder` container with `~/openmv-sdk-1.6.0-linux-x86_64` and the OpenMV tree (`7d4dbf7`), now mounted read-only; Docker must be running. The paths and the image name are settings under `[fit]` in `config.local.toml`. **4.1.0 is not installed:** running ST's macOS installer was refused by the builder session's permission system (2026-11-27); its terms were read first (SLA0044 Rev 7; see `THIRD_PARTY_LICENSES`). Moving to 4.1.0 is one later change, compared against these numbers; it waits for Nick. Staying on 4.0.0 (SLA0104, already on the laptop from Nick's earlier work) is part of this Lead call: Nick's yes of 2026-11-27 names 4.1.0's terms. **AE3:** Arm Vela 5.0.0 from PyPI, run natively with OpenMV's `tools/vela.ini` and the arguments of `compile_model.sh` (`--system-config RTSS_HP_DTCM_MRAM --accelerator-config ethos-u55-256 --memory-mode Shared_Sram --optimise Performance`). Vela 5.2.0 is installed beside it for comparison only. **Pi:** the 8-bit TFLite file itself, run with LiteRT (`ai-edge-litert` 2.2.0, in `convert-venv`); ONNX Runtime and ncnn are tried in bite 3c; the pick is S7's, by measurement. | One variable at a time (CLAUDE.md value 5): the route that produced the measured boards' models is kept, and reproduces byte for byte (Bench results, S6 bite 1). OpenMV's current SDK (1.7.3: the `SDK_VERSION` file on `openmv/openmv` master) still bundles ST Edge AI Core 4.0 and Vela 5.0.0 (`openmv/openmv-sdk` master, `tools/downloads.cfg` and `tools/build.sh`; all read 2026-11-27), so 4.0.0 / 5.0.0 are what the cameras' firmware is built against. Vela 5.2.0 also places every operator on the NPU but estimates 12.2 ms where 5.0.0 says 28.1 ms and the board measured 24–26 ms (`STAGE1.md`). Nick can reverse it. |
+| D53 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S6 builder): the `models/` layout in §Planned for S6. A trained model is `projects/<name>/models/<model id>/` (the spec's folder); an untrained candidate is `<data_dir>/fit/<arch key>/` with the same `recipe.json`, `int8/` and `targets/<camera>/` inside. `<model id>` is `m<number>-<arch key>`, numbered per project and never reused. `<arch key>` is readable and built from the recipe's architecture part: `<family>-<size>[-<variant>]-<input px>-c<classes>`, for example `yolox-nano-conv-256-c5`. | "What runs where" needs no project and no trained model (spec §First result), so untrained results cannot live in a project. The same inner layout lets one `convert` job serve both (spec stage 11). A trained model's placement is expected to equal its untrained sibling's but is compiled again, not assumed: the earlier trained export had 119 steps against 118 untrained. Nick can reverse it. |
+| D54 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S6 builder): a recipe is one JSON file, `recipe.json`, in two parts. `arch` (all S6 needs, and what the arch key is built from): `kind` (detector / segmenter / instance), `family`, `size`, `variant` (for example `{"stem": "conv"}`), `input` [height, width], `classes` (the list of class names; untrained candidates use the five Build 2 classes, plus "other" for the segmenters), `outputs` (the raw output maps and how they decode), `code` {repo, commit}, `licence` and `licence_mark` ("Roboflow licence" or none). `train` (S8 fills it; absent for untrained candidates): dataset version, tiling, epochs, augmentation preset, starting weights, seed, library versions, device. Tiling sits in `train` / evaluation, not in `arch`: a tile is just an input of the `arch` size. | Spec: "model type × size × input size × tiling" is one recipe, and every run records what made it. Splitting it keeps the fit result tied to what the compilers see (architecture and input size) while training settings change freely. Nick can reverse it. |
+| D55 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S6 builder): the untrained fit check uses seeded random weights and 20 seeded random-noise calibration images, not real frames. A trained model is calibrated with frames from its dataset version's training split (S11). | Spec stage 11: for the untrained check "calibration frames only set value ranges". The earlier gate calibrated with DUO frames; DUO is fenced (Nick, 2026-11-27), and S6 has no dataset version yet. Measured: with noise calibration the same architecture still places with 0 software steps (Bench results). Nick can reverse it. |
+| D60 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S8 builder, bite 1; amends the spec's "frames by reference": frames are stored once per project by content hash, because the export is rebuilt each time): a dataset version is `datasets/v<N>/` with a `manifest.json`, its own copies of the export's label files, and frames named by content hash, stored once per project in `datasets/images/`. Versions are built under a temporary name, renamed, and never changed or removed by the app. The version's hash covers classes, label files, frames, groups and outside sources, not its number, name or date. | Spec stage 7: models train on a version, "never on whatever the export is today". The export is rebuilt from scratch each time (D41) and frames can be rejected later, so a path into `export/` or `frames/` is not a frozen reference; exFAT has no hard links. Labels are small, images are not: copy labels per version, images once. Nick can reverse it. |
+| D61 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S8 builder, bite 1; a gap in the spec): splits across versions are carried by frame first (by file name, from the newest earlier version that holds the frame), then by group the same way; new groups are dealt toward 70 / 20 / 10 from the carried counts. When the export's grouping changes from video to site + dive date and a dive straddles splits, old frames stay where they were and the dive's new frames go to its most held-out split (test, then valid, then train); the Datasets page lists such groups. | Spec stage 7: one fixed test set; every group keeps its split. A frame that was ever a test frame must never become a training frame, or an older model's test score and a newer model's training set overlap silently; the other direction only shrinks training data. Nick can reverse it. |
+| D62 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): YOLOX's published COCO weights are not offered in S8. A run starts from scratch or from a model pre-trained in the app on allowed outside sources; `THIRD_PARTY_LICENSES` says why. | The repository states no licence for the weights apart from its Apache-2.0 `LICENSE`, and COCO's terms leave the images under Flickr's terms: the weights' licence is not verified as permissive (SPEC constraint 6; spec "Models that are safe to use": code, weights and data are three checks). Nick can reverse it. |
+| D63 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; stricter than the builder's proposal): RF100 underwater-objects is listed on the Datasets page but cannot be switched on; it shows "waits for Nick: same image lineage as DUO". Urchinbot is the default outside source. | RF100's own record says CC BY 4.0 and GO, but its images are URPC contest images, the lineage of the DUO set that Nick ruled out (2026-11-27). A licence question is Nick's; the lead batches it for him. Nick can reverse it. |
+| D64 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): the "fully checked" rule stays as the spec has it. When a version would train on 0 objects of a chosen class because no frame is fully checked for it, the Datasets page says so in one line with what to tick on the Review page; Freeze still works. Nothing under `app/review/` changes. | Found on the real S5 project: no class was marked fully checked on any detector frame, so training would have seen nothing without a word of warning. Fewer clicks for marking is a Build 1 question the lead takes to Nick. Nick can reverse it. |
 
 ## Bench / test results
 
@@ -649,3 +791,23 @@ Anemone masks on urchins score up to 0.93 ("sea anemone") and 0.82 ("anemone"), 
 cannot separate them. **Pick (Lead call D49):** prompt "anemone". A rule that urchin beats anemone whatever
 the scores would contradict the spec's "keep the higher score" (D22 rule 1): not done; a question for Nick if
 review shows urchins still lost.
+
+### S6 bite 1: known-good reproduction of the earlier YOLOX-Nano placement (2026-11-27)
+
+All on the laptop, no hardware. Outputs, logs and the three scripts used: `~/NereusData/urchin_detector_pipeline/s6/known_good/`.
+Earlier numbers: `ADIN_SPI_OpenMV/ml/compile_gate_report.md`, `ml/yolox_urchin/STAGE1.md`,
+`~/nereus_ml/runs/compile_gate_2026-08-22.json`.
+
+| Step (one change each) | N6: ST Edge AI Core 4.0.0 | AE3: Vela | Same as earlier? |
+|---|---|---|---|
+| 1. The earlier untrained 8-bit file (`yolox_nano_256_int8.tflite`, sha256 `b7f4d37d…`), earlier container route | 118 steps: 116 hardware + 2 hybrid (DepthToSpace) + 0 software; 1,166,008 bytes | 5.0.0: one `ethos-u` operator; 998,608 bytes; 512 KiB memory; estimate 28.08 ms | byte-identical output files (sha256 `dd6e250a…`, `fea8049f…`) |
+| 2. The earlier trained 8-bit file (`stage1_v1_256_int8.tflite`), same route | 119 steps: 117 + 2 + 0; 1,209,816 bytes | one `ethos-u` operator; 1,027,744 bytes; estimate 28.08 ms | byte-identical (sha256 `bd6bb274…`, `144d8bad…`) |
+| 3. Untrained model exported again in the earlier environment (`venvs/gate`), noise calibration instead of DUO frames (D55) | 122 steps: 120 + 2 + 0; 1,190,584 bytes | one `ethos-u` operator; 1,006,368 bytes; estimate 28.08 ms | same placement class (0 software, 2 hybrid); the step count differs by 4 |
+| 4. Step 3 in the new `convert-venv` (same pins) | — | — | ONNX and 8-bit TFLite byte-identical to step 3 |
+| 5. Step 1's file, Vela 5.0.0 native on macOS (no container) | — | output byte-identical to the container's (`fea8049f…`); CPU operators 0, NPU operators 378 | yes |
+| 6. Step 1's file, Vela 5.2.0 native | — | CPU operators 0, NPU operators 352; 995,184 bytes; 512 KiB; estimate 12.21 ms | placement yes; file and estimate differ (D52) |
+
+The step count depends on the weights and the calibration, not only on the architecture (118, 119, 122 for the
+same network), so the page's headline uses the software and hybrid counts, not the total. Also run: step 1's file
+under LiteRT 2.2.0 on the laptop (int8 input 1×256×256×3, three int8 output maps; 2.0 ms per inference on one
+thread, a laptop figure that says nothing about the Pi; `scripts/litert_run.py`, `litert/run.log`). Not done: ST Edge AI Core 4.1.0 (D52).

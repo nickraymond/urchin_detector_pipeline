@@ -99,9 +99,11 @@ def test_one_summary_per_job_across_pause_and_resume(jc, tmp_path):
     jid = jc.submit("fake", params(tmp_path, n=8, delay=0.2))
     wait_for(lambda: len(writes(tmp_path)) >= 2)
     jc.pause(jid)
-    job = wait_state(jc, jid, "paused")
-    s = job["summary"]
-    assert s["state"] == "paused" and s["stop_reason"] == "paused"
+    wait_state(jc, jid, "paused")
+    # the summary is written just after the state, as for "done" below (PR 45)
+    assert wait_for(lambda: (jc.status(jid)["summary"] or {}).get("state") == "paused", 10)
+    s = jc.status(jid)["summary"]
+    assert s["stop_reason"] == "paused"
     assert s["items"] == len(writes(tmp_path)) == s["counts"]["thing"]
     assert jc.last_summary()["id"] == jid          # a paused job's summary counts as last
     jc.resume(jid)

@@ -17,6 +17,58 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2a-i: model definitions, YOLOX candidates (S6 builder)
+**Branch:** sprint/6-detector-candidates
+**Done:** `app/modeldefs/` (plain data + PyTorch, imports nothing else from `app`; a test checks): candidates as
+the `arch` part of a recipe (D54), `arch_key` folder names (D53), checks that say what is wrong, `build()` for the
+exported module. YOLOX Nano / Tiny (plain first layer, three raw maps) at 256 and 320 px with the five Build 2
+classes, adapted from the earlier `yolox_urchin/model.py`. YOLOX is an unmodified checkout at `6ddff48` in
+`<tools_dir>/third_party/YOLOX` (LICENSE sha256 `0ec3668d…`, Apache-2.0). Self-test in the conversion environment:
+all four candidates build; outputs (1, 10, px/8 … px/32); 896,238 parameters (Nano), 5,032,086 (Tiny).
+**Broke/surprised us:** importing YOLOX needs `loguru`, `tabulate` and `cv2`; the app's environment has none of
+them, so the two build tests skip there (S8's trainer will need them if it trains in the app's environment).
+Cloning YOLOX on macOS warns about two demo files whose names differ only by case; the model code is not affected.
+**Next:** bite 2a-ii (RF-DETR Nano), then 2b (segmenters).
+
+## 2026-11-27 — Sprint S8 — Bite 1: prior art, licences, `datasets/` layout (S8 builder)
+**Branch:** sprint/8-prior-art (docs only)
+**Done:** re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` at `994b8c2` (trainer, model, data, tests, export, decode,
+eval, model card) and wrote what S8 reuses (DESIGN §Planned for S8): the training loop and its numbers, the
+sample / augmentation code, the blur tests; not its control page (the job module replaces it), not its corpus or
+weights (DUO). YOLOX's licence read at the source and added to `THIRD_PARTY_LICENSES` with the starting-weights
+record. `datasets/` layout and the split-carrying rule logged as D60 and D61.
+**Broke/surprised us:** the export is rebuilt from scratch on every Export, so "frames by reference" cannot point
+into `export/`: frames are stored once per project under their content hash instead (D60). YOLOX's published COCO
+weights carry no licence statement of their own and COCO's images stay under Flickr's terms: not offered. The
+earlier work left haze augmentation out on purpose (it hurt Nano); TRACKER 4b asks for it, so 4b measures it.
+RF100 (verdict GO, CC BY 4.0) shares DUO's URPC image lineage: raised with the spec lead before bite 3.
+**Later the same day (code in draft PRs, not merged; their DESIGN / TRACKER notes follow each merge):** bite 2a =
+PR 63 (`app/datasets/versions.py`, `splits.py`) + PR 64 (Datasets page, `freeze` job); 2b = PR 65 (loader and "what
+training will see"); 3 = PR 66 (outside data: Urchinbot and RF100 allowed, DUO and the rest refused with reasons;
+starting weights as a recorded choice); 4a = PR 67 (`train` job kind with a fake trainer, no torch). Self-tests in
+the browser on a scratch copy of the S5 project, data folder `~/NereusData/urchin_detector_pipeline/scratch_s8_builder/`.
+**Also seen:** on that real project no class is marked "fully checked" on any detector frame, so by the spec's rule
+training would see 0 objects: the demo needs those boxes ticked. The full suite must run at normal priority: under
+`nice -n 10` the job tests time out (319 passed without it).
+**Next:** bite 4b (YOLOX trainer) once S6 bite 2a's `app/modeldefs/` YOLOX definition exists; bite 5 (Train page).
+## 2026-11-27 — Sprint S6 — Bite 1: prior art, toolchains, known-good reproduction (S6 builder)
+**Branch:** sprint/6-toolchains (docs, licence records and one requirements file; no app code)
+**Done:** read `ADIN_SPI_OpenMV/ml/` (export, compile scripts, gate report, STAGE1) and `~/nereus_ml/`; what is
+reused is a table in DESIGN §Planned for S6. Known-good first: the earlier untrained and trained YOLOX-Nano 8-bit
+files recompiled with the earlier container route are byte-identical to the earlier outputs on both compilers (N6
+116 + 2 + 0 of 118 and 117 + 2 + 0 of 119; AE3 one `ethos-u` operator). Then one change at a time: export again with
+noise calibration (0 software steps still); a new `convert-venv` with the same pins (byte-identical files); Vela
+5.0.0 native on macOS (byte-identical to the container). Numbers: DESIGN §Bench results. Decisions D51–D55: tool
+environments under `tools_dir`, compilers, `models/` and `fit/` layout, `recipe.json`, noise calibration for
+untrained candidates. Licences of every tool in `THIRD_PARTY_LICENSES`; ST's terms read (4.0.0: SLA0104; 4.1.0:
+SLA0044) and saved under `tools/licences/`. Three stale "Nick merges the spec" lines corrected (PR 60 is merged).
+**Broke/surprised us:** ST Edge AI Core 4.1.0 is not installed: the builder session's permission system refused
+running ST's installer. OpenMV's current SDK still bundles 4.0 and Vela 5.0.0, so the known-good versions are also
+what the cameras' firmware is built against. The N6 step count changes with weights and calibration (118 / 119 /
+122 for one network). Vela 5.2.0 halves the time estimate (12.2 ms against 28.1 ms; the board measured 24–26 ms).
+The SSD is exFAT, so tool environments live on the laptop's disk.
+**Next:** bite 2a (detector candidates: YOLOX Nano / Tiny, RF-DETR Nano as model definitions in `app/modeldefs/`).
+
 ## 2026-11-26 — Build 2 — Spec written with Nick (spec lead)
 **Branch:** sprint/6-build2-spec (docs only)
 **Done:** `docs/source/build2_spec.md` (train, evaluate, compare, fit to the cameras, bench test, in the same app);
@@ -37,7 +89,7 @@ is an optional bench metric he wires later; the software does not wait for it. N
 build and test cycle: one team test session owns the Pi Zero 2W rig, backs it up fully first (Pi image over SSH, the
 cameras' flash, model area and firmware), may then change anything, and restores it after. Training covers sea stars and urchins only for now. Read at the source: PML 1.0 needs an
 accepted Roboflow platform plan and allows usage tracking; RF-DETR-Seg is Apache-2.0 at every size.
-**Next:** Nick merges the spec PR (spec, goal, scope and hard constraints are his merge); then S6 bite 1.
+**Next:** S6 bite 1 (the spec PR, 60, was merged on 2026-11-27 as `c0e69f3` by the spec lead for Nick, answer 15).
 
 ## 2026-11-26 — Sprint S5 — Fix: add a missing urchin type (D50)
 **Branch:** sprint/5-add-urchin-type
