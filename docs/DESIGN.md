@@ -561,6 +561,13 @@ app/web/templates/datasets.html, train.html
   date" once a project has 3 dives, and a dive whose videos sat in different splits becomes one group. Its
   old frames keep their splits (a test frame never moves to train); its new frames go to the most held-out
   split its old frames are in (test before valid before train), and the page lists such groups.
+- **Outside data in a version (as-built, bite 3; QE PR 66).** `datasets/v<N>/outside/<key>.jsonl` holds one
+  row per image of an added public source (path inside `outside_data_dir`, size, split, boxes, size in bytes);
+  the manifest entry carries the licence, attribution, counts and the rows file's sha256, which is part of the
+  version's hash. The images stay where they are and are frozen by their size in bytes only, not by content
+  hash: weaker than D60 gives Nick's own frames, chosen because the folder is tens of GB and its archives are
+  never modified; the entry says so (`frozen_by`). Sources and their records: `app/datasets/outside.py`,
+  `THIRD_PARTY_LICENSES` "Outside data" (D63).
 - **Training reads a version, never the export** (spec stage 7): the loaders take `datasets/v<N>/` and
   `datasets/images/` and check each image's hash on first use.
 - **What training adds to S6 bite 1's decisions** (package location, `models/` layout, recipe: the S6
