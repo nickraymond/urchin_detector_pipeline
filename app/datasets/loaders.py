@@ -99,15 +99,26 @@ def detector_samples(folder: Path, number: int, split: str, class_ids=None) -> d
     return {"samples": samples, "left_out": left_out, "class_ids": ids}
 
 
-def usable(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], int]:
-    """(frames a detector run may train or validate on, frames left out). A frame is used only
-    when EVERY class of the run is fully checked on it: with one class unchecked, its unlabeled
-    animals would be taught as background (spec: "never treated as background"; QE PR 72).
-    Stricter than the spec's per-class skip. The trainer, the Train page's check and the
-    Datasets page's "what training will see" all call this one function."""
+def run_frames(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], list[dict]]:
+    """(fully checked frames, boxes-only frames) of a detector run (D66). The trainer, the
+    Train page's check and the Datasets page's "what training will see" all call this.
+
+    - fully checked: EVERY class of the run is fully checked on the frame. It trains as usual
+      (also "nothing here" where nothing is labeled) and it is the only kind used for validation.
+    - boxes-only: at least one class of the run is fully checked, at least one is not. An
+      animal of the unchecked class may sit there unlabeled, and a detector's "is there an
+      object" output has no class, so nowhere on such a frame may the model be taught "nothing
+      here" (spec: "never treated as background"). It trains on its labeled boxes only.
+    Frames with none of the run's classes checked never get here (detector_samples)."""
     want = sorted(class_ids)
-    keep = [s for s in samples if sorted(s["checked"]) == want]
-    return keep, len(samples) - len(keep)
+    full = [s for s in samples if sorted(s["checked"]) == want]
+    return full, [s for s in samples if sorted(s["checked"]) != want]
+
+
+def usable(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], int]:
+    """(fully checked frames, how many boxes-only frames): the frames a run validates on."""
+    full, boxes_only = run_frames(samples, class_ids)
+    return full, len(boxes_only)
 
 
 def verify_image(sample: dict) -> None:

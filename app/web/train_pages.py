@@ -77,12 +77,12 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 raise ValueError("outside_data_dir is not set in config.local.toml (or the "
                                  "folder is missing): a run on outside data needs it.")
             return key, recipe
-        seen, _ = train_job.usable(
+        full, boxes_only = loaders.run_frames(
             loaders.detector_samples(folder, version, "train", ids)["samples"], ids)
-        if not any(s["boxes"] for s in seen):
+        if not any(s["boxes"] for s in full + boxes_only):
             raise ValueError(
-                f"Version {version} gives training no object of these classes: a frame "
-                "is used only when every picked class is \"fully checked\" on it. On the "
+                f"Version {version} gives training no object of these classes: a class "
+                "counts on a frame only where it is \"fully checked\". On the "
                 "Review page mark them \"fully checked\" on the frames you reviewed, "
                 "export and freeze again (the Datasets page shows what is skipped).")
         return key, recipe
