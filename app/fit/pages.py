@@ -34,7 +34,7 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
         return templates.TemplateResponse(request, "fit.html", {
             "cfg": cfg, "note": note, "error": error, "rows": rows, "together": table.stored_together(rows),
             "cameras": [(c, convert.CAMERAS[c]) for c in table.CAMERA_ORDER], "active": len(active),
-            "missing": len(table.missing(cfg.data_dir)) - len(active), "mib": table.mib,
+            "missing": len(table.missing(cfg.data_dir)) - len(active), "mib": table.mib, "memory_figure": table.memory_figure,
             "earlier_source": table.EARLIER_SOURCE})
 
     @app.post("/fit/run-all")

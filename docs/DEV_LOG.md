@@ -43,6 +43,16 @@ area (24.0 MiB)"; LR-ASPP "runs, partly on the CPU" with its one bilinear resize
 cell of `plainseg-s-256-c6` queued a job and the cell became "runs: 30 operators, all on the CPU, 91 KiB, memory
 not measured (limit 512.0 MiB)". The three Roboflow-licensed sizes show "Roboflow licence: evaluation only".
 **Broke/surprised us:** the first version made the 8-bit model again for every Run; now only Run again does.
+**Changed before merge (S6 builder 2, on QE's nits 1–3 and two Lead calls):** the headline also compares the
+memory a model needs with the camera's memory figure (AE3: the 4.09 MB free in the earlier work, a reference,
+not re-measured; Pi: 512 MB; the N6 has no figure recorded yet and the page says "not checked"); a cell's best is
+ranked among permissive candidates only, the best Roboflow-licensed one sits on its own line; a model that stops
+at the 8-bit step reads "does not convert with today's route (8-bit step)", not "does not run"; a compiler that
+stops reads "the compiler stopped with an internal error (tool, version)"; the error text is one click away;
+"mJ gross". Seen in the browser on the real reports with RF-DETR's added: `rfdetr-nano-256-c5` on the AE3 reads
+"compiles, too big for the model area: its file is 32.6 MiB of 24.0 MiB; needs 91.7 MiB of memory against
+3.9 MiB …; 296 of 3757 operators on the CPU"; Atto / Femto / Pico read "does not convert with today's route".
+Not done (QE nit 4): "Run again" on one camera still rebuilds the shared 8-bit model.
 **Next:** bite 4b (several models on one camera: storage check; the AE3 time-box record); RF-DETR's cells from the
 running job; 2c-ii.
 
@@ -78,8 +88,8 @@ output mounted read-only), `app/fit/ae3.py` (Vela 5.0.0 native), `app/fit/report
 their sources (24 MiB model areas from the boards' `board_config.h`). `[fit]` settings for the toolchain paths. A
 missing tool (Docker not running, no SDK, no Vela) is a job error with a fix; a model that fails is a result.
 **Self-test:** 10 candidates × 2 cameras through the real job, 20 of 20 "done", table in DESIGN §Bench results.
-First findings: a detector, a plain conv segmenter and a conv instance segmenter (YOLOX + prototypes) all place
-fully on both NPUs; torchvision's MobileNetV3 segmenters do not (bilinear resize on the AE3's CPU; 20 software
+First findings: a detector, a plain conv segmenter and a conv instance segmenter (YOLOX + prototypes) all have
+no software step on the N6 (2–3 hybrid steps each) and no CPU operator on the AE3; torchvision's MobileNetV3 segmenters do not (bilinear resize on the AE3's CPU; 20 software
 steps with float convolutions on the N6; DeepLabV3 is too big for the AE3).
 **Broke/surprised us:** nothing broke. Vela's estimate for DeepLabV3 on the AE3 is 1.4 s.
 **Next:** bite 2d's definition (Atto / Femto / Pico) and RF-DETR through the job, 3c (the Pi), then bite 4's page.
