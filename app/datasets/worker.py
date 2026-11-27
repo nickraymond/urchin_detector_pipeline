@@ -22,7 +22,9 @@ def main() -> None:
         jw.emit("item", i=i, n=n, name=name, seconds=round(now - last[0], 2))
         last[0] = now
 
-    res = versions.freeze(Path(job["folder"]), job.get("name") or "", progress)
+    outside_dir = Path(job["outside_dir"]) if job.get("outside_dir") else None
+    res = versions.freeze(Path(job["folder"]), job.get("name") or "", progress,
+                          job.get("outside") or (), outside_dir)
     m = res["manifest"]
     if not res["new"]:
         jw.emit("done", message=f"nothing changed since version {res['number']}: no new version")
@@ -30,7 +32,10 @@ def main() -> None:
     f = m["counts"]["frames"]
     jw.emit("done", message=f"version {m['number']} frozen: {len(m['frames'])} frames "
                             f"({f['train']} train / {f['valid']} valid / {f['test']} test), "
-                            f"hash {m['hash'][:12]}")
+                            f"hash {m['hash'][:12]}" + "".join(
+                                f"; + {o['name']}: {o['counts']['train']['images']} train / "
+                                f"{o['counts']['valid']['images']} valid images for pre-training"
+                                for o in m["outside"]))
 
 
 def freeze_kind():

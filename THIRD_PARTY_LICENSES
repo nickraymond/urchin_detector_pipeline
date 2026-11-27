@@ -408,3 +408,38 @@ torchvision (model code for the LR-ASPP and DeepLabV3 MobileNetV3 segmenter cand
 
 The plain conv segmenter (`app/modeldefs/plainseg.py`) is this project's own code; no third-party model
   code or weights.
+
+------------------------------------------------------------------------------------------------
+Outside data (Build 2, S8 bite 3) — public datasets a dataset version may add; not part of this repository
+------------------------------------------------------------------------------------------------
+
+Outside data stays in the folder named by `outside_data_dir` in config.local.toml; nothing of it is copied
+into git or into a project (a dataset version records each image's path, size and boxes). It is used for
+pre-training the detector only, in the training and validation splits; never in the test split
+(docs/source/build2_spec.md, stage 7). Its boxes are read as one class, "urchin". The list the app uses is
+SOURCES in app/datasets/outside.py; a source is offered only when it is recorded here.
+
+Urchinbot — CC BY 4.0 (offered; the default outside source, DESIGN D63)
+  "Urchinbot Dataset - Sea Urchin Object Detection and Classification", Zenodo record 16060266,
+  DOI 10.5281/zenodo.16060266, https://doi.org/10.5281/zenodo.16060266.
+  Licence read at: Zenodo's API for that record, licence id "cc-by-4.0", open access; captured 2026-08-21 in
+  the repo ADIN_SPI_OpenMV, ml/urchin_data/licenses/urchinbot.md (read by the S8 builder 2026-11-27 at commit
+  994b8c2; QE read Zenodo's API again on 2026-11-27, PR 66). Verdict in that repo's docs/urchin_datasets.md
+  §Verification: "GO for backbone".
+  Counts in the record: 9,872 images, 44,268 boxes, 3 urchin species. As the app reads it (2026-11-27, the
+  dataset's own split lists): 7,913 training images / 35,548 boxes, 976 validation images / 4,350 boxes;
+  its 983 test images are not used.
+  Attribution to carry with anything trained on it: Urchinbot Dataset - Sea Urchin Object Detection and
+  Classification, Zenodo, https://doi.org/10.5281/zenodo.16060266, CC BY 4.0.
+  Not covered: the companion GitHub repository kraw084/Urchin-Detector (code and YOLOv5 weights) has no
+  licence (same capture); it is not used.
+
+Listed in the app but NOT offered:
+  RF100 underwater-objects (Roboflow 100, underwater-objects-5v7p8 v2; its export's data.yaml says CC BY 4.0;
+    verdict GO in the same table): waits for Nick. Its images are URPC contest images, the lineage of the DUO
+    set (DESIGN D63).
+  DUO: Nick, 2026-11-27: stays out, and so do weights trained on it.
+  FathomNet S. fragilis: CC BY-NC-ND, no commercial use. NOAA yolo11 urchin weights: AGPL lineage.
+  Roboflow sea-urchin/urchin-detector (74 images, CC BY 4.0): recorded as evaluation material; its label file
+    on disk does not match its record. iNaturalist via GBIF: no boxes. corpus_v1 / corpus_v2: contain DUO.
+  Any other folder: no licence record.

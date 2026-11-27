@@ -6,3 +6,8 @@ video_roots = ["/Volumes/Nick_R_SSD/NereusData/nereus-camera-test-rig"]
 
 # Where projects (frames, SAM results, exports, logs) are written. Outside the repo.
 data_dir = "/Volumes/Nick_R_SSD/NereusData/urchin_detector_pipeline"
+
+# Optional (Build 2): the folder holding public urchin datasets from the earlier detector work,
+# each with a recorded licence. Only sources whose record allows commercial use can be added to
+# a dataset version, for detector pre-training only. Read-only: the app never changes it.
+# outside_data_dir = "~/nereus_ml/datasets"

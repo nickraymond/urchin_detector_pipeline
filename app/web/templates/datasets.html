@@ -13,9 +13,24 @@
 <h2>Freeze a version</h2>
 {% if export %}<p>From the export of <b>{{ export.at | replace('T', ' ') }}</b>: {{ export.frames }} frames,
   {{ export.objects }} objects.</p>{% else %}<p class="problem">{{ why_not }}</p>{% endif %}
-<form method="post" action="/p/{{ info.name }}/datasets/freeze" class="inline">
+<form method="post" action="/p/{{ info.name }}/datasets/freeze">
+<h3>Outside data (optional; detector pre-training only)</h3>
+<p class="hint">Public urchin datasets from the earlier detector work{% if outside_dir %}, in <code>{{ outside_dir }}</code>{% endif %}.
+  Only a source whose recorded licence verdict allows commercial use can be added. Its boxes are one class,
+  "urchin"; they pre-train the detector, in training and validation only, never in the test split, which is
+  always your own reviewed frames. Its images stay where they are (not copied).
+  {% if not outside_dir %}<b>No folder is set:</b> add <code>outside_data_dir</code> to <code>config.local.toml</code> to add a source.{% endif %}</p>
+<table class="stages" id="outside-sources">
+  <thead><tr><th>Add</th><th>Source</th><th>Licence</th><th>Record</th></tr></thead><tbody>
+  {% for o in outside %}<tr>
+    <td>{% if o.can_add %}<input type="checkbox" name="outside_keys" value="{{ o.key }}" aria-label="Add {{ o.name }}" checked>{% elif o.allowed %}not found{% else %}not allowed{% endif %}</td>
+    <td>{{ o.name }}{% if o.recorded %}<br><span class="hint">{{ "{:,}".format(o.recorded.images) }} images, {{ "{:,}".format(o.recorded.boxes) }} urchin boxes in the record</span>{% endif %}</td>
+    <td>{{ o.licence }}</td>
+    <td>{% if o.allowed %}{{ o.verdict }}. {{ o.licence_source }}.{% if o.note %} <b>Note:</b> {{ o.note }}{% endif %}{% else %}{{ o.why_not }}{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+<p>
   <label>Name (optional) <input name="version_name" maxlength="{{ name_max }}" size="40" placeholder="e.g. first run with black urchin"></label>
-  <button class="primary" data-job-lock="queued running pausing"{% if not export %} disabled data-off-anyway{% endif %}{% if job.active %} disabled{% endif %}>Freeze a version</button>
+  <button class="primary" data-job-lock="queued running pausing"{% if not export %} disabled data-off-anyway{% endif %}{% if job.active %} disabled{% endif %}>Freeze a version</button></p>
 </form>
 <div data-live="/p/{{ info.name }}/live/freeze?back={{ ('/p/' ~ info.name ~ '/datasets') | urlencode }}" data-reload-on="done error cancelled">{{ job_panel(job, "/p/" ~ info.name ~ "/datasets") }}</div>
 
@@ -34,6 +49,12 @@
   split, because earlier versions grouped by video: {% for g in straddling %}<b>{{ g.group }}</b>
   ({{ g.straddles | join(", ") }}; new frames go to {{ g.split }}){% if not loop.last %}; {% endif %}{% endfor %}.
   Frames keep the split they had; a test frame never becomes a training frame.</p></section>{% endif %}
+{% if v.outside %}<h4>Outside data in this version (pre-training only, never the test split)</h4>
+<table class="stages outside-in-version"><thead><tr><th>Source</th><th>Licence</th><th>train: images (boxes)</th><th>valid: images (boxes)</th><th>Not used</th></tr></thead><tbody>
+  {% for o in v.outside %}<tr><td>{{ o.name }}<br><span class="hint">{{ o.attribution }}</span></td><td>{{ o.licence }}</td>
+    <td>{{ "{:,}".format(o.counts.train.images) }} ({{ "{:,}".format(o.counts.train.boxes) }})</td><td>{{ "{:,}".format(o.counts["valid"].images) }} ({{ "{:,}".format(o.counts["valid"].boxes) }})</td>
+    <td>{{ "{:,}".format(o.unused.test) }} of its own test images{% if o.on_disk.boxes != o.recorded.boxes or o.on_disk.images != o.recorded.images %}<br><span class="hint">on disk: {{ "{:,}".format(o.on_disk.images) }} images / {{ "{:,}".format(o.on_disk.boxes) }} boxes; the record says {{ "{:,}".format(o.recorded.images) }} / {{ "{:,}".format(o.recorded.boxes) }}</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>{% endif %}
 <h4>What training will see (detector)</h4>
 {% if v.view %}{% set w = v.view %}
 <form method="get" action="/p/{{ info.name }}/datasets#v{{ v.number }}" class="inline class-pick">Classes:
