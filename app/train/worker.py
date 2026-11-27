@@ -16,7 +16,7 @@ A trainer is a class (see TRAINERS in app/train/job.py) with:
 
 Rules (TRACKER S8 bite 4a):
 - a checkpoint and a metrics line per epoch. The checkpoint is the truth about where the run
-  is; on every start metrics.jsonl is cut back to the epochs before the checkpoint's, so a
+  is; on every start train.jsonl is cut back to the epochs before the checkpoint's, so a
   crash between the two writes repeats that epoch's line instead of doubling or losing it;
 - Pause finishes the step, saves (also mid-epoch) and unloads; Resume starts a new worker,
   which continues from the last checkpoint: no step is repeated or skipped;
@@ -52,9 +52,9 @@ def code_version() -> dict:
 
 
 def write_metrics(mdir: Path, rows: list[dict]) -> None:
-    tmp = mdir / ".metrics.jsonl.tmp"
+    tmp = mdir / ".train.jsonl.tmp"
     tmp.write_text("".join(json.dumps(r) + "\n" for r in rows))
-    tmp.replace(mdir / "metrics.jsonl")
+    tmp.replace(mdir / "train.jsonl")
 
 
 def make_trainer(job: dict, mdir: Path, recipe: dict):

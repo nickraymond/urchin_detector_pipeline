@@ -3,7 +3,7 @@
     <project>/models/m<number>-<arch key>/
         recipe.json          {"arch": {...}, "train": {...}}; the train job adds "recorded"
         checkpoints/         last.* (where Resume continues) and what the trainer keeps
-        metrics.jsonl        one line per finished epoch
+        train.jsonl        one line per finished epoch
 
 Model ids are numbered per project and never reused; the app never removes a model folder.
 """
@@ -67,7 +67,7 @@ def read_recipe(mdir: Path) -> dict:
 
 def read_metrics(mdir: Path) -> list[dict]:
     """The finished epochs' metrics lines, in order. A torn last line is ignored."""
-    p = Path(mdir) / "metrics.jsonl"
+    p = Path(mdir) / "train.jsonl"
     out = []
     for line in p.read_text().splitlines() if p.is_file() else []:
         try:

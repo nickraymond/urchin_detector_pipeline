@@ -111,7 +111,7 @@ def test_a_crash_between_the_metrics_line_and_the_checkpoint_repeats_no_line(jc,
     assert job["state"] == "error" and "exit code 3" in job["stop_reason"]
     assert [r["epoch"] for r in models.read_metrics(mdir)] == [0]
     # as if the app had died after epoch 1's metrics line but before its checkpoint
-    with open(mdir / "metrics.jsonl", "a") as f:
+    with open(mdir / "train.jsonl", "a") as f:
         f.write(json.dumps({"epoch": 1, "loss": 9}) + "\n" + '{"epoch": 2, "lo')   # + a torn line
     jid2 = submit(jc, mdir)
     assert wait_state(jc, jid2, "done", "error")["state"] == "done"
