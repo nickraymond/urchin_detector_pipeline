@@ -160,7 +160,7 @@ def plan(folder: Path, name: str = "", outside_keys=(), outside_dir: Path | None
         outside_files[entry["rows"]] = data
     versions = list_versions(folder)
     prev = versions[-1] if versions else None
-    by_frame, groups = ds_splits.assign(frames, prev)
+    by_frame, groups = ds_splits.assign(frames, versions)
     for f in frames:
         f["split"] = by_frame[f["file"]]
     for i in coco["images"]:
