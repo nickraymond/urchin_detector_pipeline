@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — RF-DETR through the convert job (S6 builder)
+**Branch:** sprint/6-rfdetr-results (docs only)
+**Done:** the six RF-DETR candidates × N6 and AE3 through the real job (12 jobs, all "done"), and the Pi step by
+hand on the three 8-bit files that were made. Table in DESIGN §Bench results.
+**Result:** no RF-DETR size runs on any camera with today's route. Nano and Seg Nano: the N6's compiler fails; the
+AE3's compiles them but the files are 33–37 MiB against a 24 MiB area with estimates of 1.5–13.5 s; plain LiteRT
+cannot load them (`FlexErf`). Atto / Femto / Pico (Roboflow licence) do not convert with today's route: the 8-bit
+step fails in onnx2tf 1.28.8, which is not a compiler verdict. So far the Roboflow licence gains nothing for the
+cameras; the conv models are the ones with no software step on the N6 and no CPU operator on the AE3.
+**Broke/surprised us:** Vela reports more memory for the 256 px Nano than for the 384 px one (not explained).
+**Next:** one later try with RF-DETR's own exporter (onnx2tf 2.4 or newer), if the lead wants it; 2c-ii (RTMDet-Ins).
 ## 2026-11-27 — Build 2 — Lead's day: S6 and S8 through QE, planning locked (spec lead)
 **Branch:** sprint/6-lead-lock (docs only)
 **Done:** the spec merged (PR 60); builders for S6 and S8, a QE and a rig test session started; after the spec, 21 Build 2 PRs
