@@ -253,5 +253,6 @@ Waiting for Nick (Build 2 lead, 2026-11-27; each with a recommendation; none blo
 - A LICENSE file for this public repo (it has none). REC: decide before others are pointed at the repo.
 
 Team notes (Nick, lead's chat 2026-11-27): builders and the lead's replacement run on Opus 5.5; Fable is
-kept for planning and spec work. He is making the bench Pi's `sudo` password-free himself (a local dev
-unit); the rig log records when.
+kept for planning and spec work; QE does not stay on Fable either. He asked for the bench Pi's `sudo` to be
+password-free ("it's just a local dev unit so I am ok with this"); the command needs his password, so it is his
+to run, and the rig log records when it is in place.

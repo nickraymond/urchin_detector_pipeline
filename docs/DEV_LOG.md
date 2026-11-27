@@ -19,11 +19,12 @@ what broke, what's next.*
 
 ## 2026-11-27 — Build 2 — Lead's day: S6 and S8 through QE, planning locked (spec lead)
 **Branch:** sprint/6-lead-lock (docs only)
-**Done:** the spec merged (PR 60); builders for S6 and S8, a QE and a rig test session started; 22 Build 2 PRs
+**Done:** the spec merged (PR 60); builders for S6 and S8, a QE and a rig test session started; after the spec, 21 Build 2 PRs
 merged on QE PASS at their exact heads (62, 67, 61, 63, 68, 64, 73, 65, 74, 71, 66, 75, 69, 76, 72, 77, 78, 79, 80,
 81, 86). Lead calls confirmed in DESIGN: D51–D59 (S6), D60–D64 (S8) on main; D65 and D66 are in S8 PRs under review. First "what runs where" results (compilers on
 the laptop, untrained models): YOLOX Nano / Tiny, the project's own plain conv segmenter and YOLOX with a mask
-branch place fully on both NPUs; torchvision's segmenters do not; RF-DETR Nano fits neither OpenMV camera and no
+branch place with no software step on the N6 (2–3 hybrid steps) and no CPU operator on the AE3; torchvision's
+segmenters do not; RF-DETR Nano fits neither OpenMV camera and no
 PML size converts. Both first builders rotated with handoffs; successors run. Both cameras of the rig are backed up.
 **Broke/surprised us:** the lead gave four sessions a session id it had made up from a folder name (QE caught it;
 corrected within minutes). A blind "keep our side" merge would have dropped a licence entry (caught by a patch
