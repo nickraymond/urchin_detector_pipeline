@@ -39,7 +39,9 @@ def test_detector_candidates_are_complete_recipes():
         assert modeldefs.check(a) == []
         assert a["classes"] == modeldefs.BUILD2_CLASSES
         assert a["licence"] in ("Apache-2.0", "MIT", "BSD-3-Clause") and a["licence_mark"] is None
-        assert len(a["code"]["commit"]) == 40
+        assert len(a["code"]["commit"]) == 40 or a["code"]["commit"].startswith("pip:")
+        assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-venv")
+    assert {"rfdetr-nano-384-c5", "rfdetr-nano-256-c5"} <= set(keys)
     assert modeldefs.candidates("segmenter") == []   # bite 2b
 
 
@@ -74,6 +76,33 @@ def test_check_says_what_is_wrong(change, word):
     assert problems and any(word in p for p in problems), problems
     with pytest.raises(modeldefs.ModelDefError):
         modeldefs.build(a)
+
+
+def test_rfdetr_checks_and_export_settings():
+    from app.modeldefs import rfdetr
+    a = rfdetr.arch(384, ["x"])
+    assert modeldefs.check(a) == [] and modeldefs.export_settings(a) == {"env": "rfdetr-venv", "opset": 17}
+    assert modeldefs.export_settings({}) == {"env": "convert-venv", "opset": 13}
+    assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [336, 336]}))
+    assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [320, 384]}))
+    assert any("Roboflow's own" in p for p in modeldefs.check({**a, "size": "pico"}))
+
+
+@pytest.mark.skipif(importlib.util.find_spec("rfdetr") is None, reason="rfdetr is only in its tool environment")
+def test_rfdetr_nano_builds_untrained_offline():
+    import torch
+    from app.modeldefs import rfdetr
+    dets, labels = [o for o in modeldefs.build(rfdetr.arch(256, modeldefs.BUILD2_CLASSES))(torch.zeros(1, 3, 256, 256))
+                    if o is not None]
+    assert tuple(dets.shape) == (1, 300, 4) and tuple(labels.shape) == (1, 300, 6)
+
+
+def test_rfdetr_missing_package_says_how_to_fix():
+    if importlib.util.find_spec("rfdetr") is not None:
+        pytest.skip("rfdetr is installed here")
+    from app.modeldefs import rfdetr
+    with pytest.raises(modeldefs.ModelDefError, match="rfdetr-venv"):
+        modeldefs.build(rfdetr.arch(384, ["x"]))
 
 
 def test_check_names_a_missing_field():
