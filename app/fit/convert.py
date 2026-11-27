@@ -21,8 +21,18 @@ from app import modeldefs
 from app.jobctl import JobError, Kind
 
 CAMERAS = {"n6": "OpenMV N6", "pi": "Pi Zero 2W", "ae3": "OpenMV AE3"}
-# camera -> the module with compile(tflite, out_dir, job) -> dict; bites 3b and 3c fill this in
-COMPILERS: dict[str, str] = {}
+# camera -> the module with compile(tflite, out_dir, job) -> dict (the Pi: bite 3c)
+COMPILERS: dict[str, str] = {"n6": "app.fit.n6", "ae3": "app.fit.ae3"}
+# [fit] in config.local.toml (D52): where Nick's earlier work left the N6 toolchain
+FIT_DEFAULTS = {"openmv_dir": "~/openmv-dev/openmv", "sdk_dir": "~/openmv-sdk-1.6.0-linux-x86_64",
+                "docker_image": "firmware-builder:latest"}
+
+
+def fit_settings(raw: dict | None = None) -> dict:
+    """The [fit] table with defaults filled in and ~ expanded; unknown keys are ignored."""
+    raw = raw if isinstance(raw, dict) else {}
+    out = {k: str(raw.get(k) or v) for k, v in FIT_DEFAULTS.items()}
+    return {k: str(Path(v).expanduser()) if k.endswith("_dir") else v for k, v in out.items()}
 STEPS = ("8-bit model", "compile")
 
 
@@ -50,10 +60,11 @@ def read_fit(folder: Path, camera: str) -> dict | None:
         return None
 
 
-def params(arch: dict, camera: str, data_dir: Path, tools_dir: Path, redo: bool = False) -> dict:
+def params(arch: dict, camera: str, data_dir: Path, tools_dir: Path, redo: bool = False,
+           fit: dict | None = None) -> dict:
     """The params a page submits for one cell."""
     return {"arch": arch, "camera": camera, "folder": str(model_dir(data_dir, arch)),
-            "tools_dir": str(tools_dir), "redo": redo}
+            "tools_dir": str(tools_dir), "redo": redo, "fit": fit_settings(fit)}
 
 
 def build_job(p: dict) -> dict:
@@ -67,7 +78,7 @@ def build_job(p: dict) -> dict:
                        f"(known: {', '.join(COMPILERS) or 'none yet'}).")
     settings = modeldefs.export_settings(p["arch"])
     tool_python = p.get("tool_python") or str(Path(p["tools_dir"]) / settings["env"] / "bin" / "python")
-    return {**p, "compiler": compiler, "tool_python": tool_python,
+    return {**p, "fit": fit_settings(p.get("fit")), "compiler": compiler, "tool_python": tool_python,
             "int8_module": p.get("int8_module") or "app.fit.to_int8",
             "arch_key": modeldefs.arch_key(p["arch"])}
 

@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 3b: N6 and AE3 compilers in the convert job (S6 builder)
+**Branch:** sprint/6-compilers
+**Done:** `app/fit/n6.py` (ST Edge AI Core 4.0.0 through OpenMV's `modelc.py` in the container, everything but the
+output mounted read-only), `app/fit/ae3.py` (Vela 5.0.0 native), `app/fit/reports.py` (Vela summary and log, ST's
+"Epochs details", sizes, error lines), tested on excerpts of real reports in `tests/fixtures/fit/`. Limits with
+their sources (24 MiB model areas from the boards' `board_config.h`). `[fit]` settings for the toolchain paths. A
+missing tool (Docker not running, no SDK, no Vela) is a job error with a fix; a model that fails is a result.
+**Self-test:** 10 candidates × 2 cameras through the real job, 20 of 20 "done", table in DESIGN §Bench results.
+First findings: a detector, a plain conv segmenter and a conv instance segmenter (YOLOX + prototypes) all place
+fully on both NPUs; torchvision's MobileNetV3 segmenters do not (bilinear resize on the AE3's CPU; 20 software
+steps with float convolutions on the N6; DeepLabV3 is too big for the AE3).
+**Broke/surprised us:** nothing broke. Vela's estimate for DeepLabV3 on the AE3 is 1.4 s.
+**Next:** bite 2d's definition (Atto / Femto / Pico) and RF-DETR through the job, 3c (the Pi), then bite 4's page.
+
 ## 2026-11-27 — Sprint S6 — Bite 3a: the convert job and the 8-bit step (S6 builder)
 **Branch:** sprint/6-convert-job
 **Done:** job kind `convert` on `app/jobctl/` (registered in the app; no page yet): two steps, "8-bit model" and

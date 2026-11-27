@@ -18,6 +18,7 @@ class Config:
     video_roots: list[Path] = field(default_factory=list)
     # Build 2's tool environments (D51): on the laptop's own disk, never the exFAT SSD
     tools_dir: Path = DEFAULT_TOOLS_DIR
+    fit: dict = field(default_factory=dict)   # the [fit] table as written (app/fit/convert.py reads it)
     problems: list[str] = field(default_factory=list)   # the app cannot work until these are fixed
     warnings: list[str] = field(default_factory=list)   # the app works; some folders are missing
 
@@ -61,6 +62,9 @@ def load(path: Path = DEFAULT_PATH) -> Config:
             cfg.tools_dir = Path(tools).expanduser()
         else:
             cfg.warnings.append(f"tools_dir in {path.name} must be a folder path; using {cfg.tools_dir}.")
+
+    if isinstance(raw.get("fit"), dict):
+        cfg.fit = raw["fit"]
 
     roots = raw.get("video_roots", [])
     if isinstance(roots, str):
