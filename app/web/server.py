@@ -36,6 +36,7 @@ from app.jobctl.runner import GUARD_REASON
 from app.export import worker as export_worker
 from app.fit import convert as fit_convert
 from app.fit import pages as fit_pages
+from app.fit import setup as fit_setup
 from app.sam import add, classes
 from app.review import state as review_state
 from app.stages import clips, extract, ingest, label, review, review_labels
@@ -105,6 +106,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             jc.register(extract.extract_kind())
             jc.register(clips.playback_kind())
             jc.register(fit_convert.convert_kind())   # Build 2 (S6): one model x one camera
+            jc.register(fit_setup.setup_kind())       # Build 2 (S6): the tool environments
             controls[key] = jc
         return controls[key]
 

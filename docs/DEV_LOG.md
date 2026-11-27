@@ -17,6 +17,19 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 3d: "Set up the tools" (S6 builder)
+**Branch:** sprint/6-tools-setup
+**Done:** job kind `tools_setup` and a Tools section on `/fit`: each tool environment and the YOLOX checkout with
+"ready" or the reason it is not, the N6 compiler's pieces (SDK, OpenMV tree, Docker image) as found / not found,
+one button. An environment is ready only when it was finished by this job for the current requirements files (a
+mark file with their hash), so a hand-made or outdated one is made again. A failed install stops the job with
+`uv`'s last lines. 7 tests with stand-ins for `uv` and `git`.
+**Self-test:** on Nick's real tools folder the page's status reads all four environments "not ready: not finished,
+or made by hand" (true: the builder made them by hand) and the YOLOX checkout "ready"; SDK, OpenMV tree and
+Docker image "found". **Not run for real yet:** the job itself on the real folder, because RF-DETR conversions
+were using those environments; it is the first thing to run once they finish (it should only add the marks).
+**Next:** run it for real; RF-DETR results into DESIGN; 2c-ii.
+
 ## 2026-11-27 — Sprint S6 — Bite 4b: several models on one camera, stored together (S6 builder)
 **Branch:** sprint/6-stored-together
 **Done:** `table.stored_together`: per camera, the best candidate of each kind that runs there (smallest file among

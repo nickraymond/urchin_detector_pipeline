@@ -451,16 +451,10 @@ compilers; 3c the Pi)**
 - [x] 4b: "stored together" on the page: for each pair and all three of the best candidates per camera, their
       files against the model area beside the vendor's models (N6, AE3) or against the Pi's memory, and the room
       left; the AE3 time-box note
-- [ ] 3d (found by the builder, D51 promised it): "Set up the tools" as a job with a button: build the tool
-      environments from `app/fit/toolchain/` and check out YOLOX at its commit; today they exist on Nick's laptop
-      because the builder made them by hand (steps in the requirements files' headers)
-- [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
-      runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
-      their date; "Run all" queues every missing cell
-- [ ] several models on one camera, laptop part: for each pair and all three of the best candidates per
-      camera, whether their files fit side by side in the model area (N6, AE3) or in storage and memory (Pi), and how
-      much room is left
-- [ ] the AE3 column is under the one-day time box: what is not converted in that time is recorded with its reason
+- [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
+      (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
+      YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's
+      earlier work are only checked. Tested with stand-ins for `uv` and `git`
 
 **Demo (Nick):** open "What runs where" and press "Run all": the table fills, cell by cell, for the three kinds
 on the N6, the Pi and the AE3. Click a cell: per candidate, the layers on the NPU and on the CPU, sizes against

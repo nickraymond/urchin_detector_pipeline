@@ -9,7 +9,7 @@ from fastapi import Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import config, modeldefs
-from app.fit import convert, table
+from app.fit import convert, setup, table
 from app.jobctl import JobError
 
 WAITING = ("scheduled", "queued", "running", "pausing", "paused", "interrupted")
@@ -33,6 +33,8 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
         rows = table.table(cfg.data_dir, active)
         return templates.TemplateResponse(request, "fit.html", {
             "cfg": cfg, "note": note, "error": error, "rows": rows, "together": table.stored_together(rows),
+            "tools": setup.items(cfg.tools_dir), "outside": setup.outside(cfg.fit),
+            "setup_job": jobctl(cfg).latest("tools_setup"),
             "cameras": [(c, convert.CAMERAS[c]) for c in table.CAMERA_ORDER], "active": len(active),
             "missing": len(table.missing(cfg.data_dir)) - len(active), "mib": table.mib,
             "earlier_source": table.EARLIER_SOURCE})
@@ -53,6 +55,22 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
             return back(error=str(e))
         return back(note=f"{queued} cells queued; they run one at a time." if queued
                     else "Nothing to run: every cell has a result or is already waiting.")
+
+    @app.post("/fit/setup")
+    def fit_setup(request: Request):
+        cfg = config.load(config_path)
+        if not cfg.ok:
+            return dashboard(request, status=503)
+        jc = jobctl(cfg)
+        last = jc.latest("tools_setup")
+        if last and last["state"] in WAITING:
+            return back(note="The tools are already being set up; see Jobs.")
+        try:
+            jc.submit("tools_setup", {"tools_dir": str(cfg.tools_dir)})
+        except JobError as e:
+            return back(error=str(e))
+        return back(note="Setting the tools up: this downloads several GB the first time and can take "
+                         "20 minutes or more. Progress and the log are on the Jobs page.")
 
     @app.post("/fit/run")
     def fit_run_one(request: Request, key: str = Form(""), camera: str = Form("")):
