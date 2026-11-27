@@ -20,11 +20,11 @@ def test_vela_summary_and_log_of_the_known_good_model():
     s = reports.vela_summary(text("vela_yolox_nano_summary.csv"))
     assert s == {"estimate_ms": 28.08, "memory_bytes": 524672, "flash_bytes": 964800,
                  "accelerator": "Ethos_U55_256", "system_config": "RTSS_HP_DTCM_MRAM"}
-    assert reports.vela_log(text("vela_yolox_nano.log")) == {"npu": 378, "cpu": 0, "failing_layers": []}
+    assert reports.vela_log(text("vela_yolox_nano_log.txt")) == {"npu": 378, "cpu": 0, "failing_layers": []}
 
 
 def test_vela_log_names_the_operators_left_on_the_cpu():
-    placed = reports.vela_log(text("vela_rfdetr_nano_excerpt.log"))
+    placed = reports.vela_log(text("vela_rfdetr_nano_excerpt_log.txt"))
     assert (placed["npu"], placed["cpu"]) == (3789, 293)
     first = placed["failing_layers"][0]
     assert first == {"name": "model_543/tf.compat.v1.gather_nd_2/GatherNd", "type": "GATHER_ND",
@@ -50,9 +50,9 @@ def test_st_report_counts_and_hybrid_steps():
 
 
 def test_st_sizes_and_error_lines():
-    assert reports.stedgeai_sizes(text("n6_compile_yolox_nano.log")) == {
+    assert reports.stedgeai_sizes(text("n6_compile_yolox_nano_log.txt")) == {
         "file_bytes": 1166008, "params_bytes": 911760, "memory_bytes": 573440}
-    err = reports.error_lines(text("n6_compile_rfdetr_nano_fail.log"))
+    err = reports.error_lines(text("n6_compile_rfdetr_nano_fail_log.txt"))
     assert "INTERNAL ERROR: 'NoneType' object is not subscriptable" in err and "\x1b" not in err
     assert reports.error_lines("a\nb\nc\n", keep=2) == "b\nc"
 
