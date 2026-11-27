@@ -36,7 +36,11 @@ DEFAULT_TOOLS_DIR = Path.home() / "NereusData" / "urchin_detector_pipeline" / "t
 BUILD2_CLASSES = ["purple urchin", "red urchin", "black urchin", "sea star", "sunflower sea star"]
 
 # family -> the module in this package that builds it
-FAMILIES = {"yolox": "app.modeldefs.yolox", "rfdetr": "app.modeldefs.rfdetr"}
+# For the segmenters every other pixel is one class, "other" (build2_spec.md, "What gets trained").
+SEGMENTER_CLASSES = BUILD2_CLASSES + ["other"]
+
+FAMILIES = {"yolox": "app.modeldefs.yolox", "rfdetr": "app.modeldefs.rfdetr",
+            "tvseg": "app.modeldefs.tvseg", "plainseg": "app.modeldefs.plainseg"}
 
 
 class ModelDefError(ValueError):
