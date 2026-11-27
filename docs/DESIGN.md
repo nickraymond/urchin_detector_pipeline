@@ -561,6 +561,13 @@ app/web/templates/datasets.html, train.html
   date" once a project has 3 dives, and a dive whose videos sat in different splits becomes one group. Its
   old frames keep their splits (a test frame never moves to train); its new frames go to the most held-out
   split its old frames are in (test before valid before train), and the page lists such groups.
+- **Outside data in a version (as-built, bite 3; QE PR 66).** `datasets/v<N>/outside/<key>.jsonl` holds one
+  row per image of an added public source (path inside `outside_data_dir`, size, split, boxes, size in bytes);
+  the manifest entry carries the licence, attribution, counts and the rows file's sha256, which is part of the
+  version's hash. The images stay where they are and are frozen by their size in bytes only, not by content
+  hash: weaker than D60 gives Nick's own frames, chosen because the folder is tens of GB and its archives are
+  never modified; the entry says so (`frozen_by`). Sources and their records: `app/datasets/outside.py`,
+  `THIRD_PARTY_LICENSES` "Outside data" (D63).
 - **Training reads a version, never the export** (spec stage 7): the loaders take `datasets/v<N>/` and
   `datasets/images/` and check each image's hash on first use.
 - **What training adds to S6 bite 1's decisions** (package location, `models/` layout, recipe: the S6
@@ -850,9 +857,12 @@ are compiler results; nothing was run on a board, and the times are Vela's estim
 | `yoloxproto-nano-conv-256-c5` | 126 + 3 + 0 of 129; file 1,255 KiB, memory 792 KiB (DepthToSpace) | 392 NPU, 0 CPU; est. 32.55 ms; file 1,062 KiB, memory 608 KiB |
 | `yoloxproto-tiny-conv-256-c5` | 101 + 3 + 0 of 104; file 5,331 KiB, memory 1,030 KiB (DepthToSpace) | 302 NPU, 0 CPU; est. 49.7 ms; file 5,223 KiB, memory 1,036 KiB |
 
-Read from the table: YOLOX Nano / Tiny and the YOLOX + prototype-masks instance candidate place with no software
-step on the N6 and no CPU operator on the AE3 (the hybrid steps are the nearest-upsampling `DepthToSpace`, as in
-the measured YOLOX). The plain conv segmenter places the same way. torchvision's LR-ASPP leaves its bilinear
+Read from the table: YOLOX Nano / Tiny and the YOLOX + prototype-masks instance candidate have no software step
+on the N6 and no CPU operator on the AE3; on the N6 each has 2–3 hybrid steps (the nearest-upsampling
+`DepthToSpace`, which ST runs partly on the CPU), as the measured YOLOX has. The plain conv segmenter is the same.
+`yolox-nano-conv-256-c5` gives 117 + 2 + 0 of 119 here against 116 + 2 + 0 of 118 for the known-good untrained
+run of bite 1; that run had one class and this one five, and the count also moves with weights and calibration
+(bite 1), so the two are not expected to be equal; why it is exactly one more was not checked. torchvision's LR-ASPP leaves its bilinear
 resize on the AE3's CPU (1 operator) and 20 steps in software on the N6, where ST reports float convolutions;
 DeepLabV3 does the same and, on the AE3, makes a 35.1 MiB file needing 22.6 MiB of memory against a 24 MiB
 model area. The model area limit is the whole partition; what the vendor's models already use is bite 4's check.

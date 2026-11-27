@@ -65,8 +65,8 @@ output mounted read-only), `app/fit/ae3.py` (Vela 5.0.0 native), `app/fit/report
 their sources (24 MiB model areas from the boards' `board_config.h`). `[fit]` settings for the toolchain paths. A
 missing tool (Docker not running, no SDK, no Vela) is a job error with a fix; a model that fails is a result.
 **Self-test:** 10 candidates × 2 cameras through the real job, 20 of 20 "done", table in DESIGN §Bench results.
-First findings: a detector, a plain conv segmenter and a conv instance segmenter (YOLOX + prototypes) all place
-fully on both NPUs; torchvision's MobileNetV3 segmenters do not (bilinear resize on the AE3's CPU; 20 software
+First findings: a detector, a plain conv segmenter and a conv instance segmenter (YOLOX + prototypes) all have
+no software step on the N6 (2–3 hybrid steps each) and no CPU operator on the AE3; torchvision's MobileNetV3 segmenters do not (bilinear resize on the AE3's CPU; 20 software
 steps with float convolutions on the N6; DeepLabV3 is too big for the AE3).
 **Broke/surprised us:** nothing broke. Vela's estimate for DeepLabV3 on the AE3 is 1.4 s.
 **Next:** bite 2d's definition (Atto / Femto / Pico) and RF-DETR through the job, 3c (the Pi), then bite 4's page.

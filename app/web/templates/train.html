@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Train · {{ info.name }}{% endblock %}
+{% block content %}
+{% from "_job.html" import job_panel %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a> · <a href="/p/{{ info.name }}/datasets">Datasets</a></p>
+<h1>Train</h1>
+<p class="hint">A model is trained on a frozen dataset version, as a job: it can be paused and resumed from its
+  last checkpoint, scheduled, and it follows the limits on the <a href="/jobs">Jobs page</a>. One job runs at a
+  time across the app. Models are kept in <code>{{ info.folder }}/models/</code> and never erased.</p>
+{% if error %}<section class="problem"><p>{{ error }}</p></section>{% endif %}
+{% if not versions %}<p class="problem">No dataset version yet: <a href="/p/{{ info.name }}/datasets">freeze one</a> first.</p>
+{% elif not types %}<p class="problem">No model type can be trained yet (the first one, YOLOX, comes with S8 bite 4b).</p>
+{% else %}
+<h2>New run</h2>
+<form method="get" action="/p/{{ info.name }}/train" class="inline"><label>Dataset version
+  <select name="version" onchange="this.form.submit()">{% for v in versions %}<option value="{{ v.number }}"{% if v.number == picked.number %} selected{% endif %}>{{ v.number }}{% if v.name %}: {{ v.name }}{% endif %} ({{ v.frames | length }} frames, {{ v.hash[:8] }})</option>{% endfor %}</select></label>
+  <span class="hint">Why: results can be repeated only on a frozen version.</span></form>
+<form method="post" action="/p/{{ info.name }}/train/run" id="train-form">
+  <input type="hidden" name="version" value="{{ picked.number }}">
+  <table class="stages form-table"><tbody>
+  <tr><th>Model type</th><td><select name="model_type">{% for k, t in types.items() %}<option value="{{ k }}">{{ t.name }} ({{ t.kind }})</option>{% endfor %}</select></td>
+    <td class="hint">{% for k, t in types.items() %}{{ t.name }}: {{ t.why.type }} {% endfor %}</td></tr>
+  {% set t0 = types.values() | first %}
+  <tr><th>Classes</th><td>{% for c in classes %}<label><input type="checkbox" name="classes" value="{{ c.id }}"{% if c.id in default_ids %} checked{% endif %}> {{ c.name }}</label> {% endfor %}</td>
+    <td class="hint">Default: sea stars and urchins (Nick, 2026-11-27). A class counts only on frames where it is fully checked.</td></tr>
+  <tr><th>Input size (tile, px)</th><td><select name="input">{% for px in t0.inputs %}<option{% if px == t0.defaults.input %} selected{% endif %}>{{ px }}</option>{% endfor %}</select></td><td class="hint">{{ t0.why.input }}</td></tr>
+  <tr><th>Epochs</th><td><input name="epochs" type="number" min="1" max="1000" value="{{ t0.defaults.epochs }}"></td><td class="hint">{{ t0.why.epochs }}</td></tr>
+  <tr><th>Augmentation</th><td><select name="augment">{% for p in t0.presets %}<option{% if p == t0.defaults.augment %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></td><td class="hint">{{ t0.why.augment }}</td></tr>
+  <tr><th>Seed</th><td><input name="seed" type="number" value="{{ t0.defaults.seed }}"></td><td class="hint">Same inputs and seed: a run that can be repeated.</td></tr>
+  <tr><th>Starting weights</th><td><label><input type="radio" name="start_kind" value="scratch" checked> from scratch</label><br>
+    <label><input type="radio" name="start_kind" value="pretrained"{% if not pretrained %} disabled{% endif %}> pre-trained here on outside data:</label>
+    <select name="start_model"{% if not pretrained %} disabled{% endif %}>{% for m in pretrained %}<option>{{ m }}</option>{% else %}<option value="">no such model yet</option>{% endfor %}</select></td>
+    <td class="hint">Recorded with the run. Published weights are not offered: {% for n in not_offered %}{{ n.name }} ({{ n.why }}){% if not loop.last %}; {% endif %}{% endfor %}</td></tr>
+  <tr><th>Start at / Stop by</th><td><input name="start" type="time" aria-label="Start at"> / <input name="stop" type="time" aria-label="Stop by"></td><td class="hint">Optional clock times; the app must stay running. Stop by pauses the run; Resume continues it.</td></tr>
+  <tr><th>Keep laptop awake</th><td><label><input type="checkbox" name="keep_awake" value="1"> while this job waits or runs</label></td><td class="hint">Plugged in, lid open.</td></tr>
+  </tbody></table>
+  <p><button class="primary" data-job-lock="scheduled queued running pausing paused interrupted"{% if job.state in ("scheduled", "queued", "running", "pausing", "paused", "interrupted") %} disabled{% endif %}>Run</button></p>
+</form>
+{% endif %}
+<div data-live="/p/{{ info.name }}/live/train?back={{ ('/p/' ~ info.name ~ '/train') | urlencode }}" data-reload-on="done error cancelled">{{ job_panel(job, "/p/" ~ info.name ~ "/train") }}</div>
+
+{% if shown and not shown.error %}
+<h2>Model {{ shown.id }}</h2>
+<p class="hint">{{ shown.arch.classes | join(", ") }} · dataset version {{ shown.train.dataset.version }} ({{ shown.train.dataset.hash[:8] }})
+  · {{ shown.train.epochs }} epochs · augmentation {{ shown.train.augment }} · seed {{ shown.train.seed }} · start: {{ shown.train.start.kind }}{% if shown.train.start.model %} ({{ shown.train.start.model }}){% endif %}</p>
+<div id="curves" data-src="/p/{{ info.name }}/train/metrics/{{ shown.id }}"><div class="charts"></div>
+  <p class="hint curve-note"></p></div>
+{% endif %}
+
+<h2>Models</h2>
+{% if not models %}<p>No model yet.</p>{% else %}
+<table class="stages" id="model-list"><thead><tr><th>Model</th><th>Classes</th><th>Dataset</th><th>Epochs</th><th>Last epoch</th><th>Job</th></tr></thead><tbody>
+  {% for m in models %}<tr>{% if m.error %}<td>{{ m.id }}</td><td colspan="5" class="problem">{{ m.error }}</td>{% else %}
+    <td><a href="/p/{{ info.name }}/train?model={{ m.id }}">{{ m.id }}</a></td><td>{{ m.arch.classes | join(", ") }}</td>
+    <td>version {{ m.train.dataset.version }}</td><td>{{ m.done }} / {{ m.epochs }}</td>
+    <td>{% if m.last %}{% for k, v in m.last.items() if k not in ("epoch", "seconds") and v is number %}{{ k }} {{ v | round(4) }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %}</td>
+    <td>{{ m.job.state or "—" }}</td>{% endif %}</tr>{% endfor %}
+</tbody></table>{% endif %}
+<script src="{{ static('live.js') }}"></script>
+<script src="{{ static('train.js') }}"></script>
+{% endblock %}
