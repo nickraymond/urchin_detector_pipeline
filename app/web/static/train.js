@@ -84,4 +84,5 @@
   }
   poll();
   setInterval(poll, 3000);
+  document.addEventListener("visibilitychange", poll);   // a tab opened in the background: draw when shown
 })();
