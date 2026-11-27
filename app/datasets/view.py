@@ -59,7 +59,10 @@ def training_view(folder: Path, number: int, class_ids=None) -> dict:
                      "skipped": skipped[i], "total": total,
                      "skipped_total": sum(v["objects"] for v in skipped[i].values()),
                      "under_target": total < TARGET[0]})
-    return {"number": manifest["number"], "classes": rows, "frames": frames,
+    # D64: classes that are labeled but would train on nothing, because no frame is fully
+    # checked for them. Said loudly on the page; Freeze still works.
+    unseen = [r["name"] for r in rows if r["seen"]["train"]["objects"] == 0 and r["skipped_total"]]
+    return {"number": manifest["number"], "classes": rows, "frames": frames, "unseen": unseen,
             "split_no": [f["file"] for f in manifest["frames"] if f["split_ok"] == "no"],
             "unchecked": unchecked, "target": TARGET,
             "all_classes": [{"id": c["id"], "name": c["name"], "default": c["id"] in defaults,
