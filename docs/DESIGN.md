@@ -868,3 +868,26 @@ model area. The model area limit is the whole partition; what the vendor's model
 | Default "untrained" build (`pretrain_weights=None`), Hub offline and every connection refused | fails for all three: it asks the Hugging Face Hub for the backbone's pretrained weights (`rfdetr/models/lwdetr.py`: load the encoder's weights when no RF-DETR weights are named); 0 connections made |
 | Build with the package's `force_no_pretrain`, connections and name lookups refused | Atto 380 px, 7,264,060 parameters, 300 boxes; Femto 384 px, 7,789,452, 200 boxes; Pico 560 px, 8,281,660, 200 boxes; 0 network attempts |
 | The same through `app/modeldefs/rfdetrplus.py` | same shapes and counts; 0 network attempts |
+
+### S6: the RF-DETR candidates through the real convert job (2026-11-27)
+
+Untrained, through the `convert` job (ST Edge AI Core 4.0.0 in the container; Vela 5.0.0 native; onnx2tf 1.28.8
+after onnxsim). 12 jobs, all ended "done"; files and logs: `~/NereusData/urchin_detector_pipeline/s6/selftest_3b/`
+(`run_rfdetr.jsonl`, `fit/`). Compiler results; nothing ran on a board; times are Vela's estimates. The Pi line
+was run by hand with the Pi step on the same 8-bit files.
+
+| Candidate | 8-bit file | N6 | AE3 | Pi (LiteRT on the laptop) |
+|---|---|---|---|---|
+| `rfdetr-nano-384-c5` (Apache-2.0) | made in 12 min | does not compile: ST's `INTERNAL ERROR` | compiles: 3,789 NPU + 293 CPU operators; file 33.5 MiB against the 24 MiB model area; memory 16.6 MiB; estimate 5,069 ms | does not load: needs TensorFlow's select operators (`FlexErf`) |
+| `rfdetr-nano-256-c5` (Apache-2.0) | made in 7 min | does not compile: same error | compiles: 3,461 NPU + 296 CPU; file 32.6 MiB; memory 91.7 MiB; estimate 1,531 ms | does not load: `FlexErf` |
+| `rfdetr-seg-nano-312-c5` (Apache-2.0) | made in 22 min | does not compile: same error | compiles: 4,053 NPU + 378 CPU; file 37.3 MiB; memory 22.6 MiB; estimate 13,495 ms | does not load: `FlexErf` |
+| `rfdetrplus-atto-380-c5`, `-femto-384-c5`, `-pico-560-c5` (Roboflow licence, evaluation only) | not made: onnx2tf 1.28.8 fails on the backbone's attention (`MatMul` of shapes [1,3,724,64] and [1,64,724,3] for Atto) | not reached | not reached | not reached |
+
+Read from the table: with today's route no RF-DETR size runs on any of the three cameras. On the AE3 the
+Apache-licensed sizes compile but are too big for the model area and, by Vela's own estimate, take seconds per
+image; on the N6 ST's compiler fails on them; on the Pi the files need an operator library plain LiteRT does not
+have. The Roboflow-licensed sizes do not get past the 8-bit step. One thing not tried: RF-DETR's own TFLite
+exporter asks for onnx2tf 2.4.0 or newer (its package metadata); that is one later change against the known-good
+1.28.8, compared against these rows. Vela's memory figure for the 256 px Nano (91.7 MiB) is larger than for the
+384 px one (16.6 MiB); it is recorded as reported and not explained.
+
