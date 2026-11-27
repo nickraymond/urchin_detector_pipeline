@@ -170,6 +170,23 @@ def test_tools_dir_setting(tmp_path):
 
 
 
+def test_a_marked_recipe_gets_its_licence_text_next_to_its_results(tmp_path, monkeypatch):
+    """PML section 7 (QE PR 78 nit 2): the licence text goes with everything made from the package."""
+    from app.fit import to_int8
+    from app.modeldefs import rfdetrplus
+    text = tmp_path / "LICENSE"
+    text.write_text("Roboflow Platform Model License 1.0 ...")
+    asked = []
+    monkeypatch.setattr(to_int8.metadata, "files", lambda name: asked.append(name) or [text])
+    arch = rfdetrplus.arch("atto", modeldefs.BUILD2_CLASSES)
+    out = to_int8.write_licence(arch, tmp_path)
+    assert out == tmp_path / "LICENSE-PML-1.0.txt" and out.read_text() == text.read_text() and asked == ["rfdetr-plus"]
+    assert to_int8.write_licence(yolox.arch("nano", 256, modeldefs.BUILD2_CLASSES), tmp_path) is None   # permissive
+    monkeypatch.setattr(to_int8.metadata, "files", lambda name: [])
+    with pytest.raises(SystemExit, match="holds no licence text"):
+        to_int8.write_licence(arch, tmp_path)
+
+
 def test_the_8_bit_step_records_this_repos_own_commit(tmp_path):
     from app.fit import to_int8
     assert to_int8.repo_version(tmp_path) == {"commit": None, "dirty": None}    # not a git checkout
