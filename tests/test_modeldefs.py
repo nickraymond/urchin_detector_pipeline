@@ -11,6 +11,7 @@ from app import modeldefs
 from app.modeldefs import yolox
 
 PKG = Path(modeldefs.__file__).parent
+PERMISSIVE = ("Apache-2.0", "MIT", "BSD-3-Clause", "own code")
 
 
 def test_modeldefs_imports_nothing_else_from_app():
@@ -38,9 +39,45 @@ def test_detector_candidates_are_complete_recipes():
     for a in cands:
         assert modeldefs.check(a) == []
         assert a["classes"] == modeldefs.BUILD2_CLASSES
-        assert a["licence"] in ("Apache-2.0", "MIT", "BSD-3-Clause") and a["licence_mark"] is None
-        assert len(a["code"]["commit"]) == 40
-    assert modeldefs.candidates("segmenter") == []   # bite 2b
+        assert a["licence"] in PERMISSIVE and a["licence_mark"] is None
+        assert len(a["code"]["commit"]) == 40 or a["code"]["commit"].startswith("pip:")
+        assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-venv")
+    assert {"rfdetr-nano-384-c5", "rfdetr-nano-256-c5"} <= set(keys)
+    assert modeldefs.candidates("instance") == []   # bite 2c
+
+
+def test_segmenter_candidates_build_untrained_and_give_one_scores_map():
+    """torchvision and the plain net need only torch + torchvision, which the app's environment has."""
+    import torch
+    cands = modeldefs.candidates("segmenter")
+    keys = [modeldefs.arch_key(a) for a in cands]
+    assert keys == ["tvseg-lraspp-mnv3l-256-c6", "tvseg-deeplabv3-mnv3l-256-c6", "plainseg-s-256-c6", "plainseg-m-256-c6"]
+    for a in cands:
+        assert modeldefs.check(a) == [] and a["classes"][-1] == "other" and a["licence"] in PERMISSIVE
+        assert ("own untrained design" in a.get("note", "")) == (a["family"] == "plainseg")
+        model = modeldefs.build(a)
+        assert not model.training
+        with torch.no_grad():
+            out = model(torch.zeros(1, 3, 256, 256))
+        side = 256 // a["outputs"].get("stride", 1)
+        assert tuple(out.shape) == (1, 6, side, side), modeldefs.arch_key(a)
+
+
+def test_plain_segmenter_uses_only_the_layer_types_it_promises():
+    from torch import nn
+    from app.modeldefs import plainseg
+    allowed = (nn.Conv2d, nn.BatchNorm2d, nn.ReLU6, nn.Upsample, nn.Sequential)
+    model = plainseg.build(plainseg.arch("s", 256, modeldefs.SEGMENTER_CLASSES))
+    odd = {type(m).__name__ for m in model.modules() if m is not model and not isinstance(m, allowed)}
+    assert odd == set()
+
+
+def test_segmenter_checks():
+    from app.modeldefs import plainseg, tvseg
+    assert any("multiples of 32" in p for p in modeldefs.check(tvseg.arch("lraspp-mnv3l", 250, ["a", "other"])))
+    assert any("one of" in p for p in modeldefs.check(tvseg.arch("fcn", 256, ["a", "other"])))
+    assert any("multiples of 16" in p for p in modeldefs.check(plainseg.arch("s", 250, ["a", "other"])))
+    assert any("one of" in p for p in modeldefs.check(plainseg.arch("xl", 256, ["a", "other"])))
 
 
 def test_arch_key_shapes():
@@ -74,6 +111,33 @@ def test_check_says_what_is_wrong(change, word):
     assert problems and any(word in p for p in problems), problems
     with pytest.raises(modeldefs.ModelDefError):
         modeldefs.build(a)
+
+
+def test_rfdetr_checks_and_export_settings():
+    from app.modeldefs import rfdetr
+    a = rfdetr.arch(384, ["x"])
+    assert modeldefs.check(a) == [] and modeldefs.export_settings(a) == {"env": "rfdetr-venv", "opset": 17, "simplify": True}
+    assert modeldefs.export_settings({}) == {"env": "convert-venv", "opset": 13, "simplify": False}
+    assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [336, 336]}))
+    assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [320, 384]}))
+    assert any("Roboflow's own" in p for p in modeldefs.check({**a, "size": "pico"}))
+
+
+@pytest.mark.skipif(importlib.util.find_spec("rfdetr") is None, reason="rfdetr is only in its tool environment")
+def test_rfdetr_nano_builds_untrained_offline():
+    import torch
+    from app.modeldefs import rfdetr
+    dets, labels = [o for o in modeldefs.build(rfdetr.arch(256, modeldefs.BUILD2_CLASSES))(torch.zeros(1, 3, 256, 256))
+                    if o is not None]
+    assert tuple(dets.shape) == (1, 300, 4) and tuple(labels.shape) == (1, 300, 6)
+
+
+def test_rfdetr_missing_package_says_how_to_fix():
+    if importlib.util.find_spec("rfdetr") is not None:
+        pytest.skip("rfdetr is installed here")
+    from app.modeldefs import rfdetr
+    with pytest.raises(modeldefs.ModelDefError, match="rfdetr-venv"):
+        modeldefs.build(rfdetr.arch(384, ["x"]))
 
 
 def test_check_names_a_missing_field():

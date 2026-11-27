@@ -30,6 +30,7 @@ def arch(size: str, input_px: int, classes: list[str]) -> dict:
         "outputs": {"names": OUTPUT_NAMES, "strides": list(STRIDES),
                     "layout": "per stride: 4 box values (x, y offsets in cells; log w, log h), "
                               "objectness, one score per class; sigmoids applied"},
+        "export": {"env": "convert-venv", "opset": 13},
         "code": dict(CODE), "licence": "Apache-2.0", "licence_mark": None,
     }
 
