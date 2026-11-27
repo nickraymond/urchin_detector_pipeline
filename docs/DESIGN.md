@@ -681,6 +681,7 @@ permissive**: S8 offers "from scratch" and "pre-trained on the allowed sources" 
 | D62 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): YOLOX's published COCO weights are not offered in S8. A run starts from scratch or from a model pre-trained in the app on allowed outside sources; `THIRD_PARTY_LICENSES` says why. | The repository states no licence for the weights apart from its Apache-2.0 `LICENSE`, and COCO's terms leave the images under Flickr's terms: the weights' licence is not verified as permissive (SPEC constraint 6; spec "Models that are safe to use": code, weights and data are three checks). Nick can reverse it. |
 | D63 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; stricter than the builder's proposal): RF100 underwater-objects is listed on the Datasets page but cannot be switched on; it shows "waits for Nick: same image lineage as DUO". Urchinbot is the default outside source. | RF100's own record says CC BY 4.0 and GO, but its images are URPC contest images, the lineage of the DUO set that Nick ruled out (2026-11-27). A licence question is Nick's; the lead batches it for him. Nick can reverse it. |
 | D64 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): the "fully checked" rule stays as the spec has it. When a version would train on 0 objects of a chosen class because no frame is fully checked for it, the Datasets page says so in one line with what to tick on the Review page; Freeze still works. Nothing under `app/review/` changes. | Found on the real S5 project: no class was marked fully checked on any detector frame, so training would have seen nothing without a word of warning. Fewer clicks for marking is a Build 1 question the lead takes to Nick. Nick can reverse it. |
+| D65 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): training may run in its own Python environment under `tools_dir` (the D51 pattern) with a torch version other than the app's 2.10.0 pin, and the CPU trainer stays the default until CPU and Apple GPU gradients are shown to agree. **Outcome (S8 builder 2, same day): no second environment is needed.** The wrong gradients of PR 72 were not a fault of the YOLOX loss or of one torch version: the trainer's image batch was channels-last in memory (`from_numpy(NHWC).permute(0, 3, 1, 2).float()` keeps that layout), and torch's Apple GPU convolution returns wrong weight gradients for such an input. `app/train/yolox.py` now builds a contiguous NCHW batch and trains on the Apple GPU. Before every start `load()` runs one batch of up to 8 frames through a copy of the model on both devices; if any parameter's gradient differs by more than 5 % of its largest CPU value, the run uses the CPU and the job shows a warning. The check's result is in the run record (`gpu_check`). | Measured 2026-11-27 (§Bench results, "S8 bite 4b"): same model and batch, 312 of 330 parameters differ by more than 1 % between CPU and Apple GPU with the channels-last batch, on torch 2.10.0 and on 2.13.0 (so another torch version alone would not have fixed it); 0 of 330 with a contiguous batch (worst 0.2 %). The fault shows with a loss as plain as the sum of the first layer's output, and not with a fresh `torch.rand` batch, which is why the first probes on random images agreed. The check stays because a wrong gradient gives no error, only a run that does not learn. Cost: about 2 s per start. |
 
 ## Bench / test results
 
@@ -878,3 +879,30 @@ model area. The model area limit is the whole partition; what the vendor's model
 | Default "untrained" build (`pretrain_weights=None`), Hub offline and every connection refused | fails for all three: it asks the Hugging Face Hub for the backbone's pretrained weights (`rfdetr/models/lwdetr.py`: load the encoder's weights when no RF-DETR weights are named); 0 connections made |
 | Build with the package's `force_no_pretrain`, connections and name lookups refused | Atto 380 px, 7,264,060 parameters, 300 boxes; Femto 384 px, 7,789,452, 200 boxes; Pico 560 px, 8,281,660, 200 boxes; 0 network attempts |
 | The same through `app/modeldefs/rfdetrplus.py` | same shapes and counts; 0 network attempts |
+
+### S8 bite 4b: YOLOX gradients on the Apple GPU against the CPU (2026-11-27)
+
+Question: why did YOLOX-Nano go to NaN on the Apple GPU (PR 72) while the CPU run was stable? Same model (seed 0,
+2 classes, 256 px), same batch of 32 training canvases from the scratch project `s8_squares`, one forward and
+backward pass per device; a parameter "differs" when its gradient is more than 1 % off the CPU's (as a share of
+that parameter's largest CPU gradient). Probe scripts: `~/NereusData/urchin_detector_pipeline/scratch_s8_builder/probes/`
+(`probe5.py` to `probe9.py`), M1 Max, macOS 14.6.
+
+| Case | Parameters that differ |
+|---|---|
+| the trainer's batch as PR 72 built it (channels-last in memory), torch 2.10.0 | 312 of 330 |
+| the same, torch 2.13.0 (the earlier work's `gate` environment) | 306 of 330 |
+| the same batch, YOLOX's loss replaced by the sum of the first layer's output (conv, BatchNorm, SiLU) | 2 of 3 |
+| the same values copied into a contiguous tensor, torch 2.10.0 and 2.13.0 | 0 of 330 (worst 0.2 %) |
+| fresh `torch.rand` images (contiguous), any targets | 0 of 330 |
+
+Ruled out on the way, each by its own run: the class loss alone (boolean-mask indexing, BCE), in-place SiLU, the
+in-place box decode of `yolox_mps.py`, a missing synchronize before `backward()`, the BatchNorm layer where the
+difference first showed (replayed alone with its captured input and gradient: the two devices agree to 5e-10).
+
+First real run on the Apple GPU through the app (job 7, model `m3-yolox-nano-conv-256-c2` of `s8_squares`: 42
+training and 12 validation frames of synthetic squares, 2 classes, 120 epochs of 1 step, batch 32): 273 s in all,
+about 1.8 s per epoch with its validation pass; loss 17.65 → 4.42, no NaN; validation recall above 0 from epoch
+60 (best 0.088 at epoch 74, 0.029 at the end; precision 1.0 at the end). 120 steps is far too few to judge the
+model: this run shows the trainer learns on the GPU, nothing more. The CPU took about 5 s per step at the same
+batch size (first builder's figure, PR 72).
