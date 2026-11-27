@@ -15,6 +15,7 @@ class Config:
     path: Path
     data_dir: Path | None = None
     video_roots: list[Path] = field(default_factory=list)
+    outside_data_dir: Path | None = None   # Build 2: public datasets for pre-training (S8)
     problems: list[str] = field(default_factory=list)   # the app cannot work until these are fixed
     warnings: list[str] = field(default_factory=list)   # the app works; some folders are missing
 
@@ -60,6 +61,14 @@ def load(path: Path = DEFAULT_PATH) -> Config:
                             'for example ["/Volumes/SSD/videos"].')
         roots = []
     cfg.video_roots = [Path(r).expanduser() for r in roots]
+    outside = raw.get("outside_data_dir")
+    if isinstance(outside, str) and outside.strip():
+        cfg.outside_data_dir = Path(outside).expanduser()
+        if not cfg.outside_data_dir.is_dir():
+            cfg.warnings.append(f"Outside data folder not found: {cfg.outside_data_dir}. "
+                                f"Correct outside_data_dir in {path.name}, or remove the line.")
+    elif outside is not None:
+        cfg.warnings.append(f"outside_data_dir in {path.name} must be a folder path; ignored.")
     for r in cfg.video_roots:
         if not r.is_dir():
             cfg.warnings.append(f"Video folder not found: {r}. Plug in the SSD or correct "

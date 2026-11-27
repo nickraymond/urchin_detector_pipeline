@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 from fastapi import Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.datasets import loaders, versions, view
+from app.datasets import loaders, outside, versions, view
 from app.export.splits import SPLITS
 
 
@@ -33,12 +33,15 @@ def register(app, templates, with_project, jobctl, job_view) -> None:
                     v["view"], v["view_error"] = None, str(e)
             return templates.TemplateResponse(request, "datasets.html", {
                 "cfg": cfg, "info": info, "error": error, "export": export, "why_not": why_not,
+                "outside": outside.catalogue(cfg.outside_data_dir),
+                "outside_dir": cfg.outside_data_dir,
                 "versions": found[::-1], "splits": SPLITS, "name_max": versions.NAME_MAX,
                 "job": job_view(jobctl(cfg).latest("freeze", str(info["folder"])))})
         return with_project(request, name, work)
 
     @app.post("/p/{name}/datasets/freeze")
-    def datasets_freeze(request: Request, name: str, version_name: str = Form("")):
+    def datasets_freeze(request: Request, name: str, version_name: str = Form(""),
+                        outside_keys: list[str] = Form(default=[])):
         def work(cfg, info, conn):
             jc, folder = jobctl(cfg), str(info["folder"])
             problem = ""
@@ -48,6 +51,10 @@ def register(app, templates, with_project, jobctl, job_view) -> None:
                 problem = "An export is queued or running: wait for it, then freeze."
             elif len(" ".join(version_name.split())) > versions.NAME_MAX:
                 problem = f"The name is too long (at most {versions.NAME_MAX} characters)."
+            elif [k for k in outside_keys if not any(
+                    c["key"] == k and c["can_add"]
+                    for c in outside.catalogue(cfg.outside_data_dir))]:
+                problem = "That outside source cannot be added (the list says why)."
             else:
                 try:
                     versions.export_ready(info["folder"])
@@ -55,6 +62,9 @@ def register(app, templates, with_project, jobctl, job_view) -> None:
                     problem = str(e)
             if problem:
                 return RedirectResponse(page_url(name, error=problem), status_code=303)
-            jc.submit("freeze", {"folder": folder, "name": version_name}, project=folder)
+            jc.submit("freeze", {"folder": folder, "name": version_name,
+                                 "outside": sorted(set(outside_keys)),
+                                 "outside_dir": str(cfg.outside_data_dir or "")},
+                      project=folder)
             return RedirectResponse(page_url(name), status_code=303)
         return with_project(request, name, work)
