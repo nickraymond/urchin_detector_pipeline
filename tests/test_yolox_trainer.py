@@ -76,6 +76,8 @@ def test_two_epochs_write_metrics_checkpoints_and_validation_frames(run):
     assert t.load() == (0, 0) and t.steps == 2
     d = t.describe()
     assert d["device"] == "cpu" and d["libraries"]["yolox"] == ydef.CODE["commit"] and d["train_frames"] == 8
+    assert d["outside_used"] == [] and d["start_used"] == "scratch"
+    assert d["frames_left_out_not_fully_checked"] == {"train": 0, "valid": 0}
     rows = finish(t, mdir, 0, 0)
     assert [r["epoch"] for r in rows] == [0, 1]
     for r in rows:
@@ -167,3 +169,39 @@ def test_validation_keeps_at_most_100_boxes_per_canvas():
     maps = [torch.cat([torch.rand(1, 4, n, n), torch.ones(1, 3, n, n)], 1) for n in (32, 16, 8)]
     (det,) = yolox.decode(maps)
     assert det.shape == (yolox.MAX_DETECTIONS, 6) and (det[:, 4] >= yolox.VAL_SCORE).all()
+
+
+def test_only_frames_with_every_run_class_fully_checked_are_used(run, monkeypatch):
+    """QE PR 72: a frame where one of the run's classes is not fully checked would teach its
+    unlabeled animals as background, so it is left out (training and validation) and counted."""
+    from app.datasets import loaders
+    from app.train import job as train_job
+    mdir, recipe = run("a")
+    data = {s: loaders.detector_samples(None, 1, s)["samples"] for s in ("train", "valid")}
+    data["train"][0]["checked"] = [1]
+    data["train"][1]["checked"] = [3]
+    data["valid"][0]["checked"] = [1]
+    t = trainer(mdir, recipe)
+    assert len(t.train) == 6 and len(t.valid) == 3
+    assert t.describe()["frames_left_out_not_fully_checked"] == {"train": 2, "valid": 1}
+    assert all(s["checked"] == [1, 3] for s in t.train + t.valid)
+    one = [dict(s, checked=[c for c in s["checked"] if c == 1]) for s in data["train"]]
+    assert train_job.usable(one, [1]) == ([s for s in one if s["checked"] == [1]], 1)
+
+
+def test_a_start_other_than_scratch_is_refused_and_outside_data_is_not_claimed(run):
+    from app.train import job as train_job
+    from app.train.yolox import Trainer
+    mdir, recipe = run("a")
+    pre = {**recipe, "train": {**recipe["train"], "start": {"kind": "pretrained", "model": "m1-x"}}}
+    with pytest.raises(RuntimeError, match="cannot start from pretrained weights yet"):
+        Trainer(mdir, pre, {"limits": {"device": "cpu"}})
+    manifest = {"number": 3, "hash": "h", "classes": [{"id": 1, "name": "purple urchin"}],
+                "outside": [{"key": "urchinbot", "licence": "CC-BY-4.0"}]}
+    with pytest.raises(ValueError, match="can only start from scratch for now"):
+        train_job.build_recipe("yolox-nano-conv", {}, manifest, [1],
+                               {"kind": "pretrained", "model": "m1-x", "licences": []})
+    _, rec = train_job.build_recipe("yolox-nano-conv", {}, manifest, [1],
+                                    {"kind": "scratch", "licences": []})
+    assert rec["train"]["dataset"]["outside"] == [{"key": "urchinbot", "licence": "CC-BY-4.0"}]
+    assert trainer(mdir, recipe).describe()["outside_used"] == []     # what the run really used

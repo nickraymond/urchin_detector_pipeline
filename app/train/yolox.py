@@ -14,7 +14,14 @@ layer, the variant that compiled for both NPUs). Samples come from a frozen data
 Review flags (spec "What gets trained"): frames with split check "no" and classes not fully
 checked are already left out by the loader. A box of a class that is not fully checked on a frame
 is painted over in grey before the frame is used, so the model is never taught that an unlabeled
-neighbour of it is background there. (Finer: masking only that class's loss. Not done.)
+neighbour of it is background there. That alone is not enough: the animals nobody labeled are
+still in the picture. So a frame is used, for training and for validation, only when every class
+of the run is fully checked on it (app/train/job.py `usable`; QE PR 72); the frames left out are
+counted in the run record. (Finer, and keeping those frames: masking that class's loss. Not done.)
+
+Not done yet, and refused or recorded as such: starting weights other than scratch (the run
+stops if the recipe asks for them), and outside data (never read; `outside_used` is recorded
+empty whatever the dataset version holds).
 
 Each epoch ends with a check on fixed validation canvases (same crops every epoch, no colour,
 blur or haze): recall and precision at IoU 0.5, score 0.3, all classes together, from the EMA
@@ -106,9 +113,16 @@ class Trainer:
         self.preset = self.t["augment"]
         folder, version = self.dir.parents[1], self.t["dataset"]["version"]
         self.ids = list(self.t["class_ids"])
-        got = loaders.detector_samples(folder, version, "train", self.ids)
-        self.train = got["samples"]
-        self.valid = loaders.detector_samples(folder, version, "valid", self.ids)["samples"]
+        start = (self.t.get("start") or {}).get("kind", "scratch")
+        if start != "scratch":
+            raise RuntimeError(f"This trainer cannot start from {start} weights yet; the recipe "
+                               "asks for them. Start a new run from scratch.")
+        from app.train.job import usable
+        self.train, out_train = usable(
+            loaders.detector_samples(folder, version, "train", self.ids)["samples"], self.ids)
+        self.valid, out_valid = usable(
+            loaders.detector_samples(folder, version, "valid", self.ids)["samples"], self.ids)
+        self.left_out = {"train": out_train, "valid": out_valid}
         if not self.train:
             raise RuntimeError(f"Dataset version {version} has no training frame for these "
                                "classes (see the Datasets page: what training will see).")
@@ -127,6 +141,8 @@ class Trainer:
                 "batch": self.batch,
                 "steps_per_epoch": self.steps, "train_frames": len(self.train),
                 "valid_frames": len(self.valid),
+                "frames_left_out_not_fully_checked": self.left_out,
+                "start_used": "scratch", "outside_used": [],
                 "libraries": {"torch": torch.__version__, "torchvision": torchvision.__version__,
                               "numpy": np.__version__, "yolox": ydef.CODE["commit"]}}
 
