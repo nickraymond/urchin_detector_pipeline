@@ -454,9 +454,10 @@ compilers; 3c the Pi)**
 - [ ] "Run again" on one camera clears the candidate's shared 8-bit file, so the other cameras' cells keep
       results from the old file (QE PR 80 nit 4; each `fit.json` records the file's sha256): redo only that
       camera's compile, or show when a cell's 8-bit file is no longer the current one; before S6's close
-- [ ] 3d (found by the builder, D51 promised it): "Set up the tools" as a job with a button: build the tool
-      environments from `app/fit/toolchain/` and check out YOLOX at its commit; today they exist on Nick's laptop
-      because the builder made them by hand (steps in the requirements files' headers)
+- [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
+      (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
+      YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's
+      earlier work are only checked. Tested with stand-ins for `uv` and `git`
 - [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
       runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
       their date; "Run all" queues every missing cell
