@@ -26,7 +26,8 @@ INSIDE = ("export PATH=/sdk/python/bin:/sdk/stedgeai/Utilities/linux:/sdk/gcc/bi
 
 
 def docker_command(tflite: Path, out: Path, fit: dict) -> list[str]:
-    return ["docker", "run", "--rm", "--platform", "linux/amd64",
+    # --network none: the compile needs no network (QE PR 77: the output is byte-identical without it)
+    return ["docker", "run", "--rm", "--network", "none", "--platform", "linux/amd64",
             "-v", f"{fit['sdk_dir']}:/sdk:ro", "-v", f"{fit['openmv_dir']}:/omv:ro",
             "-v", f"{tflite.parent}:/in:ro", "-v", f"{out}:/out",
             fit["docker_image"], "bash", "-lc", INSIDE.format(name=tflite.name)]
