@@ -40,8 +40,9 @@ warm-up rule is a guess; no run on Nick's real frames yet (no class is fully che
 ## 2026-11-27 — Sprint S8 — Bite 4b (part 3): YOLOX trains on the Apple GPU (S8 builder 2)
 **Branch:** sprint/8-apple-gpu
 **Done:** found why YOLOX's gradients were wrong on the Apple GPU (PR 72's open fault): the trainer's batch was
-channels-last in memory, and torch's Apple GPU convolution gives wrong weight gradients for that layout (torch
-2.10.0 and 2.13.0; DESIGN D65 and §Bench results). `app/train/yolox.py` builds a contiguous batch, trains on the
+channels-last in memory, and in YOLOX's training graph the Apple GPU then gives wrong weight gradients (torch
+2.10.0 and 2.13.0; which operation is not isolated: a plain conv stack is right in both layouts, QE PR 84; DESIGN
+D65 and §Bench results). `app/train/yolox.py` builds a contiguous batch, trains on the
 GPU, and checks one small batch on both devices before every start (falls back to the CPU with a warning). A run
 paused mid-epoch now keeps its loss sums in the checkpoint, so the epoch's "loss" is the whole epoch's mean (QE PR
 72 nit 1). Self-test: 120 epochs on the scratch project through the Train page, 273 s, loss 17.65 → 4.42.
@@ -50,6 +51,69 @@ a contiguous tensor; only the trainer's own batch showed the fault. The lead's f
 with another torch) would not have helped: 2.13.0 has the same fault.
 **Next:** the Datasets view by the trainer's frame rule; bite 5 part 2 (Estimate, validation frames on the page);
 S8's docs (TRACKER ticks, as-built DESIGN).
+## 2026-11-27 — Sprint S6 — RF-DETR through the convert job (S6 builder)
+**Branch:** sprint/6-rfdetr-results (docs only)
+**Done:** the six RF-DETR candidates × N6 and AE3 through the real job (12 jobs, all "done"), and the Pi step by
+hand on the three 8-bit files that were made. Table in DESIGN §Bench results.
+**Result:** no RF-DETR size runs on any camera with today's route. Nano and Seg Nano: the N6's compiler fails; the
+AE3's compiles them but the files are 33–37 MiB against a 24 MiB area with estimates of 1.5–13.5 s; plain LiteRT
+cannot load them (`FlexErf`). Atto / Femto / Pico (Roboflow licence) do not convert with today's route: the 8-bit
+step fails in onnx2tf 1.28.8, which is not a compiler verdict. So far the Roboflow licence gains nothing for the
+cameras; the conv models are the ones with no software step on the N6 and no CPU operator on the AE3.
+**Broke/surprised us:** Vela reports more memory for the 256 px Nano than for the 384 px one (not explained).
+**Next:** one later try with RF-DETR's own exporter (onnx2tf 2.4 or newer), if the lead wants it; 2c-ii (RTMDet-Ins).
+## 2026-11-27 — Build 2 — Lead's day: S6 and S8 through QE, planning locked (spec lead)
+**Branch:** sprint/6-lead-lock (docs only)
+**Done:** the spec merged (PR 60); builders for S6 and S8, a QE and a rig test session started; after the spec, 21 Build 2 PRs
+merged on QE PASS at their exact heads (62, 67, 61, 63, 68, 64, 73, 65, 74, 71, 66, 75, 69, 76, 72, 77, 78, 79, 80,
+81, 86). Lead calls confirmed in DESIGN: D51–D59 (S6), D60–D64 (S8) on main; D65 and D66 are in S8 PRs under review. First "what runs where" results (compilers on
+the laptop, untrained models): YOLOX Nano / Tiny, the project's own plain conv segmenter and YOLOX with a mask
+branch place with no software step on the N6 (2–3 hybrid steps) and no CPU operator on the AE3; torchvision's
+segmenters do not; RF-DETR Nano fits neither OpenMV camera and no
+PML size converts. Both first builders rotated with handoffs; successors run. Both cameras of the rig are backed up.
+**Broke/surprised us:** the lead gave four sessions a session id it had made up from a folder name (QE caught it;
+corrected within minutes). A blind "keep our side" merge would have dropped a licence entry (caught by a patch
+compare before any push; builders do stack merges now). Stacked PRs that all edit `THIRD_PARTY_LICENSES`, DESIGN and
+DEV_LOG conflict after every squash-merge: one PR per bite on main is cheaper than a stack. YOLOX on the Apple GPU
+gave wrong gradients (a channels-last batch; fix in PR 84). A lead cannot start successor sessions while Nick is away.
+**Next:** S6: PRs 82, 83, 85, bite 2e's results, RTMDet-Ins, the Demo checklist. S8: PR 84, a first run on real
+frames, bite 5 part 2, docs. S7: the Pi image, QE on the backup evidence, then the bench runner's design.
+What waits for Nick is listed in SPEC ("Waiting for Nick").
+
+## 2026-11-27 — Sprint S6 — Bite 3d: "Set up the tools" (S6 builder)
+**Branch:** sprint/6-tools-setup
+**Done:** job kind `tools_setup` and a Tools section on `/fit`: each tool environment and the YOLOX checkout with
+"ready" or the reason it is not, the N6 compiler's pieces (SDK, OpenMV tree, Docker image) as found / not found,
+one button. An environment is ready only when it was finished by this job for the current requirements files (a
+mark file with their hash), so a hand-made or outdated one is made again. A failed install stops the job with
+`uv`'s last lines. 7 tests with stand-ins for `uv` and `git`.
+**Self-test:** on Nick's real tools folder the page's status reads all four environments "not ready: not finished,
+or made by hand" (true: the builder made them by hand) and the YOLOX checkout "ready"; SDK, OpenMV tree and
+Docker image "found". Then the job itself on the real folder (after the RF-DETR run had finished): "done", 5 of
+5, in 1 s; `uv` installed and removed nothing (the hand-made environments already matched the pins); all five
+read "ready" afterwards and `convert-venv` still imports torch 2.13.0 and TensorFlow 2.19.0
+(`s6/selftest_3d/jobs/1.log`).
+**Next:** RF-DETR results into DESIGN; 2c-ii.
+**Changed before merge (S6 builder 2, QE's nits 2–3):** the page says what "ready" means (at least the
+requirements; hand-installed extras stay) and Docker is asked at most once a minute, not on every page load.
+
+## 2026-11-27 — Sprint S6 — Bite 4b: several models on one camera, stored together (S6 builder)
+**Branch:** sprint/6-stored-together
+**Done:** `table.stored_together`: per camera, the best candidate of each kind that runs there (smallest file among
+the best), each pair and all three summed against the room left: the 24 MiB model area minus the vendor's models
+on the N6 and the AE3, the 512 MB of memory on the Pi. The vendor's share is derived from the earlier work's
+images of 2026-08-25 (12.0 MiB on the N6, 8.3 MiB on the AE3; approximate, source in `table.py`). The AE3
+time-box note is on the page.
+**Self-test in the browser** (real results of bite 3b): N6: detector + segmenter + instance segmenter take 2.5 MiB
+and fit with 9.6 MiB left; AE3: 2.1 MiB, 13.6 MiB left; Pi: "only one kind has a candidate that runs here so
+far" (only one Pi cell had been run).
+**Open, found here:** D51 says setting the tools up is a job with a button; it does not exist yet (TRACKER 3d).
+**Next:** 3d, 2c-ii, RF-DETR's cells from the running job, and the stacked PRs through QE.
+**Changed before merge (S6 builder 2, QE's nits 1–3):** the vendor's share is each earlier image minus the compiled
+YOLOX files it holds (N6 12,577,188 bytes, AE3 9,269,500; read from `~/nereus_ml/romfs_*_stage1/`), not minus
+the input files; only permissive candidates are picked; the Pi line says "files (in memory once loaded) against
+512 MB of RAM".
+
 ## 2026-11-27 — Sprint S6 — Bite 4a: the "What runs where" page (S6 builder)
 **Branch:** sprint/6-fit-page
 **Done:** `/fit`: the table (model kind × N6 / Pi / AE3) from the `fit.json` files, a headline per cell and per

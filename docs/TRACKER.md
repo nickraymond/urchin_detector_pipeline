@@ -448,6 +448,16 @@ compilers; 3c the Pi)**
       estimate marked as such, the failing layers or the error; earlier measured numbers as "earlier work" with
       their date; "Run all" queues every missing cell once; Run / Run again per candidate; the Roboflow-licensed
       sizes always marked; linked from the dashboard
+- [x] 4b: "stored together" on the page: for each pair and all three of the best candidates per camera, their
+      files against the model area beside the vendor's models (N6, AE3) or against the Pi's memory, and the room
+      left; the AE3 time-box note
+- [ ] "Run again" on one camera clears the candidate's shared 8-bit file, so the other cameras' cells keep
+      results from the old file (QE PR 80 nit 4; each `fit.json` records the file's sha256): redo only that
+      camera's compile, or show when a cell's 8-bit file is no longer the current one; before S6's close
+- [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
+      (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
+      YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's
+      earlier work are only checked. Tested with stand-ins for `uv` and `git`
 - [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
       runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
       their date; "Run all" queues every missing cell
@@ -462,6 +472,11 @@ the limits, and for a failure the layers that stopped it.
 **Needs:** the Build 2 spec on main.
 
 ### S7 — What runs where, on the boards  `[ ]`
+*State 2026-11-27 (lead): the rig test session owns the rig. Both cameras are backed up and checked (every
+readable partition read twice; files copied twice against checksums made on the boards; both back as found).
+Not yet: the Pi's card image (waits for root on the Pi, which Nick is giving), the AE3's RECOVERY partition
+(its bootloader refuses to read it), a rehearsal of the restore steps, QE's check of the evidence. Evidence:
+`~/NereusData/urchin_detector_pipeline/rig_backup/2026-11-27/` (never in git). No S7 code is started.*
 **Goal:** the table complete with measured numbers: each candidate that compiled is loaded on its board and
 timed. The team's test session runs it on Nick's Pi Zero 2W bench rig (IMX708, N6, AE3), which it owns from
 Nick's hand-over; builders and QE use a fake board. Nick is asked only for physical actions.

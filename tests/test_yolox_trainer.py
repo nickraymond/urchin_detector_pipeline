@@ -186,6 +186,7 @@ def test_the_apple_gpu_is_used_when_its_gradients_match_the_cpu(run):
     d = t.describe()
     assert d["device"] == "mps" and d["warning"] == ""
     assert d["gpu_check"]["worst_relative_difference"] < GPU_CHECK_LIMIT / 2
+    assert d["gpu_check"]["frames"] == [f"train_{i}.png" for i in range(8)]   # which frames it used
     res = t.run_epoch(0, 0, lambda: False)
     assert res["done"] and np.isfinite(res["metrics"]["loss"])
 
@@ -283,7 +284,7 @@ def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monk
     pre = Trainer(pre_dir, pre_recipe, job)
     d = pre.describe()
     assert d["outside_used"] == [{"key": "urchinbot", "licence": "CC-BY-4.0"}]
-    assert d["train_frames"] == 8 and d["valid_frames"] == 4 and d["start_used"] == {"kind": "scratch"}
+    assert d["train_frames"] == 8 and d["valid_frames"] == 4 and d["start_used"] == "scratch"
     pre.load()
     finish(pre, pre_dir, 0, 0)
     best = torch.load(pre_dir / "checkpoints" / "best.pt", weights_only=True)["model"]
@@ -294,7 +295,8 @@ def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monk
     start = {**recipe, "train": {**recipe["train"], "start": {"kind": "pretrained", "model": pre_dir.name}}}
     t = trainer(mdir, start)
     t.load()
-    used = t.describe()["start_used"]
+    assert t.describe()["start_used"] == "pretrained"
+    used = t.describe()["start_loaded"]
     assert used["kind"] == "pretrained" and used["model"] == pre_dir.name
     assert used["tensors_fresh"] == 6 and all(k.startswith("head.cls_preds.") for k in used["fresh"])
     got = t.model.state_dict()
@@ -303,7 +305,7 @@ def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monk
     assert torch.equal(t.ema["head.reg_preds.0.weight"], best["head.reg_preds.0.weight"])   # EMA starts there too
     t.save(0, 1)
     again = trainer(mdir, start)
-    assert again.load() == (0, 1) and again.describe()["start_used"]["note"] == "loaded at the run's first start"
+    assert again.load() == (0, 1) and again.describe()["start_loaded"]["note"] == "loaded at the run's first start"
     # missing weights and other kinds of start stop the run with the reason
     gone = {**recipe, "train": {**recipe["train"], "start": {"kind": "pretrained", "model": "m9-none"}}}
     other, _ = run("b")
