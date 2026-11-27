@@ -22,7 +22,7 @@ FAKE_TYPE = {"name": "Fake-Tiny", "kind": "detector", "trainer": "fake", "family
 @pytest.fixture
 def page(tmp_path, monkeypatch):
     monkeypatch.setitem(train_job.TRAINERS, "fake", "tests.fake_trainer:FakeTrainer")
-    monkeypatch.setitem(train_job.MODEL_TYPES, "fake-tiny", FAKE_TYPE)
+    monkeypatch.setattr(train_job, "MODEL_TYPES", {"fake-tiny": FAKE_TYPE})
     client, folder = make_project(tmp_path, 1)
     return client, folder
 
@@ -101,8 +101,7 @@ def test_run_is_refused_with_a_reason_and_makes_no_model(page):
 def test_one_training_job_per_project_at_a_time(page, monkeypatch):
     client, folder = page
     frozen(folder)
-    monkeypatch.setitem(train_job.MODEL_TYPES, "fake-tiny",
-                        {**FAKE_TYPE, "defaults": {**FAKE_TYPE["defaults"], "epochs": 30}})
+    monkeypatch.setattr(train_job, "MODEL_TYPES", {"fake-tiny": FAKE_TYPE})
     assert "model=m1-" in run(client, epochs="200")
     assert "waiting+or+running" in run(client)
     assert models.list_ids(folder) == ["m1-fake-tiny-64-c1"]

@@ -41,6 +41,7 @@ MIN_BOX = 8              # px: a box under this on a side after cropping is drop
 GREY = 114
 PRESETS = {              # name -> which steps are on
     "none": {"geometry": False, "colour": False, "blur": 0.0, "haze": 0.0},
+    "crop only": {"geometry": True, "colour": False, "blur": 0.0, "haze": 0.0},   # validation views
     "standard": {"geometry": True, "colour": True, "blur": 0.0, "haze": 0.0},
     "standard + blur + haze": {"geometry": True, "colour": True, "blur": 0.3, "haze": 0.3},
 }

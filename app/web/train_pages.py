@@ -47,8 +47,10 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             except models.ModelError:
                 continue
             if len(models.read_metrics(models.root(folder) / mid)) >= (t.get("epochs") or 1e9):
-                out[mid] = {"outside": t.get("dataset", {}).get("outside", []),
-                            "start": t.get("start")}
+                # the sources the run really trained on, as its trainer recorded them: a
+                # version that merely holds Urchinbot does not make a model "pre-trained"
+                used = [s for r in t.get("recorded", []) for s in r.get("outside_used", [])]
+                out[mid] = {"outside": used, "start": t.get("start")}
         return out
 
     @app.get("/p/{name}/train", response_class=HTMLResponse)
@@ -96,10 +98,12 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 choice = {"kind": start_kind, "model": start_model}
                 began = starting.record(choice, start_records(folder))
                 key, recipe = train_job.build_recipe(model_type, dict(form), manifest, ids, began)
-                seen = loaders.detector_samples(folder, version, "train", ids)["samples"]
+                seen, _ = train_job.usable(
+                    loaders.detector_samples(folder, version, "train", ids)["samples"], ids)
                 if not any(s["boxes"] for s in seen):
                     raise ValueError(
-                        f"Version {version} gives training no object of these classes: on the "
+                        f"Version {version} gives training no object of these classes: a frame "
+                        "is used only when every picked class is \"fully checked\" on it. On the "
                         "Review page mark them \"fully checked\" on the frames you reviewed, "
                         "export and freeze again (the Datasets page shows what is skipped).")
                 mdir = models.create(folder, key, recipe)
