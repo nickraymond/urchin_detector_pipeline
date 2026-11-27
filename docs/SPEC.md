@@ -19,7 +19,7 @@ export to models proven on the bench cameras. First (Nick, 2026-11-27): one tabl
 converts, fits, speed, memory, energy, and whether a camera can hold and run several models at once or
 only one kind at a time; it needs no trained model. Then training. Done when Nick can, in the browser, train a detector
 and a segmenter on a Build 1 export, compare them with older models and other model types, convert
-both for the OpenMV N6 and the Raspberry Pi Zero 2W (the AE3 as a one-day stretch), run them on the
+both for the OpenMV N6 and the Raspberry Pi Zero 2W (and the AE3, inside the MVP spec's one-day time box), run them on the
 bench units, and read one comparison page that says which model to put on which camera and why.
 An instance segmenter can be trained and compared on the laptop; it is trained for a camera only if
 the table shows that camera can run one.
@@ -95,9 +95,12 @@ the table shows that camera can run one.
    acceptable for the labeling tool only. Build 2 (Nick, 2026-11-26): the same rule for every model
    the app can train, laptop-only ones included (no Ultralytics YOLO, which is AGPL-3.0); a model
    type is offered only when the licences of its code, its starting weights and any outside data
-   are recorded in `THIRD_PARTY_LICENSES`. One exception, evaluation only (Nick, 2026-11-27): RF-DETR's sizes
-   below Nano (Roboflow's PML 1.0, a paid licence) may be compiled, timed and trained to see how good they
-   are; they are never deployed unless Nick buys the licence, and are marked "paid licence" in the app.
+   are recorded in `THIRD_PARTY_LICENSES`. One exception, evaluation only (Nick, 2026-11-27): RF-DETR
+   Atto, Femto and Pico (PML 1.0: needs a Roboflow platform plan; commercial self-hosting needs their Enterprise
+   add-on) may be compiled, timed on the bench units and trained on the laptop, after Nick has accepted the plan
+   terms himself and the builder has shown the package sends no frames out (constraint 1 wins). Their weights,
+   trained ones included, stay under PML: never on a field unit or in a product until Nick has the licence and
+   changes this constraint. They are marked "Roboflow licence" in the app. XL / 2XL stay out.
 7. **Every stage has a browser UI.** The terminal is used only to start the app. Basic and
    functional, not flashy (Nick, chat 2026-11-24).
 8. **The repo is public** (Nick, chat 2026-11-24). No real frames, video stills, people's
@@ -208,8 +211,8 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
 - Q23. Bench method: frames from file first; the screen-in-loop rig stays an option.
 - Q25 (2026-11-27). Order: "what hardware can run each type of model" comes first, for all three kinds and
   all three cameras, before training; the accuracy comparison follows.
-- Q26 (2026-11-27). RF-DETR Nano and the sizes below it are candidates; the sizes below Nano are under a paid
-  licence and are for evaluation only (hard constraint 6). RF-DETR's segmentation models are Apache-2.0.
+- Q26 (2026-11-27). RF-DETR Nano and the sizes below it are candidates; the sizes below Nano are under Roboflow's
+  PML 1.0 and are for evaluation only (hard constraint 6). RF-DETR's segmentation models are Apache-2.0.
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 

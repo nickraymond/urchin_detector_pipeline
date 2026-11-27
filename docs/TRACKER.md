@@ -379,8 +379,8 @@ pages in sync, memory-guard message, project page, "Labelled so far").
 ### Build 2 — what runs where, then train, compare and bench test (S6–S11)
 Source: `docs/source/build2_spec.md` (Nick's answers of 2026-11-26 and 2026-11-27 are in it). Order (Nick,
 2026-11-27): first what each camera can run for each kind of model, then training and the accuracy comparison.
-The lead writes each sprint's design in DESIGN before its first bite and splits bites to about 300 lines; S9–S11
-below are outlines until then. Nothing here touches `app/review/` or `app/export/` beyond reading the export.
+The lead writes each sprint's design in DESIGN before its first bite and splits bites to about 300 lines; S7 and
+S9–S11 below are outlines until then. Nothing here touches `app/review/` or `app/export/` beyond reading the export.
 
 ### S6 — What runs where, on the laptop  `[ ]`
 **Goal:** the first version of the "what runs where" table (spec §First result): every candidate architecture of
@@ -393,20 +393,21 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
 - [ ] set up as documented, versions and licences recorded: the PyTorch → 8-bit route, ST Edge AI Core (needs
       Nick's yes to ST's licence terms), Arm Vela (Apache-2.0), and the Pi runtime candidates on the laptop
 - [ ] known-good first: reproduce the earlier YOLOX-Nano result on both compilers (AE3 one `ethos-u` block; N6
-      117 + 2 + 0 of 119) before changing anything
+      about 117 + 2 + 0 of 119, the earlier trained export; untrained it was 116 + 2 + 0 of 118) before changing anything
 - [ ] decide and log in DESIGN: where these tools' Python packages live (the app's PyTorch is pinned to 2.10.0,
       D7), the `models/` layout, what a "recipe" holds
 
-**Bite 2 — Candidate list**
-- [ ] the candidate architectures per kind with code licence read at the source and added to
-      `THIRD_PARTY_LICENSES`: detector (YOLOX Nano / Tiny, RF-DETR Nano), segmenter (two or three small
-      ones), instance segmenter (RF-DETR-Seg Nano and one or two small conv ones); each as a model definition the app can build untrained
-      at a given input size; anything not permissive stays out
-- [ ] RF-DETR Atto / Femto / Pico (PML 1.0, paid licence; evaluation only, SPEC constraint 6): added only after
+**Bites 2a, 2b, 2c — Candidate list, one bite per kind**
+- [ ] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
+      each as a model definition the app can build untrained at a given input size; anything not permissive
+      stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
+      instance segmenter (RF-DETR-Seg Nano and one or two small conv ones)
+- [ ] 2d: RF-DETR Atto / Femto / Pico (PML 1.0; evaluation only, SPEC constraint 6): added only after
       Nick has accepted Roboflow's plan terms himself; first show what `rfdetr[plus]` sends out (no frames go
-      through it before that); marked "paid licence" in the table
+      through it before that); marked "Roboflow licence" in the table
 
-**Bite 3 — Convert job**
+**Bites 3a, 3b, 3c — Convert job (3a the job and the 8-bit step with a fake compiler; 3b the N6 and AE3
+compilers; 3c the Pi)**
 - [ ] job kind `convert` on `app/jobctl/`: one candidate × one camera → 8-bit model → the camera's compiler →
       a fit report as data (converts yes / no; layers on the NPU / hybrid / CPU; file size and memory against
       the board's limits; the compiler's own speed estimate, marked as an estimate; the failing layers by name);
@@ -445,15 +446,15 @@ several models at once or only one kind at a time.
 **Needs:** S6; Nick at the bench; SPEC hard constraint 9.
 
 ### S8 — Dataset versions and the first detector  `[ ]`
-**Goal:** spec stages 7 and 8 for one model type that S6–S7 showed runs on the cameras: freeze a dataset version from a Build 1 export and train a
+**Goal:** spec stages 7 and 8 for one model type already known to run on the cameras (YOLOX, earlier work): freeze a dataset version from a Build 1 export and train a
 YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SPI_OpenMV/ml/yolox_urchin/`.
 
 **Bite 1 — Prior art and licences (plan nibble, no app code)**
 - [ ] re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` (trainer, export, decode) and say what is reused and how it is
       brought in; read the licences of YOLOX's code and of any starting weights at the source; add them to
       `THIRD_PARTY_LICENSES`
-- [ ] decide and log in DESIGN: where training's Python packages live (the app's PyTorch is pinned to 2.10.0, D7),
-      the layout of `datasets/` and `models/`, and what a "recipe" file holds
+- [ ] decide and log in DESIGN: the layout of `datasets/` and what training adds to S6 bite 1's decisions
+      (package location, `models/` layout, recipe)
 
 **Bite 2a — Dataset versions**
 - [ ] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
@@ -495,7 +496,8 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 per class and split. Open Train, pick YOLOX-Nano, press Estimate, then Run: the loss curve moves and validation
 frames show boxes. Pause, quit the app, start it, Resume: training continues from the last checkpoint. The
 model is in the list when it ends.
-**Needs:** S5's export (on main). Can run beside S6–S7: it shares no files with them.
+**Needs:** S5's export (on main); Nick's merge of the Build 2 spec; S6 bite 1's DESIGN decisions. After that
+it can run beside S6–S7.
 
 ### S9 — Evaluate, model list, compare  `[ ]`
 **Goal:** spec stages 9 and 10 for detectors.
@@ -505,8 +507,8 @@ model is in the list when it ends.
 - [ ] per-frame view: ground truth and predictions drawn, sorted by worst error, in the app's large viewer
 - [ ] model list with status, scores, notes, archive; compare page: table, one chart per metric, the same
       frames side by side; differences in dataset version or test set are called out
-- [ ] re-evaluate older models on a newer version's test split; RF-DETR (Apache-2.0 sizes) as a laptop-only
-      reference model type
+- [ ] re-evaluate older models on a newer version's test split; RF-DETR as a second trainable detector type
+      (Nano; Atto / Femto / Pico only under SPEC constraint 6's exception)
 **Demo (Nick):** train a second detector with a different size or recipe; the compare page shows old vs new on
 the same test frames, and which frames each one gets wrong.
 **Needs:** S8.

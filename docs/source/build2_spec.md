@@ -34,9 +34,9 @@ settings. Using a trained model to pre-label new frames (a good later step; iceb
 
 | Kind | Answers | Trained from | On the cameras? |
 | --- | --- | --- | --- |
-| Detector (boxes) | counts per class | `detector_coco.json` boxes | Yes: N6, Pi; AE3 as the stretch |
-| Segmenter (a class for every pixel) | % cover per class | `seg_masks/` + `classes.json` | Yes: N6, Pi; AE3 as the stretch |
-| Instance segmenter (an outline per animal) | counts and cover from one model; separates touching urchins | `detector_coco.json` outlines | Laptop first; on a camera only if it converts as easily as the other two |
+| Detector (boxes) | counts per class | `detector_coco.json` boxes | Yes, where "what runs where" shows it runs |
+| Segmenter (a class for every pixel) | % cover per class | `seg_masks/` + `classes.json` | Yes, where "what runs where" shows it runs |
+| Instance segmenter (an outline per animal) | counts and cover from one model; separates touching urchins | `detector_coco.json` outlines | Checked on every camera in "what runs where"; trained for a camera only if it runs there; always trainable on the laptop |
 
 The MVP spec puts two models on the camera: a detector and a per-pixel segmenter. Nick's Build 2
 request adds instance segmentation. Decision (Nick, 2026-11-26): all three kinds can be trained and
@@ -68,7 +68,7 @@ helper, to be re-read by the builder before the model type is added):
 | --- | --- | --- |
 | YOLOX Nano / Tiny | Apache-2.0 (`Megvii-BaseDetection/YOLOX` LICENSE; lead) | **First detector.** Nick's earlier work compiled it for both NPUs and measured it on both boards (below). |
 | RF-DETR Nano–Large (detector), RF-DETR-Seg Nano–2XLarge (instance segmenter) | Apache-2.0 (`roboflow/rf-detr` README; lead) | **Candidates in "what runs where"** at the Nano size (Nick, 2026-11-27), and the laptop reference for "how good could it get". Never compiled for the cameras so far; attention layers are expected to stay on the CPU (the earlier compile test saw even single transpose layers fall back). The table will show it. |
-| RF-DETR Atto / Femto / Pico (detectors smaller than Nano; package `rfdetr[plus]`) | Roboflow Platform Model License, PML 1.0 (`roboflow/rf-detr_plus` LICENSE; lead): use needs an accepted Roboflow platform plan; the README says commercial self-hosting "requires the Enterprise add-on"; the licence allows usage tracking in the software | **Evaluation only** (Nick, 2026-11-27): candidates in "what runs where" and on the laptop, to see how good the licensed small sizes are. Not deployed unless Nick buys the licence. Shown with a "paid licence" mark everywhere. Before use: Nick accepts Roboflow's plan terms himself, and the builder checks what the package sends out (hard constraint 1). |
+| RF-DETR Atto / Femto / Pico (detectors smaller than Nano; package `rfdetr[plus]`) | Roboflow Platform Model License, PML 1.0 (`roboflow/rf-detr_plus` LICENSE; lead): use needs an accepted Roboflow platform plan; the README says commercial self-hosting "requires the Enterprise add-on"; the licence allows usage tracking in the software | **Evaluation only** (Nick, 2026-11-27): candidates in "what runs where" and on the laptop, to see how good the licensed small sizes are. Their weights, trained ones included, stay under PML: never on a field unit or in a product until Nick has the licence. Shown with a "Roboflow licence" mark everywhere. Before use: Nick accepts Roboflow's plan terms himself, and the builder checks what the package sends out (hard constraint 1). |
 | torchvision DeepLabV3 / LR-ASPP with a MobileNet backbone | code BSD-3-Clause (helper); weights: torchvision says they "may have their own licenses" (helper) | Candidate first segmenter. NPU fit unproven: it must pass the compile check first. |
 | YOLACT, SparseInst, RTMDet-Ins | MIT (YOLACT LICENSE; lead), MIT (SparseInst; helper), Apache-2.0 (`open-mmlab/mmdetection` LICENSE; lead) | Candidate small instance segmenters. NPU fit unproven. |
 | NanoDet-Plus | Apache-2.0 (helper) | Second choice: its channel-shuffle layers fell back to the CPU on both NPUs in the earlier compile test. |
@@ -86,7 +86,7 @@ Build 1 data):
 
 - YOLOX-Nano and -Tiny, with the first layer swapped for a plain stride-2 conv, compile for both
   NPUs with no layer left on the CPU: AE3 = one `ethos-u` block; N6 = 117 hardware + 2 hybrid + 0
-  software steps of 119 (trained Nano; Tiny 95 + 2 + 0).
+  software steps of 119 (the trained Nano export; the untrained one was 116 + 2 + 0 of 118; Tiny 95 + 2 + 0).
 - Measured on the boards (2026-08-24, 300-run windows): N6 10.6 ms (Nano) and 31.2 ms (Tiny);
   AE3 26.4 ms and 58.4 ms. Energy per inference, gross: AE3 6.7 mJ (Nano), N6 11.5 mJ (Nano).
 - Tiny is too big to load from the AE3's file flash (loading copies it into memory: 4.97 MB against
@@ -121,7 +121,7 @@ One page in the app, a table of model kind × camera, filled in before any model
 - **Two steps.** On the laptop first: convert and compile (no hardware). Then on the bench units:
   load and time (Nick runs it, with a test card).
 - **The AE3 is a full column here**, still under the MVP spec's time box: about one working day in
-  total across the three kinds; what does not convert in that time is recorded as "does not run"
+  total across the three kinds, compile and timing together; what does not convert in that time is recorded as "does not run"
   with its reason.
 - **More than one model at once (Nick, 2026-11-27).** The MVP puts two models on a camera (detector
   + segmenter), so the page also answers, per camera: can it hold and run several models, or only
@@ -226,8 +226,10 @@ fills the "what runs where" table with untrained candidates, and later converts 
 - **Accuracy after conversion is measured on the laptop first:** the 8-bit model is evaluated like any
   other model (stage 9), so "what did shrinking cost" is one line on the compare page.
 - A model that leaves layers on the CPU, or does not fit, shows why, layer by layer.
-- **AE3 time box (MVP spec):** about one day of work; pass = the detector and segmenter, or at least
-  the detector, convert, fit and run; else disqualify with a one-line reason.
+- **AE3 time box (MVP spec):** about one working day in total for getting models onto the AE3: S6's
+  compile and S7's timing together. Pass = the detector and segmenter, or at least the detector,
+  convert, fit and run; else disqualify with a one-line reason. Trained models go to the AE3 in S11
+  only if it passed.
 - Toolchain facts, checked 2026-11-26:
   - ST Edge AI Core is ST's own tool under ST's licence (not open source); current 4.1.0; it takes
     8-bit TFLite or ONNX (QDQ) models, "only full integer static quantization", and unsupported
@@ -317,8 +319,8 @@ Model weights, datasets and bench results live in the data folder, never in git.
    segmenter or instance segmenter on OpenMV hardware for now then that is a finding and I will
    evalaute paying for their use license." So RF-DETR Nano and the sizes below it are candidates.
    Found while writing this in: the sizes below Nano (Atto, Femto, Pico) are detectors only and
-   are the ones under Roboflow's paid licence; RF-DETR's segmentation models, Nano included, are
-   Apache-2.0 and need no paid licence. This narrows answer 2: permissive only for anything
+   are the ones under Roboflow's PML 1.0 licence; RF-DETR's segmentation models, Nano included, are
+   Apache-2.0. This narrows answer 2: permissive only for anything
    deployed; the PML sizes are allowed for evaluation.
 10. **Several models at once (2026-11-27):** "also helpful to understand if multiple models can be
    installed on the hardware at once, of if there are only enough resources for one type at a
@@ -337,8 +339,8 @@ Model weights, datasets and bench results live in the data folder, never in git.
 - **For Nick:** ST Edge AI Core is ST's own tool under ST's licence terms, which must be accepted
   to install it (he used version 4.0.0 before, through OpenMV's tooling). REC: accept for 4.1.0 on
   the laptop now: S6 starts with it; the builder reads the terms first and reports anything unusual.
-- Which runtime on the Pi Zero 2W (measured in S9), and whether the bench Pi runs a 64-bit system.
-- Which segmenter architecture places fully on the N6's NPU (compile check in S8 before any long training).
+- Which runtime on the Pi Zero 2W (measured in S7), and whether the bench Pi runs a 64-bit system.
+- Which segmenter architecture places fully on the N6's NPU (compile check in S6).
 - The licence of each set of published starting weights (checked per model type before it is offered).
 - The Pi 5 screen rig is also the console monitor host for another bench; an older test card says
   nothing may run on the Pi Zero 2W rig, and one older skill calls it a field camera rig. Nick's
