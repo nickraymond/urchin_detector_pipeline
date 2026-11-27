@@ -59,12 +59,16 @@ def assign(frames: list[dict], earlier: list[dict]) -> tuple[dict[str, str], lis
     for g, fs in members.items():
         held = [old_frame[f["file"]] for f in fs if f["file"] in old_frame]
         seen = sorted({s for s, _ in held}, key=HELD_OUT.index)
-        if g in old_group:
-            where[g] = {"split": old_group[g][0], "carried": f"v{old_group[g][1]}",
-                        "straddles": seen if len(seen) > 1 else []}
-        elif seen:
-            where[g] = {"split": seen[0], "carried": f"v{max(n for _, n in held)}",
-                        "straddles": seen if len(seen) > 1 else []}
+        if g in old_group or seen:
+            # the group's own earlier split and the splits its earlier frames sit in: the most
+            # held-out wins. They differ when the grouping changed in between (video -> dive ->
+            # video, QE PR 63): a video whose dive was held out meanwhile must not get new
+            # training frames next to that dive's test frames.
+            found = sorted(set(seen) | ({old_group[g][0]} if g in old_group else set()),
+                           key=HELD_OUT.index)
+            newest = max([n for _, n in held] + ([old_group[g][1]] if g in old_group else []))
+            where[g] = {"split": found[0], "carried": f"v{newest}",
+                        "straddles": found if len(found) > 1 else []}
     by_frame = {f["file"]: old_frame[f["file"]][0] if f["file"] in old_frame
                 else where[f["group"]]["split"] for f in frames if f["group"] in where}
     have = {s: sum(1 for v in by_frame.values() if v == s) for s in SPLITS}
