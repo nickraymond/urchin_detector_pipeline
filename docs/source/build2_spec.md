@@ -1,8 +1,8 @@
-# Build 2: train, compare, fit to the cameras, bench test — Spec
+# Build 2: what runs where, then train, compare and bench test — Spec
 
 Nov 26, 2026 · draft for @Nick · adds to `docs/source/mvp_spec.md` (Build 1 is the labeling tool)
 
-**Status: draft for Nick's merge.** Nick's answers of 2026-11-26 (spec lead's chat) are written in and listed at the end.
+**Status: draft for Nick's merge.** Nick's answers of 2026-11-26 and 2026-11-27 (spec lead's chat) are written in and listed at the end.
 
 ## Goal
 
@@ -10,6 +10,15 @@ In the same local app as Build 1, go from the reviewed export to a short list of
 proven on the bench cameras, with the numbers to pick what to deploy. Like Roboflow or Edge Impulse,
 but on the laptop: train several model types, evaluate them, compare new against old and one type
 against another, shrink them to fit each camera, and test them on the real hardware.
+
+Build 2 answers two questions, in this order (Nick, 2026-11-27):
+
+1. **What can each camera run?** For each kind of model (detector, segmenter, instance segmenter)
+   and each camera (N6, Pi Zero 2W, AE3): does a model of that kind convert, fit and run, how fast,
+   with how much memory and energy. This needs no trained model and no labeled data, and the
+   answer is valuable on its own. It comes first.
+2. **Which trained models are best?** Train on Build 1's export, compare, convert the best ones and
+   measure their accuracy on the cameras that question 1 showed can run them.
 
 This is MVP milestones 2 and 3 ("train the detector and segmenter; quantize" and "bench test both
 models on the N6 and the Pi; stretch: AE3"). Build 2 is done when Nick can, without leaving the
@@ -58,7 +67,8 @@ helper, to be re-read by the builder before the model type is added):
 | Model family | Licence (source) | Role in Build 2 |
 | --- | --- | --- |
 | YOLOX Nano / Tiny | Apache-2.0 (`Megvii-BaseDetection/YOLOX` LICENSE; lead) | **First detector.** Nick's earlier work compiled it for both NPUs and measured it on both boards (below). |
-| RF-DETR Nano–Large, RF-DETR-Seg | Apache-2.0 (`roboflow/rf-detr` README; lead). Its Atto / Femto / Pico / XL / 2XL detectors are under another licence (PML 1.0): not used. | Laptop-only reference: the "how good could it get" line for detection and instance segmentation. Not a camera model: it was never compiled for the cameras, and its attention layers are expected to stay on the CPU (the earlier compile test saw even single transpose layers fall back). |
+| RF-DETR Nano–Large (detector), RF-DETR-Seg Nano–2XLarge (instance segmenter) | Apache-2.0 (`roboflow/rf-detr` README; lead) | **Candidates in "what runs where"** at the Nano size (Nick, 2026-11-27), and the laptop reference for "how good could it get". Never compiled for the cameras so far; attention layers are expected to stay on the CPU (the earlier compile test saw even single transpose layers fall back). The table will show it. |
+| RF-DETR Atto / Femto / Pico (detectors smaller than Nano; package `rfdetr[plus]`) | Roboflow Platform Model License, PML 1.0 (`roboflow/rf-detr_plus` LICENSE; lead): use needs an accepted Roboflow platform plan; the README says commercial self-hosting "requires the Enterprise add-on"; the licence allows usage tracking in the software | **Evaluation only** (Nick, 2026-11-27): candidates in "what runs where" and on the laptop, to see how good the licensed small sizes are. Not deployed unless Nick buys the licence. Shown with a "paid licence" mark everywhere. Before use: Nick accepts Roboflow's plan terms himself, and the builder checks what the package sends out (hard constraint 1). |
 | torchvision DeepLabV3 / LR-ASPP with a MobileNet backbone | code BSD-3-Clause (helper); weights: torchvision says they "may have their own licenses" (helper) | Candidate first segmenter. NPU fit unproven: it must pass the compile check first. |
 | YOLACT, SparseInst, RTMDet-Ins | MIT (YOLACT LICENSE; lead), MIT (SparseInst; helper), Apache-2.0 (`open-mmlab/mmdetection` LICENSE; lead) | Candidate small instance segmenters. NPU fit unproven. |
 | NanoDet-Plus | Apache-2.0 (helper) | Second choice: its channel-shuffle layers fell back to the CPU on both NPUs in the earlier compile test. |
@@ -90,7 +100,38 @@ Build 1 data):
 Reuse first (repo CLAUDE.md, value 2): the YOLOX trainer, the export script, the on-board decode
 and the compile scripts from that work are the starting point; the builder reports what was reused.
 
+## First result: what runs where
+
+One page in the app, a table of model kind × camera, filled in before any model is trained:
+
+| | OpenMV N6 | Pi Zero 2W | OpenMV AE3 |
+| --- | --- | --- | --- |
+| Detector | known: YOLOX Nano / Tiny run (earlier work) | not measured yet | known: Nano runs; Tiny from the model area only |
+| Segmenter | unknown | unknown | unknown |
+| Instance segmenter | unknown | unknown | unknown |
+
+- **How a cell is filled.** Take each candidate architecture from the safe list, untrained (speed,
+  size and layer placement do not depend on what the model has learned), at the input sizes of
+  interest. Convert it to 8-bit, put it through the camera's compiler, then run it on the board.
+- **Each cell shows, per candidate:** converts yes / no; layers on the NPU / hybrid / on the CPU
+  (for the Pi: runs on the CPU); file size and memory against the board's limits; ms per inference;
+  energy per inference where a validated power meter is wired; and the reason when it fails, layer
+  by layer. A cell's headline is its best candidate: "runs", "runs, partly on the CPU" or "does
+  not run", with the numbers.
+- **Two steps.** On the laptop first: convert and compile (no hardware). Then on the bench units:
+  load and time (Nick runs it, with a test card).
+- **The AE3 is a full column here**, still under the MVP spec's time box: about one working day in
+  total across the three kinds; what does not convert in that time is recorded as "does not run"
+  with its reason.
+- **What it decides.** Only kinds and architectures that run on a camera are trained for that
+  camera. A kind that runs on no camera is still trainable as a laptop reference.
+- Numbers already measured in the earlier work are shown as "earlier work" with their date until
+  they are re-measured through the app.
+
 ## Stages (added to the project page after Export)
+
+The stages below are listed in the order of the data flow. The order of work is in the sprint
+ladder at the end: stage 11's untrained fit check and stage 12's timing run come first.
 
 ### 7. Datasets
 
@@ -160,15 +201,17 @@ will use. The numbers follow the questions the MVP asks, not only the usual ML s
 
 ### 11. Fit to the cameras
 
-For a chosen model and each target, one job converts it and reports whether it fits:
+For a chosen model and each target, one job converts it and reports whether it fits. The same job
+fills the "what runs where" table with untrained candidates, and later converts trained models:
 
 | Target | Route | Report |
 | --- | --- | --- |
 | OpenMV N6 (STM32N6 NPU) | 8-bit model → ST Edge AI Core (`stedgeai`) → model image for the camera's read-only model area | layers on the NPU / hybrid / on the CPU; file size against the 24 MB model area |
 | Raspberry Pi Zero 2W (CPU, 512 MB) | 8-bit model run by a small runtime | file size, memory needed |
-| OpenMV AE3 (Ethos-U55), stretch | 8-bit model → Arm Vela | layers on the NPU / on the CPU; file and memory size against the board's limits |
+| OpenMV AE3 (Ethos-U55), time-boxed | 8-bit model → Arm Vela | layers on the NPU / on the CPU; file and memory size against the board's limits |
 
 - **8-bit conversion** uses a calibration set drawn from the training split (never the test split).
+  For the untrained fit check, calibration frames only set value ranges; any training frames do.
 - **Accuracy after conversion is measured on the laptop first:** the 8-bit model is evaluated like any
   other model (stage 9), so "what did shrinking cost" is one line on the compare page.
 - A model that leaves layers on the CPU, or does not fit, shows why, layer by layer.
@@ -192,8 +235,10 @@ For a chosen model and each target, one job converts it and reports whether it f
 
 ### 12. Bench test (hardware in the loop)
 
-The same test frames go through each converted model on the real boards; the app collects what came
-back and scores it exactly as in stage 9.
+Two uses of the same runner. **Timing run** (first, for "what runs where"): load a converted model,
+run it a fixed number of times on a few frames, read back ms per inference, memory and energy.
+**Accuracy run** (later, for trained models): the same test frames go through each converted model
+on the real boards; the app collects what came back and scores it exactly as in stage 9.
 
 - **Method A, frames from file (first):** the app sends the test frames to the board, the board runs
   the model on them and returns the raw outputs, time per inference and memory used. Every camera
@@ -229,7 +274,8 @@ Model weights, datasets and bench results live in the data folder, never in git.
 - **Images never leave the laptop** stays, with one exception (Nick, 2026-11-26): test frames may
   be sent to Nick's own bench units for the bench test, over USB, the home network or Tailscale.
   Never to a cloud service.
-- **Licences:** as above; nothing new without all three checks.
+- **Licences:** as above: permissive only for anything deployed; RF-DETR's PML sizes for evaluation
+  only; nothing new without all three checks.
 - **Hardware:** bench units only: the two Nick named on 2026-11-26, a Pi Zero 2W rig with the
   IMX708, an N6 and the AE3, and a Pi 5 with the screen rig. Their names and addresses live in
   `config.local.toml`, not in git. Nick is their owner and runs
@@ -250,17 +296,33 @@ Model weights, datasets and bench results live in the data folder, never in git.
    transformer for urchin detection and there are tons of images with the correct license I've
    captured already").
 7. **Bench owner:** Nick; he runs bench tests from the app.
+8. **Order (2026-11-27):** "it's actually more important to understand what hardware can run each
+   type of model, detector vs segmenter vs instance segmenter. That in it-self will be valuable to
+   know, then the bake later with results." So "what runs where" comes first, for all three kinds
+   and all three cameras. This widens answer 1: the instance segmenter is checked on every camera
+   from the start; whether it is then trained for a camera depends on that result.
+9. **RF-DETR small sizes (2026-11-27):** "lets open this up to the nano and smaller versions of DETR-RT
+   so we can see how good their licensed model is at smaller sizes. If it's the only way to get
+   segmenter or instance segmenter on OpenMV hardware for now then that is a finding and I will
+   evalaute paying for their use license." So RF-DETR Nano and the sizes below it are candidates.
+   Found while writing this in: the sizes below Nano (Atto, Femto, Pico) are detectors only and
+   are the ones under Roboflow's paid licence; RF-DETR's segmentation models, Nano included, are
+   Apache-2.0 and need no paid licence. This narrows answer 2: permissive only for anything
+   deployed; the PML sizes are allowed for evaluation.
 
 ## Open questions
 
+- **For Nick:** the PML sizes may be used only under an accepted Roboflow platform plan (PML 1.0,
+  section 1), and their software may track usage (section 4). REC: you accept the plan terms on
+  your own Roboflow account before S6 bite 2 installs `rfdetr[plus]`; until then the table carries
+  RF-DETR Nano and RF-DETR-Seg Nano (Apache-2.0) only. No frames go through the PML package until
+  the builder has shown what it sends out.
 - **For Nick:** may weights trained on the DUO set be the starting point for a camera model? Its
   licence page declares CC BY 4.0 but its origin is unclear (his earlier notes). REC: no; pre-train
   on Urchinbot and the other cleared sources only.
 - **For Nick:** ST Edge AI Core is ST's own tool under ST's licence terms, which must be accepted
   to install it (he used version 4.0.0 before, through OpenMV's tooling). REC: accept for 4.1.0 on
-  the laptop when S8 starts; the builder reads the terms first and reports anything unusual.
-- A camera test for the instance segmenter (answer 1) is not in the ladder yet: it is added after
-  S10 only if an instance segmenter is worth it on the laptop.
+  the laptop now: S6 starts with it; the builder reads the terms first and reports anything unusual.
 - Which runtime on the Pi Zero 2W (measured in S9), and whether the bench Pi runs a 64-bit system.
 - Which segmenter architecture places fully on the N6's NPU (compile check in S8 before any long training).
 - The licence of each set of published starting weights (checked per model type before it is offered).
@@ -273,9 +335,13 @@ Model weights, datasets and bench results live in the data folder, never in git.
 
 ## Sprint ladder (detail in TRACKER)
 
-- **S6** Dataset versions + train the first detector (YOLOX) as a job.
-- **S7** Evaluate, model list, compare.
-- **S8** Segmenter and instance segmenter through the same train / evaluate / compare.
-- **S9** Fit to the cameras: 8-bit conversion, N6 and Pi, fit report, accuracy after conversion.
-- **S10** Bench test on the N6 and the Pi; pick report.
-- **S11** AE3 stretch (one-day time box).
+- **S6** What runs where, on the laptop: toolchains, candidate list with licences, convert and
+  compile all three kinds for all three cameras; the table's first version.
+- **S7** What runs where, on the boards: the bench runner, timing runs on the N6, the Pi and the
+  AE3; the table complete.
+- **S8** Dataset versions + train the first detector as a job.
+- **S9** Evaluate, model list, compare.
+- **S10** Segmenter and instance segmenter through the same train / evaluate / compare (camera
+  models only from architectures that passed S6–S7).
+- **S11** Trained models on the cameras: 8-bit accuracy on the laptop, accuracy runs on the
+  boards, pick report.

@@ -14,12 +14,14 @@ labeling → review + export) on his ReefCheck videos (or on folders of still im
 criteria in `docs/source/mvp_spec.md`.
 
 **Build 2 (added 2026-11-26; source `docs/source/build2_spec.md`):** in the same app, go from that
-export to models proven on the bench cameras. Done when Nick can, in the browser, train a detector
+export to models proven on the bench cameras. First (Nick, 2026-11-27): one table of what each camera
+(N6, Pi Zero 2W, AE3) can run for each kind of model (detector, segmenter, instance segmenter):
+converts, fits, speed, memory, energy; it needs no trained model. Then training. Done when Nick can, in the browser, train a detector
 and a segmenter on a Build 1 export, compare them with older models and other model types, convert
 both for the OpenMV N6 and the Raspberry Pi Zero 2W (the AE3 as a one-day stretch), run them on the
 bench units, and read one comparison page that says which model to put on which camera and why.
-An instance segmenter can be trained and compared on the laptop; it goes on a camera only if it
-converts as easily as the other two.
+An instance segmenter can be trained and compared on the laptop; it is trained for a camera only if
+the table shows that camera can run one.
 
 ## Background
 
@@ -92,7 +94,9 @@ converts as easily as the other two.
    acceptable for the labeling tool only. Build 2 (Nick, 2026-11-26): the same rule for every model
    the app can train, laptop-only ones included (no Ultralytics YOLO, which is AGPL-3.0); a model
    type is offered only when the licences of its code, its starting weights and any outside data
-   are recorded in `THIRD_PARTY_LICENSES`.
+   are recorded in `THIRD_PARTY_LICENSES`. One exception, evaluation only (Nick, 2026-11-27): RF-DETR's sizes
+   below Nano (Roboflow's PML 1.0, a paid licence) may be compiled, timed and trained to see how good they
+   are; they are never deployed unless Nick buys the licence, and are marked "paid licence" in the app.
 7. **Every stage has a browser UI.** The terminal is used only to start the app. Basic and
    functional, not flashy (Nick, chat 2026-11-24).
 8. **The repo is public** (Nick, chat 2026-11-24). No real frames, video stills, people's
@@ -201,6 +205,10 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
 - Q21. Test frames may go to his own bench units over any link; never to a cloud.
 - Q22. Bench units: his Pi Zero 2W rig (IMX708, N6, AE3) and his Pi 5 screen rig; Nick is the owner and runs bench tests from the app.
 - Q23. Bench method: frames from file first; the screen-in-loop rig stays an option.
+- Q25 (2026-11-27). Order: "what hardware can run each type of model" comes first, for all three kinds and
+  all three cameras, before training; the accuracy comparison follows.
+- Q26 (2026-11-27). RF-DETR Nano and the sizes below it are candidates; the sizes below Nano are under a paid
+  licence and are for evaluation only (hard constraint 6). RF-DETR's segmentation models are Apache-2.0.
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 
@@ -208,4 +216,5 @@ Open for Build 2 (flag, don't guess; `docs/source/build2_spec.md` §Open questio
 and whether the bench Pi is 64-bit; a segmenter architecture that places fully on the N6's NPU; the
 licence of each set of published starting weights; what else runs on the two bench units; whether a
 validated power meter is wired on the Pi Zero 2W rig; whether weights trained on the DUO set may start a
-camera model (for Nick); accepting ST's licence terms for ST Edge AI Core (for Nick).
+camera model (for Nick); accepting ST's licence terms for ST Edge AI Core (for Nick; S6 starts with it); accepting Roboflow's platform plan
+terms for the PML sizes, and what that package sends out (for Nick and the S6 builder).
