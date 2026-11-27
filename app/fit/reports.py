@@ -71,5 +71,5 @@ def error_lines(log_text: str, keep: int = 6) -> str:
     Colour codes are removed."""
     lines = [re.sub(r"\x1b\[[0-9;]*m", "", l).rstrip() for l in log_text.splitlines()]
     lines = [l for l in lines if l.strip()]
-    hits = [l for l in lines if re.search(r"INTERNAL ERROR|NOT IMPLEMENTED|^\s*E\d{3}\(|^Error|Error:", l)]
+    hits = [l for l in lines if re.search(r"INTERNAL ERROR|TOOL ERROR|NOT IMPLEMENTED|^\s*E\d{3}\(|^Error|Error:", l)]
     return "\n".join((hits or lines)[-keep:])

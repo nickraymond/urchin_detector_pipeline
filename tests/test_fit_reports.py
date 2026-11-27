@@ -55,6 +55,8 @@ def test_st_sizes_and_error_lines():
     err = reports.error_lines(text("n6_compile_rfdetr_nano_fail_log.txt"))
     assert "INTERNAL ERROR: 'NoneType' object is not subscriptable" in err and "\x1b" not in err
     assert reports.error_lines("a\nb\nc\n", keep=2) == "b\nc"
+    tool = "noise\nTOOL ERROR: matmul: Input operand 1 has a mismatch in its core dimension 0\nmore noise\n"
+    assert reports.error_lines(tool) == "TOOL ERROR: matmul: Input operand 1 has a mismatch in its core dimension 0"
 
 
 def job(tmp_path, **fit):
@@ -74,6 +76,7 @@ def test_n6_command_mounts_the_toolchain_read_only(tmp_path):
     assert "/sdk-here:/sdk:ro" in cmd and "/omv-here:/omv:ro" in cmd and f"{tmp_path / 'int8'}:/in:ro" in cmd
     assert f"{tmp_path / 'out'}:/out" in cmd and "--target stm32n6" in cmd[-1] and "/in/model_int8.tflite" in cmd[-1]
     assert not any(word in " ".join(cmd) for word in ("dfu", "ssh", "--privileged", "/dev"))   # never hardware
+    assert cmd[cmd.index("--network") + 1] == "none"
 
 
 def test_missing_tools_are_a_job_error_with_a_fix(tmp_path):
