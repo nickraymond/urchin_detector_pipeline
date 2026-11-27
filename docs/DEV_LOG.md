@@ -17,6 +17,45 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2b: segmenter candidates (S6 builder)
+**Branch:** sprint/6-segmenter-candidates
+**Done:** `app/modeldefs/tvseg.py` (torchvision LR-ASPP and DeepLabV3 on MobileNetV3-Large, BSD-3-Clause read at
+the source, built with no weights) and `app/modeldefs/plainseg.py` (our own plain conv net, sizes `s` and `m`);
+six classes (the five plus "other"), 256 px, one raw scores map (D57). These need only torch and torchvision, so
+the app's own tests build all four and check the output shapes: LR-ASPP 3,218,988 parameters, DeepLabV3
+11,021,622, plain `s` 53,030, plain `m` 126,966. A test proves the plain net holds only conv, batch-norm, ReLU6
+and nearest upsampling.
+**Broke/surprised us:** nothing.
+**Next:** bite 2c (instance segmenters: RF-DETR-Seg Nano and one or two small conv ones).
+
+## 2026-11-27 — Sprint S6 — Bite 2a-ii: RF-DETR Nano candidate (S6 builder)
+**Branch:** sprint/6-rfdetr-nano
+**Done:** `app/modeldefs/rfdetr.py`: RF-DETR Nano (Apache-2.0, read at the source) as a detector candidate at 384 px
+(stock) and 256 px, built untrained from the `rfdetr` 1.9.4 package in its own tool environment (`rfdetr-venv`,
+`requirements-rfdetr.txt`); per-candidate export settings (D56). Shown before anything else: with every network
+connection refused, the model builds and runs with 0 connection attempts (weights are only fetched when a weights
+file is named; Nano loads no DINOv2 weights). First look by hand (DESIGN §Bench results): converts to 8-bit only
+after an onnxsim pass (31.3 MB); Vela puts 92.8% of operators on the NPU but it needs 17 MB of memory and a 35 MB
+file; ST Edge AI Core 4.0.0 stops with an internal error.
+**Broke/surprised us:** RF-DETR's input must be a multiple of 32 (its backbone refuses 336). onnxsim's command line
+crashes while printing its summary, after saving a good file. `rfdetr` ships its own TFLite exporter, which asks
+for onnx2tf 2.4.0 or newer on Python 3.12 (its package metadata); the known-good route here is 1.28.8, so that
+exporter is a later one-variable try if the table needs it.
+**Next:** bite 2b (segmenters: torchvision LR-ASPP and DeepLabV3 on MobileNetV3, and one plain conv net).
+
+## 2026-11-27 — Sprint S6 — Bite 2a-i: model definitions, YOLOX candidates (S6 builder)
+**Branch:** sprint/6-detector-candidates
+**Done:** `app/modeldefs/` (plain data + PyTorch, imports nothing else from `app`; a test checks): candidates as
+the `arch` part of a recipe (D54), `arch_key` folder names (D53), checks that say what is wrong, `build()` for the
+exported module. YOLOX Nano / Tiny (plain first layer, three raw maps) at 256 and 320 px with the five Build 2
+classes, adapted from the earlier `yolox_urchin/model.py`. YOLOX is an unmodified checkout at `6ddff48` in
+`<tools_dir>/third_party/YOLOX` (LICENSE sha256 `0ec3668d…`, Apache-2.0). Self-test in the conversion environment:
+all four candidates build; outputs (1, 10, px/8 … px/32); 896,238 parameters (Nano), 5,032,086 (Tiny).
+**Broke/surprised us:** importing YOLOX needs `loguru`, `tabulate` and `cv2`; the app's environment has none of
+them, so the two build tests skip there (S8's trainer will need them if it trains in the app's environment).
+Cloning YOLOX on macOS warns about two demo files whose names differ only by case; the model code is not affected.
+**Next:** bite 2a-ii (RF-DETR Nano), then 2b (segmenters).
+
 ## 2026-11-27 — Sprint S8 — Bite 1: prior art, licences, `datasets/` layout (S8 builder)
 **Branch:** sprint/8-prior-art (docs only)
 **Done:** re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` at `994b8c2` (trainer, model, data, tests, export, decode,

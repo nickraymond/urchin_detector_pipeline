@@ -1,0 +1,6 @@
+# RF-DETR's tool environment (DESIGN D51; app/modeldefs/rfdetr.py): the conversion environment plus the
+# `rfdetr` package, which needs `transformers`. Built in <tools_dir>/rfdetr-venv with Python 3.11:
+#   uv venv --python 3.11 rfdetr-venv && uv pip install --python rfdetr-venv/bin/python -r requirements-rfdetr.txt
+# Adding rfdetr changes none of the conversion pins (uv dry run, 2026-11-27). Licences: THIRD_PARTY_LICENSES.
+-r requirements-convert.txt
+rfdetr==1.9.4
