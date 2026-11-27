@@ -434,7 +434,9 @@ compilers; 3c the Pi)**
 - [x] 3b: the N6 and AE3 compiler modules (`app/fit/n6.py`, `ae3.py`, D52) and their report parsers
       (`app/fit/reports.py`, tested on excerpts of the real reports); `[fit]` settings; self-test: 10 candidates ×
       2 cameras through the job (DESIGN §Bench results)
-- [ ] 3c: the Pi
+- [x] 3c: the Pi (`app/fit/pi.py`): the 8-bit file runs under LiteRT on the laptop; operators, any that is not
+      built in, file size; the laptop's time is kept as a laptop figure only. ONNX Runtime and ncnn are compared on
+      the bench Pi in S7 (each needs its own 8-bit route)
 - [ ] job kind `convert` on `app/jobctl/`: one candidate × one camera → 8-bit model → the camera's compiler →
       a fit report as data (converts yes / no; layers on the NPU / hybrid / CPU; file size and memory against
       the board's limits; the compiler's own speed estimate, marked as an estimate; the failing layers by name);

@@ -17,6 +17,18 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 3c: the Pi step (S6 builder)
+**Branch:** sprint/6-pi-step
+**Done:** `app/fit/pi.py` + `pi_run.py`: for the Pi Zero 2W the convert job runs the 8-bit TFLite once under LiteRT
+(in `convert-venv`) and reports: runs yes / no, operator count (all on the CPU), any operator that is not built in,
+file size, the 512 MB memory limit with its source. Time and peak memory measured there are stored under `laptop`
+with a note; `estimate_ms` and `memory_bytes` stay empty, so the page cannot show a laptop number as a Pi number.
+**Self-test (by hand on the 10 files of bite 3b's run):** all 10 load and run with only built-in operators; file
+sizes 91 KiB (plain s) to 11.0 MiB (DeepLabV3).
+**Not done:** ONNX Runtime and ncnn on the laptop. Each needs a different 8-bit file (ONNX QDQ; pnnx), so "the
+same model on the three cameras" would no longer hold; they are S7's comparison on the bench Pi (D52).
+**Next:** bite 4 (the "What runs where" page, storage check, AE3 time box); 2c-ii (RTMDet-Ins).
+
 ## 2026-11-27 — Sprint S6 — Bite 2d: the Roboflow-licensed sizes (S6 builder)
 **Branch:** sprint/6-rfdetr-plus
 **Done:** shown first, before any use: what `rfdetr[plus]` sends out (DESIGN §Bench results; the finding is also

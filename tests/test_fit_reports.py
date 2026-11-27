@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.fit import ae3, convert, n6, reports
+from app.fit import ae3, convert, n6, pi, reports
 from app.fit.convert_worker import ToolsMissing
 
 FIX = Path(__file__).parent / "fixtures" / "fit"
@@ -67,7 +67,7 @@ def test_fit_settings_defaults_and_overrides(tmp_path):
     s = convert.fit_settings(None)
     assert s["docker_image"] == "firmware-builder:latest" and "~" not in s["sdk_dir"] + s["openmv_dir"]
     assert convert.fit_settings({"sdk_dir": "/x", "other": 1}) == {**s, "sdk_dir": "/x"}
-    assert convert.COMPILERS == {"n6": "app.fit.n6", "ae3": "app.fit.ae3"}
+    assert convert.COMPILERS == {"n6": "app.fit.n6", "ae3": "app.fit.ae3", "pi": "app.fit.pi"}
 
 
 def test_n6_command_mounts_the_toolchain_read_only(tmp_path):
@@ -84,3 +84,39 @@ def test_missing_tools_are_a_job_error_with_a_fix(tmp_path):
         ae3.compile(tmp_path / "m.tflite", tmp_path, job(tmp_path))
     with pytest.raises(ToolsMissing, match=r"OpenMV SDK not found.*\[fit\] sdk_dir"):
         n6.compile(tmp_path / "m.tflite", tmp_path, job(tmp_path, sdk_dir=str(tmp_path / "none")))
+
+
+def fake_tools(tmp_path, script: str) -> dict:
+    """A stand-in for <tools_dir>/convert-venv/bin/python that prints what a test wants."""
+    py = tmp_path / "tools" / "convert-venv" / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    py.write_text("#!/bin/sh\n" + script + "\n")
+    py.chmod(0o755)
+    return job(tmp_path)
+
+
+def test_pi_step_reports_cpu_only_and_laptop_figures_as_laptop_figures(tmp_path):
+    model = tmp_path / "model_int8.tflite"
+    model.write_bytes(b"TFL3" * 10)
+    ran = ('{"runtime": "LiteRT (ai-edge-litert) 2.2.0", "operators": 5, "operator_types": {"CONV_2D": 4, '
+           '"FlexErf": 1}, "not_builtin": ["FlexErf"], "input": {"shape": [1, 8, 8, 3], "dtype": "int8"}, '
+           '"outputs": [], "laptop_ms": 1.5, "runs": 20, "laptop_peak_bytes": 1000}')
+    out = tmp_path / "out"
+    out.mkdir()
+    fit = pi.compile(model, out, fake_tools(tmp_path, f"echo noise; echo '{ran}'"))
+    assert fit["converts"] and fit["placement"] == {"npu": 0, "hybrid": 0, "cpu": 5, "total": 5, "unit": "operators"}
+    assert fit["file_bytes"] == 40 and (out / "model_int8.tflite").is_file()
+    assert fit["estimate_ms"] is None and fit["memory_bytes"] is None        # nothing claimed for the Pi
+    assert fit["laptop"]["ms"] == 1.5 and "nothing about the Pi" in fit["laptop"]["note"]
+    assert fit["memory_limit_bytes"] == 512 * 1024 * 1024 and fit["limit_bytes"] is None
+    assert [l["name"] for l in fit["failing_layers"]] == ["FlexErf"]
+
+
+def test_pi_step_failure_is_a_result_and_a_missing_environment_is_a_job_error(tmp_path):
+    model = tmp_path / "model_int8.tflite"
+    model.write_bytes(b"x")
+    with pytest.raises(ToolsMissing, match="Tool environment not found"):
+        pi.compile(model, tmp_path, job(tmp_path))
+    fit = pi.compile(model, tmp_path, fake_tools(tmp_path, "echo 'ValueError: Model provided has model identifier' >&2; exit 1"))
+    assert fit["converts"] is False and "model identifier" in fit["error"]
+
