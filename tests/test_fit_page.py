@@ -174,8 +174,11 @@ def test_stored_together_sums_the_best_of_each_kind_against_the_room_left(tmp_pa
               limit_bytes=area, placement=placed(9, 0, 20))           # partly on the CPU: not the best
     write_fit(tmp_path, "plainseg-s-256-c6", "pi", converts=True, file_bytes=92_912, limit_bytes=None,
               placement=placed(0, 0, 30, "operators"), failing_layers=[])
+    write_fit(tmp_path, "rfdetrplus-atto-380-c5", "n6", converts=True, file_bytes=10, limit_bytes=area,
+              placement=placed(9, 0, 0))                              # Roboflow licence: never picked (QE nit 2)
     t = table.stored_together(table.table(tmp_path))
     n6 = t["n6"]
+    assert table.VENDOR_BYTES == {"n6": 12_577_188, "ae3": 9_269_500}  # image minus its compiled YOLOX files
     assert {k: v["key"] for k, v in n6["best"].items()} == {
         "Detector": "yolox-nano-conv-256-c5", "Segmenter": "plainseg-s-256-c6",
         "Instance segmenter": "yoloxproto-nano-conv-256-c5"}

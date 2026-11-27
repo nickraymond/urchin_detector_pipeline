@@ -136,15 +136,17 @@ def missing(data_dir: Path) -> list[tuple[dict, str]]:
 # What the vendor's own models take in each camera's model area. Loading a model on the N6 means writing the
 # whole area, so every image carries them (ml/build_romfs_n6.sh). Not rebuilt here: derived from the earlier
 # work's images of 2026-08-25 (~/nereus_ml/romfs_n6_stage1/out/romfs0.img, 19,057,780 bytes, and
-# romfs_ae3_stage1/out/romfs0.img, 15,251,036 bytes) minus the two YOLOX files they also hold (6,527,040
-# bytes as given to the image builder). Approximate; S7's image build gives the real figure.
-VENDOR_BYTES = {"n6": 19_057_780 - 6_527_040, "ae3": 15_251_036 - 6_527_040}
-VENDOR_SOURCE = "the vendor's models as in the earlier work's images of 2026-08-25 (approximate)"
+# romfs_ae3_stage1/out/romfs0.img, 15,251,036 bytes) minus the two compiled YOLOX files each image holds
+# (their `build/` folders: N6 1,202,776 + 5,277,816 bytes; AE3 1,014,816 + 4,966,720). Approximate; S7's
+# image build gives the real figure.
+VENDOR_BYTES = {"n6": 19_057_780 - 6_480_592, "ae3": 15_251_036 - 5_981_536}
+VENDOR_SOURCE = "the vendor's models, from the earlier image build of 2026-08-25 (approximate)"
 PI_MEMORY_BYTES = 512 * 1024 * 1024
 
 
 def stored_together(rows: list[dict]) -> dict[str, dict]:
-    """Per camera: the best candidate of each kind that runs there, and for each pair and all three,
+    """Per camera: the best permissive candidate of each kind that runs there (what could ship together; a
+    Roboflow-licensed one is never picked, SPEC hard constraint 6), and for each pair and all three,
     whether their files fit side by side and how much room is left (spec, "More than one model at
     once", the laptop part). Loaded together and run in one wake-up are measured on the boards (S7)."""
     out = {}
@@ -152,13 +154,14 @@ def stored_together(rows: list[dict]) -> dict[str, dict]:
         best = {}
         for row in rows:
             cands = [c for c in row["cells"][camera]["candidates"]
-                     if c["code"] in ("runs", "partly") and c["fit"].get("file_bytes")]
+                     if c["code"] in ("runs", "partly") and c["fit"].get("file_bytes") and c["mark"] is None]
             if cands:
                 pick = min(cands, key=lambda c: (RANK[c["code"]], c["fit"]["file_bytes"]))
                 best[row["label"]] = {"key": pick["key"], "bytes": pick["fit"]["file_bytes"], "mark": pick["mark"]}
         if camera == "pi":
-            room, taken, note = PI_MEMORY_BYTES, 0, ("against the Pi's 512 MB of memory, files only; the SD card "
-                                                      "is not the limit, and memory in use is measured in S7")
+            room, taken, note = PI_MEMORY_BYTES, 0, ("files (in memory once loaded) against the Pi's 512 MB of RAM; "
+                                                      "storage on the SD card is not the limit, and memory in "
+                                                      "use is measured in S7")
         else:
             limit = next((c["fit"]["limit_bytes"] for row in rows for c in row["cells"][camera]["candidates"]
                           if c["fit"] and c["fit"].get("limit_bytes")), None)

@@ -29,6 +29,10 @@ and fit with 9.6 MiB left; AE3: 2.1 MiB, 13.6 MiB left; Pi: "only one kind has a
 far" (only one Pi cell had been run).
 **Open, found here:** D51 says setting the tools up is a job with a button; it does not exist yet (TRACKER 3d).
 **Next:** 3d, 2c-ii, RF-DETR's cells from the running job, and the stacked PRs through QE.
+**Changed before merge (S6 builder 2, QE's nits 1–3):** the vendor's share is each earlier image minus the compiled
+YOLOX files it holds (N6 12,577,188 bytes, AE3 9,269,500; read from `~/nereus_ml/romfs_*_stage1/`), not minus
+the input files; only permissive candidates are picked; the Pi line says "files (in memory once loaded) against
+512 MB of RAM".
 
 ## 2026-11-27 — Sprint S6 — Bite 4a: the "What runs where" page (S6 builder)
 **Branch:** sprint/6-fit-page
