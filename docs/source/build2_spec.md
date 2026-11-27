@@ -45,8 +45,9 @@ Training honors Build 1's review flags:
 
 ## Models that are safe to use
 
-Rule (MVP spec, SPEC hard constraint 6): on-camera models are permissive only (Apache / MIT / BSD),
-and architectures should already be shown to run on the N6's NPU. The licence of the **code**, of
+Rule (MVP spec, SPEC hard constraint 6): on-camera models are permissive only (Apache / MIT), and
+architectures should already be shown to run on the N6's NPU. Build 2 adds BSD-3-Clause to the
+permissive list (torchvision's code is BSD-3; Nick's merge of this spec is the approval). The licence of the **code**, of
 any **pretrained weights** we start from, and of any **outside data** are three separate checks; a
 model type is offered in the app only when all three are recorded in `THIRD_PARTY_LICENSES`.
 
@@ -56,7 +57,7 @@ helper, to be re-read by the builder before the model type is added):
 | Model family | Licence (source) | Role in Build 2 |
 | --- | --- | --- |
 | YOLOX Nano / Tiny | Apache-2.0 (`Megvii-BaseDetection/YOLOX` LICENSE; lead) | **First detector.** Nick's earlier work compiled it for both NPUs and measured it on both boards (below). |
-| RF-DETR Nano–Large, RF-DETR-Seg | Apache-2.0 (`roboflow/rf-detr` README; lead). Its Atto / Femto / Pico / XL / 2XL detectors are under another licence (PML 1.0): not used. | Laptop-only reference: the "how good could it get" line for detection and instance segmentation. Not a camera model (attention layers fell back to the CPU in the earlier compile tests). |
+| RF-DETR Nano–Large, RF-DETR-Seg | Apache-2.0 (`roboflow/rf-detr` README; lead). Its Atto / Femto / Pico / XL / 2XL detectors are under another licence (PML 1.0): not used. | Laptop-only reference: the "how good could it get" line for detection and instance segmentation. Not a camera model: it was never compiled for the cameras, and its attention layers are expected to stay on the CPU (the earlier compile test saw even single transpose layers fall back). |
 | torchvision DeepLabV3 / LR-ASPP with a MobileNet backbone | code BSD-3-Clause (helper); weights: torchvision says they "may have their own licenses" (helper) | Candidate first segmenter. NPU fit unproven: it must pass the compile check first. |
 | YOLACT, SparseInst, RTMDet-Ins | MIT (YOLACT LICENSE; lead), MIT (SparseInst; helper), Apache-2.0 (`open-mmlab/mmdetection` LICENSE; lead) | Candidate small instance segmenters. NPU fit unproven. |
 | NanoDet-Plus | Apache-2.0 (helper) | Second choice: its channel-shuffle layers fell back to the CPU on both NPUs in the earlier compile test. |
@@ -73,13 +74,14 @@ What Nick's earlier work already measured (repo `ADIN_SPI_OpenMV`, `ml/yolox_urc
 Build 1 data):
 
 - YOLOX-Nano and -Tiny, with the first layer swapped for a plain stride-2 conv, compile for both
-  NPUs with no layer left on the CPU: AE3 = one `ethos-u` block; N6 = 116 hardware + 2 hybrid + 0
-  software steps of 118 (Nano).
+  NPUs with no layer left on the CPU: AE3 = one `ethos-u` block; N6 = 117 hardware + 2 hybrid + 0
+  software steps of 119 (trained Nano; Tiny 95 + 2 + 0).
 - Measured on the boards (2026-08-24, 300-run windows): N6 10.6 ms (Nano) and 31.2 ms (Tiny);
   AE3 26.4 ms and 58.4 ms. Energy per inference, gross: AE3 6.7 mJ (Nano), N6 11.5 mJ (Nano).
-- Tiny is too big for the AE3's file flash (4.97 MB against about 4.09 MB of free heap); it runs
-  from the read-only model area instead.
-- On the screen-in-loop rig, a whole frame shrunk to 256 px found almost nothing; tiles at native
+- Tiny is too big to load from the AE3's file flash (loading copies it into memory: 4.97 MB against
+  about 4.09 MB free); it runs from the read-only model area instead.
+- On the screen-in-loop rig (that repo's `docs/TRACKER.md`, 2026-08-25 entry), a whole frame shrunk to
+  256 px found almost nothing; tiles at native
   pixels were the only mode that worked. So tiling is part of the recipe from the start.
 - Still owed there: accuracy lost by 8-bit conversion at the deployed size was never measured.
   Build 2 measures it for every model.
@@ -96,8 +98,11 @@ and the compile scripts from that work are the starting point; the builder repor
   never on "whatever the export is today", so results can be repeated.
 - Shows what training will see: objects and frames per class and split, classes below the 150–200
   object target, frames left out by the split check, classes not fully checked.
-- **One fixed test set for comparing.** When a new version adds frames, the page offers to
-  re-evaluate older models on the new test split, so old and new are always compared on the same frames.
+- **One fixed test set for comparing.** A new version keeps every site-and-date group in the split
+  it had in the version before (the export may re-deal groups on each run; the dataset version does
+  not), and new groups are dealt to keep about 70 / 20 / 10. When a new version adds test frames,
+  the page offers to re-evaluate older models on them, so old and new are compared on the same
+  frames. The compare page flags any model that saw a test frame in training.
 - **Outside data (Nick, 2026-11-26):** Nick's earlier urchin work already gathered public urchin
   datasets with their licences recorded: the data in `~/nereus_ml/datasets/`, the licence texts and
   counts in `ADIN_SPI_OpenMV/ml/urchin_data/` (`licenses/`, `manifests/`), the verdict per source in
@@ -105,9 +110,13 @@ and the compile scripts from that work are the starting point; the builder repor
   sources whose recorded verdict allows commercial use (for example Urchinbot, CC-BY-4.0: 9,872
   images, 44,268 boxes), each listed with its licence. Sources marked no-go or benchmark-only there
   (FathomNet, the NOAA YOLO weights) stay out. They hold boxes only and mostly one class, "urchin",
-  so they help the detector's starting weights; the segmenters learn from Build 1's export.
-- **Starting weights:** a model may start from Nick's earlier runs on that data (YOLOX stage 1; the
-  RF-DETR run as the laptop reference) or from published weights whose licence is recorded.
+  so they are for pre-training the detector only (their boxes carry no Build 1 class id); the
+  segmenters learn from Build 1's export. The DUO set stays out until Nick decides: its verdict
+  there is "research-only fenced until Nick's license call".
+- **Starting weights:** from scratch, from pre-training on the allowed sources above, or from
+  published weights whose licence is recorded. Nick's earlier YOLOX stage-1 weights were trained on
+  Urchinbot + DUO + RF100, so they wait for the DUO answer (open question); until then they are
+  not a starting point for a camera model.
 - Outside data is used for training only. The test split is always Nick's own reviewed frames.
 
 ### 8. Train
@@ -162,8 +171,8 @@ For a chosen model and each target, one job converts it and reports whether it f
 - **Accuracy after conversion is measured on the laptop first:** the 8-bit model is evaluated like any
   other model (stage 9), so "what did shrinking cost" is one line on the compare page.
 - A model that leaves layers on the CPU, or does not fit, shows why, layer by layer.
-- **AE3 time box (MVP spec):** about one day of work for the detector and segmenter together; pass
-  or disqualify with a one-line reason.
+- **AE3 time box (MVP spec):** about one day of work; pass = the detector and segmenter, or at least
+  the detector, convert, fit and run; else disqualify with a one-line reason.
 - Toolchain facts, checked 2026-11-26:
   - ST Edge AI Core is ST's own tool under ST's licence (not open source); current 4.1.0; it takes
     8-bit TFLite or ONNX (QDQ) models, "only full integer static quantization", and unsupported
@@ -220,8 +229,9 @@ Model weights, datasets and bench results live in the data folder, never in git.
   be sent to Nick's own bench units for the bench test, over USB, the home network or Tailscale.
   Never to a cloud service.
 - **Licences:** as above; nothing new without all three checks.
-- **Hardware:** bench units only: `nereus002` (Pi Zero 2W with the IMX708, an N6 and the AE3) and
-  `nereus000` (Pi 5 with the screen rig), named by Nick on 2026-11-26. Nick is their owner and runs
+- **Hardware:** bench units only: the two Nick named on 2026-11-26, a Pi Zero 2W rig with the
+  IMX708, an N6 and the AE3, and a Pi 5 with the screen rig. Their names and addresses live in
+  `config.local.toml`, not in git. Nick is their owner and runs
   every bench test himself from the app; builders and QE test against a fake board and never touch
   the hardware. A test card before every run. Field units are never a target.
 - Everything else in SPEC's hard constraints stays as it is, including the browser-only rule and
@@ -232,7 +242,7 @@ Model weights, datasets and bench results live in the data folder, never in git.
 1. **Instance segmentation:** laptop first; on a camera only if it converts easily.
 2. **Licences:** permissive only. No Ultralytics, ST-only, YOLO-NAS or FOMO models in the app. Start with YOLOX.
 3. **Frames to bench units:** allowed, over any link, to his own bench units; never to a cloud.
-4. **Bench units:** `nereus002` and `nereus000`.
+4. **Bench units:** two of his rigs: the Pi Zero 2W rig (IMX708, N6, AE3) and the Pi 5 screen rig.
 5. **Bench method:** frames from file first; the screen rig stays an option.
 6. **Outside data and starting weights:** use the urchin data from his earlier detector work, which
    is already on the laptop with its licences recorded ("Look for my old work training the DETR-TR
@@ -242,13 +252,22 @@ Model weights, datasets and bench results live in the data folder, never in git.
 
 ## Open questions
 
+- **For Nick:** may weights trained on the DUO set be the starting point for a camera model? Its
+  licence page declares CC BY 4.0 but its origin is unclear (his earlier notes). REC: no; pre-train
+  on Urchinbot and the other cleared sources only.
+- **For Nick:** ST Edge AI Core is ST's own tool under ST's licence terms, which must be accepted
+  to install it (he used version 4.0.0 before, through OpenMV's tooling). REC: accept for 4.1.0 on
+  the laptop when S9 starts; the builder reads the terms first and reports anything unusual.
+- A camera test for the instance segmenter (answer 1) is not in the ladder yet: it is added after
+  S10 only if an instance segmenter is worth it on the laptop.
 - Which runtime on the Pi Zero 2W (measured in S9), and whether the bench Pi runs a 64-bit system.
 - Which segmenter architecture places fully on the N6's NPU (compile check in S8 before any long training).
 - The licence of each set of published starting weights (checked per model type before it is offered).
-- `nereus000` is also the console monitor host for another bench; an older test card says nothing
-  may run on `nereus002`. Nick's answer 4 lifts that for Build 2's bench tests; the first test card
+- The Pi 5 screen rig is also the console monitor host for another bench; an older test card says
+  nothing may run on the Pi Zero 2W rig, and one older skill calls it a field camera rig. Nick's
+  answer 4 names both as bench units for Build 2's bench tests; the first test card
   names what else must be stopped or left alone on each unit.
-- Is a power meter wired to the N6 and the Pi on `nereus002`, and are its readings validated? Until
+- Is a power meter wired to the N6 and the Pi on the Pi Zero 2W rig, and are its readings validated? Until
   then energy shows as "not measured", never as a number.
 
 ## Sprint ladder (detail in TRACKER)

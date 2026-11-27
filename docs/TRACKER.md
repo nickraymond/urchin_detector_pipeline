@@ -392,24 +392,34 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [ ] decide and log in DESIGN: where training's Python packages live (the app's PyTorch is pinned to 2.10.0, D7),
       the layout of `datasets/` and `models/`, and what a "recipe" file holds
 
-**Bite 2 — Dataset versions**
+**Bite 2a — Dataset versions**
 - [ ] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
       reference, splits, class list, counts per class and split, a hash; versions are numbered and never changed
+- [ ] a new version keeps every site-and-date group in the split it had in the version before; new groups are
+      dealt to keep about 70 / 20 / 10 (the export's own `splits/` may re-deal on each run, D43)
+
+**Bite 2b — What training will see**
 - [ ] the page shows what training will see: objects and frames per class and split, classes under the 150–200
       target, frames left out by the split check, classes not fully checked per frame
 - [ ] loaders for training: a class not fully checked on a frame is skipped for that frame; split check "no"
       frames are left out of detector data; synthetic tests
 
-**Bite 3 — Outside data in a version**
+**Bite 3 — Outside data and starting weights**
 - [ ] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
-      use; the page lists each source with its licence and counts; outside data goes to training only, never
-      to the test split; the folder is a setting in `config.local.toml`
+      use (not the DUO set until Nick answers); the page lists each source with its licence and counts; its
+      boxes are one class, "urchin", used for pre-training the detector only, never in the test split; the
+      folder is a setting in `config.local.toml`
+- [ ] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or
+      published weights with a recorded licence
 
-**Bite 4 — Train job**
+**Bite 4a — Train job**
 - [ ] job kind `train` on `app/jobctl/`: a worker process that writes a checkpoint and a metrics line per epoch;
       Pause finishes the step, saves and unloads; Resume continues from the last checkpoint; Cancel keeps
       checkpoints; tested end to end with a tiny fake trainer (no torch)
-- [ ] YOLOX-Nano with the plain first layer, tiles as part of the recipe; every run records dataset version,
+
+**Bite 4b — YOLOX trainer**
+- [ ] YOLOX-Nano with the plain first layer, tiles as part of the recipe, an augmentation preset that
+      includes blur and haze; every run records dataset version,
       recipe, code version, seed, library versions and device
 
 **Bite 5 — Train page**
@@ -440,19 +450,23 @@ the same test frames, and which frames each one gets wrong.
 
 ### S8 — Segmenter and instance segmenter  `[ ]`
 **Goal:** the other two kinds go through the same train / evaluate / compare pages.
-- [ ] compile check first (no long training): candidate segmenter architectures, untrained, through the N6's
-      and the AE3's compilers; pick one that places on the NPU; licences read at the source
-- [ ] per-pixel segmenter from `seg_masks/` (unknown and not-checked pixels do not count as background);
+- [ ] toolchain bite: ST Edge AI Core (needs Nick's yes to ST's licence terms) and Arm Vela (Apache-2.0) set up
+      on the laptop as documented, versions and licences recorded; known-good first: reproduce the earlier
+      YOLOX-Nano placement on both before changing anything
+- [ ] compile check (no long training): candidate segmenter architectures, untrained, through both compilers;
+      pick one that places on the NPU; licences read at the source
+- [ ] Lead call in DESIGN before training: how the segmenter treats "unknown" (a class in the MVP spec) and
+      classes not fully checked on a frame (`seg_masks/` cannot show them; the flags are in `frame_metrics.csv`)
+- [ ] per-pixel segmenter from `seg_masks/`;
       cover error in percentage points per class (share within 10 points), IoU per class, largest object % error
 - [ ] instance segmenter from the COCO outlines, laptop first; its counts and cover scored like the other two
 **Demo (Nick):** train a segmenter and an instance segmenter; the compare page shows % cover error per class
 and the same frames with each model's masks.
-**Needs:** S7; the N6 and AE3 compilers installed on the laptop (S9 bite 1 may be pulled forward for this).
+**Needs:** S7; Nick's answer on ST's licence terms.
 
 ### S9 — Fit to the cameras  `[ ]`
 **Goal:** spec stage 11 for the N6 and the Pi.
-- [ ] toolchain bite: ST Edge AI Core and the PyTorch → 8-bit route set up as documented, versions and licences
-      recorded; known-good first: reproduce the earlier YOLOX-Nano placement before changing anything
+- [ ] the PyTorch → 8-bit route set up as documented (compilers are in from S8), versions and licences recorded
 - [ ] convert job per model and target: 8-bit conversion with calibration frames from the training split; N6
       model image; Pi model file; a fit report (layers on the NPU / hybrid / CPU, sizes against the limits)
 - [ ] the 8-bit model is evaluated on the laptop like any model; the compare page shows what converting cost
@@ -462,8 +476,8 @@ and why; the compare page shows float vs 8-bit on the same test frames.
 **Needs:** S8 (S7 for the detector alone).
 
 ### S10 — Bench test on the N6 and the Pi  `[ ]`
-**Goal:** spec stage 12, frames from file; Nick runs it on `nereus002`.
-- [ ] bench units in `config.local.toml` (names only in git); any other target is refused; a fake board for
+**Goal:** spec stage 12, frames from file; Nick runs it on his Pi Zero 2W bench rig.
+- [ ] bench units in `config.local.toml` (no names or addresses in git); any other target is refused; a fake board for
       builder and QE tests
 - [ ] test card page: question, units, frames and repeats, metric, pass bar, stop rules; saved with the run;
       Run is refused without it
@@ -473,13 +487,16 @@ and why; the compare page shows float vs 8-bit on the same test frames.
 - [ ] energy per inference only where a validated power meter is wired; otherwise "not measured"
 - [ ] pick: one detector and one segmenter per camera marked "picked for the bake-off"; a one-page report
 **Demo (Nick):** approve a test card, press Run for one detector on the N6 and the Pi: the page fills with
-on-camera scores, ms per inference and the gap to the laptop. Mark a pick and open the report.
-**Needs:** S9; Nick at the bench with `nereus002`; SPEC hard constraint 9.
+on-camera scores, ms per inference and the gap to the laptop. When the card's repeats are done, mark a pick
+and open the report (the page refuses a pick from a single run).
+**Needs:** S9; Nick at the bench with the Pi Zero 2W rig; SPEC hard constraint 9.
 
 ### S11 — AE3 stretch  `[ ]`
-**Goal:** the MVP spec's one-day test: do the same detector and segmenter convert (Arm Vela), fit and run on
-the AE3 without a special model? Pass → the AE3 joins the compare page and the bench test. Disqualified → one
-line saying why.
+**Goal:** the MVP spec's one-day test: do the same detector and segmenter, or at least the detector, convert
+(Arm Vela), fit and run on the AE3 without a special model? Pass → the AE3 joins the compare page and the bench
+test. Disqualified → one line saying why.
+**Demo (Nick):** the compare page shows the AE3 column next to the N6 and the Pi for the picked models, or the
+one-line reason it was dropped.
 **Needs:** S10. Time box: about one working day.
 
 ---
@@ -491,5 +508,5 @@ line saying why.
   works and more video is available (Nick, 2026-11-25: only the SSD's videos for now).
 - Import CVAT outline fixes back into the project (D42; not asked for in Build 1).
 - Later MVP milestones (quality gate, on-camera metrics, bake-off, Iridium packet): after Build 2.
-- Build 2: the screen-in-loop bench method on `nereus000` (reuse `ADIN_SPI_OpenMV/pi/hil/`); pre-labeling new
+- Build 2: the screen-in-loop bench method on the Pi 5 screen rig (reuse `ADIN_SPI_OpenMV/pi/hil/`); pre-labeling new
   frames with a trained model; a model type per camera when one recipe cannot serve all three.

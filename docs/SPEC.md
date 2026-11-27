@@ -55,8 +55,8 @@ converts as easily as the other two.
 | Raspberry Pi: 12 MP IMX708, 2 MP STARVIS IMX462 | — | bake-off cameras (later milestones; from the full spec) |
 | OpenMV N6: 5 MP rolling shutter, 1 MP global shutter | — | bake-off cameras (later milestones; from the full spec) |
 | OpenMV AE3: 1 MP global shutter | — | stretch goal (later milestones; from the full spec) |
-| Bench unit `nereus002`: Pi Zero 2W with the IMX708, an N6 and the AE3 | 1 | Build 2 bench tests; owner Nick (chat 2026-11-26; make-up from the rig repo's SPEC, not re-checked on the unit) |
-| Bench unit `nereus000`: Pi 5 with the screen-in-loop rig | 1 | Build 2 bench tests, optional screen method; owner Nick (chat 2026-11-26) |
+| Bench unit: a Pi Zero 2W rig with the IMX708, an N6 and the AE3 (name in `config.local.toml`) | 1 | Build 2 bench tests; owner Nick (chat 2026-11-26; make-up from the rig repo's SPEC, not re-checked on the unit) |
+| Bench unit: a Pi 5 with the screen-in-loop rig (name in `config.local.toml`) | 1 | Build 2 bench tests, optional screen method; owner Nick (chat 2026-11-26) |
 | Public urchin datasets and earlier model runs in `~/nereus_ml/` | — | extra detector training data and starting weights, each with its recorded licence (Nick, chat 2026-11-26) |
 
 ## Confirmed facts (verified, with sources)
@@ -88,7 +88,7 @@ converts as easily as the other two.
    in `config.local.toml` (on the SSD). Source code lives in git.
 4. **Source videos are read-only.** Never modify, move or delete them.
 5. **Delete means move to `rejected/`**, never erase.
-6. **Licenses:** on-camera models permissive only (Apache / MIT). The SAM License is
+6. **Licenses:** on-camera models permissive only (Apache / MIT; BSD-3-Clause added with Build 2). The SAM License is
    acceptable for the labeling tool only. Build 2 (Nick, 2026-11-26): the same rule for every model
    the app can train, laptop-only ones included (no Ultralytics YOLO, which is AGPL-3.0); a model
    type is offered only when the licences of its code, its starting weights and any outside data
@@ -97,11 +97,11 @@ converts as easily as the other two.
    functional, not flashy (Nick, chat 2026-11-24).
 8. **The repo is public** (Nick, chat 2026-11-24). No real frames, video stills, people's
    names or tokens in git, PRs, issues or test fixtures. Tests use synthetic images.
-9. **Hardware (Build 2).** The app talks only to the bench units Nick listed (`nereus002`,
-   `nereus000`), never to a field unit. Nick owns them and runs every bench test himself from the
+9. **Hardware (Build 2).** The app talks only to the two bench units Nick named (SPEC inventory;
+   names and addresses in `config.local.toml`), never to a field unit. Nick owns them and runs every bench test himself from the
    app; builder and QE sessions never touch hardware and test against a fake board. Every bench run
    has a test card first. The app never flashes firmware; it loads model files only, backs up what
-   it replaces and can restore it. No unit addresses or serial numbers in git.
+   it replaces and can restore it. No unit names, addresses or serial numbers in git.
 
 ## Success criteria by sprint
 
@@ -199,12 +199,13 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   fits and runs in about a day, like the AE3.
 - Q20. Licences: permissive only for every model in the app; start with YOLOX (Apache-2.0).
 - Q21. Test frames may go to his own bench units over any link; never to a cloud.
-- Q22. Bench units: `nereus002` and `nereus000`; Nick is the owner and runs bench tests from the app.
+- Q22. Bench units: his Pi Zero 2W rig (IMX708, N6, AE3) and his Pi 5 screen rig; Nick is the owner and runs bench tests from the app.
 - Q23. Bench method: frames from file first; the screen-in-loop rig stays an option.
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
-  on the laptop with their licences recorded.
+  on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 
 Open for Build 2 (flag, don't guess; `docs/source/build2_spec.md` §Open questions): the Pi's runtime
 and whether the bench Pi is 64-bit; a segmenter architecture that places fully on the N6's NPU; the
 licence of each set of published starting weights; what else runs on the two bench units; whether a
-validated power meter is wired on `nereus002`.
+validated power meter is wired on the Pi Zero 2W rig; whether weights trained on the DUO set may start a
+camera model (for Nick); accepting ST's licence terms for ST Edge AI Core (for Nick).

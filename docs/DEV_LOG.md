@@ -22,7 +22,7 @@ what broke, what's next.*
 **Done:** `docs/source/build2_spec.md` (train, evaluate, compare, fit to the cameras, bench test, in the same app);
 SPEC goal, inventory, hard constraints 1, 6 and new 9, non-goals, Q19–Q24; TRACKER ladder S6–S11. Nick answered seven
 questions in the spec lead's chat (instance segmentation laptop first; permissive only; test frames may go to his bench
-units; `nereus002` and `nereus000`, he runs bench tests; frames from file first; outside data from his earlier work).
+units; two of his rigs as bench units, he runs bench tests; frames from file first; outside data from his earlier work).
 Prior art read: `ADIN_SPI_OpenMV/ml/` (YOLOX on both NPUs, measured), its `pi/hil/` rig and dataset licence records.
 Licences and toolchain facts carry "lead" (read at the source by the spec lead) or "helper" (to be re-read by the
 builder) in the spec.
