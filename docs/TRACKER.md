@@ -428,7 +428,10 @@ compilers; 3c the Pi)**
       camera's compiler module, then `fit.json`; a failed 8-bit step or compile is a result and is not repeated for
       the next camera; Pause ends the 8-bit step cleanly; `tools_dir` setting; tested with a fake 8-bit step and a
       fake compiler
-- [ ] 3b: the N6 and AE3 compiler modules and their report parsers; 3c: the Pi
+- [x] 3b: the N6 and AE3 compiler modules (`app/fit/n6.py`, `ae3.py`, D52) and their report parsers
+      (`app/fit/reports.py`, tested on excerpts of the real reports); `[fit]` settings; self-test: 10 candidates ×
+      2 cameras through the job (DESIGN §Bench results)
+- [ ] 3c: the Pi
 - [ ] job kind `convert` on `app/jobctl/`: one candidate × one camera → 8-bit model → the camera's compiler →
       a fit report as data (converts yes / no; layers on the NPU / hybrid / CPU; file size and memory against
       the board's limits; the compiler's own speed estimate, marked as an estimate; the failing layers by name);

@@ -14,3 +14,9 @@ data_dir = "/Volumes/Nick_R_SSD/NereusData/urchin_detector_pipeline"
 # Build 2 only, optional: where the conversion tools' own Python environments live. They need the
 # laptop's own disk (an exFAT SSD cannot hold them). Default: ~/NereusData/urchin_detector_pipeline/tools
 # tools_dir = "~/NereusData/urchin_detector_pipeline/tools"
+
+# Build 2 only, optional: the N6 compiler's pieces (defaults shown; DESIGN D52).
+# [fit]
+# openmv_dir = "~/openmv-dev/openmv"                  # OpenMV firmware tree (tools/modelc.py, tools/vela.ini)
+# sdk_dir = "~/openmv-sdk-1.6.0-linux-x86_64"         # OpenMV SDK with ST Edge AI Core 4.0.0
+# docker_image = "firmware-builder:latest"

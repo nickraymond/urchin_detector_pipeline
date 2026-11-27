@@ -1,0 +1,25 @@
+5.0.0
+ST Edge AI Core v4.0.0-20500 359356bb0
+   ISPU 2.0.0-RC4
+   MLC 1.2.3-RC4
+   STM32CubeAI 12.0.0-RC4
+[92mModel: yolox_nano_256_int8[0m
+[94mXIP size             = 247,360    data(1272)+got(80)+bss(245952) sections
+COPY size            = 500,032    +ro(252672) sections
+extra sections       = 404        got:80(0.0%) header+rel:324(0.1%)
+params size          = 911,760
+acts size            = 573,440
+binary file size     = 1,166,008
+params file size     = 0
+
++--------------------------+----------------------------------+------+------------+--------+
+| name (addr)              | flags                            | foff | dst        | size   |
++--------------------------+----------------------------------+------+------------+--------+
+| xSPI2 (0x200014a2)       | 0x01010500 RELOC.PARAM.0.RCACHED | 0    | 0x00000000 | 911760 |
+| AXISRAM5 (0x200014a8)    | 0x03020200 RESET.ACTIV.WRITE     | 0    | 0x342e0000 | 376832 |
+| AXISRAM4 (0x200014b1)    | 0x03020200 RESET.ACTIV.WRITE     | 0    | 0x34270000 | 196608 |
+| <undefined> (0x00000000) | 0x00000000 UNUSED                | 0    | 0x00000000 | 0      |
++--------------------------+----------------------------------+------+------------+--------+
+Table: mempool c-descriptors (off=400004a8, 4 entries, from RAM)
+[0m
+

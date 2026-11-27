@@ -1,0 +1,50 @@
+TfLiteReader: Built-in options type 'TopKV2Options' is not yet implemented and will be ignored.
+TfLiteReader: Built-in options type 'ExpOptions' is not yet implemented and will be ignored.
+TfLiteReader: Built-in options type 'ExpOptions' is not yet implemented and will be ignored.
+
+Warning (supported operators) operator:GATHER_ND ofm:model_543/tf.compat.v1.gather_nd_2/GatherNd
+Reason: Unsupported opType
+
+Warning (supported operators) operator:CONCATENATION ofm:model_543/tf.concat_16/concat
+Reason: Unsupported dataType Int64
+64-bit feature-maps are not supported.
+
+Warning (supported operators) operator:RESHAPE ofm:model_543/tf.expand_dims_6/ExpandDims
+Reason: Unsupported dataType Int64
+64-bit feature-maps are not supported.
+
+Warning (supported operators) operator:FLOOR_MOD ofm:model_543/tf.math.floormod_1/FloorMod
+Reason: Unsupported opType
+
+Warning (supported operators) operator:ADD ofm:model_543/tf.math.add_51/Add
+Reason: Unsupported dataType Int64
+64-bit feature-maps are not supported.
+
+Warning (supported operators) operator:MUL ofm:model_543/tf.math.multiply_276/Mul
+Reason: Unsupported dataType Int64
+64-bit feature-maps are not supported.
+
+Warning (supported operators) operator:RESHAPE ofm:model_543/tf.reshape_263/Reshape
+Reason: Unsupported dataType Int64
+64-bit feature-maps are not supported.
+
+Warning (supported operators) operator:CAST ofm:model_543/tf.cast_37/Cast
+Reason: Unsupported opType
+
+Warning (supported operators) operator:TOPK_V2 ofm:model_543/tf.math.top_k/TopKV2;model_543/tf.math.top_k/TopKV21
+Reason: Unsupported opType
+
+Warning (supported operators) operator:DEQUANTIZE ofm:model_543/tf.math.reduce_max_1/Max1
+Reason: Unsupported opType
+
+Warning (supported operators) operator:MEAN ofm:model_543/layer_normalization_54/moments/variance
+Total SRAM used                              16992.19 KiB
+Total Off-chip Flash used                    27638.80 KiB
+
+CPU operators = 293 (7.2%)
+NPU operators = 3789 (92.8%)
+
+Average SRAM bandwidth                           1.17 GB/s
+Input   SRAM bandwidth                        2633.51 MB/batch
+Weight  SRAM bandwidth                        1364.27 MB/batch
+Output  SRAM bandwidth                        1898.28 MB/batch
