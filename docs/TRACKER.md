@@ -1,7 +1,7 @@
 # TRACKER.md — Sprint Ladder & Rules
 
 *The agent entry point. Newest state lives here.*
-*Last updated: 2026-11-26 · Owner/gate: **Nick***
+*Last updated: 2026-11-27 · Owner/gate: **Nick***
 
 ---
 
@@ -382,19 +382,23 @@ Source: `docs/source/build2_spec.md` (Nick's answers of 2026-11-26 and 2026-11-2
 The lead writes each sprint's design in DESIGN before its first bite and splits bites to about 300 lines; S7 and
 S9–S11 below are outlines until then. Nothing here touches `app/review/` or `app/export/` beyond reading the export.
 
-### S6 — What runs where, on the laptop  `[ ]`
+### S6 — What runs where, on the laptop  `[~]`
 **Goal:** the first version of the "what runs where" table (spec §First result): every candidate architecture of
 the three kinds, untrained, converted to 8-bit and put through each camera's compiler. No hardware, no training,
 no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV/ml/` (`yolox_urchin/export.py`,
 `compile_model.sh`) and its compile-gate method (`ml/compile_gate_report.md`).
 
-**Bite 1 — Prior art, toolchains, licences (plan nibble + setup, no app pages)**
-- [ ] re-read the earlier export and compile scripts and say what is reused and how it is brought in
-- [ ] set up as documented, versions and licences recorded: the PyTorch → 8-bit route, ST Edge AI Core 4.1.0 (Nick said yes to
+**Bite 1 — Prior art, toolchains, licences (plan nibble + setup, no app pages)** (D51–D55; DESIGN §Planned for S6)
+- [x] re-read the earlier export and compile scripts and say what is reused and how it is brought in
+- [~] set up as documented, versions and licences recorded: the PyTorch → 8-bit route, ST Edge AI Core 4.1.0 (Nick said yes to
       ST's licence terms, 2026-11-27: read them first, save a copy in the data folder, stop on anything unusual), Arm Vela (Apache-2.0), and the Pi runtime candidates on the laptop
-- [ ] known-good first: reproduce the earlier YOLOX-Nano result on both compilers (AE3 one `ethos-u` block; N6
+      *Done 2026-11-27: the 8-bit route (`convert-venv`), Vela 5.0.0 native, LiteRT on the laptop. Open: ST Edge AI
+      Core 4.1.0 is not installed (the builder session was refused permission to run ST's installer; its terms,
+      SLA0044, are read and saved). S6 uses the known-good 4.0.0 in the container (D52); ncnn and ONNX Runtime
+      for the Pi are set up in bite 3c.*
+- [x] known-good first: reproduce the earlier YOLOX-Nano result on both compilers (AE3 one `ethos-u` block; N6
       about 117 + 2 + 0 of 119, the earlier trained export; untrained it was 116 + 2 + 0 of 118) before changing anything
-- [ ] decide and log in DESIGN: where these tools' Python packages live (the app's PyTorch is pinned to 2.10.0,
+- [x] decide and log in DESIGN: where these tools' Python packages live (the app's PyTorch is pinned to 2.10.0,
       D7), the `models/` layout, what a "recipe" holds
 
 **Bites 2a, 2b, 2c — Candidate list, one bite per kind**

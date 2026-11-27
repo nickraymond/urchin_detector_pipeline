@@ -2,7 +2,7 @@
 
 Nov 26, 2026 · draft for @Nick · adds to `docs/source/mvp_spec.md` (Build 1 is the labeling tool)
 
-**Status: draft for Nick's merge.** Nick's answers of 2026-11-26 and 2026-11-27 (spec lead's chat) are written in and listed at the end.
+**Status: merged to main on 2026-11-27 (PR 60, `c0e69f3`; the spec lead merged it for Nick, answer 15).** Nick's answers of 2026-11-26 and 2026-11-27 (spec lead's chat) are written in and listed at the end.
 
 ## Goal
 
@@ -62,7 +62,7 @@ Training honors Build 1's review flags:
 
 Rule (MVP spec, SPEC hard constraint 6): on-camera models are permissive only (Apache / MIT), and
 architectures should already be shown to run on the N6's NPU. Build 2 adds BSD-3-Clause to the
-permissive list (torchvision's code is BSD-3; Nick's merge of this spec is the approval). The licence of the **code**, of
+permissive list (torchvision's code is BSD-3; approved with this spec, answer 15). The licence of the **code**, of
 any **pretrained weights** we start from, and of any **outside data** are three separate checks; a
 model type is offered in the app only when all three are recorded in `THIRD_PARTY_LICENSES`.
 
