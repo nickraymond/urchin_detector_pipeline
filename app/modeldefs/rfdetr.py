@@ -23,6 +23,19 @@ CODE = {"repo": "https://github.com/roboflow/rf-detr", "commit": "pip:" + PINNED
 STOCK_INPUT = 384          # RFDETRNanoConfig.resolution
 QUERIES = 300              # boxes per image the model always returns
 OUTPUT_NAMES = ["dets", "labels"]
+# RF-DETR-Seg Nano, the instance segmenter (Apache-2.0 at every size, SPEC Q26): RFDETRSegNanoConfig has
+# resolution 312, patch 12, 100 queries; measured: masks come out at 1/4 of the input (78 × 78).
+SEG_INPUT, SEG_QUERIES, SEG_PATCH = 312, 100, 12
+SIZES = {"nano": "RFDETRNano", "seg-nano": "RFDETRSegNano"}
+
+
+def seg_arch(input_px: int, classes: list[str]) -> dict:
+    a = arch(input_px, classes)
+    a.update(kind="instance", size="seg-nano")
+    a["outputs"] = {"names": [*OUTPUT_NAMES, "masks"],
+                    "layout": f"dets: {SEG_QUERIES} boxes (cx, cy, w, h; 0..1); labels: {SEG_QUERIES} rows of one "
+                              "logit per class plus one; masks: one raw mask per box at 1/4 of the input"}
+    return a
 
 
 def arch(input_px: int, classes: list[str]) -> dict:
@@ -42,16 +55,19 @@ def arch(input_px: int, classes: list[str]) -> dict:
 def candidates() -> list[dict]:
     """The stock 384 px, and 256 px to compare with YOLOX at the same input."""
     from app.modeldefs import BUILD2_CLASSES
-    return [arch(px, BUILD2_CLASSES) for px in (STOCK_INPUT, 256)]
+    return [*(arch(px, BUILD2_CLASSES) for px in (STOCK_INPUT, 256)), seg_arch(SEG_INPUT, BUILD2_CLASSES)]
 
 
 def check(a: dict) -> list[str]:
     problems = []
-    if a["size"] != "nano":
-        problems.append("only RF-DETR Nano is offered here; Atto, Femto and Pico are under Roboflow's own "
-                        "licence (bite 2d) and the larger sizes are not candidates for the cameras")
-    if isinstance(a["input"], list) and (a["input"][0] != a["input"][1] or a["input"][0] % 32):
-        problems.append("RF-DETR input must be square and a multiple of 32 (its backbone refuses other sizes)")
+    if a["size"] not in SIZES or (a["size"] == "seg-nano") != (a["kind"] == "instance"):
+        problems.append("only RF-DETR Nano (detector) and RF-DETR-Seg Nano (instance) are offered here; Atto, "
+                        "Femto and Pico are under Roboflow's own licence (bite 2d) and the larger sizes are not "
+                        "candidates for the cameras")
+    step = SEG_PATCH if a["size"] == "seg-nano" else 32
+    if isinstance(a["input"], list) and (a["input"][0] != a["input"][1] or a["input"][0] % step):
+        problems.append(f"this RF-DETR's input must be square and a multiple of {step} (its backbone refuses "
+                        "other sizes)")
     return problems
 
 
@@ -60,16 +76,17 @@ def build_model(a: dict):
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
     os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
     try:
-        from rfdetr import RFDETRNano
+        import rfdetr
     except ImportError as e:
         from app.modeldefs import ModelDefError
         raise ModelDefError(f"RF-DETR's code is not in this environment ({e}). Fix: set the tools up "
                             f"(it installs {PINNED} into rfdetr-venv).") from None
-    return RFDETRNano(pretrain_weights=None, num_classes=len(a["classes"]), resolution=a["input"][0])
+    return getattr(rfdetr, SIZES[a["size"]])(pretrain_weights=None, num_classes=len(a["classes"]),
+                                             resolution=a["input"][0])
 
 
 def build(a: dict):
-    """The network switched to its own export form: forward returns (dets, labels)."""
+    """The network switched to its own export form: forward returns (dets, labels[, masks])."""
     core = build_model(a).model.model.eval()
     core.export()
     return core

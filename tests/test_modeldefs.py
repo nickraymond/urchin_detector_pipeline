@@ -11,7 +11,12 @@ from app import modeldefs
 from app.modeldefs import yolox
 
 PKG = Path(modeldefs.__file__).parent
-PERMISSIVE = ("Apache-2.0", "MIT", "BSD-3-Clause", "own code")
+PERMISSIVE = ("Apache-2.0", "MIT", "BSD-3-Clause", "own code", "Apache-2.0 (YOLOX) + own code")
+
+
+def _yolox_here() -> bool:
+    return ((modeldefs.tools_dir() / "third_party" / "YOLOX").is_dir()
+            and all(importlib.util.find_spec(m) for m in ("torch", "loguru", "tabulate", "cv2")))
 
 
 def test_modeldefs_imports_nothing_else_from_app():
@@ -43,7 +48,33 @@ def test_detector_candidates_are_complete_recipes():
         assert len(a["code"]["commit"]) == 40 or a["code"]["commit"].startswith("pip:")
         assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-venv")
     assert {"rfdetr-nano-384-c5", "rfdetr-nano-256-c5"} <= set(keys)
-    assert modeldefs.candidates("instance") == []   # bite 2c
+    keys = [modeldefs.arch_key(a) for a in modeldefs.candidates("instance")]
+    assert keys == ["rfdetr-seg-nano-312-c5", "yoloxproto-nano-conv-256-c5", "yoloxproto-tiny-conv-256-c5"]
+    for a in modeldefs.candidates("instance"):
+        assert modeldefs.check(a) == [] and a["licence"] in PERMISSIVE and a["licence_mark"] is None
+
+
+def test_instance_candidate_checks():
+    from app.modeldefs import rfdetr, yoloxproto
+    seg = rfdetr.seg_arch(312, ["x"])
+    assert seg["outputs"]["names"] == ["dets", "labels", "masks"]
+    assert any("multiple of 12" in p for p in modeldefs.check({**seg, "input": [320, 320]}))
+    assert any("only RF-DETR Nano" in p for p in modeldefs.check({**seg, "kind": "detector"}))
+    assert any("only RF-DETR Nano" in p for p in modeldefs.check({**rfdetr.arch(384, ["x"]), "kind": "instance"}))
+    proto = yoloxproto.arch("nano", 256, ["x"])
+    assert proto["outputs"]["names"][-1] == "protos" and proto["licence"] == "Apache-2.0 (YOLOX) + own code"
+    assert "not trained anywhere yet" in proto["note"] and "note" not in seg
+    assert any("multiples of 32" in p for p in modeldefs.check({**proto, "input": [250, 250]}))
+
+
+@pytest.mark.skipif(not _yolox_here(), reason="YOLOX's code or its imports are not in this environment")
+def test_yolox_proto_builds_with_coefficients_and_prototypes():
+    import torch
+    from app.modeldefs import yoloxproto
+    a = yoloxproto.arch("nano", 256, modeldefs.BUILD2_CLASSES)
+    *maps, protos = modeldefs.build(a)(torch.zeros(1, 3, 256, 256))
+    assert [tuple(o.shape) for o in maps] == [(1, 10 + yoloxproto.PROTOS, 256 // s, 256 // s) for s in (8, 16, 32)]
+    assert tuple(protos.shape) == (1, yoloxproto.PROTOS, 64, 64)
 
 
 def test_segmenter_candidates_build_untrained_and_give_one_scores_map():
@@ -170,11 +201,6 @@ def test_third_party_loads_one_package_and_leaves_sys_path_alone(tmp_path, monke
     finally:
         sys.modules.pop("fakepkg", None)
         sys.modules.pop("fakepkg.sub", None)
-
-
-def _yolox_here() -> bool:
-    return ((modeldefs.tools_dir() / "third_party" / "YOLOX").is_dir()
-            and all(importlib.util.find_spec(m) for m in ("torch", "loguru", "tabulate", "cv2")))
 
 
 @pytest.mark.skipif(not _yolox_here(), reason="YOLOX's code or its imports are not in this environment")
