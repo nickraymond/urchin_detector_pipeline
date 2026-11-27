@@ -402,6 +402,11 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       D7), the `models/` layout, what a "recipe" holds
 
 **Bites 2a, 2b, 2c — Candidate list, one bite per kind**
+- [x] 2a-i (split by the builder): `app/modeldefs/` (D51, D54): a candidate is the `arch` part of a recipe, with
+      its folder name (`arch_key`) and checks; YOLOX Nano / Tiny with the plain first layer at 256 and 320 px, five
+      classes, built untrained with the three raw output maps (adapted from the earlier `yolox_urchin/model.py`)
+- [x] 2a-ii: RF-DETR Nano (detector): licence at the source, what building it downloads or sends (nothing: built
+      with the network refused), model definition at 384 and 256 px; its own tool environment and export settings (D56)
 - [ ] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
       each as a model definition the app can build untrained at a given input size; anything not permissive
       stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
@@ -461,16 +466,16 @@ measured on the N6, the Pi and the AE3, each linked to its test card and run. Op
 several models at once or only one kind at a time.
 **Needs:** S6; the rig set up by Nick and handed to the test session; SPEC hard constraint 9.
 
-### S8 — Dataset versions and the first detector  `[ ]`
+### S8 — Dataset versions and the first detector  `[~]`
 **Goal:** spec stages 7 and 8 for one model type already known to run on the cameras (YOLOX, earlier work): freeze a dataset version from a Build 1 export and train a
 YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SPI_OpenMV/ml/yolox_urchin/`.
 
 **Bite 1 — Prior art and licences (plan nibble, no app code)**
-- [ ] re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` (trainer, export, decode) and say what is reused and how it is
+- [x] re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` (trainer, export, decode) and say what is reused and how it is
       brought in; read the licences of YOLOX's code and of any starting weights at the source; add them to
-      `THIRD_PARTY_LICENSES`
-- [ ] decide and log in DESIGN: the layout of `datasets/` and what training adds to S6 bite 1's decisions
-      (package location, `models/` layout, recipe)
+      `THIRD_PARTY_LICENSES` (DESIGN §Planned for S8; published COCO weights are not offered: licence not verified)
+- [x] decide and log in DESIGN: the layout of `datasets/` and what training adds to S6 bite 1's decisions
+      (package location, `models/` layout, recipe) (D60, D61)
 
 **Bite 2a — Dataset versions**
 - [ ] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by

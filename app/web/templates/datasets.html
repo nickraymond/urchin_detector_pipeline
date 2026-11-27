@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Datasets · {{ info.name }}{% endblock %}
+{% block content %}
+{% from "_job.html" import job_panel %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a> · <a href="/p/{{ info.name }}/export">Export</a></p>
+<h1>Datasets</h1>
+<p class="hint">A dataset version is a frozen copy of the export: its frames, labels, splits and class list, with
+  a hash. Models are trained on a version, never on "the export as it is today", so a result can be repeated.
+  Versions are numbered and never changed. A new version keeps every site-and-date group in the split it had
+  before, so the test set stays the same; only new groups are dealt (about 70 / 20 / 10).
+  In <code>{{ info.folder }}/datasets/</code>.</p>
+{% if error %}<section class="problem"><p>{{ error }}</p></section>{% endif %}
+<h2>Freeze a version</h2>
+{% if export %}<p>From the export of <b>{{ export.at | replace('T', ' ') }}</b>: {{ export.frames }} frames,
+  {{ export.objects }} objects.</p>{% else %}<p class="problem">{{ why_not }}</p>{% endif %}
+<form method="post" action="/p/{{ info.name }}/datasets/freeze" class="inline">
+  <label>Name (optional) <input name="version_name" maxlength="{{ name_max }}" size="40" placeholder="e.g. first run with black urchin"></label>
+  <button class="primary" data-job-lock="queued running pausing"{% if not export %} disabled data-off-anyway{% endif %}{% if job.active %} disabled{% endif %}>Freeze a version</button>
+</form>
+<div data-live="/p/{{ info.name }}/live/freeze?back={{ ('/p/' ~ info.name ~ '/datasets') | urlencode }}" data-reload-on="done error cancelled">{{ job_panel(job, "/p/" ~ info.name ~ "/datasets") }}</div>
+
+<h2>Versions</h2>
+{% if not versions %}<p>No version yet.</p>{% endif %}
+{% for v in versions %}
+<section class="version" id="v{{ v.number }}">
+<h3>Version {{ v.number }}{% if v.name %}: {{ v.name }}{% endif %}</h3>
+<p class="hint">Frozen {{ v.created | replace('T', ' ') }} from the export of {{ (v.export.at or '?') | replace('T', ' ') }}
+  · hash <code title="{{ v.hash }}">{{ v.hash[:12] }}</code>
+  · {% if v.previous %}splits carried from version {{ v.previous }}{% else %}splits from the export{% endif %}
+  · grouped by {{ v.grouped_by }}</p>
+{% if v.split_warning and not v.previous %}<section class="warning"><p>{{ v.split_warning }}</p></section>{% endif %}
+{% set straddling = v.groups | selectattr("straddles") | list %}
+{% if straddling %}<section class="warning"><p>{{ straddling | length }} group(s) have frames in more than one
+  split, because earlier versions grouped by video: {% for g in straddling %}<b>{{ g.group }}</b>
+  ({{ g.straddles | join(", ") }}; new frames go to {{ g.split }}){% if not loop.last %}; {% endif %}{% endfor %}.
+  Frames keep the split they had; a test frame never becomes a training frame.</p></section>{% endif %}
+<h4>What training will see (detector)</h4>
+{% if v.view %}{% set w = v.view %}
+<form method="get" action="/p/{{ info.name }}/datasets#v{{ v.number }}" class="inline class-pick">Classes:
+  {% for c in w.all_classes %}<label><input type="checkbox" name="classes" value="{{ c.id }}"{% if c.picked %} checked{% endif %}> {{ c.name }}</label>
+  {% endfor %}<button class="small">Show</button>
+  <span class="hint">Default: sea stars and urchins. The choice is made again for each training run.</span></form>
+{% if w.unseen %}<section class="problem zero-objects"><p><b>Training would see 0 objects of {{ w.unseen | join(", ") }}</b>:
+  they are labeled, but no training frame is marked "fully checked" for them. On the
+  <a href="/p/{{ info.name }}/labels">Review page</a>, tick "fully checked" for these classes on the frames you
+  reviewed, then Export and freeze a new version.</p></section>{% endif %}
+<table class="stages counts training-view">
+  <thead><tr><th>Class</th>{% for s in splits %}<th>{{ s }}: objects (frames)</th>{% endfor %}<th>Total</th><th>Target {{ w.target[0] }}–{{ w.target[1] }}</th><th>Skipped: not fully checked</th></tr></thead>
+  <tbody>
+  {% for c in w.classes %}<tr class="{{ 'state-failed' if c.under_target else 'state-done' }}"><td>{{ c.name }}</td>{% for s in splits %}<td>{{ c.seen[s].objects }} ({{ c.seen[s].frames }})</td>{% endfor %}<td>{{ c.total }}</td><td>{% if c.under_target %}<b>under</b>: {{ w.target[0] - c.total }} more{% else %}ok{% endif %}</td><td>{% if c.skipped_total or c.skipped.values() | sum(attribute="frames") %}{{ c.skipped_total }} objects on {{ c.skipped.values() | sum(attribute="frames") }} frames{% else %}—{% endif %}</td></tr>{% endfor %}
+  <tr><td><b>Frames used</b></td>{% for s in splits %}<td><b>{{ w.frames[s].used }}</b>{% if w.frames[s].left_out %} ({{ w.frames[s].left_out }} left out){% endif %}</td>{% endfor %}<td colspan="3"></td></tr>
+  </tbody>
+</table>
+<p class="hint">A class counts on a frame only where it is marked "fully checked" on the Review page; elsewhere
+  it is skipped for that frame, never treated as "none here". Frames with split check "no" are left out of
+  detector data (they still count for cover).</p>
+{% if w.split_no %}<details><summary>{{ w.split_no | length }} frame(s) left out by the split check</summary>
+  <ul class="plain">{% for f in w.split_no %}<li>{{ f }}</li>{% endfor %}</ul></details>{% endif %}
+{% if w.unchecked %}<details><summary>{{ w.unchecked | length }} frame(s) with a class not fully checked</summary>
+<table class="stages"><thead><tr><th>Frame</th><th>Split</th><th>Not fully checked</th></tr></thead><tbody>
+  {% for u in w.unchecked %}<tr><td>{{ u.file }}</td><td>{{ u.split }}</td><td>{{ u.classes | join(", ") }}</td></tr>{% endfor %}
+</tbody></table></details>{% endif %}
+{% else %}<p class="problem">{{ v.view_error }}</p>{% endif %}
+<h4>Everything in the version (all labels, before the review flags)</h4>
+<table class="stages counts">
+  <thead><tr><th>Class</th>{% for s in splits %}<th>{{ s }}: objects (frames)</th>{% endfor %}<th>Total objects</th></tr></thead>
+  <tbody>
+  {% for c in v.counts.classes %}<tr><td>{{ c.name }}</td>{% for s in splits %}<td>{{ c.objects[s] }} ({{ c.frames[s] }})</td>{% endfor %}<td>{{ c.objects.values() | sum }}</td></tr>{% endfor %}
+  <tr><td><b>Frames</b></td>{% for s in splits %}<td><b>{{ v.counts.frames[s] }}</b>{% if v.counts.detector_frames[s] != v.counts.frames[s] %} ({{ v.counts.detector_frames[s] }} for the detector){% endif %}</td>{% endfor %}<td><b>{{ v.frames | length }}</b></td></tr>
+  </tbody>
+</table>
+<details><summary>{{ v.groups | length }} group(s)</summary>
+<table class="stages"><thead><tr><th>Group</th><th>Split</th><th>Frames</th><th>Split from</th></tr></thead><tbody>
+  {% for g in v.groups %}<tr><td>{{ g.group }}</td><td>{{ g.split }}</td><td>{{ g.frames }}</td><td>{{ {"export": "the export", "new": "new group, dealt"}.get(g.carried, "version " ~ g.carried[1:]) }}</td></tr>{% endfor %}
+</tbody></table></details>
+</section>
+{% endfor %}
+<script src="{{ static('live.js') }}"></script>
+{% endblock %}
