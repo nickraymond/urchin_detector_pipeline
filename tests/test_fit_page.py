@@ -55,6 +55,8 @@ def test_headlines():
     st = {"converts": False, "stage": "compile", "tool": "ST Edge AI Core v4.0.0", "error": "INTERNAL ERROR: x"}
     assert table.headline(st, "n6") == ("no", "the compiler stopped with an internal error (ST Edge AI Core v4.0.0)")
     assert table.label("no", st) == "does not run"
+    assert table.headline({"converts": False, "stage": "compile", "tool": "LiteRT", "error": "x"}, "pi") == (
+        "no", "LiteRT could not load or run its 8-bit file")
     assert "with an error (Arm Vela 5.0.0)" in table.headline({**st, "tool": "Arm Vela 5.0.0", "error": "bad"}, "ae3")[1]
     pi = {"converts": True, "file_bytes": 10, "limit_bytes": None, "placement": placed(0, 0, 30, "operators"),
           "failing_layers": []}

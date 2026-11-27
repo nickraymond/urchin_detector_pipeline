@@ -51,6 +51,8 @@ def headline(fit: dict | None, camera: str) -> tuple[str, str]:
     if not fit.get("converts"):
         if fit.get("stage") == "8-bit model":
             return "no", "the 8-bit step failed before any compiler ran: not a compiler verdict"
+        if camera == "pi":                          # no compiler there: the runtime itself refused the file
+            return "no", "LiteRT could not load or run its 8-bit file"
         kind = "an internal error" if "INTERNAL ERROR" in (fit.get("error") or "") else "an error"
         return "no", f"the compiler stopped with {kind} ({fit.get('tool') or 'compile step'})"
     p = fit.get("placement") or {}
