@@ -11,7 +11,7 @@ from app import modeldefs
 from app.modeldefs import yolox
 
 PKG = Path(modeldefs.__file__).parent
-PERMISSIVE = ("Apache-2.0", "MIT", "BSD-3-Clause", "own code")
+PERMISSIVE = ("Apache-2.0", "MIT", "BSD-3-Clause", "own code", "Apache-2.0 (YOLOX) + own code")
 
 
 def _yolox_here() -> bool:
@@ -62,7 +62,8 @@ def test_instance_candidate_checks():
     assert any("only RF-DETR Nano" in p for p in modeldefs.check({**seg, "kind": "detector"}))
     assert any("only RF-DETR Nano" in p for p in modeldefs.check({**rfdetr.arch(384, ["x"]), "kind": "instance"}))
     proto = yoloxproto.arch("nano", 256, ["x"])
-    assert proto["outputs"]["names"][-1] == "protos"
+    assert proto["outputs"]["names"][-1] == "protos" and proto["licence"] == "Apache-2.0 (YOLOX) + own code"
+    assert "not trained anywhere yet" in proto["note"] and "note" not in seg
     assert any("multiples of 32" in p for p in modeldefs.check({**proto, "input": [250, 250]}))
 
 
