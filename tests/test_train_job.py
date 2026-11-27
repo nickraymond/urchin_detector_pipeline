@@ -157,3 +157,26 @@ def test_the_job_side_of_training_never_imports_torch():
             names = ([a.name for a in node.names] if isinstance(node, ast.Import) else
                      [node.module or ""] if isinstance(node, ast.ImportFrom) else [])
             assert not any(n.split(".")[0] in ("torch", "torchvision") for n in names), name
+
+
+def test_a_paused_estimate_stops_without_a_result(tmp_path, monkeypatch):
+    """QE PR 87 nit 1: an estimate answers Pause (it stops; Resume runs it again)."""
+    from app.train import worker
+    events = []
+    monkeypatch.setattr(worker.jw, "emit", lambda event, **more: events.append(event))
+    mdir = tmp_path / "models" / ".estimate"
+    (mdir / "checkpoints").mkdir(parents=True)
+    recipe = {"arch": {}, "train": {"epochs": 4, "steps": 3}}
+
+    class Ctl:
+        def __init__(self, answers):
+            self.answers = iter(answers)
+
+        def pause_requested(self):
+            return next(self.answers)
+    job = {"trainer": "tests.fake_trainer:FakeTrainer"}
+    worker.estimate(job, mdir, recipe, Ctl([True]))              # Pause came while loading
+    worker.estimate(job, mdir, recipe, Ctl([False, True]))       # ... or while timing
+    assert events == ["paused", "paused"] and not (mdir / "estimate.json").exists()
+    worker.estimate(job, mdir, recipe, Ctl([False, False]))
+    assert events[2:] == ["item", "done"] and (mdir / "estimate.json").is_file()

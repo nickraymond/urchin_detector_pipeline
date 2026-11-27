@@ -273,8 +273,9 @@ class Trainer:
 
     def estimate(self, steps: int) -> dict:
         """Estimate (spec stage 8): time `steps` training steps after one warm-up step, then one
-        validation pass. Call after load(). The weights change in memory only: nothing is saved
-        by an estimate (the worker never calls save())."""
+        validation pass. Call after load(). The weights change in memory only: no checkpoint
+        and no metrics line (the worker never calls save()); the validation pass draws its
+        frames into this folder's val_frames/ as it always does."""
         import time
         order = samples.order(len(self.train), self.seed, 0)
         times = []

@@ -26,7 +26,10 @@ Rules (TRACKER S8 bite 4a):
 
 Estimate (bite 5; the D35 pattern): a job with "estimate" set loads the trainer on the recipe in
 `models/.estimate/` (not a model: no number, never listed), times ESTIMATE_STEPS steps and one
-validation pass, and writes `estimate.json` there. It saves no checkpoint and no metrics line.
+validation pass, and writes `estimate.json` there. It saves no checkpoint and no metrics line
+(the trainer's validation pass may draw its `val_frames/` into `models/.estimate/`; nothing
+serves them). An estimate has nothing to resume: Pause stops it without a result, and Resume
+runs it again from the start.
 """
 
 from __future__ import annotations
@@ -69,7 +72,7 @@ def make_trainer(job: dict, mdir: Path, recipe: dict):
     return getattr(importlib.import_module(module), cls)(mdir, recipe, job)
 
 
-def estimate(job: dict, mdir: Path, recipe: dict) -> None:
+def estimate(job: dict, mdir: Path, recipe: dict, ctl) -> None:
     epochs = int(recipe["train"]["epochs"])
     t0 = time.perf_counter()
     trainer = make_trainer(job, mdir, recipe)
@@ -81,15 +84,20 @@ def estimate(job: dict, mdir: Path, recipe: dict) -> None:
         d = trainer.describe()
         if d.get("warning"):
             jw.emit("warning", message=d["warning"])
-        timed = trainer.estimate(ESTIMATE_STEPS)
+        timed = None if ctl.pause_requested() else trainer.estimate(ESTIMATE_STEPS)
     finally:
         trainer.unload()
+    if timed is None or ctl.pause_requested():     # Pause: no result; Resume starts over
+        jw.emit("paused")
+        return
     steps = int(d.get("steps_per_epoch") or 1)
     per_epoch = steps * timed["seconds_per_step"] + timed.get("validation_seconds", 0.0)
     out = {"at": datetime.now().isoformat(timespec="seconds"), "epochs": epochs,
            "steps_per_epoch": steps, "seconds_per_step": round(timed["seconds_per_step"], 3),
            "validation_seconds": round(timed.get("validation_seconds", 0.0), 3),
-           "seconds_per_epoch": round(per_epoch, 3), "total_seconds": round(per_epoch * epochs),
+           # the whole run: its epochs plus one start (model load and the device check)
+           "seconds_per_epoch": round(per_epoch, 3),
+           "total_seconds": round(per_epoch * epochs + load_s),
            "load_seconds": round(load_s, 2), "steps_timed": ESTIMATE_STEPS,
            "device": d.get("device"), "warning": d.get("warning") or "",
            "train_frames": d.get("train_frames"), "valid_frames": d.get("valid_frames"),
@@ -105,9 +113,9 @@ def main() -> None:
     mdir = Path(job["model_dir"])
     recipe = models.read_recipe(mdir)
     epochs = int(recipe["train"]["epochs"])
-    if job.get("estimate"):
-        return estimate(job, mdir, recipe)
     ctl = jw.listen()
+    if job.get("estimate"):
+        return estimate(job, mdir, recipe, ctl)
     t0 = time.perf_counter()
     trainer = make_trainer(job, mdir, recipe)
     epoch, step = trainer.load()
