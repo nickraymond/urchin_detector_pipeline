@@ -502,42 +502,52 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [x] decide and log in DESIGN: the layout of `datasets/` and what training adds to S6 bite 1's decisions
       (package location, `models/` layout, recipe) (D60, D61)
 
-**Bite 2a — Dataset versions**
-- [ ] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
+**Bite 2a — Dataset versions** (PRs 63, 64)
+- [x] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
       reference, splits, class list, counts per class and split, a hash; versions are numbered and never changed
-- [ ] a new version keeps every site-and-date group in the split it had in the version before; new groups are
+- [x] a new version keeps every site-and-date group in the split it had in the version before; new groups are
       dealt to keep about 70 / 20 / 10 (the export's own `splits/` may re-deal on each run, D43)
 
-**Bite 2b — What training will see**
-- [ ] the page shows what training will see: objects and frames per class and split, classes under the 150–200
+**Bite 2b — What training will see** (PRs 65, 86)
+- [x] the page shows what training will see: objects and frames per class and split, classes under the 150–200
       target, frames left out by the split check, classes not fully checked per frame
-- [ ] loaders for training: a class not fully checked on a frame is skipped for that frame; split check "no"
+- [x] loaders for training: a class not fully checked on a frame is skipped for that frame; split check "no"
       frames are left out of detector data; synthetic tests
+      *As built (D66): stricter. A detector run uses a frame only when every class of the run is fully checked
+      on it; the page counts by the same function.*
 
-**Bite 3 — Outside data and starting weights**
-- [ ] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
+**Bite 3 — Outside data and starting weights** (PR 66)
+- [x] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
       use (not the DUO set: Nick, 2026-11-27); the page lists each source with its licence and counts; its
       boxes are one class, "urchin", used for pre-training the detector only, never in the test split; the
       folder is a setting in `config.local.toml`
-- [ ] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or
+- [~] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or
       published weights with a recorded licence
+      *Done: the choice, its checks and its record (`app/train/starting.py`); no published weights are offered
+      (D62). Open: the YOLOX trainer starts from scratch only. It does not read a version's outside data yet,
+      so no "pre-trained" model can exist and that choice is greyed out on the Train page.*
 
-**Bite 4a — Train job**
-- [ ] job kind `train` on `app/jobctl/`: a worker process that writes a checkpoint and a metrics line per epoch;
+**Bite 4a — Train job** (PR 67)
+- [x] job kind `train` on `app/jobctl/`: a worker process that writes a checkpoint and a metrics line per epoch;
       Pause finishes the step, saves and unloads; Resume continues from the last checkpoint; Cancel keeps
       checkpoints; tested end to end with a tiny fake trainer (no torch)
 
-**Bite 4b — YOLOX trainer**
-- [ ] classes: sea stars and urchins only (Nick, 2026-11-27): purple, red and black urchin, sea star, sunflower
+**Bite 4b — YOLOX trainer** (PRs 71, 72, 84)
+- [x] classes: sea stars and urchins only (Nick, 2026-11-27): purple, red and black urchin, sea star, sunflower
       sea star by default; still a setting per run
-- [ ] YOLOX-Nano with the plain first layer, tiles as part of the recipe, an augmentation preset that
+- [x] YOLOX-Nano with the plain first layer, tiles as part of the recipe, an augmentation preset that
       includes blur and haze; every run records dataset version,
       recipe, code version, seed, library versions and device
+      *Also Tiny. Trains on the Apple GPU, with a check against the CPU before every start (D65). Not in: mosaic.*
+- [ ] pre-training on a version's outside data, and starting a run from such a model (bite 3's open half)
+- [ ] frames where only some of the run's classes are fully checked: use them for their labeled boxes (asked of
+      the spec lead 2026-11-27; today they are left out, D66)
+- [ ] measure the haze preset against "standard" on real frames (the earlier work found haze hurt Nano)
 
-**Bite 5 — Train page**
-- [ ] pick a dataset version, model type and size, classes and recipe (defaults with a short "why"); Estimate
+**Bite 5 — Train page** (PRs 69, 87)
+- [x] pick a dataset version, model type and size, classes and recipe (defaults with a short "why"); Estimate
       (time a few steps), Run, Start at / Stop by, Keep laptop awake, limits
-- [ ] live: loss and validation curves, a few validation frames with boxes drawn, time left; the finished
+- [x] live: loss and validation curves, a few validation frames with boxes drawn, time left; the finished
       model appears in a plain model list
 
 **Demo (Nick):** on a project with an export, open Datasets and press "Freeze a version": the page shows counts

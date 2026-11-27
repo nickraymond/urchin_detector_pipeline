@@ -582,6 +582,55 @@ app/web/templates/datasets.html, train.html
   validation frames per epoch for the Train page. Bite 4a builds the job kind with a fake trainer against
   exactly these files, so 4b only swaps the trainer in.
 
+**As built (S8, 2026-11-27; PRs 63–67, 69, 71, 72, 84, 86, 87).** The plan above holds; what was added or
+came out differently:
+
+- **Files.** As listed, plus `app/train/job.py` (trainers and model types the page offers, the recipe from
+  the form), `app/train/models.py` (the `models/` folder: ids, recipe, metrics), `app/train/starting.py`
+  (starting weights as a checked, recorded choice), `app/train/samples.py` (frame → training canvas),
+  `app/train/yolox_mps.py` (the earlier work's three run-time fixes), `app/web/datasets_pages.py`,
+  `app/web/train_pages.py`, `static/train.js`.
+- **Which frames a detector run uses (D66).** The loader does what the plan says per class. On top of it,
+  one function, `loaders.usable`, keeps a frame only when every class of the run is fully checked on it, for
+  training and for validation. The trainer, the Train page's check before Run and the Datasets page's "what
+  training will see" all call it, so the page's counts are the trainer's and change with the classes picked
+  together. A labeled box of a run class on a frame that is still used cannot exist under this rule; the
+  grey paint-over of `ignore` boxes in the trainer stays as a second guard.
+- **Train job (bite 4a).** `python -m app.train.worker`: one item per epoch; the metrics line is written
+  first, then the checkpoint, and on every start `train.jsonl` is cut back to the epochs before the
+  checkpoint's, so a crash between the two writes repeats a line instead of losing or doubling it. Pause
+  saves mid-epoch (`last.pt` holds epoch, step and the epoch's loss sums so far). Each start appends one
+  `recorded` entry to `recipe.json`: time, where it continued from, code commit and whether files differ
+  from it, Python, platform, limits, and the trainer's own record (device, the device check, batch, steps
+  per epoch, frames used and left out, library versions, YOLOX's commit, `start_used`, `outside_used`).
+- **Samples (bite 4b).** numpy, Pillow and scipy only (no OpenCV in the sample path): scale so the median
+  box is 24–64 px, a canvas-sized crop aimed at a box (15 % anywhere), flip, HSV jitter, blur and haze on
+  their own random streams. Presets: "standard + blur + haze" (default), "standard", "none". Order and
+  augmentation are fixed by (seed, epoch, index), which is what lets a paused run end with the same weights
+  as an unpaused one (tested on the CPU). **Mosaic is not built.**
+- **Trainer (bite 4b).** YOLOX-Nano or -Tiny from `app/modeldefs/yolox.py` (S6's definition, D54), 256 or
+  320 px, batch 32, the earlier loop's numbers (table below). Different from the earlier loop: warm-up is at
+  least 300 steps and at most a third of the run, where the earlier rule was 3 epochs; this is a guess for
+  small datasets, **not measured** (QE PR 72). A loss that is not a number stops the job with what to do.
+  After each epoch the EMA weights are checked on fixed validation crops at the training scale (recall and
+  precision at IoU 0.5, score 0.3, all classes together): a progress signal, not S9's evaluation on tiled
+  test frames. `checkpoints/best.pt` keeps the EMA weights of the epoch with the highest recall + precision.
+  `val_frames/` holds the first four validation crops with labels (white) and predictions (yellow), redrawn
+  each epoch. Device: D65.
+- **Not built in the trainer:** starting from anything but scratch (refused, by the form and again by the
+  trainer) and reading a version's outside data (`outside_used` is recorded empty). So bite 3's
+  "pre-trained on the allowed sources" has its checks and its record but no model that qualifies yet.
+- **Train page (bite 5).** New-run form from `train_job.MODEL_TYPES` (each type's sizes, presets, defaults
+  and "why" texts; the fields follow the type picked), Run as a job with Start at / Stop by and Keep laptop
+  awake, one training job per project at a time, one small chart per metric polled every 3 s, the
+  validation frames under them, time left from the job module (D35), the model list. **Estimate** follows
+  D35: a `train` job with `estimate` set runs the form's recipe from `models/.estimate/` (not a model: no
+  number, not listed), times 5 steps after 1 warm-up step and one validation pass through the trainer's
+  `estimate()`, and writes `models/.estimate/estimate.json`; the page shows the time for the whole run with
+  the settings it was made for, and the form starts from those settings.
+- **Dependencies added:** loguru, tabulate and opencv-python-headless (< 4.12: OpenCV 5 needs numpy 2),
+  because importing Megvii's YOLOX needs them; licences in `pyproject.toml` and `THIRD_PARTY_LICENSES`.
+
 **Reuse from the earlier YOLOX work** (`ADIN_SPI_OpenMV` @ `994b8c2`, `ml/yolox_urchin/`, read 2026-11-27;
 read only, nothing is imported from that repo: pieces are adapted into `app/train/` with a note in each file).
 
@@ -682,6 +731,7 @@ permissive**: S8 offers "from scratch" and "pre-trained on the allowed sources" 
 | D63 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; stricter than the builder's proposal): RF100 underwater-objects is listed on the Datasets page but cannot be switched on; it shows "waits for Nick: same image lineage as DUO". Urchinbot is the default outside source. | RF100's own record says CC BY 4.0 and GO, but its images are URPC contest images, the lineage of the DUO set that Nick ruled out (2026-11-27). A licence question is Nick's; the lead batches it for him. Nick can reverse it. |
 | D64 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): the "fully checked" rule stays as the spec has it. When a version would train on 0 objects of a chosen class because no frame is fully checked for it, the Datasets page says so in one line with what to tick on the Review page; Freeze still works. Nothing under `app/review/` changes. | Found on the real S5 project: no class was marked fully checked on any detector frame, so training would have seen nothing without a word of warning. Fewer clicks for marking is a Build 1 question the lead takes to Nick. Nick can reverse it. |
 | D65 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): training may run in its own Python environment under `tools_dir` (the D51 pattern) with a torch version other than the app's 2.10.0 pin, and the CPU trainer stays the default until CPU and Apple GPU gradients are shown to agree. **Outcome (S8 builder 2, same day): no second environment is needed.** The wrong gradients of PR 72 were not a fault of the YOLOX loss or of one torch version: the trainer's image batch was channels-last in memory (`from_numpy(NHWC).permute(0, 3, 1, 2).float()` keeps that layout), and torch's Apple GPU convolution returns wrong weight gradients for such an input. `app/train/yolox.py` now builds a contiguous NCHW batch and trains on the Apple GPU. Before every start `load()` runs one batch of up to 8 frames through a copy of the model on both devices; if any parameter's gradient differs by more than 5 % of its largest CPU value, the run uses the CPU and the job shows a warning. The check's result is in the run record (`gpu_check`). | Measured 2026-11-27 (§Bench results, "S8 bite 4b"): same model and batch, 312 of 330 parameters differ by more than 1 % between CPU and Apple GPU with the channels-last batch, on torch 2.10.0 and on 2.13.0 (so another torch version alone would not have fixed it); 0 of 330 with a contiguous batch (worst 0.2 %). The fault shows with a loss as plain as the sum of the first layer's output, and not with a fresh `torch.rand` batch, which is why the first probes on random images agreed. The check stays because a wrong gradient gives no error, only a run that does not learn. Cost: about 2 s per start. |
+| D66 | 2026-11-27 | **Builder call, waiting for the spec lead's word** (first S8 builder on QE's FAIL of PR 72; asked of the spec lead 2026-11-27): a detector run uses a frame, for training and validation, only when **every** class of the run is marked fully checked on it (`loaders.usable`). Stricter than the spec's "skipped for that frame" per class. Frames left out this way are counted in the run record and on the Datasets page. | The spec says a class that is not fully checked is "never treated as background". YOLOX's "is there an object" output has no class: on a frame where sea stars are checked and urchins are not, an unlabeled urchin would be taught as "nothing here" whatever is done to the class scores, so a per-class loss mask alone does not keep the promise. Leaving the frame out does. Its cost: on a project where few frames have every class checked, most frames are unused (the real S5 project had none on 2026-11-27, D64). Proposed next step, not built: use such a frame for its labeled boxes only (box, class and "object here" losses), with no "nothing here" lesson anywhere on it. |
 
 ## Bench / test results
 
