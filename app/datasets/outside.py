@@ -5,7 +5,9 @@ Public urchin datasets from Nick's earlier work live outside git in one folder (
 verdicts are in the repo ADIN_SPI_OpenMV: `ml/urchin_data/licenses/`, `ml/urchin_data/manifests/`
 and `docs/urchin_datasets.md` §Verification (read 2026-11-27 at `994b8c2`). A dataset version
 may add a source only when it is listed in SOURCES with `allowed: True`, i.e. its recorded
-verdict allows commercial use; every other folder found there is refused, with the reason shown.
+verdict allows commercial use and no licence question is open on it; every other folder found
+there is refused, with the reason shown. Today that is Urchinbot only (D63: RF100 waits for
+Nick); it is the default outside source, ticked on the page when its folder is there.
 
 Outside boxes are one class, "urchin": they carry no Build 1 class id. They are used for
 pre-training the detector only, in the train and valid splits; never in the test split, which
@@ -42,7 +44,9 @@ SOURCES = [
                      "test": "archives/test.txt"},
      "note": "Its companion GitHub weights and code have no licence and are not used."},
     {"key": "rf100_underwater", "name": "RF100 underwater-objects (Roboflow 100)",
-     "folder": "roboflow/rf100_underwater", "allowed": True, "licence": "CC BY 4.0",
+     "folder": "roboflow/rf100_underwater", "allowed": False, "licence": "CC BY 4.0",
+     "why_not": "Waits for Nick: same image lineage as DUO (URPC contest images). Its own "
+                "record says CC BY 4.0 and GO, but a licence question is Nick's (Lead call D63).",
      "licence_source": "the export's data.yaml (roboflow: license: CC BY 4.0) and the Universe "
                        "page; captured 2026-08-21 in ADIN_SPI_OpenMV "
                        "ml/urchin_data/licenses/roboflow_tier1b.md",
@@ -52,8 +56,7 @@ SOURCES = [
                     "CC BY 4.0",
      "recorded": {"images": 7600, "boxes": 25299},
      "split_prefix": {"train": "train/", "valid": "valid/", "test": "test/"},
-     "note": "URPC contest images, the same image lineage as the DUO set that Nick ruled out "
-             "(2026-11-27). Its own licence record allows commercial use; think before adding it."},
+     },
     {"key": "urchin_detector_74", "name": "Roboflow sea-urchin/urchin-detector (74 images)",
      "folder": "roboflow/urchin_detector_74", "allowed": False, "licence": "CC BY 4.0",
      "why_not": "Recorded as hard-case evaluation material, not pre-training data; and the "

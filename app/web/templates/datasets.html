@@ -23,7 +23,7 @@
 <table class="stages" id="outside-sources">
   <thead><tr><th>Add</th><th>Source</th><th>Licence</th><th>Record</th></tr></thead><tbody>
   {% for o in outside %}<tr>
-    <td>{% if o.can_add %}<input type="checkbox" name="outside_keys" value="{{ o.key }}" aria-label="Add {{ o.name }}">{% elif o.allowed %}not found{% else %}not allowed{% endif %}</td>
+    <td>{% if o.can_add %}<input type="checkbox" name="outside_keys" value="{{ o.key }}" aria-label="Add {{ o.name }}" checked>{% elif o.allowed %}not found{% else %}not allowed{% endif %}</td>
     <td>{{ o.name }}{% if o.recorded %}<br><span class="hint">{{ "{:,}".format(o.recorded.images) }} images, {{ "{:,}".format(o.recorded.boxes) }} urchin boxes in the record</span>{% endif %}</td>
     <td>{{ o.licence }}</td>
     <td>{% if o.allowed %}{{ o.verdict }}. {{ o.licence_source }}.{% if o.note %} <b>Note:</b> {{ o.note }}{% endif %}{% else %}{{ o.why_not }}{% endif %}</td></tr>{% endfor %}
