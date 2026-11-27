@@ -448,6 +448,17 @@ compilers; 3c the Pi)**
       estimate marked as such, the failing layers or the error; earlier measured numbers as "earlier work" with
       their date; "Run all" queues every missing cell once; Run / Run again per candidate; the Roboflow-licensed
       sizes always marked; linked from the dashboard
+- [x] 4b: "stored together" on the page: for each pair and all three of the best candidates per camera, their
+      files against the model area beside the vendor's models (N6, AE3) or against the Pi's memory, and the room
+      left; the AE3 time-box note
+- [x] "Run again" on one camera cleared the candidate's shared 8-bit file while the other cameras' cells kept
+      results from the old file (QE PR 80 nit 4): it now clears every camera's result of that candidate and
+      queues the other cells that had a result again behind it (PR 85)
+- [x] a LiteRT fault on the Pi step (runtime missing or changed) is a job error with a fix, not "does not run on
+      the Pi" (QE PR 79 nit 1; PR 85)
+- [ ] 3d (found by the builder, D51 promised it): "Set up the tools" as a job with a button: build the tool
+      environments from `app/fit/toolchain/` and check out YOLOX at its commit; today they exist on Nick's laptop
+      because the builder made them by hand (steps in the requirements files' headers)
 - [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
       runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
       their date; "Run all" queues every missing cell

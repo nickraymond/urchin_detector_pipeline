@@ -195,3 +195,50 @@ def test_run_one_cell_again_and_unknown_cells_are_refused(site, monkeypatch):
     r = client.post("/fit/run", data={"key": "plainseg-s-256-c6", "camera": "ae3"}, follow_redirects=False)
     assert "queued+again" in r.headers["location"]              # it has a result now: from scratch
 
+
+def test_stored_together_sums_the_best_of_each_kind_against_the_room_left(tmp_path):
+    area = N6_AREA
+    for key, size in (("yolox-nano-conv-256-c5", 1_200_000), ("yolox-tiny-conv-256-c5", 5_300_000),
+                      ("plainseg-s-256-c6", 100_000), ("yoloxproto-nano-conv-256-c5", 1_300_000)):
+        write_fit(tmp_path, key, "n6", converts=True, file_bytes=size, limit_bytes=area, placement=placed(9, 2, 0))
+    write_fit(tmp_path, "tvseg-deeplabv3-mnv3l-256-c6", "n6", converts=True, file_bytes=11_000_000,
+              limit_bytes=area, placement=placed(9, 0, 20))           # partly on the CPU: not the best
+    write_fit(tmp_path, "plainseg-s-256-c6", "pi", converts=True, file_bytes=92_912, limit_bytes=None,
+              placement=placed(0, 0, 30, "operators"), failing_layers=[])
+    write_fit(tmp_path, "rfdetrplus-atto-380-c5", "n6", converts=True, file_bytes=10, limit_bytes=area,
+              placement=placed(9, 0, 0))                              # Roboflow licence: never picked (QE nit 2)
+    t = table.stored_together(table.table(tmp_path))
+    n6 = t["n6"]
+    assert table.VENDOR_BYTES == {"n6": 12_577_188, "ae3": 9_269_500}  # image minus its compiled YOLOX files
+    assert {k: v["key"] for k, v in n6["best"].items()} == {
+        "Detector": "yolox-nano-conv-256-c5", "Segmenter": "plainseg-s-256-c6",
+        "Instance segmenter": "yoloxproto-nano-conv-256-c5"}
+    assert [c["labels"] for c in n6["combos"]] == [
+        ("Detector", "Segmenter"), ("Detector", "Instance segmenter"), ("Segmenter", "Instance segmenter"),
+        ("Detector", "Segmenter", "Instance segmenter")]
+    three = n6["combos"][-1]
+    assert three["bytes"] == 2_600_000 and three["fits"] is True
+    assert three["left"] == area - table.VENDOR_BYTES["n6"] - 2_600_000
+    assert t["ae3"] == {**t["ae3"], "best": {}, "combos": []}         # nothing runs there yet
+    assert list(t["pi"]["best"]) == ["Segmenter"] and t["pi"]["combos"] == []   # one kind only: no pair
+
+
+def test_stored_together_says_when_it_does_not_fit(tmp_path):
+    write_fit(tmp_path, "yolox-tiny-conv-256-c5", "ae3", converts=True, file_bytes=9_000_000, limit_bytes=N6_AREA,
+              placement=placed(288, 0, 0, "operators"))
+    write_fit(tmp_path, "plainseg-m-256-c6", "ae3", converts=True, file_bytes=8_000_000, limit_bytes=N6_AREA,
+              placement=placed(26, 0, 0, "operators"))
+    combo = table.stored_together(table.table(tmp_path))["ae3"]["combos"][0]
+    assert combo["fits"] is False and combo["left"] == N6_AREA - table.VENDOR_BYTES["ae3"] - 17_000_000
+
+
+def test_page_has_the_stored_together_table_and_the_time_box_note(site):
+    client, data = site
+    write_fit(data, "yolox-nano-conv-256-c5", "n6", converts=True, file_bytes=1_194_488, limit_bytes=N6_AREA,
+              placement=placed(117, 2, 0))
+    write_fit(data, "plainseg-s-256-c6", "n6", converts=True, file_bytes=103_344, limit_bytes=N6_AREA,
+              placement=placed(27, 2, 0))
+    page = client.get("/fit").text
+    assert "stored together" in page and "Detector + Segmenter" in page and "<b>fit</b>" in page
+    assert "no candidate runs here yet" in page and "AE3 time box" in page and "measured on the boards (S7)" in page
+
