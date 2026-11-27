@@ -561,6 +561,13 @@ app/web/templates/datasets.html, train.html
   date" once a project has 3 dives, and a dive whose videos sat in different splits becomes one group. Its
   old frames keep their splits (a test frame never moves to train); its new frames go to the most held-out
   split its old frames are in (test before valid before train), and the page lists such groups.
+- **Outside data in a version (as-built, bite 3; QE PR 66).** `datasets/v<N>/outside/<key>.jsonl` holds one
+  row per image of an added public source (path inside `outside_data_dir`, size, split, boxes, size in bytes);
+  the manifest entry carries the licence, attribution, counts and the rows file's sha256, which is part of the
+  version's hash. The images stay where they are and are frozen by their size in bytes only, not by content
+  hash: weaker than D60 gives Nick's own frames, chosen because the folder is tens of GB and its archives are
+  never modified; the entry says so (`frozen_by`). Sources and their records: `app/datasets/outside.py`,
+  `THIRD_PARTY_LICENSES` "Outside data" (D63).
 - **Training reads a version, never the export** (spec stage 7): the loaders take `datasets/v<N>/` and
   `datasets/images/` and check each image's hash on first use.
 - **What training adds to S6 bite 1's decisions** (package location, `models/` layout, recipe: the S6
@@ -850,9 +857,12 @@ are compiler results; nothing was run on a board, and the times are Vela's estim
 | `yoloxproto-nano-conv-256-c5` | 126 + 3 + 0 of 129; file 1,255 KiB, memory 792 KiB (DepthToSpace) | 392 NPU, 0 CPU; est. 32.55 ms; file 1,062 KiB, memory 608 KiB |
 | `yoloxproto-tiny-conv-256-c5` | 101 + 3 + 0 of 104; file 5,331 KiB, memory 1,030 KiB (DepthToSpace) | 302 NPU, 0 CPU; est. 49.7 ms; file 5,223 KiB, memory 1,036 KiB |
 
-Read from the table: YOLOX Nano / Tiny and the YOLOX + prototype-masks instance candidate place with no software
-step on the N6 and no CPU operator on the AE3 (the hybrid steps are the nearest-upsampling `DepthToSpace`, as in
-the measured YOLOX). The plain conv segmenter places the same way. torchvision's LR-ASPP leaves its bilinear
+Read from the table: YOLOX Nano / Tiny and the YOLOX + prototype-masks instance candidate have no software step
+on the N6 and no CPU operator on the AE3; on the N6 each has 2–3 hybrid steps (the nearest-upsampling
+`DepthToSpace`, which ST runs partly on the CPU), as the measured YOLOX has. The plain conv segmenter is the same.
+`yolox-nano-conv-256-c5` gives 117 + 2 + 0 of 119 here against 116 + 2 + 0 of 118 for the known-good untrained
+run of bite 1; that run had one class and this one five, and the count also moves with weights and calibration
+(bite 1), so the two are not expected to be equal; why it is exactly one more was not checked. torchvision's LR-ASPP leaves its bilinear
 resize on the AE3's CPU (1 operator) and 20 steps in software on the N6, where ST reports float convolutions;
 DeepLabV3 does the same and, on the AE3, makes a 35.1 MiB file needing 22.6 MiB of memory against a 24 MiB
 model area. The model area limit is the whole partition; what the vendor's models already use is bite 4's check.
@@ -881,13 +891,14 @@ was run by hand with the Pi step on the same 8-bit files.
 | `rfdetr-nano-384-c5` (Apache-2.0) | made in 12 min | does not compile: ST's `INTERNAL ERROR: 'NoneType' object is not subscriptable` | compiles: 3,789 NPU + 293 CPU operators; file 33.5 MiB against the 24 MiB model area; memory 16.6 MiB; estimate 5,069 ms | does not load: needs TensorFlow's select operators (`FlexErf`) |
 | `rfdetr-nano-256-c5` (Apache-2.0) | made in 7 min | does not compile, a different error: ST's `TOOL ERROR: matmul: Input operand 1 has a mismatch in its core dimension 0 … (size 300 is different from 1)` | compiles: 3,461 NPU + 296 CPU; file 32.6 MiB; memory 91.7 MiB; estimate 1,531 ms | does not load: `FlexErf` |
 | `rfdetr-seg-nano-312-c5` (Apache-2.0) | made in 22 min | does not compile: the same `INTERNAL ERROR` as the 384 px Nano | compiles: 4,053 NPU + 378 CPU; file 37.3 MiB; memory 22.6 MiB; estimate 13,495 ms | does not load: `FlexErf` |
-| `rfdetrplus-atto-380-c5`, `-femto-384-c5`, `-pico-560-c5` (Roboflow licence, evaluation only) | not made: onnx2tf 1.28.8 fails on the backbone's attention (`MatMul` of shapes [1,3,724,64] and [1,64,724,3] for Atto) | not reached | not reached | not reached |
+| `rfdetrplus-atto-380-c5`, `-femto-384-c5`, `-pico-560-c5` (Roboflow licence, evaluation only) | do not convert with today's route (8-bit step): onnx2tf 1.28.8 fails on the backbone's attention (`MatMul` of shapes [1,3,724,64] and [1,64,724,3] for Atto) | no compiler verdict: not reached | no compiler verdict: not reached | not reached |
 
 Read from the table: with today's route no RF-DETR size runs on any of the three cameras. On the AE3 the
 Apache-licensed sizes compile but are too big for the model area and, by Vela's own estimate, take seconds per
 image; on the N6 ST's compiler fails on them; on the Pi the files need an operator library plain LiteRT does not
-have. The Roboflow-licensed sizes do not get past the 8-bit step. One thing not tried: RF-DETR's own TFLite
-exporter asks for onnx2tf 2.4.0 or newer (its package metadata); that is one later change against the known-good
-1.28.8, compared against these rows. Vela's memory figure for the 256 px Nano (91.7 MiB) is larger than for the
+have. The Roboflow-licensed sizes do not convert with today's route: the 8-bit step fails before any compiler
+sees them, so this says nothing yet about how they would place. One thing not tried here: RF-DETR's own TFLite
+exporter asks for onnx2tf 2.4.0 or newer (its package metadata); that is one change against the known-good
+1.28.8, tried once as bite 2e and recorded in its own table, compared against these rows. Vela's memory figure for the 256 px Nano (91.7 MiB) is larger than for the
 384 px one (16.6 MiB); it is recorded as reported and not explained.
 

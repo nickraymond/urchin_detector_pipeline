@@ -135,3 +135,20 @@ def test_page_shows_the_tools_and_the_button_queues_the_job(tmp_path, monkeypatc
         assert app.state.jobctl(server.config.load(cfg)).latest("tools_setup") is not None
     finally:
         app.state.close_jobs()
+
+
+def test_docker_is_asked_at_most_once_a_minute(monkeypatch, tmp_path):
+    """QE PR 82 nit 3: the page reloads every 10 s while cells wait; a slow Docker must not stall each load."""
+    calls = []
+
+    class Done:
+        returncode = 0
+
+    monkeypatch.setattr(setup.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(setup.subprocess, "run", lambda cmd, **k: calls.append(cmd) or Done())
+    setup._docker_seen.clear()
+    fit = {"docker_image": "an-image:1"}
+    assert setup.outside(fit)[-1]["ok"] and setup.outside(fit)[-1]["ok"] and len(calls) == 1
+    setup._docker_seen["an-image:1"] = (setup.time.monotonic() - setup.DOCKER_CHECK_SECONDS - 1, True)
+    setup.outside(fit)
+    assert len(calls) == 2

@@ -36,7 +36,7 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
             "tools": setup.items(cfg.tools_dir), "outside": setup.outside(cfg.fit),
             "setup_job": jobctl(cfg).latest("tools_setup"),
             "cameras": [(c, convert.CAMERAS[c]) for c in table.CAMERA_ORDER], "active": len(active),
-            "missing": len(table.missing(cfg.data_dir)) - len(active), "mib": table.mib,
+            "missing": len(table.missing(cfg.data_dir)) - len(active), "mib": table.mib, "memory_figure": table.memory_figure,
             "earlier_source": table.EARLIER_SOURCE})
 
     @app.post("/fit/run-all")

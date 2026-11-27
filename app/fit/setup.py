@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from app.fit import convert
@@ -29,6 +30,8 @@ ENVS = [
 ]
 CHECKOUTS = [(yolox.CHECKOUT, yolox.CODE["repo"], yolox.CODE["commit"], "YOLOX model code")]
 MARK = ".setup_ok"
+DOCKER_CHECK_SECONDS = 60     # /fit reloads every 10 s while cells wait; ask Docker at most once a minute (QE PR 82)
+_docker_seen: dict[str, tuple[float, bool]] = {}
 
 
 def want(spec: str) -> str:
@@ -78,11 +81,16 @@ def outside(fit: dict | None) -> list[dict]:
            {"name": "OpenMV firmware tree (modelc.py, vela.ini)", "path": s["openmv_dir"],
             "ok": (Path(s["openmv_dir"]) / "tools" / "modelc.py").is_file()}]
     docker = shutil.which("docker")
-    try:
-        up = bool(docker) and subprocess.run([docker, "image", "inspect", s["docker_image"]],
-                                             capture_output=True, timeout=20).returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
-        up = False
+    seen = _docker_seen.get(s["docker_image"])
+    if seen and time.monotonic() - seen[0] < DOCKER_CHECK_SECONDS:
+        up = seen[1]
+    else:
+        try:
+            up = bool(docker) and subprocess.run([docker, "image", "inspect", s["docker_image"]],
+                                                 capture_output=True, timeout=20).returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            up = False
+        _docker_seen[s["docker_image"]] = (time.monotonic(), up)
     out.append({"name": f"Docker with the image {s['docker_image']}", "path": docker or "docker not found",
                 "ok": up})
     return out

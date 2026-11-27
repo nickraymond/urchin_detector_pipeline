@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Datasets · {{ info.name }}{% endblock %}
+{% block content %}
+{% from "_job.html" import job_panel %}
+<p><a href="/p/{{ info.name }}">&larr; Project {{ info.name }}</a> · <a href="/p/{{ info.name }}/export">Export</a></p>
+<h1>Datasets</h1>
+<p class="hint">A dataset version is a frozen copy of the export: its frames, labels, splits and class list, with
+  a hash. Models are trained on a version, never on "the export as it is today", so a result can be repeated.
+  Versions are numbered and never changed. A new version keeps every site-and-date group in the split it had
+  before, so the test set stays the same; only new groups are dealt (about 70 / 20 / 10).
+  In <code>{{ info.folder }}/datasets/</code>.</p>
+{% if error %}<section class="problem"><p>{{ error }}</p></section>{% endif %}
+<h2>Freeze a version</h2>
+{% if export %}<p>From the export of <b>{{ export.at | replace('T', ' ') }}</b>: {{ export.frames }} frames,
+  {{ export.objects }} objects.</p>{% else %}<p class="problem">{{ why_not }}</p>{% endif %}
+<form method="post" action="/p/{{ info.name }}/datasets/freeze">
+<h3>Outside data (optional; detector pre-training only)</h3>
+<p class="hint">Public urchin datasets from the earlier detector work{% if outside_dir %}, in <code>{{ outside_dir }}</code>{% endif %}.
+  Only a source whose recorded licence verdict allows commercial use can be added. Its boxes are one class,
+  "urchin"; they pre-train the detector, in training and validation only, never in the test split, which is
+  always your own reviewed frames. Its images stay where they are (not copied).
+  {% if not outside_dir %}<b>No folder is set:</b> add <code>outside_data_dir</code> to <code>config.local.toml</code> to add a source.{% endif %}</p>
+<table class="stages" id="outside-sources">
+  <thead><tr><th>Add</th><th>Source</th><th>Licence</th><th>Record</th></tr></thead><tbody>
+  {% for o in outside %}<tr>
+    <td>{% if o.can_add %}<input type="checkbox" name="outside_keys" value="{{ o.key }}" aria-label="Add {{ o.name }}" checked>{% elif o.allowed %}not found{% else %}not allowed{% endif %}</td>
+    <td>{{ o.name }}{% if o.recorded %}<br><span class="hint">{{ "{:,}".format(o.recorded.images) }} images, {{ "{:,}".format(o.recorded.boxes) }} urchin boxes in the record</span>{% endif %}</td>
+    <td>{{ o.licence }}</td>
+    <td>{% if o.allowed %}{{ o.verdict }}. {{ o.licence_source }}.{% if o.note %} <b>Note:</b> {{ o.note }}{% endif %}{% else %}{{ o.why_not }}{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+<p>
+  <label>Name (optional) <input name="version_name" maxlength="{{ name_max }}" size="40" placeholder="e.g. first run with black urchin"></label>
+  <button class="primary" data-job-lock="queued running pausing"{% if not export %} disabled data-off-anyway{% endif %}{% if job.active %} disabled{% endif %}>Freeze a version</button></p>
+</form>
+<div data-live="/p/{{ info.name }}/live/freeze?back={{ ('/p/' ~ info.name ~ '/datasets') | urlencode }}" data-reload-on="done error cancelled">{{ job_panel(job, "/p/" ~ info.name ~ "/datasets") }}</div>
+
+<h2>Versions</h2>
+{% if not versions %}<p>No version yet.</p>{% endif %}
+{% for v in versions %}
+<section class="version" id="v{{ v.number }}">
+<h3>Version {{ v.number }}{% if v.name %}: {{ v.name }}{% endif %}</h3>
+<p class="hint">Frozen {{ v.created | replace('T', ' ') }} from the export of {{ (v.export.at or '?') | replace('T', ' ') }}
+  · hash <code title="{{ v.hash }}">{{ v.hash[:12] }}</code>
+  · {% if v.previous %}splits carried from version {{ v.previous }}{% else %}splits from the export{% endif %}
+  · grouped by {{ v.grouped_by }}</p>
+{% if v.split_warning and not v.previous %}<section class="warning"><p>{{ v.split_warning }}</p></section>{% endif %}
+{% set straddling = v.groups | selectattr("straddles") | list %}
+{% if straddling %}<section class="warning"><p>{{ straddling | length }} group(s) have frames in more than one
+  split, because earlier versions grouped by video: {% for g in straddling %}<b>{{ g.group }}</b>
+  ({{ g.straddles | join(", ") }}; new frames go to {{ g.split }}){% if not loop.last %}; {% endif %}{% endfor %}.
+  Frames keep the split they had; a test frame never becomes a training frame.</p></section>{% endif %}
+{% if v.outside %}<h4>Outside data in this version (pre-training only, never the test split)</h4>
+<table class="stages outside-in-version"><thead><tr><th>Source</th><th>Licence</th><th>train: images (boxes)</th><th>valid: images (boxes)</th><th>Not used</th></tr></thead><tbody>
+  {% for o in v.outside %}<tr><td>{{ o.name }}<br><span class="hint">{{ o.attribution }}</span></td><td>{{ o.licence }}</td>
+    <td>{{ "{:,}".format(o.counts.train.images) }} ({{ "{:,}".format(o.counts.train.boxes) }})</td><td>{{ "{:,}".format(o.counts["valid"].images) }} ({{ "{:,}".format(o.counts["valid"].boxes) }})</td>
+    <td>{{ "{:,}".format(o.unused.test) }} of its own test images{% if o.on_disk.boxes != o.recorded.boxes or o.on_disk.images != o.recorded.images %}<br><span class="hint">on disk: {{ "{:,}".format(o.on_disk.images) }} images / {{ "{:,}".format(o.on_disk.boxes) }} boxes; the record says {{ "{:,}".format(o.recorded.images) }} / {{ "{:,}".format(o.recorded.boxes) }}</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>{% endif %}
+<h4>What training will see (detector)</h4>
+{% if v.view %}{% set w = v.view %}
+<form method="get" action="/p/{{ info.name }}/datasets#v{{ v.number }}" class="inline class-pick">Classes:
+  {% for c in w.all_classes %}<label><input type="checkbox" name="classes" value="{{ c.id }}"{% if c.picked %} checked{% endif %}> {{ c.name }}</label>
+  {% endfor %}<button class="small">Show</button>
+  <span class="hint">Default: sea stars and urchins. The choice is made again for each training run.</span></form>
+{% if w.unseen %}<section class="problem zero-objects"><p><b>Training would see 0 objects of {{ w.unseen | join(", ") }}</b>:
+  they are labeled, but no training frame is marked "fully checked" for every class picked above. On the
+  <a href="/p/{{ info.name }}/labels">Review page</a>, tick "fully checked" for these classes on the frames you
+  reviewed, then Export and freeze a new version.</p></section>{% endif %}
+<table class="stages counts training-view">
+  <thead><tr><th>Class</th>{% for s in splits %}<th>{{ s }}: objects (frames)</th>{% endfor %}<th>Total</th><th>Target {{ w.target[0] }}–{{ w.target[1] }}</th><th>Skipped: on frames left out</th></tr></thead>
+  <tbody>
+  {% for c in w.classes %}<tr class="{{ 'state-failed' if c.under_target else 'state-done' }}"><td>{{ c.name }}</td>{% for s in splits %}<td>{{ c.seen[s].objects }} ({{ c.seen[s].frames }})</td>{% endfor %}<td>{{ c.total }}</td><td>{% if c.under_target %}<b>under</b>: {{ w.target[0] - c.total }} more{% else %}ok{% endif %}</td><td>{% if c.skipped_total or c.skipped.values() | sum(attribute="frames") %}{{ c.skipped_total }} objects on {{ c.skipped.values() | sum(attribute="frames") }} frames{% else %}—{% endif %}</td></tr>{% endfor %}
+  <tr><td><b>Frames used</b></td>{% for s in splits %}<td><b>{{ w.frames[s].used }}</b>{% if w.frames[s].left_out %} ({{ w.frames[s].left_out }} left out){% endif %}</td>{% endfor %}<td colspan="3"></td></tr>
+  </tbody>
+</table>
+<p class="hint">A run uses a frame only when <b>every class picked above</b> is marked "fully checked" on it on
+  the Review page: a class that is not fully checked may have unlabeled animals, and those must never be taught as
+  "none here". So the counts change with the classes picked together{% set partly = w.frames.values() | sum(attribute="partly_checked") %}{% if partly %}; with this choice
+  <b class="partly-checked">{{ partly }} frame(s) are left out although some of the classes are fully checked on them</b>{% endif %}.
+  Frames with split check "no" are left out of detector data (they still count for cover).</p>
+{% if w.split_no %}<details><summary>{{ w.split_no | length }} frame(s) left out by the split check</summary>
+  <ul class="plain">{% for f in w.split_no %}<li>{{ f }}</li>{% endfor %}</ul></details>{% endif %}
+{% if w.unchecked %}<details><summary>{{ w.unchecked | length }} frame(s) with a class not fully checked</summary>
+<table class="stages"><thead><tr><th>Frame</th><th>Split</th><th>Not fully checked</th></tr></thead><tbody>
+  {% for u in w.unchecked %}<tr><td>{{ u.file }}</td><td>{{ u.split }}</td><td>{{ u.classes | join(", ") }}</td></tr>{% endfor %}
+</tbody></table></details>{% endif %}
+{% else %}<p class="problem">{{ v.view_error }}</p>{% endif %}
+<h4>Everything in the version (all labels, before the review flags)</h4>
+<table class="stages counts">
+  <thead><tr><th>Class</th>{% for s in splits %}<th>{{ s }}: objects (frames)</th>{% endfor %}<th>Total objects</th></tr></thead>
+  <tbody>
+  {% for c in v.counts.classes %}<tr><td>{{ c.name }}</td>{% for s in splits %}<td>{{ c.objects[s] }} ({{ c.frames[s] }})</td>{% endfor %}<td>{{ c.objects.values() | sum }}</td></tr>{% endfor %}
+  <tr><td><b>Frames</b></td>{% for s in splits %}<td><b>{{ v.counts.frames[s] }}</b>{% if v.counts.detector_frames[s] != v.counts.frames[s] %} ({{ v.counts.detector_frames[s] }} for the detector){% endif %}</td>{% endfor %}<td><b>{{ v.frames | length }}</b></td></tr>
+  </tbody>
+</table>
+<details><summary>{{ v.groups | length }} group(s)</summary>
+<table class="stages"><thead><tr><th>Group</th><th>Split</th><th>Frames</th><th>Split from</th></tr></thead><tbody>
+  {% for g in v.groups %}<tr><td>{{ g.group }}</td><td>{{ g.split }}</td><td>{{ g.frames }}</td><td>{{ {"export": "the export", "new": "new group, dealt"}.get(g.carried, "version " ~ g.carried[1:]) }}</td></tr>{% endfor %}
+</tbody></table></details>
+</section>
+{% endfor %}
+<script src="{{ static('live.js') }}"></script>
+{% endblock %}

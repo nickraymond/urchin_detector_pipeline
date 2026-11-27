@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.datasets import loaders
 from app.train import models
 
 # name -> "module:Class". Only names listed here can run: the job file never carries a module
@@ -29,3 +30,89 @@ def train_kind():
     from app.jobctl import Kind
     return Kind("train", module="app.train.worker", prepare=prepare, progress=progress,
                 item="epoch")
+
+
+# ---- model types the Train page offers (bite 5); bite 4b adds YOLOX here ----
+# key -> {"name", "kind", "trainer" (a key of TRAINERS), "family", "size", "variant" (str),
+#         "inputs": [px, ...], "presets": [augmentation presets], "defaults": {"epochs", "input",
+#         "augment", "seed"}, "why": {field: one short sentence}, "licence"}
+MODEL_TYPES: dict[str, dict] = {}
+
+# YOLOX (bite 4b): S6's definition (app/modeldefs/yolox.py), trained by app/train/yolox.py.
+# Defaults are the earlier work's known-good recipe (ADIN_SPI_OpenMV ml/yolox_urchin/STAGE1.md).
+TRAINERS["yolox"] = "app.train.yolox:Trainer"
+_YOLOX_WHY = {
+    "input": "256 px is the size that compiled for both camera chips and was timed on them; "
+             "training tiles are cut so urchins are 24-64 px, as the cameras see them.",
+    "epochs": "The earlier Nano run kept improving to 120 epochs (mAP50 0.44 at epoch 20, 0.65 "
+              "at 120, on public urchin data).",
+    "augment": "Blur and haze stand in for turbid water; haze is new and not yet measured "
+               "(the earlier work found it hurt Nano), so compare a run without it."}
+for _size, _note in (("nano", "smallest; 10.6 ms on the N6 and 26.4 ms on the AE3 in the earlier "
+                              "work."),
+                     ("tiny", "more accurate in the earlier work (mAP50 0.73 against 0.65), about "
+                              "3x slower on the N6; on the AE3 it runs from the model area only.")):
+    MODEL_TYPES[f"yolox-{_size}-conv"] = {
+        "name": f"YOLOX-{_size.capitalize()} (plain first layer)", "kind": "detector",
+        "trainer": "yolox", "modeldef": "app.modeldefs.yolox", "family": "yolox", "size": _size,
+        "variant": "conv", "inputs": [256, 320],
+        "presets": ["standard + blur + haze", "standard", "none"],
+        "defaults": {"epochs": 120, "input": 256, "augment": "standard + blur + haze", "seed": 0},
+        "why": {"type": _note, **_YOLOX_WHY}, "licence": "Apache-2.0"}
+
+
+usable = loaders.usable      # the one frame rule of a detector run (app/datasets/loaders.py)
+
+
+def arch_key(mtype: dict, input_px: int, n_classes: int) -> str:
+    """D53: <family>-<size>[-<variant>]-<input px>-c<classes>, e.g. yolox-nano-conv-256-c5."""
+    parts = [mtype["family"], mtype["size"]] + ([mtype["variant"]] if mtype.get("variant") else [])
+    return "-".join(parts + [str(input_px), f"c{n_classes}"])
+
+
+def build_recipe(mtype_key: str, form: dict, manifest: dict, class_ids: list[int],
+                 start: dict) -> tuple[str, dict]:
+    """(arch key, recipe.json) for a new model (D54) from the Train page's form. Raises
+    ValueError with a message for the page when a value is not allowed."""
+    mtype = MODEL_TYPES.get(mtype_key)
+    if mtype is None:
+        raise ValueError("Pick a model type.")
+    if start.get("kind") not in mtype.get("starts", ("scratch",)):
+        raise ValueError(f"{mtype['name']} can only start from scratch for now: its trainer does "
+                         "not load starting weights yet.")
+    d = mtype["defaults"]
+    try:
+        epochs = int(form.get("epochs") or d["epochs"])
+        input_px = int(form.get("input") or d["input"])
+        seed = int(form.get("seed") or d["seed"])
+    except ValueError:
+        raise ValueError("Epochs, input size and seed must be whole numbers.") from None
+    augment = form.get("augment") or d["augment"]
+    if not 1 <= epochs <= 1000:
+        raise ValueError("Epochs must be between 1 and 1000.")
+    if input_px not in mtype["inputs"]:
+        raise ValueError(f"Input size must be one of {mtype['inputs']} for {mtype['name']}.")
+    if augment not in mtype["presets"]:
+        raise ValueError(f"Unknown augmentation preset {augment!r}.")
+    names = {c["id"]: c["name"] for c in manifest["classes"]}
+    if mtype.get("modeldef"):                 # a real model type: S6's arch and arch key (D53, D54)
+        import importlib
+
+        from app import modeldefs
+        arch = importlib.import_module(mtype["modeldef"]).arch(
+            mtype["size"], input_px, [names[i] for i in class_ids])
+        key = modeldefs.arch_key(arch)
+    else:
+        arch = {"kind": mtype["kind"], "family": mtype["family"], "size": mtype["size"],
+                "variant": mtype.get("variant") or "", "input": [input_px, input_px],
+                "classes": [names[i] for i in class_ids], "licence": mtype.get("licence", "")}
+        key = arch_key(mtype, input_px, len(class_ids))
+    train = {"model_type": mtype_key, "trainer": mtype["trainer"],
+             # "outside" = what the version holds; what a run really trained on is in
+             # recorded[].outside_used, written by the trainer
+             "dataset": {"version": manifest["number"], "hash": manifest["hash"],
+                         "outside": [{"key": o["key"], "licence": o["licence"]}
+                                     for o in manifest.get("outside", [])]},
+             "class_ids": class_ids, "tile": input_px, "epochs": epochs, "augment": augment,
+             "seed": seed, "start": start}
+    return key, {"arch": arch, "train": train}

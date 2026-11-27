@@ -3,12 +3,18 @@ candidates with their fit reports and a headline. Reads only `fit.json` files (D
 
 Headline of one candidate on one camera:
   not tried        no fit.json yet
-  does not run     it does not convert or compile, or its file is larger than the camera's model area
+  does not run     it does not convert or compile, its file is larger than the camera's model area, or it
+                   needs more memory than the camera's memory figure (AE3: the free memory measured in the
+                   earlier work, a reference, not re-measured; Pi: 512 MB; N6: no figure recorded yet, so
+                   not checked, and the page says so)
   runs, partly on the CPU   some layers are left on the CPU (N6: software steps; AE3: CPU operators)
   runs             everything on the NPU. N6 "hybrid" steps count as running: the measured YOLOX-Nano
                    has 2 of them and ran at 10.6 ms (earlier work). On the Pi "runs" means the file runs
                    on its CPU under the runtime; how fast is S7's.
-A cell's headline is its best candidate's (spec). These are compiler results, not measurements.
+A cell's headline is its best candidate's (spec), ranked among permissive candidates only: a
+Roboflow-licensed one (SPEC hard constraint 6, evaluation only) is never a cell's best; the best of those
+is shown on its own line. A model that stops at the 8-bit step "does not convert with today's route":
+no compiler saw it, so that is not a compiler verdict. These are compiler results, not measurements.
 """
 
 from __future__ import annotations
@@ -22,11 +28,12 @@ from app.fit import convert
 CAMERA_ORDER = ("n6", "pi", "ae3")
 KIND_LABELS = {"detector": "Detector", "segmenter": "Segmenter", "instance": "Instance segmenter"}
 RANK = {"runs": 0, "partly": 1, "no": 2, "not_tried": 3}
+NO_ROUTE = "does not convert with today's route (8-bit step)"
 HEADLINES = {"runs": "runs", "partly": "runs, partly on the CPU", "no": "does not run", "not_tried": "not tried"}
 
 # Measured on the boards in Nick's earlier work; shown as "earlier work" until re-measured through the app
 # (spec). Source: ADIN_SPI_OpenMV/ml/yolox_urchin/STAGE1.md, bench window of 2026-08-24 (300-run windows;
-# single class "urchin", 256 px).
+# single class "urchin"). The energy figures are that table's gross ones (it also has net-over-idle).
 EARLIER = [
     {"kind": "detector", "camera": "n6", "model": "YOLOX-Nano", "ms": 10.6, "mj": 11.5, "date": "2026-08-24"},
     {"kind": "detector", "camera": "n6", "model": "YOLOX-Tiny", "ms": 31.2, "mj": 38.25, "date": "2026-08-24"},
@@ -42,21 +49,49 @@ def headline(fit: dict | None, camera: str) -> tuple[str, str]:
     if fit is None:
         return "not_tried", ""
     if not fit.get("converts"):
-        return "no", f"stopped at the {fit.get('stage', 'compile')} step"
-    size, limit = fit.get("file_bytes"), fit.get("limit_bytes")
-    if size and limit and size > limit:
-        return "no", f"its file ({mib(size)}) is larger than the model area ({mib(limit)})"
+        if fit.get("stage") == "8-bit model":
+            return "no", "the 8-bit step failed before any compiler ran: not a compiler verdict"
+        kind = "an internal error" if "INTERNAL ERROR" in (fit.get("error") or "") else "an error"
+        return "no", f"the compiler stopped with {kind} ({fit.get('tool') or 'compile step'})"
     p = fit.get("placement") or {}
+    unit = "steps" if p.get("unit") == "epochs" else p.get("unit")      # ST calls its steps "epochs"
+    on_cpu = f"; {p['cpu']} of {p['total']} {unit} on the CPU" if p.get("cpu") and camera != "pi" else ""
+    size, limit = fit.get("file_bytes"), fit.get("limit_bytes")
+    need, have = fit.get("memory_bytes"), memory_figure(fit)
+    memory = (f"needs {mib(need)} of memory against {mib(have['bytes'])} ({have['what']})"
+              if need and have and need > have["bytes"] else "")
+    if size and limit and size > limit:
+        return "no", (f"compiles, too big for the model area: its file is {mib(size)} of {mib(limit)}"
+                      + (f"; {memory}" if memory else "") + on_cpu)
+    if memory:
+        return "no", f"compiles, but {memory}{on_cpu}"
     if camera == "pi":
         odd = len(fit.get("failing_layers") or [])
         return ("partly", f"{odd} operator type(s) not built into the runtime") if odd else (
             "runs", "on the CPU; speed and memory are measured on the bench Pi (S7)")
     if p.get("cpu"):
-        unit = "steps" if p["unit"] == "epochs" else p["unit"]     # ST calls its steps "epochs"
-        return "partly", f"{p['cpu']} of {p['total']} {unit} on the CPU"
+        return "partly", on_cpu[2:]
     if p.get("hybrid"):
         return "runs", f"all on the NPU ({p['hybrid']} hybrid steps)"
     return "runs", "all on the NPU"
+
+
+def memory_figure(fit: dict) -> dict | None:
+    """The camera's memory figure a model's `memory_bytes` is compared with, or None when none is recorded
+    (the N6 today). The AE3's is a reference from the earlier work, not a hard limit."""
+    ref = fit.get("memory_reference")
+    if ref and ref.get("bytes"):
+        return {"bytes": ref["bytes"], "what": "free on the board in the earlier work, not re-measured"}
+    if fit.get("memory_limit_bytes"):
+        return {"bytes": fit["memory_limit_bytes"], "what": "the board's memory"}
+    return None
+
+
+def label(code: str, fit: dict | None) -> str:
+    """The words for one candidate's result. A model no compiler saw is worded apart from "does not run"."""
+    if code == "no" and fit and not fit.get("converts") and fit.get("stage") == "8-bit model":
+        return NO_ROUTE
+    return HEADLINES[code]
 
 
 def mib(n: int | None) -> str:
@@ -66,7 +101,9 @@ def mib(n: int | None) -> str:
 
 
 def table(data_dir: Path, active: set[tuple[str, str]] = frozenset()) -> list[dict]:
-    """One row per kind; row["cells"][camera] = {"code", "headline", "candidates": [...], "earlier": [...]}.
+    """One row per kind; row["cells"][camera] = {"code", "headline", "best", "best_marked", "candidates": [...],
+    "earlier": [...]}. "best" is ranked among permissive candidates only; "best_marked" is the best
+    Roboflow-licensed one that has a result, shown on its own line.
     `active` holds (arch key, camera) pairs with a job waiting or running."""
     rows = []
     for kind in modeldefs.KINDS:
@@ -77,12 +114,13 @@ def table(data_dir: Path, active: set[tuple[str, str]] = frozenset()) -> list[di
                 key = modeldefs.arch_key(arch)
                 fit = convert.read_fit(convert.model_dir(data_dir, arch), camera)
                 code, why = headline(fit, camera)
-                cands.append({"key": key, "arch": arch, "fit": fit, "code": code, "headline": HEADLINES[code],
+                cands.append({"key": key, "arch": arch, "fit": fit, "code": code, "headline": label(code, fit),
                               "why": why, "mark": arch.get("licence_mark"), "active": (key, camera) in active})
-            best = min(cands, key=lambda c: RANK[c["code"]]) if cands else None
+            best = min((c for c in cands if c["mark"] is None), key=lambda c: RANK[c["code"]], default=None)
+            marked = min((c for c in cands if c["mark"] and c["fit"]), key=lambda c: RANK[c["code"]], default=None)
             cells[camera] = {"code": best["code"] if best else "not_tried",
                              "headline": HEADLINES[best["code"]] if best else "no candidates",
-                             "best": best, "candidates": cands,
+                             "best": best, "best_marked": marked, "candidates": cands,
                              "earlier": [e for e in EARLIER if (e["kind"], e["camera"]) == (kind, camera)]}
         rows.append({"kind": kind, "label": KIND_LABELS[kind], "cells": cells})
     return rows
@@ -98,15 +136,17 @@ def missing(data_dir: Path) -> list[tuple[dict, str]]:
 # What the vendor's own models take in each camera's model area. Loading a model on the N6 means writing the
 # whole area, so every image carries them (ml/build_romfs_n6.sh). Not rebuilt here: derived from the earlier
 # work's images of 2026-08-25 (~/nereus_ml/romfs_n6_stage1/out/romfs0.img, 19,057,780 bytes, and
-# romfs_ae3_stage1/out/romfs0.img, 15,251,036 bytes) minus the two YOLOX files they also hold (6,527,040
-# bytes as given to the image builder). Approximate; S7's image build gives the real figure.
-VENDOR_BYTES = {"n6": 19_057_780 - 6_527_040, "ae3": 15_251_036 - 6_527_040}
-VENDOR_SOURCE = "the vendor's models as in the earlier work's images of 2026-08-25 (approximate)"
+# romfs_ae3_stage1/out/romfs0.img, 15,251,036 bytes) minus the two compiled YOLOX files each image holds
+# (their `build/` folders: N6 1,202,776 + 5,277,816 bytes; AE3 1,014,816 + 4,966,720). Approximate; S7's
+# image build gives the real figure.
+VENDOR_BYTES = {"n6": 19_057_780 - 6_480_592, "ae3": 15_251_036 - 5_981_536}
+VENDOR_SOURCE = "the vendor's models, from the earlier image build of 2026-08-25 (approximate)"
 PI_MEMORY_BYTES = 512 * 1024 * 1024
 
 
 def stored_together(rows: list[dict]) -> dict[str, dict]:
-    """Per camera: the best candidate of each kind that runs there, and for each pair and all three,
+    """Per camera: the best permissive candidate of each kind that runs there (what could ship together; a
+    Roboflow-licensed one is never picked, SPEC hard constraint 6), and for each pair and all three,
     whether their files fit side by side and how much room is left (spec, "More than one model at
     once", the laptop part). Loaded together and run in one wake-up are measured on the boards (S7)."""
     out = {}
@@ -114,13 +154,14 @@ def stored_together(rows: list[dict]) -> dict[str, dict]:
         best = {}
         for row in rows:
             cands = [c for c in row["cells"][camera]["candidates"]
-                     if c["code"] in ("runs", "partly") and c["fit"].get("file_bytes")]
+                     if c["code"] in ("runs", "partly") and c["fit"].get("file_bytes") and c["mark"] is None]
             if cands:
                 pick = min(cands, key=lambda c: (RANK[c["code"]], c["fit"]["file_bytes"]))
                 best[row["label"]] = {"key": pick["key"], "bytes": pick["fit"]["file_bytes"], "mark": pick["mark"]}
         if camera == "pi":
-            room, taken, note = PI_MEMORY_BYTES, 0, ("against the Pi's 512 MB of memory, files only; the SD card "
-                                                      "is not the limit, and memory in use is measured in S7")
+            room, taken, note = PI_MEMORY_BYTES, 0, ("files (in memory once loaded) against the Pi's 512 MB of RAM; "
+                                                      "storage on the SD card is not the limit, and memory in "
+                                                      "use is measured in S7")
         else:
             limit = next((c["fit"]["limit_bytes"] for row in rows for c in row["cells"][camera]["candidates"]
                           if c["fit"] and c["fit"].get("limit_bytes")), None)
