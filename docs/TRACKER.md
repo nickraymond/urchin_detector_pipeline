@@ -443,6 +443,11 @@ compilers; 3c the Pi)**
       a failed conversion is a result, not a job error; tested with a fake compiler
 
 **Bite 4 — "What runs where" page**
+- [x] 4a (split by the builder): the page `/fit` (`app/fit/table.py`, `pages.py`, `fit.html`): kind × camera, each
+      cell's headline from its best candidate, per candidate the layers, sizes against limits, the compiler's
+      estimate marked as such, the failing layers or the error; earlier measured numbers as "earlier work" with
+      their date; "Run all" queues every missing cell once; Run / Run again per candidate; the Roboflow-licensed
+      sizes always marked; linked from the dashboard
 - [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
       runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
       their date; "Run all" queues every missing cell

@@ -17,6 +17,22 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 4a: the "What runs where" page (S6 builder)
+**Branch:** sprint/6-fit-page
+**Done:** `/fit`: the table (model kind × N6 / Pi / AE3) from the `fit.json` files, a headline per cell and per
+candidate (rules in `app/fit/table.py`: hybrid steps on the N6 count as "runs", as the measured YOLOX has two), a
+detail table per cell, "Run all", Run / Run again, the page reloading while cells wait. Builder call in the
+headline rules: a file larger than the model area is "does not run".
+**Self-test in the browser** (the app on a copy of bite 3b's real results): the table shows "runs" for all three
+kinds on the N6 and the AE3 with the best candidate named, the earlier-work lines with their date under Detector,
+and "not tried" for the Pi. DeepLabV3 on the AE3 shows "does not run: its file (35.1 MiB) is larger than the model
+area (24.0 MiB)"; LR-ASPP "runs, partly on the CPU" with its one bilinear resize listed. Pressing Run on the Pi
+cell of `plainseg-s-256-c6` queued a job and the cell became "runs: 30 operators, all on the CPU, 91 KiB, memory
+not measured (limit 512.0 MiB)". The three Roboflow-licensed sizes show "Roboflow licence: evaluation only".
+**Broke/surprised us:** the first version made the 8-bit model again for every Run; now only Run again does.
+**Next:** bite 4b (several models on one camera: storage check; the AE3 time-box record); RF-DETR's cells from the
+running job; 2c-ii.
+
 ## 2026-11-27 — Sprint S6 — Bite 3c: the Pi step (S6 builder)
 **Branch:** sprint/6-pi-step
 **Done:** `app/fit/pi.py` + `pi_run.py`: for the Pi Zero 2W the convert job runs the 8-bit TFLite once under LiteRT

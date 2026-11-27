@@ -35,6 +35,7 @@ from app.jobctl import awake, schedule
 from app.jobctl.runner import GUARD_REASON
 from app.export import worker as export_worker
 from app.fit import convert as fit_convert
+from app.fit import pages as fit_pages
 from app.sam import add, classes
 from app.review import state as review_state
 from app.stages import clips, extract, ingest, label, review, review_labels
@@ -281,6 +282,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         sep = "&" if "?" in back else "?"
         return RedirectResponse(back + (sep + urlencode({"note": note}) if note else ""),
                                 status_code=303)
+
+    fit_pages.register(app, templates, config_path, jobctl, dashboard)   # Build 2: "What runs where"
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
