@@ -17,6 +17,23 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 4b: several models on one camera, stored together (S6 builder)
+**Branch:** sprint/6-stored-together
+**Done:** `table.stored_together`: per camera, the best candidate of each kind that runs there (smallest file among
+the best), each pair and all three summed against the room left: the 24 MiB model area minus the vendor's models
+on the N6 and the AE3, the 512 MB of memory on the Pi. The vendor's share is derived from the earlier work's
+images of 2026-08-25 (12.0 MiB on the N6, 8.3 MiB on the AE3; approximate, source in `table.py`). The AE3
+time-box note is on the page.
+**Self-test in the browser** (real results of bite 3b): N6: detector + segmenter + instance segmenter take 2.5 MiB
+and fit with 9.6 MiB left; AE3: 2.1 MiB, 13.6 MiB left; Pi: "only one kind has a candidate that runs here so
+far" (only one Pi cell had been run).
+**Open, found here:** D51 says setting the tools up is a job with a button; it does not exist yet (TRACKER 3d).
+**Next:** 3d, 2c-ii, RF-DETR's cells from the running job, and the stacked PRs through QE.
+**Changed before merge (S6 builder 2, QE's nits 1–3):** the vendor's share is each earlier image minus the compiled
+YOLOX files it holds (N6 12,577,188 bytes, AE3 9,269,500; read from `~/nereus_ml/romfs_*_stage1/`), not minus
+the input files; only permissive candidates are picked; the Pi line says "files (in memory once loaded) against
+512 MB of RAM".
+
 ## 2026-11-27 — Sprint S6 — Bite 4a: the "What runs where" page (S6 builder)
 **Branch:** sprint/6-fit-page
 **Done:** `/fit`: the table (model kind × N6 / Pi / AE3) from the `fit.json` files, a headline per cell and per
