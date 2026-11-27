@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2c-i: instance-segmenter candidates (S6 builder)
+**Branch:** sprint/6-instance-candidates
+**Done:** RF-DETR-Seg Nano in `app/modeldefs/rfdetr.py` (same package and licence as the detector; input a multiple
+of 12, stock 312 px; outputs 100 boxes, logits and 78 × 78 masks; 33,271,645 parameters) and
+`app/modeldefs/yoloxproto.py` (YOLOX Nano / Tiny plus 16 prototype masks and 16 coefficients per box; 974,382 and
+5,204,566 parameters), both built untrained in the tool environment (D58).
+**Broke/surprised us:** YOLACT's own models are not small (ResNet / Darknet-53 backbones), so the "small conv
+instance segmenter" is our own head on YOLOX for now; RTMDet-Ins-tiny is split off as 2c-ii because it needs the
+mmdetection stack.
+**Next:** bite 2d (what `rfdetr[plus]` sends out, before any use), then bite 3a (the convert job).
+
 ## 2026-11-27 — Sprint S6 — Bite 2b: segmenter candidates (S6 builder)
 **Branch:** sprint/6-segmenter-candidates
 **Done:** `app/modeldefs/tvseg.py` (torchvision LR-ASPP and DeepLabV3 on MobileNetV3-Large, BSD-3-Clause read at

@@ -394,6 +394,8 @@ Roboflow RF-DETR (`rfdetr` 1.9.4 from PyPI, in its own tool environment; model c
   `pip install "rfdetr[plus]"` adds the Atto, Femto, Pico, XL and 2XL detection models under PML 1.0";
   the readme inside the 1.9.4 package says the same of the package and names only XL / 2XL as Plus. Only the code is used: the candidate is built untrained, with no
   weights downloaded. RF-DETR's published starting weights are a separate check, not made yet (S9).
+  The same package and licence cover RF-DETR-Seg Nano, the instance-segmenter candidate (the package's
+  readme lists the segmentation models as Apache 2.0).
   Its main dependencies, from PyPI metadata: transformers 5.24.1 — Apache 2.0; huggingface-hub 2.5.0 —
   Apache-2.0; safetensors 0.8.0 and tokenizers 0.23.3 — Apache; supervision 0.32.3 — MIT; pydantic 2.14.4 —
   MIT; pyDeprecate 0.9.0 — Apache-2.0. A scan of all 97 packages in that environment found no GPL, AGPL or
@@ -443,3 +445,5 @@ Listed in the app but NOT offered:
   Roboflow sea-urchin/urchin-detector (74 images, CC BY 4.0): recorded as evaluation material; its label file
     on disk does not match its record. iNaturalist via GBIF: no boxes. corpus_v1 / corpus_v2: contain DUO.
   Any other folder: no licence record.
+The YOLOX + prototype-masks instance candidate (`app/modeldefs/yoloxproto.py`) is this project's own code on
+  top of Megvii's YOLOX (Apache-2.0, above); it follows the idea of the YOLACT paper and uses no YOLACT code.

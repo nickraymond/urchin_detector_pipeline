@@ -40,7 +40,8 @@ BUILD2_CLASSES = ["purple urchin", "red urchin", "black urchin", "sea star", "su
 SEGMENTER_CLASSES = BUILD2_CLASSES + ["other"]
 
 FAMILIES = {"yolox": "app.modeldefs.yolox", "rfdetr": "app.modeldefs.rfdetr",
-            "tvseg": "app.modeldefs.tvseg", "plainseg": "app.modeldefs.plainseg"}
+            "tvseg": "app.modeldefs.tvseg", "plainseg": "app.modeldefs.plainseg",
+            "yoloxproto": "app.modeldefs.yoloxproto"}
 
 
 class ModelDefError(ValueError):
