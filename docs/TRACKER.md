@@ -465,16 +465,16 @@ measured on the N6, the Pi and the AE3, each linked to its test card and run. Op
 several models at once or only one kind at a time.
 **Needs:** S6; the rig set up by Nick and handed to the test session; SPEC hard constraint 9.
 
-### S8 — Dataset versions and the first detector  `[ ]`
+### S8 — Dataset versions and the first detector  `[~]`
 **Goal:** spec stages 7 and 8 for one model type already known to run on the cameras (YOLOX, earlier work): freeze a dataset version from a Build 1 export and train a
 YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SPI_OpenMV/ml/yolox_urchin/`.
 
 **Bite 1 — Prior art and licences (plan nibble, no app code)**
-- [ ] re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` (trainer, export, decode) and say what is reused and how it is
+- [x] re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` (trainer, export, decode) and say what is reused and how it is
       brought in; read the licences of YOLOX's code and of any starting weights at the source; add them to
-      `THIRD_PARTY_LICENSES`
-- [ ] decide and log in DESIGN: the layout of `datasets/` and what training adds to S6 bite 1's decisions
-      (package location, `models/` layout, recipe)
+      `THIRD_PARTY_LICENSES` (DESIGN §Planned for S8; published COCO weights are not offered: licence not verified)
+- [x] decide and log in DESIGN: the layout of `datasets/` and what training adds to S6 bite 1's decisions
+      (package location, `models/` layout, recipe) (D60, D61)
 
 **Bite 2a — Dataset versions**
 - [ ] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
