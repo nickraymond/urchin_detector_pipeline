@@ -238,3 +238,22 @@ and whether the bench Pi is 64-bit; a segmenter architecture that places fully o
 licence of each set of published starting weights; what else runs on the bench rig; which
 meter Nick adds to the Pi 5 for power (optional; never blocks a bench run); what the
 `rfdetr[plus]` package sends out (S6 builder, before any frame goes through it).
+
+Waiting for Nick (Build 2 lead, 2026-11-27; each with a recommendation; none blocks the build):
+- RF100 underwater-objects as outside training data: its record says CC BY 4.0, but its images share the
+  DUO set's origin, which Nick ruled out. REC: keep it out. Until he answers it is listed but cannot be
+  switched on (DESIGN D63).
+- "Fully checked" is not ticked on any frame of the S5 test project, so a class is skipped everywhere
+  (DESIGN D64; D66, in a PR under review on 2026-11-27, uses such frames for their labeled boxes only). REC: accepting a frame on the Review page marks the urchin and sea star classes fully
+  checked unless he unticks one; the Build 1 lead would build it.
+- ST Edge AI Core 4.1.0: Nick said yes to its terms, but its installer must be run by him (a builder
+  session was refused). S6 runs on 4.0.0 (DESIGN D52); 4.1.0 is one later change.
+- His Roboflow plan: whether it covers the PML sizes, and what usage reporting it asks for (PML 1.0
+  section 4). Until then: no trained PML weights, no frame through that package (DESIGN D59).
+- A LICENSE file for this public repo (it has none). REC: decide before others are pointed at the repo.
+
+Team notes (Nick, lead's chat 2026-11-27): builders and the lead's replacement run on Opus 5.5; Fable is
+kept for planning and spec work, and for QE and the rig test session, which check the builders' work (his
+last word on it that day); the lead flags it to him when the weekly Fable allowance reaches 70 %. He asked for the bench Pi's `sudo` to be
+password-free ("it's just a local dev unit so I am ok with this"); the command needs his password, so it is his
+to run, and the rig log records when it is in place.

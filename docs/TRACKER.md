@@ -472,6 +472,11 @@ the limits, and for a failure the layers that stopped it.
 **Needs:** the Build 2 spec on main.
 
 ### S7 — What runs where, on the boards  `[ ]`
+*State 2026-11-27 (lead): the rig test session owns the rig. Both cameras are backed up and checked (every
+readable partition read twice; files copied twice against checksums made on the boards; both back as found).
+Not yet: the Pi's card image (waits for root on the Pi, which Nick is giving), the AE3's RECOVERY partition
+(its bootloader refuses to read it), a rehearsal of the restore steps, QE's check of the evidence. Evidence:
+`~/NereusData/urchin_detector_pipeline/rig_backup/2026-11-27/` (never in git). No S7 code is started.*
 **Goal:** the table complete with measured numbers: each candidate that compiled is loaded on its board and
 timed. The team's test session runs it on Nick's Pi Zero 2W bench rig (IMX708, N6, AE3), which it owns from
 Nick's hand-over; builders and QE use a fake board. Nick is asked only for physical actions.
