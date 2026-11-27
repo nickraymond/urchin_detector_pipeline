@@ -18,7 +18,7 @@ what broke, what's next.*
 ---
 
 ## 2026-11-27 — Sprint S8 — Bites 2a–5 as built; Estimate and validation frames; docs (S8 builders 1 and 2)
-**Branch:** sprint/8-docs (docs), sprint/8-train-estimate (PR 87), sprint/8-view-rule (PR 86), sprint/8-pretrain (PR 90)
+**Branch:** sprint/8-docs (docs), sprint/8-train-estimate (PR 87), sprint/8-view-rule (PR 86), sprint/8-pretrain (PR 90), sprint/8-boxes-only (PR 93)
 **Done (first S8 builder, merged earlier today, logged here because its docs were held back):** bite 2a dataset
 versions and the `freeze` job (PRs 63, 64); 2b the detector loader and "what training will see" (PR 65); 3 outside
 data and starting weights as a recorded choice (PR 66); 4a the `train` job kind (PR 67); 4b the training samples
@@ -35,10 +35,11 @@ the LGPL (its own `LICENSE-3RD-PARTY.txt`); recorded, laptop only. On the scratc
 needed more epochs (numbers in PR 87).
 A mistake of mine: PR 84 reached main with three conflict-marker lines in DESIGN (a second conflicted file missed
 when merging main in); fixed by PR 89, which adds a test that fails on such markers.
-**Open in S8 (TRACKER has the boxes):** frames where only some classes are fully checked (asked of the spec lead,
-D66); feeding outside images faster; mosaic; the haze preset is not measured; the warm-up rule is a guess; no run
-on Nick's real frames yet (no class is fully checked on them, D64); a full pre-training run (hours).
-**Next:** the spec lead's word on D66; shrunk copies of outside images; then a full pre-training run on Urchinbot.
+The lead's call D66 (frames with only some classes checked train on their labeled boxes only) is built in PR 93.
+**Open in S8 (each has a box in TRACKER):** feeding outside images faster; mosaic; the haze preset and the warm-up
+rule are not measured; a full pre-training run (hours); no run on Nick's real frames yet (no class is fully checked
+on them, D64); the attribution text travelling with a model; three small carried QE nits.
+**Next:** shrunk copies of outside images; then a full pre-training run on Urchinbot.
 
 ## 2026-11-27 — Sprint S6 — Fixes: a LiteRT fault on the Pi step is a job error; Run again (S6 builder 2)
 **Branch:** sprint/6-pi-tool-fault

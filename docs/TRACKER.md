@@ -525,13 +525,14 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [x] a new version keeps every site-and-date group in the split it had in the version before; new groups are
       dealt to keep about 70 / 20 / 10 (the export's own `splits/` may re-deal on each run, D43)
 
-**Bite 2b — What training will see** (PRs 65, 86)
+**Bite 2b — What training will see** (PRs 65, 86, 93)
 - [x] the page shows what training will see: objects and frames per class and split, classes under the 150–200
       target, frames left out by the split check, classes not fully checked per frame
 - [x] loaders for training: a class not fully checked on a frame is skipped for that frame; split check "no"
       frames are left out of detector data; synthetic tests
-      *As built (D66): stricter. A detector run uses a frame only when every class of the run is fully checked
-      on it; the page counts by the same function.*
+      *As built (Lead call D66): a frame with every class of the run fully checked trains in full; one with only
+      some of them checked trains on its labeled boxes only, never as "nothing here"; the page counts both by
+      the trainer's own function.*
 
 **Bite 3 — Outside data and starting weights** (PRs 66, 90)
 - [x] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
@@ -559,8 +560,15 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [x] pre-training on a version's outside data, and starting a run from such a model (bite 3's open half; PR 90)
 - [ ] pre-training is slow to feed: about 3 s per step of 32 on Urchinbot's 12-megapixel photos against 0.9 s
       on small frames (decoding, not the GPU); keep shrunk copies of outside images in the data folder
-- [ ] frames where only some of the run's classes are fully checked: use them for their labeled boxes (asked of
-      the spec lead 2026-11-27; today they are left out, D66)
+- [x] frames where only some of the run's classes are fully checked are used for their labeled boxes only
+      (Lead call D66; PR 93)
+- [ ] mosaic (four frames quilted into one canvas; in the earlier v2 recipe, not built here)
+- [ ] measure the warm-up rule (at least 300 steps, at most a third of the run: a guess for small datasets)
+- [ ] a full pre-training run on Urchinbot (hours; so far one epoch as a path check)
+- [ ] the first run on Nick's real frames (needs frames with classes marked fully checked, D64)
+- [ ] carried from QE: a box cut by the canvas edge and left under 8 px is dropped, not made an ignore region
+      (`samples._clip`, PR 71); the preset is recorded by its display name "standard + blur + haze" (PR 71);
+      the Datasets page builds "what training will see" for every version on each load (PR 65)
 - [ ] measure the haze preset against "standard" on real frames (the earlier work found haze hurt Nano)
 - [ ] a model trained on, or started from, outside data carries each source's attribution text, not only its
       key and licence (`THIRD_PARTY_LICENSES` "Outside data" asks for it; needed by S9's model list and S11's
