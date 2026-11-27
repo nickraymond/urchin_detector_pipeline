@@ -213,6 +213,8 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   all three cameras, before training; the accuracy comparison follows.
 - Q26 (2026-11-27). RF-DETR Nano and the sizes below it are candidates; the sizes below Nano are under Roboflow's
   PML 1.0 and are for evaluation only (hard constraint 6). RF-DETR's segmentation models are Apache-2.0.
+- Q27 (2026-11-27). The table also says whether each camera can hold and run several models at once or only
+  one kind at a time.
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 

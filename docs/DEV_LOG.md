@@ -31,7 +31,7 @@ until Nick allowed bench units. ST's own zoo models may run only on ST chips, so
 Ultralytics is AGPL for trained models too. The Pi has no inference code in any of Nick's repos yet.
 **2026-11-27, Nick's comments:** "what hardware can run each type of model" comes first, so the ladder is reordered
 (S6–S7 the "what runs where" table for three kinds × three cameras, untrained models; training from S8); RF-DETR Nano
-and the sizes below it become candidates, the PML sizes for evaluation only. Read at the source: PML 1.0 needs an
+and the sizes below it become candidates, the PML sizes for evaluation only; the table also answers whether a camera can hold and run several models at once. Read at the source: PML 1.0 needs an
 accepted Roboflow platform plan and allows usage tracking; RF-DETR-Seg is Apache-2.0 at every size.
 **Next:** Nick merges the spec PR (spec, goal, scope and hard constraints are his merge); then S6 bite 1.
 

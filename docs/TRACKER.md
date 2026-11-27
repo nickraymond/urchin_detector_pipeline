@@ -418,7 +418,8 @@ compilers; 3c the Pi)**
       runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
       their date; "Run all" queues every missing cell
 - [ ] several models on one camera, laptop part: for each pair and all three of the best candidates per
-      camera, whether their files fit in the model area side by side and how much room is left
+      camera, whether their files fit side by side in the model area (N6, AE3) or in storage and memory (Pi), and how
+      much room is left
 - [ ] the AE3 column is under the one-day time box: what is not converted in that time is recorded with its reason
 
 **Demo (Nick):** open "What runs where" and press "Run all": the table fills, cell by cell, for the three kinds

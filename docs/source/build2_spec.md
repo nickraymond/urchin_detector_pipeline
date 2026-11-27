@@ -126,14 +126,15 @@ One page in the app, a table of model kind × camera, filled in before any model
 - **More than one model at once (Nick, 2026-11-27).** The MVP puts two models on a camera (detector
   + segmenter), so the page also answers, per camera: can it hold and run several models, or only
   one kind at a time? For each pair (and all three) of the best candidates it shows:
-  - **stored together:** do the files fit in the model area side by side, and how much room is left;
+  - **stored together:** do the files fit side by side in the model area (N6, AE3) or in storage and
+    memory (Pi), and how much room is left;
   - **loaded together:** can both sit in memory at once, with the peak memory measured;
   - **run in one wake-up:** if not together, can the camera load, run and unload one after the
     other, and how long and how much energy the whole sequence takes.
   The headline per camera is one of: "both at once", "one after the other" or "one kind only".
   Known from the earlier work: one N6 model image held two YOLOX detectors plus the vendor's
-  models at 75.7% of the 24 MiB model area (`ml/yolox_urchin/STAGE1.md`); nothing is measured yet
-  about two models in memory at once, on any camera.
+  models at 75.7% of the 24 MiB model area, and both fit on the AE3's 8 MB file flash with 1.1 MB
+  free (`ml/yolox_urchin/STAGE1.md`); nothing in those notes measures two models in memory at once.
 - **What it decides.** Only kinds and architectures that run on a camera are trained for that
   camera. A kind that runs on no camera is still trainable as a laptop reference.
 - Numbers already measured in the earlier work are shown as "earlier work" with their date until
@@ -249,7 +250,8 @@ fills the "what runs where" table with untrained candidates, and later converts 
 ### 12. Bench test (hardware in the loop)
 
 Two uses of the same runner. **Timing run** (first, for "what runs where"): load a converted model,
-run it a fixed number of times on a few frames, read back ms per inference, memory and energy.
+run it a fixed number of times on a few frames, read back ms per inference, memory and energy; and, for several models on one camera, load them
+together (peak memory) or one after the other in one wake-up (time for the whole sequence).
 **Accuracy run** (later, for trained models): the same test frames go through each converted model
 on the real boards; the app collects what came back and scores it exactly as in stage 9.
 
