@@ -13,6 +13,8 @@ A trainer is a class (see TRAINERS in app/train/job.py) with:
     save(epoch, step)                  write checkpoints/last.* so that load() returns this
                                        position (under a temporary name, then renamed)
     unload()                           free the model
+    estimate(steps) -> {"seconds_per_step", "validation_seconds"}   time a few steps after one
+                                       warm-up step and one validation pass; nothing is saved
 
 Rules (TRACKER S8 bite 4a):
 - a checkpoint and a metrics line per epoch. The checkpoint is the truth about where the run
@@ -21,6 +23,13 @@ Rules (TRACKER S8 bite 4a):
 - Pause finishes the step, saves (also mid-epoch) and unloads; Resume starts a new worker,
   which continues from the last checkpoint: no step is repeated or skipped;
 - Cancel ends the worker at once (D34a); checkpoints and metrics stay.
+
+Estimate (bite 5; the D35 pattern): a job with "estimate" set loads the trainer on the recipe in
+`models/.estimate/` (not a model: no number, never listed), times ESTIMATE_STEPS steps and one
+validation pass, and writes `estimate.json` there. It saves no checkpoint and no metrics line
+(the trainer's validation pass may draw its `val_frames/` into `models/.estimate/`; nothing
+serves them). An estimate has nothing to resume: Pause stops it without a result, and Resume
+runs it again from the start.
 """
 
 from __future__ import annotations
@@ -35,6 +44,7 @@ from pathlib import Path
 
 from app.jobctl import worker as jw
 from app.train import models
+from app.train.job import ESTIMATE_STEPS
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -62,12 +72,50 @@ def make_trainer(job: dict, mdir: Path, recipe: dict):
     return getattr(importlib.import_module(module), cls)(mdir, recipe, job)
 
 
+def estimate(job: dict, mdir: Path, recipe: dict, ctl) -> None:
+    epochs = int(recipe["train"]["epochs"])
+    t0 = time.perf_counter()
+    trainer = make_trainer(job, mdir, recipe)
+    if not hasattr(trainer, "estimate"):
+        raise RuntimeError(f"The trainer {job['trainer']} cannot estimate (no estimate()).")
+    try:
+        trainer.load()
+        load_s = time.perf_counter() - t0
+        d = trainer.describe()
+        if d.get("warning"):
+            jw.emit("warning", message=d["warning"])
+        timed = None if ctl.pause_requested() else trainer.estimate(ESTIMATE_STEPS)
+    finally:
+        trainer.unload()
+    if timed is None or ctl.pause_requested():     # Pause: no result; Resume starts over
+        jw.emit("paused")
+        return
+    steps = int(d.get("steps_per_epoch") or 1)
+    per_epoch = steps * timed["seconds_per_step"] + timed.get("validation_seconds", 0.0)
+    out = {"at": datetime.now().isoformat(timespec="seconds"), "epochs": epochs,
+           "steps_per_epoch": steps, "seconds_per_step": round(timed["seconds_per_step"], 3),
+           "validation_seconds": round(timed.get("validation_seconds", 0.0), 3),
+           # the whole run: its epochs plus one start (model load and the device check)
+           "seconds_per_epoch": round(per_epoch, 3),
+           "total_seconds": round(per_epoch * epochs + load_s),
+           "load_seconds": round(load_s, 2), "steps_timed": ESTIMATE_STEPS,
+           "device": d.get("device"), "warning": d.get("warning") or "",
+           "train_frames": d.get("train_frames"), "valid_frames": d.get("valid_frames"),
+           "code": code_version(), "recipe": recipe}
+    models.write_json(mdir / "estimate.json", out)
+    jw.emit("item", i=1, n=1, name="estimate", seconds=round(time.perf_counter() - t0, 2))
+    jw.emit("done", message=f"estimate: {out['seconds_per_epoch']} s per epoch, about "
+                            f"{out['total_seconds']} s for {epochs} epochs")
+
+
 def main() -> None:
     job = jw.load_job()
     mdir = Path(job["model_dir"])
     recipe = models.read_recipe(mdir)
     epochs = int(recipe["train"]["epochs"])
     ctl = jw.listen()
+    if job.get("estimate"):
+        return estimate(job, mdir, recipe, ctl)
     t0 = time.perf_counter()
     trainer = make_trainer(job, mdir, recipe)
     epoch, step = trainer.load()

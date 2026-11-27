@@ -258,6 +258,39 @@ class Trainer:
 
     # ---- one epoch ----
 
+    def _step(self, picks: list[int], pool, epoch: int, it: int) -> dict:
+        """One training step on the frames `picks`; `it` = steps since the run began (the
+        learning-rate schedule's clock). Returns YOLOX's loss dict."""
+        imgs, targets, _ = self._batch(picks, pool, epoch, self.train, True)
+        for g in self.opt.param_groups:
+            g["lr"] = self._lr(it)
+        out = self.model(imgs, targets)
+        self.opt.zero_grad(set_to_none=True)
+        out["total_loss"].backward()
+        self.opt.step()
+        self._ema_update()
+        return out
+
+    def estimate(self, steps: int) -> dict:
+        """Estimate (spec stage 8): time `steps` training steps after one warm-up step, then one
+        validation pass. Call after load(). The weights change in memory only: no checkpoint
+        and no metrics line (the worker never calls save()); the validation pass draws its
+        frames into this folder's val_frames/ as it always does."""
+        import time
+        order = samples.order(len(self.train), self.seed, 0)
+        times = []
+        with ThreadPoolExecutor(self.threads) as pool:
+            for i in range(steps + 1):
+                at = (i % self.steps) * self.batch
+                t = time.perf_counter()
+                float(self._step(order[at:at + self.batch], pool, 0, i)["total_loss"].detach())
+                times.append(time.perf_counter() - t)      # float() waits for the GPU
+            t = time.perf_counter()
+            self._validate(0, pool)
+            val = time.perf_counter() - t
+        return {"seconds_per_step": sum(times[1:]) / steps, "validation_seconds": val,
+                "warm_up_seconds": times[0], "steps_timed": steps}
+
     def run_epoch(self, epoch: int, start_step: int, stop) -> dict:
         order = samples.order(len(self.train), self.seed, epoch)
         total, parts = 0.0, {"iou_loss": 0.0, "conf_loss": 0.0, "cls_loss": 0.0}
@@ -271,15 +304,8 @@ class Trainer:
                 if stop():
                     self.partial = {"at": [epoch, step], "total": total, "parts": parts}
                     return {"done": False, "step": step}
-                picks = order[step * self.batch:(step + 1) * self.batch]
-                imgs, targets, _ = self._batch(picks, pool, epoch, self.train, True)
-                for g in self.opt.param_groups:
-                    g["lr"] = self._lr(epoch * self.steps + step)
-                out = self.model(imgs, targets)
-                self.opt.zero_grad(set_to_none=True)
-                out["total_loss"].backward()
-                self.opt.step()
-                self._ema_update()
+                out = self._step(order[step * self.batch:(step + 1) * self.batch], pool,
+                                 epoch, epoch * self.steps + step)
                 loss = float(out["total_loss"].detach())
                 if not math.isfinite(loss):           # fail loudly, never write NaN lines
                     raise RuntimeError(

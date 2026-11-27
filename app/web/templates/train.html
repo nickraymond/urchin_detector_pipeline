@@ -18,15 +18,15 @@
 <form method="post" action="/p/{{ info.name }}/train/run" id="train-form">
   <input type="hidden" name="version" value="{{ picked.number }}">
   <table class="stages form-table"><tbody>
-  <tr><th>Model type</th><td><select name="model_type">{% for k, t in types.items() %}<option value="{{ k }}">{{ t.name }} ({{ t.kind }})</option>{% endfor %}</select></td>
+  <tr><th>Model type</th><td><select name="model_type" id="model-type">{% for k, t in types.items() %}<option value="{{ k }}"{% if k == form.model_type %} selected{% endif %}>{{ t.name }} ({{ t.kind }})</option>{% endfor %}</select></td>
     <td class="hint">{% for k, t in types.items() %}{{ t.name }}: {{ t.why.type }} {% endfor %}</td></tr>
-  {% set t0 = types.values() | first %}
-  <tr><th>Classes</th><td>{% for c in classes %}<label><input type="checkbox" name="classes" value="{{ c.id }}"{% if c.id in default_ids %} checked{% endif %}> {{ c.name }}</label> {% endfor %}</td>
+  {% set t0 = types[form.model_type] %}
+  <tr><th>Classes</th><td>{% for c in classes %}<label><input type="checkbox" name="classes" value="{{ c.id }}"{% if c.id in form.class_ids %} checked{% endif %}> {{ c.name }}</label> {% endfor %}</td>
     <td class="hint">Default: sea stars and urchins (Nick, 2026-11-27). A class counts only on frames where it is fully checked.</td></tr>
-  <tr><th>Input size (tile, px)</th><td><select name="input">{% for px in t0.inputs %}<option{% if px == t0.defaults.input %} selected{% endif %}>{{ px }}</option>{% endfor %}</select></td><td class="hint">{{ t0.why.input }}</td></tr>
-  <tr><th>Epochs</th><td><input name="epochs" type="number" min="1" max="1000" value="{{ t0.defaults.epochs }}"></td><td class="hint">{{ t0.why.epochs }}</td></tr>
-  <tr><th>Augmentation</th><td><select name="augment">{% for p in t0.presets %}<option{% if p == t0.defaults.augment %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></td><td class="hint">{{ t0.why.augment }}</td></tr>
-  <tr><th>Seed</th><td><input name="seed" type="number" value="{{ t0.defaults.seed }}"></td><td class="hint">Same inputs and seed: a run that can be repeated.</td></tr>
+  <tr><th>Input size (tile, px)</th><td><select name="input">{% for px in t0.inputs %}<option{% if px == form.input %} selected{% endif %}>{{ px }}</option>{% endfor %}</select></td><td class="hint" data-why="input">{{ t0.why.input }}</td></tr>
+  <tr><th>Epochs</th><td><input name="epochs" type="number" min="1" max="1000" value="{{ form.epochs }}"></td><td class="hint" data-why="epochs">{{ t0.why.epochs }}</td></tr>
+  <tr><th>Augmentation</th><td><select name="augment">{% for p in t0.presets %}<option{% if p == form.augment %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></td><td class="hint" data-why="augment">{{ t0.why.augment }}</td></tr>
+  <tr><th>Seed</th><td><input name="seed" type="number" value="{{ form.seed }}"></td><td class="hint">Same inputs and seed: a run that can be repeated.</td></tr>
   <tr><th>Starting weights</th><td><label><input type="radio" name="start_kind" value="scratch" checked> from scratch</label><br>
     <label><input type="radio" name="start_kind" value="pretrained"{% if not pretrained %} disabled{% endif %}> pre-trained here on outside data:</label>
     <select name="start_model"{% if not pretrained %} disabled{% endif %}>{% for m in pretrained %}<option>{{ m }}</option>{% else %}<option value="">no such model yet</option>{% endfor %}</select></td>
@@ -34,8 +34,21 @@
   <tr><th>Start at / Stop by</th><td><input name="start" type="time" aria-label="Start at"> / <input name="stop" type="time" aria-label="Stop by"></td><td class="hint">Optional clock times; the app must stay running. Stop by pauses the run; Resume continues it.</td></tr>
   <tr><th>Keep laptop awake</th><td><label><input type="checkbox" name="keep_awake" value="1"> while this job waits or runs</label></td><td class="hint">Plugged in, lid open.</td></tr>
   </tbody></table>
-  <p><button class="primary" data-job-lock="scheduled queued running pausing paused interrupted"{% if job.state in ("scheduled", "queued", "running", "pausing", "paused", "interrupted") %} disabled{% endif %}>Run</button></p>
+  {% set busy = job.state in ("scheduled", "queued", "running", "pausing", "paused", "interrupted") %}
+  <p><button formaction="/p/{{ info.name }}/train/estimate" data-job-lock="scheduled queued running pausing paused interrupted"{% if busy %} disabled{% endif %}>Estimate</button>
+    <button class="primary" data-job-lock="scheduled queued running pausing paused interrupted"{% if busy %} disabled{% endif %}>Run</button>
+    <span class="hint">Estimate trains {{ estimate_steps }} steps (after 1 warm-up step) and checks the validation frames once, as a short job; it makes no model. Cancel stops it (a paused estimate starts over on Resume).</span></p>
 </form>
+<script type="application/json" id="model-types">{{ types | tojson }}</script>
+{% if estimate %}{% set er = estimate.recipe %}
+<p class="totals" id="estimate">Estimate: about <b>{{ minutes(estimate.total_seconds) }}</b> for {{ estimate.epochs }} epochs
+  ({{ estimate.seconds_per_epoch }} s per epoch) on {{ "the Apple GPU" if estimate.device == "mps" else "the CPU" if estimate.device == "cpu" else estimate.device }}.
+  <span class="hint">{{ estimate.at | replace('T', ' ') }} · {{ types[er.train.model_type].name if er.train.model_type in types else er.train.model_type }}, {{ er.train.tile }} px,
+  {{ er.arch.classes | join(", ") }}, dataset version {{ er.train.dataset.version }}, augmentation {{ er.train.augment }} ·
+  {{ estimate.steps_per_epoch }} step(s) per epoch × {{ estimate.seconds_per_step }} s + {{ estimate.validation_seconds }} s for validation, + {{ estimate.load_seconds }} s to load ·
+  {{ estimate.train_frames }} training frames. Other settings take another Estimate.</span></p>
+{% if estimate.warning %}<p class="problem">{{ estimate.warning }}</p>{% endif %}
+{% endif %}
 {% endif %}
 <div data-live="/p/{{ info.name }}/live/train?back={{ ('/p/' ~ info.name ~ '/train') | urlencode }}" data-reload-on="done error cancelled">{{ job_panel(job, "/p/" ~ info.name ~ "/train") }}</div>
 
@@ -43,8 +56,11 @@
 <h2>Model {{ shown.id }}</h2>
 <p class="hint">{{ shown.arch.classes | join(", ") }} · dataset version {{ shown.train.dataset.version }} ({{ shown.train.dataset.hash[:8] }})
   · {{ shown.train.epochs }} epochs · augmentation {{ shown.train.augment }} · seed {{ shown.train.seed }} · start: {{ shown.train.start.kind }}{% if shown.train.start.model %} ({{ shown.train.start.model }}){% endif %}</p>
-<div id="curves" data-src="/p/{{ info.name }}/train/metrics/{{ shown.id }}"><div class="charts"></div>
-  <p class="hint curve-note"></p></div>
+<div id="curves" data-src="/p/{{ info.name }}/train/metrics/{{ shown.id }}" data-val="/p/{{ info.name }}/train/val/{{ shown.id }}/"><div class="charts"></div>
+  <p class="hint curve-note"></p>
+  <div class="val-frames"></div>
+  <p class="hint val-note" hidden>Validation frames after epoch <span class="val-epoch"></span>: cut-outs at the training scale.
+    <b>White</b> boxes are the labels, <b>yellow</b> boxes are what the model finds (score 0.3 or more). They are redrawn after every epoch.</p></div>
 {% endif %}
 
 <h2>Models</h2>

@@ -17,7 +17,8 @@ class FakeTrainer:
         self.value = 0
 
     def describe(self):
-        return {"device": "none (fake)", "libraries": {"fake_trainer": "1"}}
+        return {"device": "none (fake)", "libraries": {"fake_trainer": "1"},
+                "steps_per_epoch": self.t.get("steps", 3)}
 
     def load(self):
         p = self.dir / "checkpoints" / "last.json"
@@ -41,6 +42,9 @@ class FakeTrainer:
                 f.write(f"{epoch} {step} {os.getpid()}\n")
         return {"done": True, "metrics": {"loss": round(1 / (1 + self.value), 4),
                                           "value": self.value}}
+
+    def estimate(self, steps):
+        return {"seconds_per_step": self.t.get("delay", 0) or 0.25, "validation_seconds": 0.5}
 
     def save(self, epoch, step):
         p = self.dir / "checkpoints" / "last.json"
