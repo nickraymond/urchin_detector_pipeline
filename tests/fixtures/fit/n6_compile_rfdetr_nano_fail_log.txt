@@ -1,0 +1,17 @@
+[91mstedgeai generate failed for /in/rfdetr_nano_384_int8.tflite (exit code 255)[0m
+stedgeai generate --target stm32n6 --model /in/rfdetr_nano_384_int8.tflite --relocatable --st-neural-art default@/omv/lib/stai/scripts/neuralart.json --workspace /out/rfdetr_nano_384_int8/workspace --output /out/rfdetr_nano_384_int8/gen --verbosity 1 --quiet
+ST Edge AI Core v4.0.0-20500 359356bb0
+
+INTERNAL ERROR: 'NoneType' object is not subscriptable
+
+Traceback (most recent call last):
+  File "/omv/tools/modelc.py", line 138, in <module>
+    stedge_compile(args.input, args.build_dir, args.stedge_profile, args.stedge_args.split())
+  File "/omv/tools/modelc.py", line 106, in stedge_compile
+    raise(e)
+  File "/omv/tools/modelc.py", line 95, in stedge_compile
+    result = subprocess.run(generate_command, check=True, text=True, env=env,
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/sdk/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['stedgeai', 'generate', '--target', 'stm32n6', '--model', '/in/rfdetr_nano_384_int8.tflite', '--relocatable', '--st-neural-art', 'default@/omv/lib/stai/scripts/neuralart.json', '--workspace', '/out/rfdetr_nano_384_int8/workspace', '--output', '/out/rfdetr_nano_384_int8/gen', '--verbosity', '1', '--quiet']' returned non-zero exit status 255.
