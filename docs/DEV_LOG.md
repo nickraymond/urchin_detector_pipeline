@@ -17,6 +17,19 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2a-i: model definitions, YOLOX candidates (S6 builder)
+**Branch:** sprint/6-detector-candidates
+**Done:** `app/modeldefs/` (plain data + PyTorch, imports nothing else from `app`; a test checks): candidates as
+the `arch` part of a recipe (D54), `arch_key` folder names (D53), checks that say what is wrong, `build()` for the
+exported module. YOLOX Nano / Tiny (plain first layer, three raw maps) at 256 and 320 px with the five Build 2
+classes, adapted from the earlier `yolox_urchin/model.py`. YOLOX is an unmodified checkout at `6ddff48` in
+`<tools_dir>/third_party/YOLOX` (LICENSE sha256 `0ec3668d…`, Apache-2.0). Self-test in the conversion environment:
+all four candidates build; outputs (1, 10, px/8 … px/32); 896,238 parameters (Nano), 5,032,086 (Tiny).
+**Broke/surprised us:** importing YOLOX needs `loguru`, `tabulate` and `cv2`; the app's environment has none of
+them, so the two build tests skip there (S8's trainer will need them if it trains in the app's environment).
+Cloning YOLOX on macOS warns about two demo files whose names differ only by case; the model code is not affected.
+**Next:** bite 2a-ii (RF-DETR Nano), then 2b (segmenters).
+
 ## 2026-11-27 — Sprint S6 — Bite 1: prior art, toolchains, known-good reproduction (S6 builder)
 **Branch:** sprint/6-toolchains (docs, licence records and one requirements file; no app code)
 **Done:** read `ADIN_SPI_OpenMV/ml/` (export, compile scripts, gate report, STAGE1) and `~/nereus_ml/`; what is
