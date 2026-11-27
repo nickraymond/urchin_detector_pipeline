@@ -44,9 +44,12 @@ def test_detector_candidates_are_complete_recipes():
     for a in cands:
         assert modeldefs.check(a) == []
         assert a["classes"] == modeldefs.BUILD2_CLASSES
-        assert a["licence"] in PERMISSIVE and a["licence_mark"] is None
+        if a["family"] == "rfdetrplus":      # SPEC hard constraint 6: evaluation only, always marked
+            assert (a["licence"], a["licence_mark"]) == ("PML-1.0", "Roboflow licence")
+        else:
+            assert a["licence"] in PERMISSIVE and a["licence_mark"] is None
         assert len(a["code"]["commit"]) == 40 or a["code"]["commit"].startswith("pip:")
-        assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-venv")
+        assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-venv", "rfdetr-plus-venv")
     assert {"rfdetr-nano-384-c5", "rfdetr-nano-256-c5"} <= set(keys)
     keys = [modeldefs.arch_key(a) for a in modeldefs.candidates("instance")]
     assert keys == ["rfdetr-seg-nano-312-c5", "yoloxproto-nano-conv-256-c5", "yoloxproto-tiny-conv-256-c5"]
@@ -169,6 +172,30 @@ def test_rfdetr_missing_package_says_how_to_fix():
     from app.modeldefs import rfdetr
     with pytest.raises(modeldefs.ModelDefError, match="rfdetr-venv"):
         modeldefs.build(rfdetr.arch(384, ["x"]))
+
+
+def test_roboflow_licensed_sizes_are_always_marked_and_never_permissive():
+    from app.modeldefs import rfdetrplus
+    keys = [modeldefs.arch_key(a) for a in rfdetrplus.candidates()]
+    assert keys == ["rfdetrplus-atto-380-c5", "rfdetrplus-femto-384-c5", "rfdetrplus-pico-560-c5"]
+    a = rfdetrplus.arch("atto", ["x"])
+    assert modeldefs.export_settings(a)["env"] == "rfdetr-plus-venv" and a["licence"] not in PERMISSIVE
+    for change in ({"licence_mark": None}, {"licence": "Apache-2.0"}):
+        assert any("Roboflow licence" in p for p in modeldefs.check({**a, **change}))
+    assert any("stock input" in p for p in modeldefs.check({**a, "input": [256, 256]}))
+    assert any("one of" in p for p in modeldefs.check({**a, "size": "nano"}))
+    # only Roboflow-licensed families may carry a non-permissive licence
+    for c in modeldefs.candidates():
+        assert (c["licence"] in PERMISSIVE) != (c["licence_mark"] == "Roboflow licence"), modeldefs.arch_key(c)
+
+
+@pytest.mark.skipif(importlib.util.find_spec("rfdetr_plus") is None, reason="rfdetr_plus is only in its tool environment")
+def test_roboflow_licensed_sizes_build_untrained():
+    import torch
+    from app.modeldefs import rfdetrplus
+    dets, labels = [o for o in modeldefs.build(rfdetrplus.arch("atto", modeldefs.BUILD2_CLASSES))(torch.zeros(1, 3, 380, 380))
+                    if o is not None]
+    assert tuple(dets.shape) == (1, 300, 4) and tuple(labels.shape) == (1, 300, 6)
 
 
 def test_check_names_a_missing_field():

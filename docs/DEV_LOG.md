@@ -17,6 +17,18 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2d: the Roboflow-licensed sizes (S6 builder)
+**Branch:** sprint/6-rfdetr-plus
+**Done:** shown first, before any use: what `rfdetr[plus]` sends out (DESIGN §Bench results; the finding is also
+in the sessions' shared notes). Then, on the spec lead's call (D59): `app/modeldefs/rfdetrplus.py` with Atto,
+Femto and Pico at their stock sizes, licence "PML-1.0", mark "Roboflow licence" (a recipe without the mark is
+refused), their own tool environment, the PML summary in `THIRD_PARTY_LICENSES` under "NOT PERMISSIVE".
+**Broke/surprised us:** "untrained" is not offline by default for these sizes: with no RF-DETR weights named, the
+package fetches the backbone's pretrained weights from the Hugging Face Hub. The block held (0 connections), and
+the build now uses the package's own `force_no_pretrain`. The plan check TRACKER asks of the builder cannot be done
+without Nick's account; it is with the spec lead for Nick.
+**Next:** RF-DETR (all six) through the convert job; bite 3c (the Pi); bite 4 (the page).
+
 ## 2026-11-27 — Sprint S6 — Bite 3b: N6 and AE3 compilers in the convert job (S6 builder)
 **Branch:** sprint/6-compilers
 **Done:** `app/fit/n6.py` (ST Edge AI Core 4.0.0 through OpenMV's `modelc.py` in the container, everything but the
