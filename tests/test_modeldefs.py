@@ -22,10 +22,12 @@ def test_modeldefs_imports_nothing_else_from_app():
                 assert not name.startswith("app") or name.startswith("app.modeldefs"), (path.name, name)
 
 
-def test_init_does_not_import_torch_at_module_level():
-    tree = ast.parse((PKG / "__init__.py").read_text())
-    top = [n for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))]
-    assert not any("torch" in ast.dump(n) for n in top)
+def test_no_file_imports_torch_or_model_code_at_module_level():
+    """candidates() imports every family's file; none may load torch or third-party model code."""
+    for path in PKG.glob("*.py"):
+        top = [n for n in ast.parse(path.read_text()).body if isinstance(n, (ast.Import, ast.ImportFrom))]
+        for n in top:
+            assert not any(word in ast.dump(n) for word in ("torch", "yolox.", "rfdetr'")), (path.name, ast.dump(n))
 
 
 def test_detector_candidates_are_complete_recipes():
@@ -57,6 +59,11 @@ def test_arch_key_shapes():
     ({"input": [250, 256]}, "multiples of 32"),
     ({"input": 256}, "height, width"),
     ({"classes": []}, "no classes"),
+    ({"classes": 5}, "list of class names"),
+    ({"classes": "abc"}, "list of class names"),
+    ({"classes": ["x", 3]}, "list of class names"),
+    ({"code": "x"}, "table of names"),
+    ({"variant": "conv"}, "table of names"),
     ({"size": "huge"}, "size"),
     ({"variant": {"stem": "focus"}}, "plain first layer"),
     ({"code": {"repo": "x"}}, "repo and commit"),
@@ -79,6 +86,26 @@ def test_missing_checkout_says_how_to_fix(tmp_path, monkeypatch):
     monkeypatch.setenv("URCHIN_TOOLS_DIR", str(tmp_path))
     with pytest.raises(modeldefs.ModelDefError, match="set the tools up"):
         modeldefs.build(yolox.arch("nano", 256, ["x"]))
+
+
+def test_third_party_loads_one_package_and_leaves_sys_path_alone(tmp_path, monkeypatch):
+    import sys
+    root = tmp_path / "third_party" / "Thing"
+    (root / "fakepkg").mkdir(parents=True)
+    (root / "fakepkg" / "__init__.py").write_text("from fakepkg.sub import VALUE\n")
+    (root / "fakepkg" / "sub.py").write_text("VALUE = 7\n")
+    (root / "tests").mkdir()
+    (root / "tests" / "__init__.py").write_text("SHADOW = True\n")
+    monkeypatch.setenv("URCHIN_TOOLS_DIR", str(tmp_path))
+    before = list(sys.path)
+    try:
+        assert modeldefs.third_party("Thing", "a" * 40, "repo", package="fakepkg") == root
+        import fakepkg
+        assert fakepkg.VALUE == 7 and sys.path == before
+        assert not any(str(root) == p for p in sys.path)
+    finally:
+        sys.modules.pop("fakepkg", None)
+        sys.modules.pop("fakepkg.sub", None)
 
 
 def _yolox_here() -> bool:

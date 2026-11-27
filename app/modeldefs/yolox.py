@@ -57,7 +57,7 @@ def build_model(a: dict):
     """The whole YOLOX model (backbone + head), untrained, with the plain first layer. Training (S8)
     uses this; export uses build()."""
     from app.modeldefs import third_party
-    third_party("YOLOX", CODE["commit"], CODE["repo"])
+    third_party("YOLOX", CODE["commit"], CODE["repo"], package="yolox")
     from yolox.exp.build import get_exp_by_name
     from yolox.models.network_blocks import BaseConv
 

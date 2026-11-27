@@ -2,7 +2,8 @@
 
 Plain data plus PyTorch. Nothing here imports the rest of `app`, so the same code runs in the app's
 environment (training, S8) and in the conversion environment under `tools_dir` (a test checks). This
-file itself imports no torch: the "What runs where" page reads CANDIDATES without loading a model.
+package imports no torch until a model is built: the "What runs where" page calls candidates() without
+loading a model.
 
 A candidate is the `arch` part of a recipe (D54):
 
@@ -14,13 +15,14 @@ A candidate is the `arch` part of a recipe (D54):
     build(arch)     -> the model, untrained, as the module that is exported (raw output maps)
 
 Third-party model code is an unmodified git checkout at a pinned commit under
-`<tools_dir>/third_party/<name>` (D51); `third_party(name)` puts it on sys.path and says how to get it
-when it is missing.
+`<tools_dir>/third_party/<name>` (D51); `third_party(...)` loads its one package from there and says how
+to get it when it is missing.
 """
 
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import os
 import re
 import sys
@@ -45,15 +47,26 @@ def tools_dir() -> Path:
     return Path(os.environ.get("URCHIN_TOOLS_DIR") or DEFAULT_TOOLS_DIR).expanduser()
 
 
-def third_party(name: str, commit: str, repo: str) -> Path:
-    """Put <tools_dir>/third_party/<name> on sys.path. The checkout is not verified against
-    `commit` here (no git call in a model build); the tools set-up step pins it."""
+def third_party(name: str, commit: str, repo: str, package: str) -> Path:
+    """Make `package` importable from <tools_dir>/third_party/<name>/<package>. Only that package is
+    loaded: the checkout's root is not put on sys.path, because it holds other top-level packages
+    (YOLOX has its own `tests` and `tools`) that would shadow ours (QE PR 68). The checkout is not
+    verified against `commit` here; the convert job records and checks it."""
     path = tools_dir() / "third_party" / name
-    if not path.is_dir():
+    init = path / package / "__init__.py"
+    if not init.is_file():
         raise ModelDefError(
             f"Model code not found: {path}. Fix: set the tools up (it checks out {repo} at {commit[:7]}).")
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+    if package not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            package, init, submodule_search_locations=[str(init.parent)])
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[package] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            del sys.modules[package]
+            raise
     return path
 
 
@@ -80,11 +93,14 @@ def check(arch: dict) -> list[str]:
         problems.append(f"kind must be one of {', '.join(KINDS)}, not {arch['kind']!r}")
     if arch["family"] not in FAMILIES:
         problems.append(f"model family {arch['family']!r} is not in the app (known: {', '.join(FAMILIES)})")
+    if not isinstance(arch["code"], dict) or not isinstance(arch.get("variant") or {}, dict):
+        return problems + ["code and variant must each be a table of names and values"]
     inp = arch["input"]
     if not (isinstance(inp, list) and len(inp) == 2 and all(isinstance(v, int) and v > 0 for v in inp)):
         problems.append("input must be [height, width] in pixels")
-    if not arch["classes"]:
-        problems.append("the recipe lists no classes")
+    classes = arch["classes"]
+    if not (isinstance(classes, list) and classes and all(isinstance(c, str) and c for c in classes)):
+        problems.append("the recipe lists no classes (classes must be a list of class names)")
     if not (arch["code"].get("repo") and arch["code"].get("commit")):
         problems.append("the recipe does not say which code (repo and commit) it is built from")
     if not problems:
