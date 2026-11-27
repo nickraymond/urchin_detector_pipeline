@@ -484,10 +484,13 @@ app/web/templates/datasets.html, train.html
   ```
   datasets/images/<sha256>.<jpg|png>   every frame any version uses, stored once under its content hash
   datasets/v<N>/manifest.json          see below; written once, never changed
-  datasets/v<N>/detector_coco.json     copied from export/ as it was (labels are frozen by copy: they are small)
+  datasets/v<N>/detector_coco.json     the export's file with each image's `split` set to the version's
+  datasets/v<N>/frame_metrics.csv      the export's file with the `split` column set to the version's
   datasets/v<N>/seg_masks/             copied from export/ (8-bit PNGs + classes.json)
-  datasets/v<N>/frame_metrics.csv      copied from export/
+  datasets/v<N>/splits/                train.txt, valid.txt, test.txt (the version's, not the export's)
   ```
+  Labels are frozen by copy (they are small). The export's own `split` fields would be wrong from version 2
+  on (D61), so the version's copies carry the version's splits and the manifest is the authority.
   "Frames by reference" (spec §Outputs) = the manifest names each frame by its content hash and the file
   lives once in `datasets/images/`, shared by every version that uses it. A reference into `export/images/`
   or `frames/` would not hold: the export is rebuilt from scratch on every Export (D41), a frame rejected
