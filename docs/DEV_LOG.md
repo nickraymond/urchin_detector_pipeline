@@ -17,6 +17,17 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2b: segmenter candidates (S6 builder)
+**Branch:** sprint/6-segmenter-candidates
+**Done:** `app/modeldefs/tvseg.py` (torchvision LR-ASPP and DeepLabV3 on MobileNetV3-Large, BSD-3-Clause read at
+the source, built with no weights) and `app/modeldefs/plainseg.py` (our own plain conv net, sizes `s` and `m`);
+six classes (the five plus "other"), 256 px, one raw scores map (D57). These need only torch and torchvision, so
+the app's own tests build all four and check the output shapes: LR-ASPP 3,218,988 parameters, DeepLabV3
+11,021,622, plain `s` 53,030, plain `m` 126,966. A test proves the plain net holds only conv, batch-norm, ReLU6
+and nearest upsampling.
+**Broke/surprised us:** nothing.
+**Next:** bite 2c (instance segmenters: RF-DETR-Seg Nano and one or two small conv ones).
+
 ## 2026-11-27 — Sprint S6 — Bite 2a-ii: RF-DETR Nano candidate (S6 builder)
 **Branch:** sprint/6-rfdetr-nano
 **Done:** `app/modeldefs/rfdetr.py`: RF-DETR Nano (Apache-2.0, read at the source) as a detector candidate at 384 px
