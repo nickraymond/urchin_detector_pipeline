@@ -181,7 +181,7 @@ Starting weights for YOLOX (the three checks of docs/source/build2_spec.md, "Mod
   COCO; COCO's terms of use (github.com/cocodataset/cocodataset.github.io, dataset/termsofuse.htm, read 2026-11-27) license the
   annotations under CC BY 4.0, say the COCO Consortium does not own the images and that their use must
   follow Flickr's terms, and say nothing about trained weights. Not verified as permissive; they stay out
-  of the app until a verdict is recorded here.
+  of the app until a verdict is recorded here (Lead call D62 in docs/DESIGN.md; Nick can reverse it).
 - Nick's earlier YOLOX stage-1 weights (~/nereus_ml/runs/): NOT USED. Trained on Urchinbot + DUO + RF100
   (ADIN_SPI_OpenMV ml/yolox_urchin/STAGE1.md); Nick, 2026-11-27: no DUO-trained weights for a camera model.
 
