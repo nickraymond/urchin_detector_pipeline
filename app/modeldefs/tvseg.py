@@ -11,7 +11,7 @@ upsamples it itself, bilinear); the class of a pixel is the largest score, taken
 
 from __future__ import annotations
 
-CODE = {"repo": "https://github.com/pytorch/vision", "commit": "pip:torchvision"}
+CODE = {"repo": "https://github.com/pytorch/vision", "commit": "pip:torchvision==0.28.0"}   # the conversion environment's pin
 SIZES = {"lraspp-mnv3l": "lraspp_mobilenet_v3_large", "deeplabv3-mnv3l": "deeplabv3_mobilenet_v3_large"}
 OUTPUT_NAMES = ["scores"]
 
