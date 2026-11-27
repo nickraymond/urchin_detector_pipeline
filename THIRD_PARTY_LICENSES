@@ -389,9 +389,10 @@ Starting weights for YOLOX (the three checks of docs/source/build2_spec.md, "Mod
 Roboflow RF-DETR (`rfdetr` 1.9.4 from PyPI, in its own tool environment; model code for the RF-DETR Nano
   candidate, `app/modeldefs/rfdetr.py`) — Apache-2.0: the LICENSE file on `roboflow/rf-detr`, branch
   `develop`, and the one inside the installed package are the same text (sha256 `8cabf52c…`, read
-  2026-11-27); the package's readme says "The open-source `rfdetr` package and Apache-designated models are
-  released under Apache 2.0, while Plus components (`rfdetr_plus`, including RF-DETR-XL/2XL detection
-  models) are licensed under PML 1.0". Only the code is used: the candidate is built untrained, with no
+  2026-11-27); the repository's README says today (branch `develop`, read 2026-11-27): "`pip install rfdetr`
+  gives you only Apache 2.0 RF-DETR code and models, so it's commercially usable out of the box.
+  `pip install "rfdetr[plus]"` adds the Atto, Femto, Pico, XL and 2XL detection models under PML 1.0";
+  the readme inside the 1.9.4 package says the same of the package and names only XL / 2XL as Plus. Only the code is used: the candidate is built untrained, with no
   weights downloaded. RF-DETR's published starting weights are a separate check, not made yet (S9).
   Its main dependencies, from PyPI metadata: transformers 5.24.1 — Apache 2.0; huggingface-hub 2.5.0 —
   Apache-2.0; safetensors 0.8.0 and tokenizers 0.23.3 — Apache; supervision 0.32.3 — MIT; pydantic 2.14.4 —
