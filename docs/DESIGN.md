@@ -505,6 +505,105 @@ its progress (D33): a step whose output exists is skipped on Resume.
 why}]; `file_bytes` and `limit_bytes` with the limit's source; `memory_bytes`; `estimate_ms` marked as the
 compiler's estimate; `tool` name and version; `error` (the compiler's message when it does not convert). A failed
 conversion writes `fit.json` with `converts: false`; the job itself ends "done".
+### Planned for S8 (dataset versions and the first detector) — builder's plan 2026-11-27 (TRACKER S8 bite 1); becomes as-built as bites land
+
+```
+app/datasets/versions.py   freeze a version from export/ (manifest, hash), list and read versions
+app/datasets/splits.py     carry each group's split from the version before; deal new groups (D61)
+app/datasets/view.py       what training will see: counts, classes under target, frames left out (bite 2b)
+app/datasets/loaders.py    detector samples from a version, honoring "fully checked" and the split check (bite 2b)
+app/datasets/outside.py    public sources from the outside-data folder, with their licence records (bite 3)
+app/datasets/worker.py     the `freeze` job kind
+app/train/worker.py        the `train` job kind: epochs as items, checkpoint + metrics line per epoch (bite 4a)
+app/train/yolox.py         the YOLOX trainer behind it (bite 4b; needs S6 bite 1's decisions)
+app/web/templates/datasets.html, train.html
+```
+
+- **Layout of `datasets/` (D60).** Per project:
+  ```
+  datasets/images/<sha256>.<jpg|png>   every frame any version uses, stored once under its content hash
+  datasets/v<N>/manifest.json          see below; written once, never changed
+  datasets/v<N>/detector_coco.json     the export's file with each image's `split` set to the version's
+  datasets/v<N>/frame_metrics.csv      the export's file with the `split` column set to the version's
+  datasets/v<N>/seg_masks/             copied from export/ (8-bit PNGs + classes.json)
+  datasets/v<N>/splits/                train.txt, valid.txt, test.txt (the version's, not the export's)
+  ```
+  Labels are frozen by copy (they are small). The export's own `split` fields would be wrong from version 2
+  on (D61), so the version's copies carry the version's splits and the manifest is the authority.
+  "Frames by reference" (spec §Outputs) = the manifest names each frame by its content hash and the file
+  lives once in `datasets/images/`, shared by every version that uses it. A reference into `export/images/`
+  or `frames/` would not hold: the export is rebuilt from scratch on every Export (D41), a frame rejected
+  later moves to `rejected/`, and rotated stills are re-saved (D44). The SSD is exFAT (as-built S5), so hard
+  links are not available. Cost: one extra copy of each accepted frame per project, not per version.
+  A version is built in `datasets/v<N>.new/` and renamed when complete; a half-built one is removed on the
+  next freeze. Nothing in the app rewrites or removes a `v<N>/` folder or a file in `datasets/images/`.
+- **`manifest.json`.** `number`, `name` (Nick's words, optional), `created`, `hash`; `export` (the export's
+  `summary.json` time and counts); `classes` (the export's `classes.json` list); `files` (sha256 of each
+  copied label file); `frames`: one row per frame with `file`, `image` (sha256 + extension), `width`,
+  `height`, `source`, `group`, `split`, `split_ok`, `checked_classes`; `groups` (`group`, `split`, `frames`,
+  `carried` from which version or `new`); `grouped_by` and the export's split warning; `counts` (objects and
+  frames per class and split); `outside` (bite 3: sources with licence, counts and their own content hash);
+  `previous` (the version it carried splits from). `hash` = sha256 of the canonical JSON of `classes`,
+  `files`, `frames`, `groups` and `outside`: the same content gives the same hash whatever its number, name
+  or date, and Freeze says "nothing changed since v<N>" instead of writing an identical version.
+- **Freeze is a job** (kind `freeze`, not pausable: it copies files into `v<N>.new/` and starts over if
+  stopped). Refused with no export, with an export whose checks did not pass (`summary.json` `ok`), or while
+  an export job is queued or running.
+- **Splits across versions (D61).** Version 1 takes the export's groups and splits as they are. Later
+  versions never ask the export where a frame goes: a frame that was in any earlier version keeps the split
+  it had in the newest version that holds it (so a frame left out of one version and back in the next is not
+  dealt again); a group (site + dive date, or video when the export had to fall back, D43) that was in an
+  earlier version keeps its split the same way, and its new frames join it. "The same frame" is the same
+  file name, not the same image hash: a rotated still is re-encoded on every Export (D44), so its bytes can
+  change while it is still that frame (QE PR 61). New groups are dealt, largest first, to the split furthest
+  below 70 / 20 / 10 counting the frames already placed (the export's rule, started from the carried
+  counts). One case the spec does not cover: the export's grouping changes from "video" to "site and dive
+  date" once a project has 3 dives, and a dive whose videos sat in different splits becomes one group. Its
+  old frames keep their splits (a test frame never moves to train); its new frames go to the most held-out
+  split its old frames are in (test before valid before train), and the page lists such groups.
+- **Outside data in a version (as-built, bite 3; QE PR 66).** `datasets/v<N>/outside/<key>.jsonl` holds one
+  row per image of an added public source (path inside `outside_data_dir`, size, split, boxes, size in bytes);
+  the manifest entry carries the licence, attribution, counts and the rows file's sha256, which is part of the
+  version's hash. The images stay where they are and are frozen by their size in bytes only, not by content
+  hash: weaker than D60 gives Nick's own frames, chosen because the folder is tens of GB and its archives are
+  never modified; the entry says so (`frozen_by`). Sources and their records: `app/datasets/outside.py`,
+  `THIRD_PARTY_LICENSES` "Outside data" (D63).
+- **Training reads a version, never the export** (spec stage 7): the loaders take `datasets/v<N>/` and
+  `datasets/images/` and check each image's hash on first use.
+- **What training adds to S6 bite 1's decisions** (package location, `models/` layout, recipe: the S6
+  builder's calls, now Lead calls D51, D53 and D54; nothing here changes them). S8 uses that layout's names as they
+  are: a trained model is `projects/<name>/models/m<number>-<arch key>/` with `recipe.json`, `checkpoints/`
+  and `train.jsonl`. What S8 puts in them: `recipe.json` → `train` holds the dataset version and its hash,
+  classes, tiling, epochs, augmentation preset, seed and the starting weights with their licence record
+  (D54), and the train job appends one `recorded` entry per start or resume (time, where it continued from,
+  code commit, library versions, device, limits); `checkpoints/last.*` is where Resume continues (model,
+  optimizer, EMA, epoch and step: the earlier trainer's dict plus the step) next to the best one by
+  validation; `train.jsonl` has one line per finished epoch; `val_frames/` (new, S8) holds a few drawn
+  validation frames per epoch for the Train page. Bite 4a builds the job kind with a fake trainer against
+  exactly these files, so 4b only swaps the trainer in.
+
+**Reuse from the earlier YOLOX work** (`ADIN_SPI_OpenMV` @ `994b8c2`, `ml/yolox_urchin/`, read 2026-11-27;
+read only, nothing is imported from that repo: pieces are adapted into `app/train/` with a note in each file).
+
+| Earlier file | What it is | Reused in S8 |
+|---|---|---|
+| `train.py` | the loop: SGD + Nesterov, peak lr 0.01 / 64 × batch, 3-epoch linear warm-up (at most 1500 steps), cosine decay to 5 %, EMA with ramped decay (fixed decay scored 0.478 against 0.573, its own note), BatchNorm eps 1e-3 / momentum 0.03, mosaic off for the last 10 epochs, checkpoint dict `{model, opt, ema, epoch}`, resume, run record (config, git sha, corpus hash) | **Adapted** (4b): same loop and numbers as the known-good start (value 5). Changed: SIGTERM stop → the job module's `pause` on stdin; `~/nereus_ml/runs` → the model's folder; one class → the run's class list; one `@@` metrics line and checkpoint per epoch |
+| `model.py` | `build_model` (YOLOX-Nano / -Tiny from YOLOX's own `exp`, Focus stem swapped for a stride-2 conv, the variant that compiled for both NPUs), three run-time patches for the Apple GPU (legacy `.type()` casts), `RawExport`, `decode_raw` | **Shared with S6** bite 2a (the detector's model definition is the S6 builder's); the trainer calls that definition. The Apple GPU patches are training-only and move to `app/train/` |
+| `data.py` | samples: scale so the median box lands in the 24–64 px band, box-aware crop to a 256 px canvas (15 % random), mosaic, flip, HSV, Gaussian blur on its own random stream so turning blur on never moves a box; boxes under 8 px dropped | **Adapted** (4b) as the recipe's tiling and augmentation. Uses OpenCV, which the app does not depend on: 4b first tries Pillow / numpy / scipy (already dependencies) and adds OpenCV only with its licence read. **New:** haze (TRACKER 4b asks for it; the earlier file left haze out on purpose: "measured harmless to tiny", hurt only Nano) |
+| `test_data_aug.py` | boxes unchanged by blur, same seed → same sample, evaluation never blurs | **Adapted** as tests (4b), on synthetic images |
+| `train_ctl.py`, the LaunchAgent in `README.md` | its own control page, SIGSTOP pause, night schedule | **Not reused**: `app/jobctl` does all of it (D4, D32–D38) |
+| `export.py`, `decode_np.py`, `eval_rung_a.py` | 8-bit export and compiles; numpy decode + NMS; COCOeval scoring | Not S8: S6 (convert) and S9 (evaluate) |
+| `train_species.py`, `stage2_autobox.py`, `harvest_crops.py`, `hil_stills.py`, `plot_curves.py` | the two-stage species head and rig tools | Not reused: Build 2 trains the urchin types as detector classes |
+| `~/nereus_ml/datasets/corpus_v1/` and the runs' weights | Urchinbot + DUO + RF100 corpus; stage-1 weights trained on it | **Not used** (spec, Nick 2026-11-27: no DUO, no DUO-trained weights); bite 3 builds its own view of the allowed sources |
+
+Licences for S8, read at the source 2026-11-27 (texts and details in `THIRD_PARTY_LICENSES`):
+YOLOX code Apache-2.0 (`Megvii-BaseDetection/YOLOX` `LICENSE` at `6ddff48`, the head of `main`; GitHub's
+licence API says Apache-2.0; the local checkout `~/nereus_ml/third_party/YOLOX` is the same commit and its
+`LICENSE` has the same sha256). YOLOX's published COCO weights: the repository has no separate licence
+statement for them; they are release files of that repository, trained on COCO, whose terms put the
+annotations under CC BY 4.0 and leave the images under Flickr's terms (`cocodataset.github.io`
+`dataset/termsofuse.htm`, the file the site's Terms of Use tab loads, read from its GitHub repository). So the weights' licence is **not verified as
+permissive**: S8 offers "from scratch" and "pre-trained on the allowed sources" only (Lead call D62).
 
 ## Decision log
 
@@ -573,6 +672,11 @@ conversion writes `fit.json` with `converts: false`; the job itself ends "done".
 | D53 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S6 builder): the `models/` layout in §Planned for S6. A trained model is `projects/<name>/models/<model id>/` (the spec's folder); an untrained candidate is `<data_dir>/fit/<arch key>/` with the same `recipe.json`, `int8/` and `targets/<camera>/` inside. `<model id>` is `m<number>-<arch key>`, numbered per project and never reused. `<arch key>` is readable and built from the recipe's architecture part: `<family>-<size>[-<variant>]-<input px>-c<classes>`, for example `yolox-nano-conv-256-c5`. | "What runs where" needs no project and no trained model (spec §First result), so untrained results cannot live in a project. The same inner layout lets one `convert` job serve both (spec stage 11). A trained model's placement is expected to equal its untrained sibling's but is compiled again, not assumed: the earlier trained export had 119 steps against 118 untrained. Nick can reverse it. |
 | D54 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S6 builder): a recipe is one JSON file, `recipe.json`, in two parts. `arch` (all S6 needs, and what the arch key is built from): `kind` (detector / segmenter / instance), `family`, `size`, `variant` (for example `{"stem": "conv"}`), `input` [height, width], `classes` (the list of class names; untrained candidates use the five Build 2 classes, plus "other" for the segmenters), `outputs` (the raw output maps and how they decode), `code` {repo, commit}, `licence` and `licence_mark` ("Roboflow licence" or none). `train` (S8 fills it; absent for untrained candidates): dataset version, tiling, epochs, augmentation preset, starting weights, seed, library versions, device. Tiling sits in `train` / evaluation, not in `arch`: a tile is just an input of the `arch` size. | Spec: "model type × size × input size × tiling" is one recipe, and every run records what made it. Splitting it keeps the fit result tied to what the compilers see (architecture and input size) while training settings change freely. Nick can reverse it. |
 | D55 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S6 builder): the untrained fit check uses seeded random weights and 20 seeded random-noise calibration images, not real frames. A trained model is calibrated with frames from its dataset version's training split (S11). | Spec stage 11: for the untrained check "calibration frames only set value ranges". The earlier gate calibrated with DUO frames; DUO is fenced (Nick, 2026-11-27), and S6 has no dataset version yet. Measured: with noise calibration the same architecture still places with 0 software steps (Bench results). Nick can reverse it. |
+| D60 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S8 builder, bite 1; amends the spec's "frames by reference": frames are stored once per project by content hash, because the export is rebuilt each time): a dataset version is `datasets/v<N>/` with a `manifest.json`, its own copies of the export's label files, and frames named by content hash, stored once per project in `datasets/images/`. Versions are built under a temporary name, renamed, and never changed or removed by the app. The version's hash covers classes, label files, frames, groups and outside sources, not its number, name or date. | Spec stage 7: models train on a version, "never on whatever the export is today". The export is rebuilt from scratch each time (D41) and frames can be rejected later, so a path into `export/` or `frames/` is not a frozen reference; exFAT has no hard links. Labels are small, images are not: copy labels per version, images once. Nick can reverse it. |
+| D61 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by the S8 builder, bite 1; a gap in the spec): splits across versions are carried by frame first (by file name, from the newest earlier version that holds the frame), then by group the same way; new groups are dealt toward 70 / 20 / 10 from the carried counts. When the export's grouping changes from video to site + dive date and a dive straddles splits, old frames stay where they were and the dive's new frames go to its most held-out split (test, then valid, then train); the Datasets page lists such groups. | Spec stage 7: one fixed test set; every group keeps its split. A frame that was ever a test frame must never become a training frame, or an older model's test score and a newer model's training set overlap silently; the other direction only shrinks training data. Nick can reverse it. |
+| D62 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): YOLOX's published COCO weights are not offered in S8. A run starts from scratch or from a model pre-trained in the app on allowed outside sources; `THIRD_PARTY_LICENSES` says why. | The repository states no licence for the weights apart from its Apache-2.0 `LICENSE`, and COCO's terms leave the images under Flickr's terms: the weights' licence is not verified as permissive (SPEC constraint 6; spec "Models that are safe to use": code, weights and data are three checks). Nick can reverse it. |
+| D63 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; stricter than the builder's proposal): RF100 underwater-objects is listed on the Datasets page but cannot be switched on; it shows "waits for Nick: same image lineage as DUO". Urchinbot is the default outside source. | RF100's own record says CC BY 4.0 and GO, but its images are URPC contest images, the lineage of the DUO set that Nick ruled out (2026-11-27). A licence question is Nick's; the lead batches it for him. Nick can reverse it. |
+| D64 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): the "fully checked" rule stays as the spec has it. When a version would train on 0 objects of a chosen class because no frame is fully checked for it, the Datasets page says so in one line with what to tick on the Review page; Freeze still works. Nothing under `app/review/` changes. | Found on the real S5 project: no class was marked fully checked on any detector frame, so training would have seen nothing without a word of warning. Fewer clicks for marking is a Build 1 question the lead takes to Nick. Nick can reverse it. |
 
 ## Bench / test results
 
