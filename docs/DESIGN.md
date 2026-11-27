@@ -623,9 +623,12 @@ came out differently:
   "urchin", and records the sources in `outside_used`. The outside folder's path goes into the job file only
   for such a run. A finished model with `outside_used` is offered under "pre-trained here"; a run that picks
   it must be the same family, size and first layer. At that run's first start the trainer loads the EMA
-  weights of the model's `checkpoints/best.pt` into every tensor of the same name and shape (with another
-  class list the six class-score tensors stay fresh) and records what it loaded (`start_loaded`). Published
-  weights are still not loaded by anything (D62). Cost seen: about 3 s per step of 32 on Urchinbot (decoding
+  weights of the model's `checkpoints/best.pt` into every tensor of the same name and shape, except the six
+  class-score tensors (`head.cls_preds.*`) unless the two models' class lists are the same, and records what
+  it loaded (`start_loaded`). What is frozen of outside data: the rows file (images, sizes, boxes) by its
+  sha256 in the manifest, checked at every start of such a run; each image only by its size in bytes (the
+  first training and validation image are checked). The run record carries each source's key and licence,
+  not yet its attribution text (TRACKER). Published weights are still not loaded by anything (D62). Cost seen: about 3 s per step of 32 on Urchinbot (decoding
   12-megapixel JPEGs), 13 min per epoch.
 - **Train page (bite 5).** New-run form from `train_job.MODEL_TYPES` (each type's sizes, presets, defaults
   and "why" texts; the fields follow the type picked), Run as a job with Start at / Stop by and Keep laptop
@@ -633,8 +636,10 @@ came out differently:
   validation frames under them, time left from the job module (D35), the model list. **Estimate** follows
   D35: a `train` job with `estimate` set runs the form's recipe from `models/.estimate/` (not a model: no
   number, not listed), times 5 steps after 1 warm-up step and one validation pass through the trainer's
-  `estimate()`, and writes `models/.estimate/estimate.json`; the page shows the time for the whole run with
-  the settings it was made for, and the form starts from those settings.
+  `estimate()`, and writes `models/.estimate/estimate.json`; the page shows the time for the whole run (its epochs plus
+  one start) with the settings it was made for, and the form starts from those settings. An estimate
+  answers Pause by stopping without a result. It is a lower bound when the laptop does other work (seen:
+  582 s estimated, 847 s taken with test suites running beside it).
 - **Dependencies added:** loguru, tabulate and opencv-python-headless (< 4.12: OpenCV 5 needs numpy 2),
   because importing Megvii's YOLOX needs them; licences in `pyproject.toml` and `THIRD_PARTY_LICENSES`.
 

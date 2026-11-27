@@ -562,6 +562,9 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [ ] frames where only some of the run's classes are fully checked: use them for their labeled boxes (asked of
       the spec lead 2026-11-27; today they are left out, D66)
 - [ ] measure the haze preset against "standard" on real frames (the earlier work found haze hurt Nano)
+- [ ] a model trained on, or started from, outside data carries each source's attribution text, not only its
+      key and licence (`THIRD_PARTY_LICENSES` "Outside data" asks for it; needed by S9's model list and S11's
+      pick report; QE PR 90)
 
 **Bite 5 — Train page** (PRs 69, 87)
 - [x] pick a dataset version, model type and size, classes and recipe (defaults with a short "why"); Estimate
