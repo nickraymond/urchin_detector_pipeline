@@ -26,9 +26,11 @@ mark file with their hash), so a hand-made or outdated one is made again. A fail
 `uv`'s last lines. 7 tests with stand-ins for `uv` and `git`.
 **Self-test:** on Nick's real tools folder the page's status reads all four environments "not ready: not finished,
 or made by hand" (true: the builder made them by hand) and the YOLOX checkout "ready"; SDK, OpenMV tree and
-Docker image "found". **Not run for real yet:** the job itself on the real folder, because RF-DETR conversions
-were using those environments; it is the first thing to run once they finish (it should only add the marks).
-**Next:** run it for real; RF-DETR results into DESIGN; 2c-ii.
+Docker image "found". Then the job itself on the real folder (after the RF-DETR run had finished): "done", 5 of
+5, in 1 s; `uv` installed and removed nothing (the hand-made environments already matched the pins); all five
+read "ready" afterwards and `convert-venv` still imports torch 2.13.0 and TensorFlow 2.19.0
+(`s6/selftest_3d/jobs/1.log`).
+**Next:** RF-DETR results into DESIGN; 2c-ii.
 
 ## 2026-11-27 — Sprint S6 — Bite 4b: several models on one camera, stored together (S6 builder)
 **Branch:** sprint/6-stored-together
