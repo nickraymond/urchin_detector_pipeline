@@ -17,6 +17,23 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Build 2 — Lead's day: S6 and S8 through QE, planning locked (spec lead)
+**Branch:** sprint/6-lead-lock (docs only)
+**Done:** the spec merged (PR 60); builders for S6 and S8, a QE and a rig test session started; 22 Build 2 PRs
+merged on QE PASS at their exact heads (62, 67, 61, 63, 68, 64, 73, 65, 74, 71, 66, 75, 69, 76, 72, 77, 78, 79, 80,
+81, 86). Lead calls confirmed in DESIGN: D51–D59 (S6), D60–D66 (S8). First "what runs where" results (compilers on
+the laptop, untrained models): YOLOX Nano / Tiny, the project's own plain conv segmenter and YOLOX with a mask
+branch place fully on both NPUs; torchvision's segmenters do not; RF-DETR Nano fits neither OpenMV camera and no
+PML size converts. Both first builders rotated with handoffs; successors run. Both cameras of the rig are backed up.
+**Broke/surprised us:** the lead gave four sessions a session id it had made up from a folder name (QE caught it;
+corrected within minutes). A blind "keep our side" merge would have dropped a licence entry (caught by a patch
+compare before any push; builders do stack merges now). Stacked PRs that all edit `THIRD_PARTY_LICENSES`, DESIGN and
+DEV_LOG conflict after every squash-merge: one PR per bite on main is cheaper than a stack. YOLOX on the Apple GPU
+gave wrong gradients (a channels-last batch; fix in PR 84). A lead cannot start successor sessions while Nick is away.
+**Next:** S6: PRs 82, 83, 85, bite 2e's results, RTMDet-Ins, the Demo checklist. S8: PR 84, a first run on real
+frames, bite 5 part 2, docs. S7: the Pi image, QE on the backup evidence, then the bench runner's design.
+What waits for Nick is listed in SPEC ("Waiting for Nick").
+
 ## 2026-11-27 — Sprint S6 — Bite 4b: several models on one camera, stored together (S6 builder)
 **Branch:** sprint/6-stored-together
 **Done:** `table.stored_together`: per camera, the best candidate of each kind that runs there (smallest file among
