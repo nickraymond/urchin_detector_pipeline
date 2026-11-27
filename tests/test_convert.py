@@ -168,3 +168,9 @@ def test_tools_dir_setting(tmp_path):
     cfg = config.load(f)
     assert cfg.ok and cfg.tools_dir == config.DEFAULT_TOOLS_DIR and "tools_dir" in cfg.warnings[0]
 
+
+
+def test_the_8_bit_step_records_this_repos_own_commit():
+    from app.fit import to_int8
+    v = to_int8.repo_version()
+    assert len(v["commit"]) == 40 and isinstance(v["dirty"], bool)

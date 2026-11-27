@@ -8,6 +8,11 @@ environment. Two steps, each skipped when its file is on disk:
 2. Compile: the camera's compiler module, `compile(tflite, out_dir, job) -> dict`, and fit.json.
 
 A failed conversion or compile is a result (fit.json, `converts: false`); the job still ends "done".
+
+"redo" makes this camera's cell again from scratch, 8-bit model included. The 8-bit model is shared by the
+cameras, so the other cameras' fit.json files then describe the file before it was made again. With seeded
+weights and calibration the new file is the same bytes; if it ever is not, it shows: every fit.json keeps
+`int8.tflite_sha256` of the file it was made from (QE PR 76).
 """
 
 from __future__ import annotations

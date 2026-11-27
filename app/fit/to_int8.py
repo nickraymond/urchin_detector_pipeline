@@ -8,7 +8,8 @@ untrained models (D55); an optional onnxsim pass (D56); every step leaves its fi
 how the result was made. A failure exits non-zero after printing the reason; the worker turns that into
 a fit report ("does not convert"), not a job error.
 
-Writes into <int8 dir>: model.onnx, calib.npy, model_int8.tflite, int8.json (onnx2tf's other outputs are removed); onnx2tf's own log goes to
+Leaves in <int8 dir>: model.onnx (and model_sim.onnx), model_int8.tflite, int8.json; the calibration files and
+onnx2tf's other outputs are removed; onnx2tf's own log goes to
 this process's output (the worker saves it as convert.log).
 """
 
@@ -30,6 +31,20 @@ SEED = 0
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def repo_version() -> dict:
+    """This repository's own commit and whether files differ from it: the version of `app/modeldefs/` and
+    of this converter (spec stage 8: every run records its code version; QE PR 76)."""
+    repo = Path(__file__).resolve().parents[2]
+    try:
+        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True,
+                                check=True).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=repo,
+                                    capture_output=True, text=True, check=True).stdout.strip())
+        return {"commit": commit, "dirty": dirty}
+    except (OSError, subprocess.CalledProcessError):
+        return {"commit": None, "dirty": None}
 
 
 def code_version(arch: dict) -> str:
@@ -117,13 +132,15 @@ def main(argv: list[str]) -> None:
         "arch_key": modeldefs.arch_key(arch), "input": [h, w], "outputs": names,
         "weights": "untrained, seeded", "seed": SEED,
         "calibration": f"{CALIB_IMAGES} seeded noise images, 0-255 RGB (D55)",
-        "export": settings, "code": version,
+        "export": settings, "code": version, "repo": repo_version(),
         "onnx_bytes": onnx_path.stat().st_size, "tflite_bytes": part.stat().st_size,
         "tflite_sha256": sha256(part),
         "versions": {name: metadata.version(name) for name in ("torch", "onnx", "onnx2tf", "tensorflow")},
         "seconds": round(time.time() - t0, 1),
     }, indent=1))
     os.replace(part, tflite)
+    for name in ("calib.npy", "calibration_image_sample_data_20x128x128x3_float32.npy"):
+        (out / name).unlink(missing_ok=True)         # seeded noise: the same files come back from SEED
     shutil.rmtree(tf_dir, ignore_errors=True)        # float and half-quantised copies: several times the model
     print(f"[to_int8] done: {tflite.name}, {tflite.stat().st_size} bytes", flush=True)
 
