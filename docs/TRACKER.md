@@ -411,8 +411,10 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       own in two sizes; 256 px, the five classes plus "other"; built untrained in the app's own tests
 - [x] 2c-i: instance segmenters (D58): RF-DETR-Seg Nano (312 px) and YOLOX Nano / Tiny with prototype masks (our
       own small conv one, 256 px)
-- [ ] 2c-ii: RTMDet-Ins-tiny (Apache-2.0) as a published small conv instance segmenter: needs the mmdetection
-      stack in its own tool environment; time-boxed, and recorded with its reason if it does not install
+- [x] 2c-ii: RTMDet-Ins-tiny (Apache-2.0) as a published small conv instance segmenter
+      (`app/modeldefs/rtmdetins.py`, D72): mmdetection's pure-Python packages in `mmdet-venv`; built untrained with
+      no network; through the real job: runs, partly on the CPU, on the N6 (2 software steps) and the AE3 (1 CPU
+      operator), runs on the Pi side (DESIGN §Bench results). SparseInst not tried (time box)
 - [ ] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
       each as a model definition the app can build untrained at a given input size; anything not permissive
       stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
