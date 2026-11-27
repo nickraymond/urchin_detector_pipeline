@@ -4,7 +4,8 @@ compiles its own shipped models with). Reproduces the earlier container output b
 Bench results).
 
 Limits (sources): the model area is the board's ROMFS partition 0, `OMV_ROMFS_PART0_LENGTH 0x01800000`
-(24 MiB) in `boards/OPENMV_AE3/board_config.h` of the OpenMV tree. Free memory on the board is not a
+(24 MiB) in `boards/OPENMV_AE3/board_config.h` of the OpenMV tree: the HP core's partition (`#if CORE_M55_HP`), which
+is the core Vela's RTSS_HP configuration targets; the HE core's is 1 MiB. Free memory on the board is not a
 build-time fact: the earlier work measured 4.09 MB free before a model loads (`STAGE1.md`, 2026-08-23),
 kept here as a reference until S7 measures it.
 """
@@ -20,7 +21,7 @@ VELA_ENV = "vela-5.0.0-venv"
 ARGS = ["--system-config", "RTSS_HP_DTCM_MRAM", "--accelerator-config", "ethos-u55-256",
         "--memory-mode", "Shared_Sram", "--optimise", "Performance"]
 MODEL_AREA_BYTES = 0x01800000
-LIMIT_SOURCE = "OpenMV boards/OPENMV_AE3/board_config.h, OMV_ROMFS_PART0_LENGTH (24 MiB model area)"
+LIMIT_SOURCE = "OpenMV boards/OPENMV_AE3/board_config.h, OMV_ROMFS_PART0_LENGTH for the HP core (24 MiB model area)"
 MEMORY_REFERENCE = {"bytes": 4_090_000, "source": "free memory measured on the AE3 in the earlier work "
                     "(STAGE1.md, 2026-08-23); not re-measured"}
 

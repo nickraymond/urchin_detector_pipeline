@@ -9,6 +9,8 @@ never on "whatever the export is today":
     <project>/datasets/v<N>/frame_metrics.csv  the export's file, `split` set to this version's
     <project>/datasets/v<N>/seg_masks/         the export's PNGs and classes.json, copied
     <project>/datasets/v<N>/splits/            train.txt, valid.txt, test.txt
+    <project>/datasets/v<N>/outside/<key>.jsonl  rows of an added public source (bite 3); its
+                                               images stay in the outside-data folder
 
 Reads only `export/` (never app.review or the project's database). A version is built in
 `v<N>.new/` and renamed when complete; nothing here rewrites or removes a `v<N>/` folder or a
@@ -28,6 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from app.datasets import outside as ds_outside
 from app.datasets import splits as ds_splits
 from app.export.splits import SPLITS
 
@@ -112,9 +115,10 @@ def _counts(coco: dict, by_frame: dict[str, str], class_names: dict[int, str]) -
                         for c in coco["categories"]]}
 
 
-def plan(folder: Path, name: str = "") -> dict:
-    """Read export/ and work out the next version without writing anything. Returns
-    {"manifest", "coco" (bytes), "metrics" (bytes), "same_as": N | None}."""
+def plan(folder: Path, name: str = "", outside_keys=(), outside_dir: Path | None = None) -> dict:
+    """Read export/ (and the outside sources asked for) and work out the next version without
+    writing anything. Returns {"manifest", "coco" (bytes), "metrics" (bytes), "outside":
+    {rows file name: bytes}, "same_as": N | None}."""
     folder = Path(folder)
     summary = export_ready(folder)
     out = folder / "export"
@@ -143,6 +147,17 @@ def plan(folder: Path, name: str = "") -> dict:
             "group": ds_splits.group_of(r["source"], r["frame"], split_info["grouped_by"]),
             "split": r["split"], "split_ok": r["split_ok"], "seg_mask": r["seg_mask"],
             "checked_classes": [int(i) for i in r["checked_classes"].split()]})
+    added, outside_files = [], {}
+    for key in sorted(set(outside_keys)):
+        if outside_dir is None:
+            raise FreezeError("No outside data folder is set: add outside_data_dir to "
+                              "config.local.toml.")
+        try:
+            entry, data = ds_outside.snapshot(outside_dir, key)
+        except ds_outside.OutsideError as e:
+            raise FreezeError(str(e)) from None
+        added.append(entry)
+        outside_files[entry["rows"]] = data
     versions = list_versions(folder)
     prev = versions[-1] if versions else None
     by_frame, groups = ds_splits.assign(frames, versions)
@@ -170,11 +185,12 @@ def plan(folder: Path, name: str = "") -> dict:
         "files": {"detector_coco.json": _sha(coco_bytes), "frame_metrics.csv": _sha(metrics_bytes),
                   "seg_masks/classes.json": sha256_file(out / "seg_masks" / "classes.json"),
                   **{f"seg_masks/{m}": sha256_file(out / "seg_masks" / m) for m in masks}},
-        "frames": frames, "groups": groups, "outside": [],
+        "frames": frames, "groups": groups, "outside": added,
         "counts": _counts(coco, by_frame, {c["id"]: c["name"] for c in classes})}
     manifest["hash"] = content_hash(manifest)
     same = next((v["number"] for v in reversed(versions) if v.get("hash") == manifest["hash"]), None)
-    return {"manifest": manifest, "coco": coco_bytes, "metrics": metrics_bytes, "same_as": same}
+    return {"manifest": manifest, "coco": coco_bytes, "metrics": metrics_bytes,
+            "outside": outside_files, "same_as": same}
 
 
 def _copy_once(src: Path, dst: Path) -> None:
@@ -189,11 +205,12 @@ def _copy_once(src: Path, dst: Path) -> None:
 
 
 def freeze(folder: Path, name: str = "",
-           progress: Callable[[int, int, str], None] | None = None) -> dict:
+           progress: Callable[[int, int, str], None] | None = None,
+           outside_keys=(), outside_dir: Path | None = None) -> dict:
     """Freeze the current export as the next version. Returns {"number", "new": bool,
     "manifest"}; new is False when nothing changed since an earlier version (none is written)."""
     folder = Path(folder)
-    p = plan(folder, name)
+    p = plan(folder, name, outside_keys, outside_dir)
     m = p["manifest"]
     if p["same_as"] is not None:
         return {"number": p["same_as"], "new": False, "manifest": m}
@@ -215,6 +232,10 @@ def freeze(folder: Path, name: str = "",
         if progress:
             progress(n, len(m["frames"]), f["file"])
     shutil.copyfile(out / "seg_masks" / "classes.json", new / "seg_masks" / "classes.json")
+    if p["outside"]:
+        (new / "outside").mkdir()
+        for rows_name, data in p["outside"].items():
+            (new / "outside" / rows_name).write_bytes(data)
     (new / "detector_coco.json").write_bytes(p["coco"])
     (new / "frame_metrics.csv").write_bytes(p["metrics"])
     for s in SPLITS:

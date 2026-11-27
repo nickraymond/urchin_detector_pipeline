@@ -28,7 +28,7 @@ class FakeTrainer:
         return ck["epoch"], ck["step"]
 
     def run_epoch(self, epoch, start_step, stop):
-        for step in range(start_step, self.t["steps"]):
+        for step in range(start_step, self.t.get("steps", 3)):
             if stop():
                 return {"done": False, "step": step}
             mark = self.dir / ".crashed"
