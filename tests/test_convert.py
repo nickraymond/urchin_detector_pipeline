@@ -170,7 +170,12 @@ def test_tools_dir_setting(tmp_path):
 
 
 
-def test_the_8_bit_step_records_this_repos_own_commit():
+def test_the_8_bit_step_records_this_repos_own_commit(tmp_path):
     from app.fit import to_int8
+    assert to_int8.repo_version(tmp_path) == {"commit": None, "dirty": None}    # not a git checkout
+    (tmp_path / ".git").mkdir()                                                   # looks like one, git fails
+    assert to_int8.repo_version(tmp_path) == {"commit": None, "dirty": None}
+    if not (Path(to_int8.__file__).resolve().parents[2] / ".git").exists():
+        pytest.skip("this copy of the code is not a git checkout")
     v = to_int8.repo_version()
     assert len(v["commit"]) == 40 and isinstance(v["dirty"], bool)

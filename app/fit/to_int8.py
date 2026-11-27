@@ -33,10 +33,12 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def repo_version() -> dict:
+def repo_version(repo: Path | None = None) -> dict:
     """This repository's own commit and whether files differ from it: the version of `app/modeldefs/` and
     of this converter (spec stage 8: every run records its code version; QE PR 76)."""
-    repo = Path(__file__).resolve().parents[2]
+    repo = repo or Path(__file__).resolve().parents[2]
+    if not (repo / ".git").exists():                 # a copy of the code that is not a git checkout
+        return {"commit": None, "dirty": None}
     try:
         commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True,
                                 check=True).stdout.strip()
