@@ -216,12 +216,14 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
 - Q27 (2026-11-27). The table also says whether each camera can hold and run several models at once or only
   one kind at a time.
 - Q28 (2026-11-27). Nick has a Roboflow account and agreed to its terms: the PML sizes can be tested now.
+- Q29 (2026-11-27). Power monitoring on the Pi 5 for the Pi Zero 2W, the N6 and the AE3 is an add-on metric Nick
+  wires later; the software must not wait for it. No email to Roboflow.
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 
 Open for Build 2 (flag, don't guess; `docs/source/build2_spec.md` §Open questions): the Pi's runtime
 and whether the bench Pi is 64-bit; a segmenter architecture that places fully on the N6's NPU; the
 licence of each set of published starting weights; what else runs on the two bench units; whether a
-validated power meter is wired on the Pi Zero 2W rig; whether weights trained on the DUO set may start a
+meter Nick adds to the Pi 5 for power (optional metric; it never blocks a bench run); whether weights trained on the DUO set may start a
 camera model (for Nick); accepting ST's licence terms for ST Edge AI Core (for Nick; S6 starts with it); what the
 `rfdetr[plus]` package sends out (S6 builder, before any frame goes through it).

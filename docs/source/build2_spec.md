@@ -264,6 +264,13 @@ on the real boards; the app collects what came back and scores it exactly as in 
 - **Measured per model × camera:** the same count / cover / mAP numbers as on the laptop, the gap to
   the laptop's 8-bit result (should be about zero: a gap means a runtime bug), ms per inference,
   peak memory, and energy per inference where a power meter is wired and its readings are validated.
+- **Power is an add-on metric (Nick, 2026-11-27).** Nick will add power monitoring to the Pi 5 so it
+  measures the Pi Zero 2W, the N6 and the AE3 while a model runs: power over the run, and energy per
+  inference. The software does not wait for it: every run works without a meter and shows "not
+  measured"; when a meter is listed for a unit in the settings file, the same run also records its
+  power log and the page adds the power columns and a power-over-time chart per model. A meter's
+  numbers are shown as "not validated" until a known-load check has passed. Earlier work logged an
+  INA3221 at 10 Hz, one channel per board (`ADIN_SPI_OpenMV/ml/yolox_urchin/STAGE1.md`).
 - **Test card first (team rule):** before any bench run the app shows the card (question, units,
   number of frames and repeats, metric, pass bar, stop rules); it is saved with the run. No
   recommendation from a single run.
@@ -330,6 +337,10 @@ Model weights, datasets and bench results live in the data folder, never in git.
 11. **Roboflow terms (2026-11-27):** "I have a robo flow account and agreed to their use terms so we
     are good to go for testing". The PML sizes can be tested now; paying comes only if they work
     and he wants to ship them (where payment starts: see open questions).
+12. **Power (2026-11-27):** "For HIL testing I want to add power monitoring to the Pi 5 so it can
+    monitor the power on Pi Zero, N6 and Ae3 so we get power as a function of model run also. But
+    don't let any of that block the software buildout". Power is an optional metric on bench runs;
+    Nick adds the meter to the rig himself, later. Also: "we are not emailing roboflow".
 
 ## Open questions
 
@@ -338,8 +349,8 @@ Model weights, datasets and bench results live in the data folder, never in git.
   package sends out (PML 1.0 section 4 allows usage tracking; hard constraint 1 wins). Where payment
   starts (helper, Roboflow's licensing and pricing pages, read 2026-11-27): commercial use on your
   own hardware needs their Enterprise plan with the self-hosted weights add-on; no page read says
-  whether a company's feasibility test on its own bench counts as commercial. A one-line written
-  answer from Roboflow would settle it; Nick's to ask.
+  whether a company's feasibility test on its own bench counts as commercial. Nick,
+  2026-11-27: no email to Roboflow; testing goes ahead on his account's terms.
 - **For Nick:** may weights trained on the DUO set be the starting point for a camera model? Its
   licence page declares CC BY 4.0 but its origin is unclear (his earlier notes). REC: no; pre-train
   on Urchinbot and the other cleared sources only.
@@ -353,8 +364,8 @@ Model weights, datasets and bench results live in the data folder, never in git.
   nothing may run on the Pi Zero 2W rig, and one older skill calls it a field camera rig. Nick's
   answer 4 names both as bench units for Build 2's bench tests; the first test card
   names what else must be stopped or left alone on each unit.
-- Is a power meter wired to the N6 and the Pi on the Pi Zero 2W rig, and are its readings validated? Until
-  then energy shows as "not measured", never as a number.
+- Power: which meter and wiring Nick adds to the Pi 5 (answer 12), and a known-load check of its
+  readings. Until then energy shows as "not measured", never as a number.
 
 ## Sprint ladder (detail in TRACKER)
 

@@ -439,7 +439,10 @@ timed. Nick runs it on his Pi Zero 2W bench rig (IMX708, N6, AE3); builders and 
       measure peak memory; if they do not fit together, load, run and unload one after the other and time the
       whole sequence; headline per camera: both at once / one after the other / one kind only
 - [ ] Pi: the runtime candidates timed on the bench Pi; one picked, with its licence recorded
-- [ ] energy per inference only where a validated power meter is wired; otherwise "not measured"
+- [ ] power is optional and never blocks a run (Nick, 2026-11-27: he adds a meter on the Pi 5 for the Pi Zero
+      2W, the N6 and the AE3 later): without a meter every run works and shows "not measured"; a meter listed
+      for a unit in `config.local.toml` adds a power log per run, energy per inference and a power-over-time
+      chart; "not validated" until a known-load check has passed; tested with a fake meter
 - [ ] the table shows measured numbers next to the compiler's estimates; a one-page "what runs where" report
 **Demo (Nick):** approve the test card and press Run: the table's cells fill with ms per inference and memory
 measured on the N6, the Pi and the AE3. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
