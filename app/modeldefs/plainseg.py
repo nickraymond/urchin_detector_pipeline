@@ -17,6 +17,9 @@ CODE = {"repo": "this repository", "commit": "app/modeldefs/plainseg.py"}
 SIZES = {"s": (16, 32, 64, 96), "m": (24, 48, 96, 160)}   # channels: stem, 1/4, 1/8, 1/16
 OUTPUT_NAMES = ["scores"]
 OUT_STRIDE = 4
+# shown wherever the app shows this candidate (spec lead, 2026-11-27)
+NOTE = ("our own untrained design: it shows whether this kind of model can place on the NPU; it is not a "
+        "published model with a known accuracy")
 
 
 def arch(size: str, input_px: int, classes: list[str]) -> dict:
@@ -27,6 +30,7 @@ def arch(size: str, input_px: int, classes: list[str]) -> dict:
                     "layout": "scores: one raw score per class and cell, cells of 4×4 pixels; the largest wins"},
         "export": {"env": "convert-venv", "opset": 13, "simplify": False},
         "code": dict(CODE), "licence": "own code", "licence_mark": None,
+        "note": NOTE,
     }
 
 

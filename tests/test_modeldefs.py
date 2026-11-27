@@ -54,6 +54,7 @@ def test_segmenter_candidates_build_untrained_and_give_one_scores_map():
     assert keys == ["tvseg-lraspp-mnv3l-256-c6", "tvseg-deeplabv3-mnv3l-256-c6", "plainseg-s-256-c6", "plainseg-m-256-c6"]
     for a in cands:
         assert modeldefs.check(a) == [] and a["classes"][-1] == "other" and a["licence"] in PERMISSIVE
+        assert ("own untrained design" in a.get("note", "")) == (a["family"] == "plainseg")
         model = modeldefs.build(a)
         assert not model.training
         with torch.no_grad():
