@@ -201,7 +201,9 @@ class Trainer:
                 "steps_per_epoch": self.steps, "train_frames": len(self.train),
                 "valid_frames": len(self.valid),
                 "frames_left_out_not_fully_checked": self.left_out,
-                "start_used": self.start_used, "outside_used": self.outside_used,
+                # start_used: the kind really used; start_loaded: what a pre-trained start put in
+                "start_used": self.start_used["kind"], "start_loaded": self.start_used,
+                "outside_used": self.outside_used,
                 "libraries": {"torch": torch.__version__, "torchvision": torchvision.__version__,
                               "numpy": np.__version__, "yolox": ydef.CODE["commit"]}}
 
