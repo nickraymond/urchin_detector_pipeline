@@ -244,7 +244,7 @@ Waiting for Nick (Build 2 lead, 2026-11-27; each with a recommendation; none blo
   DUO set's origin, which Nick ruled out. REC: keep it out. Until he answers it is listed but cannot be
   switched on (DESIGN D63).
 - "Fully checked" is not ticked on any frame of the S5 test project, so a class is skipped everywhere
-  (DESIGN D64, D66). REC: accepting a frame on the Review page marks the urchin and sea star classes fully
+  (DESIGN D64; D66, in a PR under review on 2026-11-27, uses such frames for their labeled boxes only). REC: accepting a frame on the Review page marks the urchin and sea star classes fully
   checked unless he unticks one; the Build 1 lead would build it.
 - ST Edge AI Core 4.1.0: Nick said yes to its terms, but its installer must be run by him (a builder
   session was refused). S6 runs on 4.0.0 (DESIGN D52); 4.1.0 is one later change.
