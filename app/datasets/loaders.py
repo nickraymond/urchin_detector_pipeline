@@ -99,6 +99,17 @@ def detector_samples(folder: Path, number: int, split: str, class_ids=None) -> d
     return {"samples": samples, "left_out": left_out, "class_ids": ids}
 
 
+def usable(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], int]:
+    """(frames a detector run may train or validate on, frames left out). A frame is used only
+    when EVERY class of the run is fully checked on it: with one class unchecked, its unlabeled
+    animals would be taught as background (spec: "never treated as background"; QE PR 72).
+    Stricter than the spec's per-class skip. The trainer, the Train page's check and the
+    Datasets page's "what training will see" all call this one function."""
+    want = sorted(class_ids)
+    keep = [s for s in samples if sorted(s["checked"]) == want]
+    return keep, len(samples) - len(keep)
+
+
 def verify_image(sample: dict) -> None:
     """The stored frame must still be the frozen one (trainers call this on first use)."""
     p = Path(sample["image"])
