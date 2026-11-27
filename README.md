@@ -56,6 +56,7 @@ Fixes are not imported back in Build 1 (D42).
 ## Docs
 
 - `docs/source/mvp_spec.md` — Nick's full MVP spec (the source)
+- `docs/source/build2_spec.md` — Build 2: train, compare, fit to the cameras, bench test
 - `docs/SPEC.md` — condensed contract: goal, facts, hard constraints, open questions
 - `docs/TRACKER.md` — rules + sprint ladder (start here)
 - `docs/DESIGN.md`, `docs/DEV_LOG.md`, `docs/PROMPTS.md` — decisions, session log, kickoff prompts

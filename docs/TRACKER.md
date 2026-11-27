@@ -1,7 +1,7 @@
 # TRACKER.md — Sprint Ladder & Rules
 
 *The agent entry point. Newest state lives here.*
-*Last updated: 2026-11-25 · Owner/gate: **Nick***
+*Last updated: 2026-11-26 · Owner/gate: **Nick***
 
 ---
 
@@ -376,6 +376,112 @@ mask sizes matching their images, and `frame_metrics.csv` values matching those 
 pages in sync, memory-guard message, project page, "Labelled so far").
 **Needs:** S4 (demo passed); SPEC Q9 and Q11 answered by Lead calls D41, D42 (Nick can reverse them).
 
+### Build 2 — train, compare, fit to the cameras, bench test (S6–S11)
+Source: `docs/source/build2_spec.md` (Nick's answers of 2026-11-26 are in it). The lead writes each sprint's
+design in DESIGN before its first bite and splits bites to about 300 lines; S7–S11 below are outlines until then.
+Nothing here touches `app/review/` or `app/export/` beyond reading the export.
+
+### S6 — Dataset versions and the first detector  `[ ]`
+**Goal:** spec stages 7 and 8 for one model type: freeze a dataset version from a Build 1 export and train a
+YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SPI_OpenMV/ml/yolox_urchin/`.
+
+**Bite 1 — Prior art and licences (plan nibble, no app code)**
+- [ ] re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` (trainer, export, decode) and say what is reused and how it is
+      brought in; read the licences of YOLOX's code and of any starting weights at the source; add them to
+      `THIRD_PARTY_LICENSES`
+- [ ] decide and log in DESIGN: where training's Python packages live (the app's PyTorch is pinned to 2.10.0, D7),
+      the layout of `datasets/` and `models/`, and what a "recipe" file holds
+
+**Bite 2 — Dataset versions**
+- [ ] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
+      reference, splits, class list, counts per class and split, a hash; versions are numbered and never changed
+- [ ] the page shows what training will see: objects and frames per class and split, classes under the 150–200
+      target, frames left out by the split check, classes not fully checked per frame
+- [ ] loaders for training: a class not fully checked on a frame is skipped for that frame; split check "no"
+      frames are left out of detector data; synthetic tests
+
+**Bite 3 — Outside data in a version**
+- [ ] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
+      use; the page lists each source with its licence and counts; outside data goes to training only, never
+      to the test split; the folder is a setting in `config.local.toml`
+
+**Bite 4 — Train job**
+- [ ] job kind `train` on `app/jobctl/`: a worker process that writes a checkpoint and a metrics line per epoch;
+      Pause finishes the step, saves and unloads; Resume continues from the last checkpoint; Cancel keeps
+      checkpoints; tested end to end with a tiny fake trainer (no torch)
+- [ ] YOLOX-Nano with the plain first layer, tiles as part of the recipe; every run records dataset version,
+      recipe, code version, seed, library versions and device
+
+**Bite 5 — Train page**
+- [ ] pick a dataset version, model type and size, classes and recipe (defaults with a short "why"); Estimate
+      (time a few steps), Run, Start at / Stop by, Keep laptop awake, limits
+- [ ] live: loss and validation curves, a few validation frames with boxes drawn, time left; the finished
+      model appears in a plain model list
+
+**Demo (Nick):** on a project with an export, open Datasets and press "Freeze a version": the page shows counts
+per class and split. Open Train, pick YOLOX-Nano, press Estimate, then Run: the loss curve moves and validation
+frames show boxes. Pause, quit the app, start it, Resume: training continues from the last checkpoint. The
+model is in the list when it ends.
+**Needs:** S5's export (on main); Nick's merge of the Build 2 spec.
+
+### S7 — Evaluate, model list, compare  `[ ]`
+**Goal:** spec stages 9 and 10 for detectors.
+- [ ] evaluate job on the test split with the recipe's tiling: count error per class and frame (share within
+      ±20%), precision / recall / mAP50 per class, small-object breakdown; how many frames and objects stand
+      behind each figure
+- [ ] per-frame view: ground truth and predictions drawn, sorted by worst error, in the app's large viewer
+- [ ] model list with status, scores, notes, archive; compare page: table, one chart per metric, the same
+      frames side by side; differences in dataset version or test set are called out
+- [ ] re-evaluate older models on a newer version's test split; RF-DETR (Apache-2.0 sizes) as a laptop-only
+      reference model type
+**Demo (Nick):** train a second detector with a different size or recipe; the compare page shows old vs new on
+the same test frames, and which frames each one gets wrong.
+**Needs:** S6.
+
+### S8 — Segmenter and instance segmenter  `[ ]`
+**Goal:** the other two kinds go through the same train / evaluate / compare pages.
+- [ ] compile check first (no long training): candidate segmenter architectures, untrained, through the N6's
+      and the AE3's compilers; pick one that places on the NPU; licences read at the source
+- [ ] per-pixel segmenter from `seg_masks/` (unknown and not-checked pixels do not count as background);
+      cover error in percentage points per class (share within 10 points), IoU per class, largest object % error
+- [ ] instance segmenter from the COCO outlines, laptop first; its counts and cover scored like the other two
+**Demo (Nick):** train a segmenter and an instance segmenter; the compare page shows % cover error per class
+and the same frames with each model's masks.
+**Needs:** S7; the N6 and AE3 compilers installed on the laptop (S9 bite 1 may be pulled forward for this).
+
+### S9 — Fit to the cameras  `[ ]`
+**Goal:** spec stage 11 for the N6 and the Pi.
+- [ ] toolchain bite: ST Edge AI Core and the PyTorch → 8-bit route set up as documented, versions and licences
+      recorded; known-good first: reproduce the earlier YOLOX-Nano placement before changing anything
+- [ ] convert job per model and target: 8-bit conversion with calibration frames from the training split; N6
+      model image; Pi model file; a fit report (layers on the NPU / hybrid / CPU, sizes against the limits)
+- [ ] the 8-bit model is evaluated on the laptop like any model; the compare page shows what converting cost
+- [ ] Pi runtime picked from candidates with recorded licences (measured on the bench Pi in S10)
+**Demo (Nick):** press "Fit to cameras" on a detector and a segmenter: each target shows fits / does not fit
+and why; the compare page shows float vs 8-bit on the same test frames.
+**Needs:** S8 (S7 for the detector alone).
+
+### S10 — Bench test on the N6 and the Pi  `[ ]`
+**Goal:** spec stage 12, frames from file; Nick runs it on `nereus002`.
+- [ ] bench units in `config.local.toml` (names only in git); any other target is refused; a fake board for
+      builder and QE tests
+- [ ] test card page: question, units, frames and repeats, metric, pass bar, stop rules; saved with the run;
+      Run is refused without it
+- [ ] load a model file through each board's documented route (back up what it replaces, restore after); send
+      test frames, read back raw outputs, ms per inference and memory; score as in S7 / S8; the gap to the
+      laptop's 8-bit result is shown
+- [ ] energy per inference only where a validated power meter is wired; otherwise "not measured"
+- [ ] pick: one detector and one segmenter per camera marked "picked for the bake-off"; a one-page report
+**Demo (Nick):** approve a test card, press Run for one detector on the N6 and the Pi: the page fills with
+on-camera scores, ms per inference and the gap to the laptop. Mark a pick and open the report.
+**Needs:** S9; Nick at the bench with `nereus002`; SPEC hard constraint 9.
+
+### S11 — AE3 stretch  `[ ]`
+**Goal:** the MVP spec's one-day test: do the same detector and segmenter convert (Arm Vela), fit and run on
+the AE3 without a special model? Pass → the AE3 joins the compare page and the bench test. Disqualified → one
+line saying why.
+**Needs:** S10. Time box: about one working day.
+
 ---
 
 ## Icebox (captured, not scheduled)
@@ -384,4 +490,6 @@ pages in sync, memory-guard message, project page, "Labelled so far").
 - Re-check the kelp prompts (D29) and urchin defaults on more restoration-site footage once the full pipeline
   works and more video is available (Nick, 2026-11-25: only the SSD's videos for now).
 - Import CVAT outline fixes back into the project (D42; not asked for in Build 1).
-- Later MVP milestones (train, quantize, bench test, quality gate, bake-off, Iridium packet): not this repo's Build 1.
+- Later MVP milestones (quality gate, on-camera metrics, bake-off, Iridium packet): after Build 2.
+- Build 2: the screen-in-loop bench method on `nereus000` (reuse `ADIN_SPI_OpenMV/pi/hil/`); pre-labeling new
+  frames with a trained model; a model type per camera when one recipe cannot serve all three.
