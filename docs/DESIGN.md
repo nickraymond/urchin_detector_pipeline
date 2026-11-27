@@ -996,7 +996,7 @@ the build probe: `s6/probe_rtmdet/`. Compiler results; nothing ran on a board; t
 | Candidate | 8-bit file | N6: ST Edge AI Core 4.0.0 | AE3: Vela 5.0.0 | Pi (LiteRT on the laptop) |
 |---|---|---|---|---|
 | `rtmdetins-tiny-256-c5` (Apache-2.0; 5,616,362 parameters) | 5.7 MiB, made in 91 s | 130 hardware + 2 hybrid + 2 software steps of 134; file 6.0 MiB, memory 1.0 MiB (hybrid: DepthToSpace; software: Resize ×2) | 323 NPU + 1 CPU operators; estimate 55.63 ms; file 5.5 MiB, memory 1.0 MiB (CPU: RESIZE_BILINEAR, scale factor 4) | runs: 302 operators, all built in; 5.7 MiB |
-| for comparison, `yoloxproto-nano-conv-256-c5` (our own design; bite 3b) | 1.2 MiB | 126 + 3 + 0 of 129 | 392 NPU + 0 CPU; estimate 32.55 ms | — |
+| for comparison, `yoloxproto-nano-conv-256-c5` (our own design; bite 3b) | — | 126 + 3 + 0 of 129 | 392 NPU + 0 CPU; estimate 32.55 ms | — |
 
 Read from the table: the published model "runs, partly on the CPU" on both NPUs. What stays off the NPU is the
 bilinear upsampling in its mask-feature branch (two `Resize` steps in software on the N6, one `RESIZE_BILINEAR`
