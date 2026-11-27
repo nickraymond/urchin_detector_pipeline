@@ -31,6 +31,31 @@ behind it and says so.
 **Self-test:** the real `pi_run` on `plainseg-s-256-c6` in `convert-venv`: still 30 operators, exit 0; with the
 app's own Python (no LiteRT): exit 3, "tool fault: ModuleNotFoundError".
 **Next:** PRs 80–83, bite 2e, 2c-ii.
+## 2026-11-27 — Sprint S8 — Bite 4b (part 3): YOLOX trains on the Apple GPU (S8 builder 2)
+**Branch:** sprint/8-apple-gpu
+**Done:** found why YOLOX's gradients were wrong on the Apple GPU (PR 72's open fault): the trainer's batch was
+channels-last in memory, and in YOLOX's training graph the Apple GPU then gives wrong weight gradients (torch
+2.10.0 and 2.13.0; which operation is not isolated: a plain conv stack is right in both layouts, QE PR 84; DESIGN
+D65 and §Bench results). `app/train/yolox.py` builds a contiguous batch, trains on the
+GPU, and checks one small batch on both devices before every start (falls back to the CPU with a warning). A run
+paused mid-epoch now keeps its loss sums in the checkpoint, so the epoch's "loss" is the whole epoch's mean (QE PR
+72 nit 1). Self-test: 120 epochs on the scratch project through the Train page, 273 s, loss 17.65 → 4.42.
+**Broke/surprised us:** the first probes on random images agreed between the devices, because `torch.rand` makes
+a contiguous tensor; only the trainer's own batch showed the fault. The lead's fallback (a second environment
+with another torch) would not have helped: 2.13.0 has the same fault.
+**Next:** the Datasets view by the trainer's frame rule; bite 5 part 2 (Estimate, validation frames on the page);
+S8's docs (TRACKER ticks, as-built DESIGN).
+## 2026-11-27 — Sprint S6 — RF-DETR through the convert job (S6 builder)
+**Branch:** sprint/6-rfdetr-results (docs only)
+**Done:** the six RF-DETR candidates × N6 and AE3 through the real job (12 jobs, all "done"), and the Pi step by
+hand on the three 8-bit files that were made. Table in DESIGN §Bench results.
+**Result:** no RF-DETR size runs on any camera with today's route. Nano and Seg Nano: the N6's compiler fails; the
+AE3's compiles them but the files are 33–37 MiB against a 24 MiB area with estimates of 1.5–13.5 s; plain LiteRT
+cannot load them (`FlexErf`). Atto / Femto / Pico (Roboflow licence) do not convert with today's route: the 8-bit
+step fails in onnx2tf 1.28.8, which is not a compiler verdict. So far the Roboflow licence gains nothing for the
+cameras; the conv models are the ones with no software step on the N6 and no CPU operator on the AE3.
+**Broke/surprised us:** Vela reports more memory for the 256 px Nano than for the 384 px one (not explained).
+**Next:** one later try with RF-DETR's own exporter (onnx2tf 2.4 or newer), if the lead wants it; 2c-ii (RTMDet-Ins).
 ## 2026-11-27 — Build 2 — Lead's day: S6 and S8 through QE, planning locked (spec lead)
 **Branch:** sprint/6-lead-lock (docs only)
 **Done:** the spec merged (PR 60); builders for S6 and S8, a QE and a rig test session started; after the spec, 21 Build 2 PRs
