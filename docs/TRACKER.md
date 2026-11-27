@@ -451,6 +451,9 @@ compilers; 3c the Pi)**
 - [x] 4b: "stored together" on the page: for each pair and all three of the best candidates per camera, their
       files against the model area beside the vendor's models (N6, AE3) or against the Pi's memory, and the room
       left; the AE3 time-box note
+- [ ] "Run again" on one camera clears the candidate's shared 8-bit file, so the other cameras' cells keep
+      results from the old file (QE PR 80 nit 4; each `fit.json` records the file's sha256): redo only that
+      camera's compile, or show when a cell's 8-bit file is no longer the current one; before S6's close
 - [ ] 3d (found by the builder, D51 promised it): "Set up the tools" as a job with a button: build the tool
       environments from `app/fit/toolchain/` and check out YOLOX at its commit; today they exist on Nick's laptop
       because the builder made them by hand (steps in the requirements files' headers)
