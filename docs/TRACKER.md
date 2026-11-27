@@ -451,9 +451,11 @@ compilers; 3c the Pi)**
 - [x] 4b: "stored together" on the page: for each pair and all three of the best candidates per camera, their
       files against the model area beside the vendor's models (N6, AE3) or against the Pi's memory, and the room
       left; the AE3 time-box note
-- [ ] "Run again" on one camera clears the candidate's shared 8-bit file, so the other cameras' cells keep
-      results from the old file (QE PR 80 nit 4; each `fit.json` records the file's sha256): redo only that
-      camera's compile, or show when a cell's 8-bit file is no longer the current one; before S6's close
+- [x] "Run again" on one camera cleared the candidate's shared 8-bit file while the other cameras' cells kept
+      results from the old file (QE PR 80 nit 4): it now clears every camera's result of that candidate and
+      queues the other cells that had a result again behind it (PR 85)
+- [x] a LiteRT fault on the Pi step (runtime missing or changed) is a job error with a fix, not "does not run on
+      the Pi" (QE PR 79 nit 1; PR 85)
 - [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
       (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
       YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's
