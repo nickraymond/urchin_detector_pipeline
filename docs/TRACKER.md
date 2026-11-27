@@ -423,6 +423,12 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
 
 **Bites 3a, 3b, 3c — Convert job (3a the job and the 8-bit step with a fake compiler; 3b the N6 and AE3
 compilers; 3c the Pi)**
+- [x] 3a: job kind `convert` (`app/fit/convert.py`, `convert_worker.py`): 8-bit step in the model's tool
+      environment (`app/fit/to_int8.py`: the earlier route, seeded weights and noise calibration, D55), then the
+      camera's compiler module, then `fit.json`; a failed 8-bit step or compile is a result and is not repeated for
+      the next camera; Pause ends the 8-bit step cleanly; `tools_dir` setting; tested with a fake 8-bit step and a
+      fake compiler
+- [ ] 3b: the N6 and AE3 compiler modules and their report parsers; 3c: the Pi
 - [ ] job kind `convert` on `app/jobctl/`: one candidate × one camera → 8-bit model → the camera's compiler →
       a fit report as data (converts yes / no; layers on the NPU / hybrid / CPU; file size and memory against
       the board's limits; the compiler's own speed estimate, marked as an estimate; the failing layers by name);

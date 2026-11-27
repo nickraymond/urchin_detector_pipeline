@@ -19,6 +19,7 @@ from __future__ import annotations
 from app.modeldefs import yolox
 
 CODE = dict(yolox.CODE)
+CHECKOUT = yolox.CHECKOUT
 PROTOS = 16                      # K; YOLACT uses 32 at 550 px
 OUTPUT_NAMES = [*yolox.OUTPUT_NAMES, "protos"]
 LICENCE = "Apache-2.0 (YOLOX) + own code"

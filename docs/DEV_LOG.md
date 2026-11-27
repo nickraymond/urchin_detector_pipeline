@@ -17,6 +17,21 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 3a: the convert job and the 8-bit step (S6 builder)
+**Branch:** sprint/6-convert-job
+**Done:** job kind `convert` on `app/jobctl/` (registered in the app; no page yet): two steps, "8-bit model" and
+"compile", each skipped when its file is on disk. `app/fit/to_int8.py` runs in the model's tool environment: seeded
+build, ONNX, optional onnxsim (Python call), noise calibration, `onnx2tf -oiqt`, `int8.json` with versions, the
+checked code version and the file's sha256. `fit.json` per model × camera; a failed 8-bit step or compile ends
+"done" with `converts: false`; a missing tool environment is a job error with a fix. `tools_dir` in
+`config.local.toml` (optional). 9 tests with a fake 8-bit step and a fake compiler.
+**Self-test (real 8-bit step through the job, fake compiler):** `yolox-nano-conv-256-c5` done in 49 s, 8-bit file
+1,163,360 bytes; `plainseg-s-256-c6` in 15 s, 92,912 bytes; outputs in
+`~/NereusData/urchin_detector_pipeline/s6/selftest_3a/`.
+**Broke/surprised us:** onnx2tf leaves float and half-quantised copies several times the model's size (340 MB for
+RF-DETR); the step removes them.
+**Next:** bite 3b (N6 and AE3 compiler modules, parsers tested on the known-good run's real reports).
+
 ## 2026-11-27 — Sprint S6 — Bite 2c-i: instance-segmenter candidates (S6 builder)
 **Branch:** sprint/6-instance-candidates
 **Done:** RF-DETR-Seg Nano in `app/modeldefs/rfdetr.py` (same package and licence as the detector; input a multiple
