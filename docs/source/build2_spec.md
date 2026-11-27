@@ -335,9 +335,11 @@ Model weights, datasets and bench results live in the data folder, never in git.
 
 - The PML sizes: Nick has a Roboflow account and has agreed to its terms (answer 11), so they can
   be tested. Still to do before any frame goes through `rfdetr[plus]`: the builder shows what the
-  package sends out (PML 1.0 section 4 allows usage tracking; hard constraint 1 wins). Whether the
-  plan Nick is on covers a product is his question for later, only if these sizes turn out to be
-  the way onto the cameras.
+  package sends out (PML 1.0 section 4 allows usage tracking; hard constraint 1 wins). Where payment
+  starts (helper, Roboflow's licensing and pricing pages, read 2026-11-27): commercial use on your
+  own hardware needs their Enterprise plan with the self-hosted weights add-on; no page read says
+  whether a company's feasibility test on its own bench counts as commercial. A one-line written
+  answer from Roboflow would settle it; Nick's to ask.
 - **For Nick:** may weights trained on the DUO set be the starting point for a camera model? Its
   licence page declares CC BY 4.0 but its origin is unclear (his earlier notes). REC: no; pre-train
   on Urchinbot and the other cleared sources only.
