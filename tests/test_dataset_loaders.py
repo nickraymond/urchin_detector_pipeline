@@ -86,6 +86,22 @@ def test_view_counts_what_the_loader_gives_and_what_is_skipped(tmp_path):
     assert listed[reef[2]["file"]] == ["purple urchin", "sea star"]
     assert reef[0]["file"] not in listed and len(listed) == 4            # + wall's two
     # the view and the loader agree for any class choice
+    assert v["unseen"] == ["sea star"]       # 2 stars labeled in train, on unchecked frames only
     one = view.training_view(tmp_path, 1, [3])
     assert [c["name"] for c in one["classes"]] == ["sea star"]
     assert [c["picked"] for c in one["all_classes"]] == [False, True]
+
+
+def test_a_labeled_class_with_no_fully_checked_frame_is_called_out(tmp_path):
+    """D64: nothing fully checked (the real S5 project's state): the view names the classes
+    that would train on 0 objects, the page says what to tick, and Freeze still works."""
+    from tests.test_preview import make_project
+    client, folder = make_project(tmp_path, 1)
+    fake_export(folder, dive("reef", 1, 6, checked=[], stars=1) + dive("cove", 2, 2, checked=[])
+                + dive("wall", 3, 1, checked=[]))
+    assert versions.freeze(folder)["new"]
+    v = view.training_view(folder, 1)
+    assert v["unseen"] == ["purple urchin", "sea star"]
+    page = client.get("/p/p/datasets").text
+    assert "Training would see 0 objects of purple urchin, sea star" in page
+    assert 'tick "fully checked"' in page and 'href="/p/p/labels"' in page

@@ -61,6 +61,10 @@
   {% for c in w.all_classes %}<label><input type="checkbox" name="classes" value="{{ c.id }}"{% if c.picked %} checked{% endif %}> {{ c.name }}</label>
   {% endfor %}<button class="small">Show</button>
   <span class="hint">Default: sea stars and urchins. The choice is made again for each training run.</span></form>
+{% if w.unseen %}<section class="problem zero-objects"><p><b>Training would see 0 objects of {{ w.unseen | join(", ") }}</b>:
+  they are labeled, but no training frame is marked "fully checked" for them. On the
+  <a href="/p/{{ info.name }}/labels">Review page</a>, tick "fully checked" for these classes on the frames you
+  reviewed, then Export and freeze a new version.</p></section>{% endif %}
 <table class="stages counts training-view">
   <thead><tr><th>Class</th>{% for s in splits %}<th>{{ s }}: objects (frames)</th>{% endfor %}<th>Total</th><th>Target {{ w.target[0] }}–{{ w.target[1] }}</th><th>Skipped: not fully checked</th></tr></thead>
   <tbody>
