@@ -57,7 +57,7 @@ converts as easily as the other two.
 | OpenMV AE3: 1 MP global shutter | — | stretch goal (later milestones; from the full spec) |
 | Bench unit: a Pi Zero 2W rig with the IMX708, an N6 and the AE3 (name in `config.local.toml`) | 1 | Build 2 bench tests; owner Nick (chat 2026-11-26; make-up from the rig repo's SPEC, not re-checked on the unit) |
 | Bench unit: a Pi 5 with the screen-in-loop rig (name in `config.local.toml`) | 1 | Build 2 bench tests, optional screen method; owner Nick (chat 2026-11-26) |
-| Public urchin datasets and earlier model runs in `~/nereus_ml/` | — | extra detector training data and starting weights, each with its recorded licence (Nick, chat 2026-11-26) |
+| Public urchin datasets and earlier model runs in `~/nereus_ml/` | — | extra detector training data and starting weights, each with its recorded licence (Nick, chat 2026-11-26); the earlier YOLOX weights wait for Nick's answer on the DUO set |
 
 ## Confirmed facts (verified, with sources)
 

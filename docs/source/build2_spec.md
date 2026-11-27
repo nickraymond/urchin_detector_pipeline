@@ -39,7 +39,8 @@ Training honors Build 1's review flags:
 
 - A class not marked **fully checked** on a frame is skipped for that frame (never treated as background).
 - Frames with split check "no" stay out of detector and instance training; they still count for cover.
-- The train / valid / test splits come from the export (`splits/`); nothing is re-split by frame.
+- The train / valid / test splits come from the dataset version (first taken from the export's
+  `splits/`, then kept per site-and-date group); nothing is re-split by frame.
 - Class ids are the export's ids. Which classes a model learns is a choice per training run
   (for example the detector: purple, red and black urchin, sea star, kelp shoot).
 
@@ -257,7 +258,7 @@ Model weights, datasets and bench results live in the data folder, never in git.
   on Urchinbot and the other cleared sources only.
 - **For Nick:** ST Edge AI Core is ST's own tool under ST's licence terms, which must be accepted
   to install it (he used version 4.0.0 before, through OpenMV's tooling). REC: accept for 4.1.0 on
-  the laptop when S9 starts; the builder reads the terms first and reports anything unusual.
+  the laptop when S8 starts; the builder reads the terms first and reports anything unusual.
 - A camera test for the instance segmenter (answer 1) is not in the ladder yet: it is added after
   S10 only if an instance segmenter is worth it on the laptop.
 - Which runtime on the Pi Zero 2W (measured in S9), and whether the bench Pi runs a 64-bit system.

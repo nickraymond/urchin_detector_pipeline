@@ -473,7 +473,7 @@ and the same frames with each model's masks.
 - [ ] Pi runtime picked from candidates with recorded licences (measured on the bench Pi in S10)
 **Demo (Nick):** press "Fit to cameras" on a detector and a segmenter: each target shows fits / does not fit
 and why; the compare page shows float vs 8-bit on the same test frames.
-**Needs:** S8 (S7 for the detector alone).
+**Needs:** S8 (for the detector alone: S7 plus S8's toolchain bite).
 
 ### S10 — Bench test on the N6 and the Pi  `[ ]`
 **Goal:** spec stage 12, frames from file; Nick runs it on his Pi Zero 2W bench rig.
