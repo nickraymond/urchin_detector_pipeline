@@ -179,3 +179,9 @@ button.primary { background: #2e7d32; color: #fff; border-color: #2e7d32; font-w
 tr.state-failed td { background: #fde8e8; }
 .viewer .v-band { position: absolute; z-index: 2; border: 2px dashed #fff; background: rgba(255, 255, 255, .12); pointer-events: none; }
 .viewer .v-review .rv-add.on { background: #ffd479; }
+/* What runs where (S6 bite 4) */
+table.fit td, table.fit th { padding: 8px 10px; vertical-align: top; border: 1px solid #ddd; }
+table.fit-detail td, table.fit-detail th { font-size: 14px; padding: 5px 6px; vertical-align: top; }
+.fit-runs { background: #e9f6ec; } .fit-partly { background: #fff6dd; } .fit-no { background: #fde8e8; }
+.fit-not_tried { background: #f3f3f3; }
+pre.fit-error { font-size: 12px; white-space: pre-wrap; margin: 4px 0 0; max-width: 46em; }
