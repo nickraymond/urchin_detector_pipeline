@@ -75,7 +75,7 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
     @app.post("/fit/run")
     def fit_run_one(request: Request, key: str = Form(""), camera: str = Form("")):
         """Run one cell. A cell that already has a result is run again from scratch: its 8-bit model is made
-        again, and since the cameras share that file, the candidate's other cells that had a result are queued
+        again, and since the cameras share that file, the candidate's other cells that have a result or a job under way are queued
         again behind it (QE PR 80 nit 4). One that was never tried reuses an 8-bit model already made."""
         cfg = config.load(config_path)
         if not cfg.ok:
@@ -89,8 +89,12 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
         try:
             folder = convert.model_dir(cfg.data_dir, arch)
             again = convert.read_fit(folder, camera) is not None
-            others = [c for c in table.CAMERA_ORDER if again and c != camera and (key, c) not in active_cells(jc)
-                      and convert.read_fit(folder, c) is not None]
+            # A camera with a job still waiting or running counts too: that job's result is wiped by the redo
+            # behind it, so the cell is queued once more after the redo (QE PR 85). A job that then finds the
+            # result on disk is skipped.
+            active = active_cells(jc)
+            others = [c for c in table.CAMERA_ORDER if again and c != camera
+                      and (convert.read_fit(folder, c) is not None or (key, c) in active)]
             jc.submit("convert", convert.params(arch, camera, cfg.data_dir, cfg.tools_dir, redo=again, fit=cfg.fit))
             for c in others:
                 jc.submit("convert", convert.params(arch, c, cfg.data_dir, cfg.tools_dir, fit=cfg.fit))
