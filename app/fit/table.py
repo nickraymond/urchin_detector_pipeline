@@ -81,7 +81,7 @@ def memory_figure(fit: dict) -> dict | None:
     (the N6 today). The AE3's is a reference from the earlier work, not a hard limit."""
     ref = fit.get("memory_reference")
     if ref and ref.get("bytes"):
-        return {"bytes": ref["bytes"], "what": "free on the board in the earlier work, not re-measured"}
+        return {"bytes": ref["bytes"], "what": "free on the board in the earlier work, not re-measured; S7 measures it on the board"}
     if fit.get("memory_limit_bytes"):
         return {"bytes": fit["memory_limit_bytes"], "what": "the board's memory"}
     return None

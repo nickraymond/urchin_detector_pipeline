@@ -118,5 +118,7 @@ def test_pi_step_failure_is_a_result_and_a_missing_environment_is_a_job_error(tm
     with pytest.raises(ToolsMissing, match="Tool environment not found"):
         pi.compile(model, tmp_path, job(tmp_path))
     fit = pi.compile(model, tmp_path, fake_tools(tmp_path, "echo 'ValueError: Model provided has model identifier' >&2; exit 1"))
-    assert fit["converts"] is False and "model identifier" in fit["error"]
+    assert fit["converts"] is False and "model identifier" in fit["error"] and "exit code 1" in fit["error"]
+    fit = pi.compile(model, tmp_path, fake_tools(tmp_path.parent / (tmp_path.name + "_abort"), "kill -ABRT $$"))
+    assert fit["converts"] is False and "aborted while preparing or running the model" in fit["error"]
 
