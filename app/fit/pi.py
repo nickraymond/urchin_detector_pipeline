@@ -21,6 +21,7 @@ import subprocess
 from pathlib import Path
 
 from app.fit import reports
+from app.fit.pi_run import TOOL_FAULT
 
 MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
 RUNTIME_ENV = "convert-venv"
@@ -35,6 +36,10 @@ def compile(tflite: Path, out: Path, job: dict) -> dict:
     done = subprocess.run([str(python), "-m", "app.fit.pi_run", str(tflite)], capture_output=True, text=True,
                           cwd=REPO, env={**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1"})
     (out / "compile.log").write_text(done.stdout + done.stderr)
+    if done.returncode == TOOL_FAULT:                # the runtime could not be used: a job error, not a result
+        raise ToolsMissing("LiteRT could not be used in " + RUNTIME_ENV + ": "
+                           + (done.stderr.strip().splitlines() or ["no message"])[-1]
+                           + ". Fix: set the tools up again (DESIGN D51); this says nothing about the model.")
     base = {"tool": "LiteRT on the laptop (no compiler: the Pi runs the 8-bit file on its CPU)",
             "limit_bytes": None, "limit_source": "no model-area limit: the file sits on the SD card",
             "memory_limit_bytes": MEMORY_LIMIT_BYTES,
@@ -54,5 +59,6 @@ def compile(tflite: Path, out: Path, job: dict) -> dict:
             "failing_layers": [{"name": n, "type": n, "why": "not a built-in LiteRT operator: needs an extra "
                                 "delegate or library on the Pi"} for n in ran["not_builtin"]],
             "laptop": {"ms": ran["laptop_ms"], "runs": ran["runs"], "peak_bytes": ran["laptop_peak_bytes"],
-                       "note": "measured on the laptop, one thread; says nothing about the Pi"},
+                       "note": "measured on the laptop, one thread; peak memory is the whole Python process; says "
+                               "nothing about the Pi"},
             "operator_types": ran["operator_types"], "io": {"input": ran["input"], "outputs": ran["outputs"]}}
