@@ -1,0 +1,25 @@
+# Build 2 conversion environment (DESIGN D51): PyTorch -> ONNX -> 8-bit TFLite, and LiteRT to run it.
+# Not the app's environment. Built in <tools_dir>/convert-venv with Python 3.11:
+#   uv venv --python 3.11 convert-venv && uv pip install --python convert-venv/bin/python -r requirements-convert.txt
+# The pins are the earlier "gate" environment's (~/nereus_ml/venvs/gate, pip freeze read 2026-11-27),
+# which produced the models measured on the boards. Licences: THIRD_PARTY_LICENSES, "Build 2 tools".
+torch==2.13.0
+torchvision==0.28.0
+tensorflow==2.19.0
+tf_keras==2.19.0
+onnx==1.22.0
+onnx2tf==1.28.8
+onnxsim==0.7.3
+onnx_graphsurgeon==0.6.1
+sng4onnx==2.0.1
+onnxruntime==1.29.0
+onnxscript==0.7.1
+ai-edge-litert==2.2.0
+numpy==2.1.3
+flatbuffers==25.12.19
+protobuf==5.29.6
+h5py==3.16.0
+psutil==7.2.2
+loguru==0.7.3
+tabulate==0.10.0
+opencv-python-headless==5.0.0.93

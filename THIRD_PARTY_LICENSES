@@ -116,6 +116,52 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+------------------------------------------------------------------------------------------------
+Build 2 tools (convert and compile; DESIGN D51, D52) — used on the laptop, not part of this repository
+------------------------------------------------------------------------------------------------
+
+None of these is copied into git or passed on with the app; each is installed or already present on the
+laptop, outside the app's own environment. Read on 2026-11-27 by the S6 builder at the source named.
+
+ST Edge AI Core (the N6 compiler, `stedgeai`) — STMicroelectronics, not open source.
+  In use: 4.0.0 (v4.0.0-20500), inside OpenMV's SDK 1.6.0. Its terms are SLA0104 Rev1 / June 2024 (the SDK's
+  `stedgeai/Package_license.html`; the same text is written as LICENSE.txt next to every model it generates).
+  Read but not installed: 4.1.0, under SLA0044 Rev 7 / February 2026 ("Ultimate Liberty"; ST's docs,
+  stm32ai-cs.st.com/assets/embedded-docs/Package_license.html). Nick said yes to ST's terms on 2026-11-27
+  (docs/source/build2_spec.md, answer 15).
+  What both say that matters here: the software and anything derived from it "must be used and execute solely
+  and exclusively on or in combination with a processing unit device manufactured by or for
+  STMicroelectronics" (SLA0044's words; SLA0104 says the same with "a device or a processing unit device
+  manufactured by or for ST"); it must not be mixed into anything in a way that puts it under an open-source licence;
+  passing it on in binary form, other than inside an ST device, must carry ST's notice and disclaimer.
+  SLA0104 adds export rules (no supply to Russia, Belarus or sanctioned countries; records of anything
+  passed on, open to ST's audit).
+  For this project: the compiler runs on the laptop to make model files for the STM32N6 only, which is the
+  permitted use. A model file made for the N6 contains ST's code and runs only on the N6; the Pi and the AE3
+  get their own files from other tools. Nothing of ST's goes into git. Copies of both texts are in
+  `<tools_dir>/licences/` and `<data_dir>/fit/licences/`.
+
+Arm Vela (the AE3 compiler, `ethos-u-vela` 5.0.0; 5.2.0 for comparison) — Apache-2.0 (PyPI metadata,
+  pypi.org/pypi/ethos-u-vela/5.0.0/json).
+
+OpenMV firmware tree, commit 7d4dbf7 (`tools/modelc.py`, `tools/vela.ini`, `lib/stai/scripts/neuralart.json`
+  and its memory-pool file; read in place from Nick's checkout) — MIT (the header of `tools/modelc.py`:
+  "This work is licensed under the MIT license").
+
+OpenMV SDK 1.6.0 (linux-x86_64; holds ST Edge AI Core, Vela 5.0.0 and the Arm GNU toolchain that ST's
+  relocatable step links with) and the `firmware-builder` container image — set up by Nick's earlier work
+  (`ADIN_SPI_OpenMV/firmware/openmv_build/`). The GNU toolchain's licences were not read: it is a build tool
+  inside that SDK and nothing of it is passed on.
+
+Megvii YOLOX, commit 6ddff48 (model code, a checkout outside git) — Apache-2.0 (the LICENSE file in
+  `~/nereus_ml/third_party/YOLOX`). The full entry, with the licence text and the starting-weights record, is
+  the next section (S8 bite 1).
+
+Conversion environment (`app/fit/toolchain/requirements-convert.txt`), licences from each version's PyPI
+metadata: torch 2.13.0 — "Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0
+AND MIT" (its licence expression); tensorflow 2.19.0 — Apache 2.0; onnx 1.22.0 — Apache-2.0; onnx2tf 1.28.8 — MIT; onnxsim 0.7.3 —
+MIT AND (Apache-2.0 OR BSD-2-Clause); onnxruntime 1.29.0 — MIT; ai-edge-litert 2.2.0 (LiteRT, the first Pi
+runtime candidate) — Apache 2.0. The other Pi runtime candidates are recorded when they are installed (bite 3c).
 
 ------------------------------------------------------------------------------------------------
 Megvii-BaseDetection/YOLOX — Apache License 2.0 (Build 2: the first trainable detector, S8)
