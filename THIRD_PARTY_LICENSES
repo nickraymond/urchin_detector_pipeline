@@ -398,3 +398,13 @@ Roboflow RF-DETR (`rfdetr` 1.9.4 from PyPI, in its own tool environment; model c
   Apache-2.0; safetensors 0.8.0 and tokenizers 0.23.3 — Apache; supervision 0.32.3 — MIT; pydantic 2.14.4 —
   MIT; pyDeprecate 0.9.0 — Apache-2.0. A scan of all 97 packages in that environment found no GPL, AGPL or
   non-commercial licence in their metadata.
+
+torchvision (model code for the LR-ASPP and DeepLabV3 MobileNetV3 segmenter candidates,
+  `app/modeldefs/tvseg.py`; 0.28.0 in the conversion environment, the app's own environment has it too) —
+  BSD-3-Clause: the LICENSE file of `pytorch/vision` at tag v0.28.0 ("BSD 3-Clause License, Copyright (c)
+  Soumith Chintala 2016"; sha256 `6502f676…`, read 2026-11-27). Only the code is used: the candidates are
+  built with `weights=None, weights_backbone=None`. torchvision's published weights are a separate check,
+  not made yet.
+
+The plain conv segmenter (`app/modeldefs/plainseg.py`) is this project's own code; no third-party model
+  code or weights.
