@@ -30,6 +30,7 @@ ENVS = [
     ("rfdetr-tflite-venv", "3.12", "requirements-rfdetr-tflite.txt", "RF-DETR Nano and RF-DETR-Seg Nano"),
     ("rfdetr-plus-tflite-venv", "3.12", "requirements-rfdetr-plus-tflite.txt",
      "RF-DETR Atto / Femto / Pico: Roboflow licence, evaluation only"),
+    ("mmdet-venv", "3.11", "requirements-mmdet.txt", "RTMDet-Ins-tiny (mmdetection)"),
 ]
 CHECKOUTS = [(yolox.CHECKOUT, yolox.CODE["repo"], yolox.CODE["commit"], "YOLOX model code")]
 MARK = ".setup_ok"
