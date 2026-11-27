@@ -85,6 +85,7 @@ def test_page_shows_results_reasons_marks_and_earlier_work(site):
     assert "INTERNAL ERROR: &#39;NoneType&#39; object is not subscriptable" in page and "does not run" in page
     assert "earlier work: YOLOX-Nano 10.6 ms" in page and "2026-08-24" in page
     assert "Roboflow licence: evaluation only" in page            # the PML sizes are always marked
+    assert page.count("our own untrained design") >= 4            # plainseg and yoloxproto say what they are
     assert "not measurements" in page and "http" not in page.replace("http-equiv", "")   # nothing from the internet
     assert 'href="/fit"' in client.get("/").text
 

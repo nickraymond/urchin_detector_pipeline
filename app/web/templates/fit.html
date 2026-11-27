@@ -20,7 +20,7 @@
   <tr><th>{{ row.label }}</th>
     {% for c, label in cameras %}{% set cell = row.cells[c] %}
     <td class="fit-{{ cell.code }}"><a href="#{{ row.kind }}-{{ c }}"><b>{{ cell.headline }}</b></a>
-      {% if cell.best and cell.code != "not_tried" %}<br><span class="hint">best: {{ cell.best.key }}{% if cell.best.mark %} ({{ cell.best.mark }}){% endif %}{% if cell.best.why %}; {{ cell.best.why }}{% endif %}</span>{% endif %}
+      {% if cell.best and cell.code != "not_tried" %}<br><span class="hint">best: {{ cell.best.key }}{% if cell.best.mark %} ({{ cell.best.mark }}){% endif %}{% if cell.best.arch.note %} (our own untrained design){% endif %}{% if cell.best.why %}; {{ cell.best.why }}{% endif %}</span>{% endif %}
       {% for e in cell.earlier %}<br><span class="hint">earlier work: {{ e.model }} {{ e.ms }} ms, {{ e.mj }} mJ ({{ e.date }})</span>{% endfor %}
     </td>{% endfor %}
   </tr>
@@ -35,7 +35,8 @@
   <tr><th>Candidate</th><th>Result</th><th>Layers</th><th>File / limit</th><th>Memory</th><th>Time</th><th>Tool</th><th></th></tr>
   {% for cand in cell.candidates %}{% set f = cand.fit %}
   <tr class="fit-{{ cand.code }}">
-    <td>{{ cand.key }}<br><span class="hint">{{ cand.arch.licence }}{% if cand.mark %} · <b class="warn-text">{{ cand.mark }}: evaluation only</b>{% endif %}</span></td>
+    <td>{{ cand.key }}<br><span class="hint">{{ cand.arch.licence }}{% if cand.mark %} · <b class="warn-text">{{ cand.mark }}: evaluation only</b>{% endif %}</span>
+      {% if cand.arch.note %}<br><span class="hint">{{ cand.arch.note }}</span>{% endif %}</td>
     <td><b>{{ cand.headline }}</b>{% if cand.active %} <span class="hint">(waiting or running)</span>{% endif %}{% if cand.why %}<br><span class="hint">{{ cand.why }}</span>{% endif %}
       {% if f and not f.converts %}<pre class="fit-error">{{ f.error }}</pre>{% endif %}</td>
     <td>{% if f and f.placement %}{% set p = f.placement %}{% if c == "pi" %}{{ p.total }} operators, all on the CPU{% else %}{{ p.npu }} NPU{% if p.unit == "epochs" %} + {{ p.hybrid }} hybrid{% endif %} + {{ p.cpu }} CPU of {{ p.total }} {{ "steps" if p.unit == "epochs" else p.unit }}{% endif %}{% endif %}
