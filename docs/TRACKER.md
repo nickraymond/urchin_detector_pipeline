@@ -394,7 +394,7 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       ST's licence terms, 2026-11-27: read them first, save a copy in the data folder, stop on anything unusual), Arm Vela (Apache-2.0), and the Pi runtime candidates on the laptop
       *Done 2026-11-27: the 8-bit route (`convert-venv`), Vela 5.0.0 native, LiteRT on the laptop. Open: ST Edge AI
       Core 4.1.0 is not installed (the builder session was refused permission to run ST's installer; its terms,
-      SLA0044, are read and saved). S6 uses the known-good 4.0.0 in the container (D52); ncnn and ONNX Runtime
+      SLA0044, are read and saved in `<tools_dir>/licences/` and `<data_dir>/fit/licences/`). S6 uses the known-good 4.0.0 in the container (D52); ncnn and ONNX Runtime
       for the Pi are set up in bite 3c.*
 - [x] known-good first: reproduce the earlier YOLOX-Nano result on both compilers (AE3 one `ethos-u` block; N6
       about 117 + 2 + 0 of 119, the earlier trained export; untrained it was 116 + 2 + 0 of 118) before changing anything

@@ -139,7 +139,7 @@ ST Edge AI Core (the N6 compiler, `stedgeai`) — STMicroelectronics, not open s
   For this project: the compiler runs on the laptop to make model files for the STM32N6 only, which is the
   permitted use. A model file made for the N6 contains ST's code and runs only on the N6; the Pi and the AE3
   get their own files from other tools. Nothing of ST's goes into git. Copies of both texts are in
-  `<tools_dir>/licences/`.
+  `<tools_dir>/licences/` and `<data_dir>/fit/licences/`.
 
 Arm Vela (the AE3 compiler, `ethos-u-vela` 5.0.0; 5.2.0 for comparison) — Apache-2.0 (PyPI metadata,
   pypi.org/pypi/ethos-u-vela/5.0.0/json).
