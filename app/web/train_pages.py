@@ -1,5 +1,6 @@
 """The Train page (S8 bite 5): pick a dataset version, a model type, classes and a recipe;
-Run it as a job (Start at / Stop by, Keep laptop awake); watch the loss curve; the model list.
+Estimate (time a few steps) or Run it as a job (Start at / Stop by, Keep laptop awake); watch
+the loss curves and a few validation frames with boxes drawn; the model list.
 `register` gets the helpers of create_app it needs."""
 
 from __future__ import annotations
@@ -8,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from app.datasets import loaders, versions
 from app.train import job as train_job
@@ -53,6 +54,27 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 out[mid] = {"outside": used, "start": t.get("start")}
         return out
 
+    def plan(folder: Path, version: int, form, model_type: str, start_kind: str,
+             start_model: str) -> tuple[str, dict]:
+        """(arch key, recipe) for the form as sent, for Run and for Estimate alike. Raises
+        with a message for the page when the run cannot be made."""
+        manifest, _ = loaders.load(folder, version)
+        ids = loaders.check_classes(manifest, form.getlist("classes"))
+        began = starting.record({"kind": start_kind, "model": start_model},
+                                start_records(folder))
+        key, recipe = train_job.build_recipe(model_type, dict(form), manifest, ids, began)
+        seen, _ = train_job.usable(
+            loaders.detector_samples(folder, version, "train", ids)["samples"], ids)
+        if not any(s["boxes"] for s in seen):
+            raise ValueError(
+                f"Version {version} gives training no object of these classes: a frame "
+                "is used only when every picked class is \"fully checked\" on it. On the "
+                "Review page mark them \"fully checked\" on the frames you reviewed, "
+                "export and freeze again (the Datasets page shows what is skipped).")
+        return key, recipe
+
+    BUSY = ("scheduled", "queued", "running", "pausing", "paused", "interrupted")
+
     @app.get("/p/{name}/train", response_class=HTMLResponse)
     def train_page(request: Request, name: str, error: str = "", version: int = 0,
                    model: str = ""):
@@ -63,10 +85,24 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             rows = model_rows(cfg, folder)
             shown = next((r for r in rows if r["id"] == model), rows[0] if rows else None)
             pre = [m for m, r in start_records(folder).items() if r["outside"]]
+            est = train_job.read_estimate(folder)
+            # the form starts from the last Estimate's settings (so Run runs what was timed)
+            # when it was made on the version shown, else from the first model type's defaults
+            last = (est or {}).get("recipe", {}).get("train", {})
+            same = bool(picked) and last.get("dataset", {}).get("version") == picked["number"] \
+                and last.get("model_type") in train_job.MODEL_TYPES
+            tkey = last["model_type"] if same else next(iter(train_job.MODEL_TYPES), "")
+            d = train_job.MODEL_TYPES.get(tkey, {}).get("defaults", {})
+            form = {"model_type": tkey, "input": last["tile"] if same else d.get("input"),
+                    "epochs": last["epochs"] if same else d.get("epochs"),
+                    "augment": last["augment"] if same else d.get("augment"),
+                    "seed": last["seed"] if same else d.get("seed"),
+                    "class_ids": last["class_ids"] if same
+                    else loaders.default_class_ids(picked) if picked else []}
             return templates.TemplateResponse(request, "train.html", {
                 "cfg": cfg, "info": info, "error": error, "versions": found, "picked": picked,
                 "classes": loaders.object_classes(picked) if picked else [],
-                "default_ids": loaders.default_class_ids(picked) if picked else [],
+                "form": form, "estimate": est, "estimate_steps": train_job.ESTIMATE_STEPS,
                 "types": train_job.MODEL_TYPES, "models": rows, "shown": shown,
                 "pretrained": pre, "not_offered": starting.NOT_OFFERED,
                 "job": job_view(jobctl(cfg).latest("train", str(folder)))})
@@ -85,27 +121,14 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             def back(problem: str):
                 return RedirectResponse(f"/p/{name}/train?" + urlencode(
                     {"error": problem, "version": version}), status_code=303)
-            if job_view(jc.latest("train", str(folder))).get("state") in (
-                    "scheduled", "queued", "running", "pausing", "paused", "interrupted"):
+            if job_view(jc.latest("train", str(folder))).get("state") in BUSY:
                 return back("A training job of this project is waiting or running: finish, "
                             "resume or cancel it first.")
             start_at, stop_by, problem = read_schedule(start, stop)
             if problem:
                 return back(problem)
             try:
-                manifest, _ = loaders.load(folder, version)
-                ids = loaders.check_classes(manifest, form.getlist("classes"))
-                choice = {"kind": start_kind, "model": start_model}
-                began = starting.record(choice, start_records(folder))
-                key, recipe = train_job.build_recipe(model_type, dict(form), manifest, ids, began)
-                seen, _ = train_job.usable(
-                    loaders.detector_samples(folder, version, "train", ids)["samples"], ids)
-                if not any(s["boxes"] for s in seen):
-                    raise ValueError(
-                        f"Version {version} gives training no object of these classes: a frame "
-                        "is used only when every picked class is \"fully checked\" on it. On the "
-                        "Review page mark them \"fully checked\" on the frames you reviewed, "
-                        "export and freeze again (the Datasets page shows what is skipped).")
+                key, recipe = plan(folder, version, form, model_type, start_kind, start_model)
                 mdir = models.create(folder, key, recipe)
             except (loaders.DatasetError, starting.StartError, models.ModelError,
                     ValueError) as e:
@@ -114,6 +137,39 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                       project=str(folder), start_at=start_at, stop_by=stop_by,
                       keep_awake=bool(keep_awake))
             return RedirectResponse(f"/p/{name}/train?" + urlencode({"model": mdir.name}),
+                                    status_code=303)
+        return with_project(request, name, work)
+
+    @app.post("/p/{name}/train/estimate")
+    async def train_estimate(request: Request, name: str, version: int = Form(0),
+                             model_type: str = Form(""), start_kind: str = Form("scratch"),
+                             start_model: str = Form("")):
+        """Estimate (spec stage 8; the D35 pattern): a short job that times a few steps of the
+        run the form describes. It makes no model; its recipe and result live in
+        models/.estimate/ and replace the estimate before."""
+        form = await request.form()
+
+        def work(cfg, info, conn):
+            folder, jc = info["folder"], jobctl(cfg)
+
+            def back(problem: str):
+                return RedirectResponse(f"/p/{name}/train?" + urlencode(
+                    {"error": problem, "version": version}), status_code=303)
+            if job_view(jc.latest("train", str(folder))).get("state") in BUSY:
+                return back("A training job of this project is waiting or running: finish, "
+                            "resume or cancel it first.")
+            try:
+                _, recipe = plan(folder, version, form, model_type, start_kind, start_model)
+            except (loaders.DatasetError, starting.StartError, models.ModelError,
+                    ValueError) as e:
+                return back(str(e))
+            edir = train_job.estimate_dir(folder)
+            edir.mkdir(parents=True, exist_ok=True)
+            (edir / "estimate.json").unlink(missing_ok=True)   # never show the old one as new
+            models.write_json(edir / "recipe.json", recipe)
+            jc.submit("train", {"model_dir": str(edir), "trainer": recipe["train"]["trainer"],
+                                "estimate": True}, project=str(folder))
+            return RedirectResponse(f"/p/{name}/train?" + urlencode({"version": version}),
                                     status_code=303)
         return with_project(request, name, work)
 
@@ -126,7 +182,29 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 epochs = models.read_recipe(mdir)["train"]["epochs"]
             except (models.ModelError, KeyError) as e:
                 return JSONResponse({"error": str(e)}, status_code=404)
+            vdir = mdir / "val_frames"
+            frames = sorted(int(p.stem[4:]) for p in vdir.glob("val_*.png")
+                            if p.stem[4:].isdigit()) if vdir.is_dir() else []
+            try:
+                val_epoch = int((vdir / "epoch.txt").read_text())
+            except (OSError, ValueError):
+                val_epoch = None
             return JSONResponse({"model": model_id, "epochs": epochs,
-                                 "rows": models.read_metrics(mdir)},
+                                 "rows": models.read_metrics(mdir),
+                                 "val_frames": frames, "val_epoch": val_epoch},
+                                headers={"Cache-Control": "no-store"})
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/train/val/{model_id}/{index}")
+    def train_val_frame(request: Request, name: str, model_id: str, index: int):
+        """One validation canvas with boxes drawn (the trainer rewrites it each epoch)."""
+        def work(cfg, info, conn):
+            try:
+                p = models.model_dir(info["folder"], model_id) / "val_frames" / f"val_{index}.png"
+            except models.ModelError as e:
+                return JSONResponse({"error": str(e)}, status_code=404)
+            if not p.is_file():
+                return JSONResponse({"error": "no such validation frame"}, status_code=404)
+            return FileResponse(p, media_type="image/png",
                                 headers={"Cache-Control": "no-store"})
         return with_project(request, name, work)
