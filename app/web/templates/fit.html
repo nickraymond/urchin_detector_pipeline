@@ -29,6 +29,27 @@
 <p class="hint">"Earlier work" numbers were measured on the boards before this app ({{ earlier_source }}), with one
   class and other training data; they stay until the same models are measured through the app.</p>
 
+<h2 id="together">Several models on one camera: stored together</h2>
+<p class="hint">For the best candidate of each kind that runs on a camera (smallest file among the best): do their
+  files fit side by side? This is the laptop part. Whether they can sit in memory together, or run one after the
+  other in one wake-up, is measured on the boards (S7).</p>
+<table class="fit-detail">
+  <tr><th>Camera</th><th>Best candidates</th><th>Together</th><th>Files</th><th>Room left</th></tr>
+  {% for c, label in cameras %}{% set t = together[c] %}
+  {% if not t.combos %}<tr><td>{{ label }}</td><td colspan="4" class="hint">{% if t.best %}only one kind has a candidate that runs here so far{% else %}no candidate runs here yet{% endif %}</td></tr>{% endif %}
+  {% for combo in t.combos %}
+  <tr class="{{ 'fit-runs' if combo.fits else ('fit-no' if combo.fits is not none else '') }}">
+    {% if loop.first %}<td rowspan="{{ t.combos | length }}">{{ label }}<br><span class="hint">{{ t.note }}{% if t.taken %} ({{ mib(t.taken) }} of {{ mib(t.room) }}){% endif %}</span></td>
+    <td rowspan="{{ t.combos | length }}">{% for kind, b in t.best.items() %}{{ kind }}: {{ b.key }} <span class="hint">{{ mib(b.bytes) }}{% if b.mark %} · {{ b.mark }}{% endif %}</span><br>{% endfor %}</td>{% endif %}
+    <td>{{ combo.labels | join(" + ") }}</td><td>{{ mib(combo.bytes) }}</td>
+    <td>{% if combo.fits is none %}<span class="hint">limit not known</span>{% elif combo.fits %}<b>fit</b>, {{ mib(combo.left) }} left{% else %}<b>do not fit</b>: {{ mib(-combo.left) }} too much{% endif %}</td>
+  </tr>
+  {% endfor %}{% endfor %}
+</table>
+<p class="hint"><b>AE3 time box</b> (MVP spec): about one working day in total for getting models onto the AE3,
+  compile and timing together. Every AE3 cell here comes from the same job as the N6's; a candidate that does
+  not run is listed with its reason and is not worked on further inside the time box.</p>
+
 {% for row in rows %}{% for c, label in cameras %}{% set cell = row.cells[c] %}
 <h2 id="{{ row.kind }}-{{ c }}">{{ row.label }} on the {{ label }}: {{ cell.headline }}</h2>
 <table class="fit-detail">

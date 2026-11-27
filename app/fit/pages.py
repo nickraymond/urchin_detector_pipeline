@@ -30,8 +30,9 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
         if not cfg.ok:
             return dashboard(request, status=503)
         active = active_cells(jobctl(cfg))
+        rows = table.table(cfg.data_dir, active)
         return templates.TemplateResponse(request, "fit.html", {
-            "cfg": cfg, "note": note, "error": error, "rows": table.table(cfg.data_dir, active),
+            "cfg": cfg, "note": note, "error": error, "rows": rows, "together": table.stored_together(rows),
             "cameras": [(c, convert.CAMERAS[c]) for c in table.CAMERA_ORDER], "active": len(active),
             "missing": len(table.missing(cfg.data_dir)) - len(active), "mib": table.mib,
             "earlier_source": table.EARLIER_SOURCE})
