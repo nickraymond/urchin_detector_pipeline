@@ -30,10 +30,11 @@ test frames). A few of those canvases are saved with boxes drawn in `val_frames/
 
 Device (D65): the Apple GPU when it is there. Its gradients were wrong at first (PR 72) because
 the batch was laid out channels-last in memory (`from_numpy(NHWC).permute(...).float()` keeps
-that layout) and torch's Apple GPU convolution gives wrong weight gradients for such an input
-(measured 2026-11-27 on torch 2.10.0 and 2.13.0; right on the CPU). `_batch` now hands over a
-contiguous tensor, and `load()` checks one small batch on both devices before each start: if the
-gradients differ, the run uses the CPU and says so.
+that layout), and in YOLOX's training graph the Apple GPU then gives wrong weight gradients
+(measured 2026-11-27 on torch 2.10.0 and 2.13.0; right on the CPU; a plain conv stack is right in
+both layouts, so the operation at fault is not isolated). `_batch` now hands over a contiguous
+tensor. That alone is not a promise, so `load()` checks one small batch on both devices before
+each start: if the gradients differ, the run uses the CPU and says so.
 """
 
 from __future__ import annotations
@@ -161,7 +162,9 @@ class Trainer:
         if self.device == "mps":
             worst = self._gpu_gradients_differ_by(model)
             self.gpu_check = {"worst_relative_difference": round(worst, 5),
-                              "limit": GPU_CHECK_LIMIT, "frames": min(GPU_CHECK_FRAMES, len(self.train))}
+                              "limit": GPU_CHECK_LIMIT,
+                              # the same batch at every start: these frames as epoch 0 makes them
+                              "frames": [f["file"] for f in self.train[:GPU_CHECK_FRAMES]]}
             if not worst <= GPU_CHECK_LIMIT:          # also true for NaN
                 self.device = "cpu"
                 self.warning = (
@@ -243,8 +246,8 @@ class Trainer:
 
     def _batch(self, picks: list[int], pool, epoch: int, source: list[dict], train: bool):
         made = list(pool.map(lambda i: self._example(source[i], epoch, i, train), picks))
-        # NCHW and contiguous: a channels-last layout (what permute() of the stacked images
-        # leaves) gets wrong convolution gradients on the Apple GPU (module docstring, D65)
+        # NCHW and contiguous: with a channels-last layout (what permute() of the stacked images
+        # leaves) YOLOX's gradients come out wrong on the Apple GPU (module docstring, D65)
         imgs = torch.from_numpy(np.ascontiguousarray(
             np.stack([m[0] for m in made]).transpose(0, 3, 1, 2))).float()
         targets = torch.zeros((len(made), MAX_BOXES, 5))
