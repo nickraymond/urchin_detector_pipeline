@@ -93,6 +93,8 @@ def _split_of(src: dict, root: Path) -> callable:
     if "split_prefix" in src:
         pre = src["split_prefix"]
         return lambda f: next((s for s, p in pre.items() if f.startswith(p)), None)
+    # matched by base name: two images of the same name in different folders would both take
+    # the more held-out list's split, which is the safe side
     names: dict[str, str] = {}
     for s in ("train", "valid", "test"):          # later lists win: test over valid over train
         for line in (root / src["split_lists"][s]).read_text().splitlines():
@@ -179,6 +181,9 @@ def snapshot(outside_dir: Path, key: str) -> tuple[dict, bytes]:
     return {"key": key, "name": src["name"], "licence": src["licence"],
             "licence_source": src["licence_source"], "attribution": src["attribution"],
             "class": CLASS_NAME, "use": "detector pre-training only; never the test split",
+            # weaker than Nick's own frames, which are frozen by content hash (D60): the
+            # rows file is hashed, each image only by its size in bytes (the folder is tens of GB)
+            "frozen_by": "rows file sha256 + image size in bytes",
             "folder": src["folder"], "rows": f"{key}.jsonl",
             "sha256": hashlib.sha256(data).hexdigest(), "counts": got["counts"],
             "unused": got["unused"], "recorded": src["recorded"],
