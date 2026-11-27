@@ -1,0 +1,7 @@
+# Tool environment for RF-DETR Atto / Femto / Pico (app/modeldefs/rfdetrplus.py; DESIGN D59).
+# LICENCE: rfdetr-plus is under Roboflow's PML 1.0: evaluation only (SPEC hard constraint 6).
+# Built in <tools_dir>/rfdetr-plus-venv with Python 3.11:
+#   uv venv --python 3.11 rfdetr-plus-venv && uv pip install --python rfdetr-plus-venv/bin/python -r requirements-rfdetr-plus.txt
+# It pulls rfdetr >= 1.12 (1.12.1 on 2026-11-27) and timm, so it is separate from rfdetr-venv (rfdetr 1.9.4).
+-r requirements-convert.txt
+rfdetr-plus==1.3.0

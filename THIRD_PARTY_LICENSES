@@ -447,3 +447,26 @@ Listed in the app but NOT offered:
   Any other folder: no licence record.
 The YOLOX + prototype-masks instance candidate (`app/modeldefs/yoloxproto.py`) is this project's own code on
   top of Megvii's YOLOX (Apache-2.0, above); it follows the idea of the YOLACT paper and uses no YOLACT code.
+
+------------------------------------------------------------------------------------------------
+NOT PERMISSIVE — evaluation only: Roboflow `rfdetr-plus` (RF-DETR Atto / Femto / Pico), PML 1.0
+------------------------------------------------------------------------------------------------
+
+`rfdetr-plus` 1.3.0 from PyPI, in its own tool environment (`app/modeldefs/rfdetrplus.py`, DESIGN D59). Its
+licence is the Platform Model License 1.0, "Copyright (c) 2026 Roboflow, Inc" (the LICENSE file inside the
+wheel, read 2026-11-27; PyPI licence expression `LicenseRef-PML-1.0`). It is not a permissive licence, and
+SPEC hard constraint 6 allows these three sizes for evaluation only: compiled and timed for "what runs
+where"; never on a field unit or in a product until Nick has the licence. What it says:
+  1. use needs an accepted platform plan with Roboflow ("Platform Agreement"), in good standing (2);
+  3. changes may be made and passed on only under that agreement;
+  4. the software "may include license checks, usage tracking, metering, telemetry"; these must not be
+     bypassed; where there is no usage tracking, "you are responsible for accurately tracking and reporting
+     your usage as required by the Platform Agreement";
+  5. no reverse engineering and no extraction of Roboflow's base weights;
+  7. the licence text goes with every copy.
+Nick has a Roboflow account and agreed to its terms (2026-11-27, spec answer 11). Still open, with Nick:
+whether his plan covers these models, and what usage reporting it asks for (4).
+In S6 only the code is used: the models are built untrained, no weights file is downloaded, and no frame
+goes through them. The licence text is not copied here because nothing of the package is passed on; it is
+in the tool environment and in `<data_dir>`-side notes of the read (`s6/rfdetr_plus_read/`).
+Its extra dependency, timm 1.0.31: Apache-2.0 (PyPI metadata).
