@@ -115,7 +115,7 @@ One page in the app, a table of model kind × camera, filled in before any model
   interest. Convert it to 8-bit, put it through the camera's compiler, then run it on the board.
 - **Each cell shows, per candidate:** converts yes / no; layers on the NPU / hybrid / on the CPU
   (for the Pi: runs on the CPU); file size and memory against the board's limits; ms per inference;
-  energy per inference where a validated power meter is wired; and the reason when it fails, layer
+  energy per inference where a power meter is wired (see stage 12); and the reason when it fails, layer
   by layer. A cell's headline is its best candidate: "runs", "runs, partly on the CPU" or "does
   not run", with the numbers.
 - **Two steps.** On the laptop first: convert and compile (no hardware). Then on the bench units:
@@ -263,14 +263,15 @@ on the real boards; the app collects what came back and scores it exactly as in 
   bake-off answers the sensor question.
 - **Measured per model × camera:** the same count / cover / mAP numbers as on the laptop, the gap to
   the laptop's 8-bit result (should be about zero: a gap means a runtime bug), ms per inference,
-  peak memory, and energy per inference where a power meter is wired and its readings are validated.
+  peak memory, and energy per inference: "not measured" without a meter; with a meter, numbers marked
+  "not validated" until its known-load check has passed.
 - **Power is an add-on metric (Nick, 2026-11-27).** Nick will add power monitoring to the Pi 5 so it
   measures the Pi Zero 2W, the N6 and the AE3 while a model runs: power over the run, and energy per
   inference. The software does not wait for it: every run works without a meter and shows "not
   measured"; when a meter is listed for a unit in the settings file, the same run also records its
   power log and the page adds the power columns and a power-over-time chart per model. A meter's
   numbers are shown as "not validated" until a known-load check has passed. Earlier work logged an
-  INA3221 at 10 Hz, one channel per board (`ADIN_SPI_OpenMV/ml/yolox_urchin/STAGE1.md`).
+  INA3221 at 10 Hz, one channel each for the AE3 and the N6 (`ADIN_SPI_OpenMV/ml/yolox_urchin/STAGE1.md`).
 - **Test card first (team rule):** before any bench run the app shows the card (question, units,
   number of frames and repeats, metric, pass bar, stop rules); it is saved with the run. No
   recommendation from a single run.
@@ -365,7 +366,7 @@ Model weights, datasets and bench results live in the data folder, never in git.
   answer 4 names both as bench units for Build 2's bench tests; the first test card
   names what else must be stopped or left alone on each unit.
 - Power: which meter and wiring Nick adds to the Pi 5 (answer 12), and a known-load check of its
-  readings. Until then energy shows as "not measured", never as a number.
+  readings. Without a meter energy shows as "not measured"; with one, as "not validated" until the check.
 
 ## Sprint ladder (detail in TRACKER)
 

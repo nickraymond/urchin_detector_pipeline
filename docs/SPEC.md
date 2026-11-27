@@ -223,7 +223,7 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
 
 Open for Build 2 (flag, don't guess; `docs/source/build2_spec.md` §Open questions): the Pi's runtime
 and whether the bench Pi is 64-bit; a segmenter architecture that places fully on the N6's NPU; the
-licence of each set of published starting weights; what else runs on the two bench units; whether a
-meter Nick adds to the Pi 5 for power (optional metric; it never blocks a bench run); whether weights trained on the DUO set may start a
+licence of each set of published starting weights; what else runs on the two bench units; which
+meter Nick adds to the Pi 5 for power (optional; never blocks a bench run); whether weights trained on the DUO set may start a
 camera model (for Nick); accepting ST's licence terms for ST Edge AI Core (for Nick; S6 starts with it); what the
 `rfdetr[plus]` package sends out (S6 builder, before any frame goes through it).
