@@ -170,12 +170,12 @@ ladder at the end: stage 11's untrained fit check and stage 12's timing run come
   images, 44,268 boxes), each listed with its licence. Sources marked no-go or benchmark-only there
   (FathomNet, the NOAA YOLO weights) stay out. They hold boxes only and mostly one class, "urchin",
   so they are for pre-training the detector only (their boxes carry no Build 1 class id); the
-  segmenters learn from Build 1's export. The DUO set stays out until Nick decides: its verdict
+  segmenters learn from Build 1's export. The DUO set stays out (Nick, 2026-11-27: no): its verdict
   there is "research-only fenced until Nick's license call".
 - **Starting weights:** from scratch, from pre-training on the allowed sources above, or from
   published weights whose licence is recorded. Nick's earlier YOLOX stage-1 weights were trained on
-  Urchinbot + DUO + RF100, so they wait for the DUO answer (open question); until then they are
-  not a starting point for a camera model.
+  Urchinbot + DUO + RF100, so they are
+  not a starting point for a camera model (answer 15).
 - Outside data is used for training only. The test split is always Nick's own reviewed frames.
 
 ### 8. Train
@@ -317,8 +317,8 @@ Model weights, datasets and bench results live in the data folder, never in git.
   Never to a cloud service.
 - **Licences:** as above: permissive only for anything deployed; RF-DETR's PML sizes for evaluation
   only; nothing new without all three checks.
-- **Hardware:** bench units only: the two Nick named on 2026-11-26, a Pi Zero 2W rig with the
-  IMX708, an N6 and the AE3, and a Pi 5 with the screen rig. Their names and addresses live in
+- **Hardware:** one bench rig, named by Nick: a Pi Zero 2W with the IMX708, an N6 and the AE3; a
+  Pi 5 for the LCD screen and power comes later (answer 13). Names and addresses live in
   `config.local.toml`, not in git. Nick sets the Pi Zero 2W rig up and hands it to one team test
   session, which owns it from then on: it takes the backup, runs the test cards the lead writes and
   QE reviews, and restores the rig. Builders and QE test against a fake board and never touch the
@@ -333,6 +333,7 @@ Model weights, datasets and bench results live in the data folder, never in git.
 2. **Licences:** permissive only. No Ultralytics, ST-only, YOLO-NAS or FOMO models in the app. Start with YOLOX.
 3. **Frames to bench units:** allowed, over any link, to his own bench units; never to a cloud.
 4. **Bench units:** two of his rigs: the Pi Zero 2W rig (IMX708, N6, AE3) and the Pi 5 screen rig.
+   *Narrowed by answer 13: one rig; the Pi 5 comes later.*
 5. **Bench method:** frames from file first; the screen rig stays an option.
 6. **Outside data and starting weights:** use the urchin data from his earlier detector work, which
    is already on the laptop with its licences recorded ("Look for my old work training the DETR-TR
@@ -370,6 +371,10 @@ Model weights, datasets and bench results live in the data folder, never in git.
     and run power monitoring once we do HIL testing"); one team test session owns it and runs the
     bench tests; the team may do "Anything, restore after"; the Pi is imaged over SSH, no hands.
 14. **Classes for training (2026-11-27):** "For trainiung lets just do star fish and urchins".
+15. **Before the first sprint (2026-11-27):** "ok approve this plan". And to three questions: the
+    spec lead merges this spec's PR for him at the head QE passes; yes to ST's licence terms for
+    ST Edge AI Core 4.1.0 (the builder reads them first and stops on anything unusual); no to
+    weights trained on the DUO set as a starting point for a camera model.
 
 ## Open questions
 
@@ -380,12 +385,6 @@ Model weights, datasets and bench results live in the data folder, never in git.
   own hardware needs their Enterprise plan with the self-hosted weights add-on; no page read says
   whether a company's feasibility test on its own bench counts as commercial. Nick,
   2026-11-27: no email to Roboflow; testing goes ahead on his account's terms.
-- **For Nick:** may weights trained on the DUO set be the starting point for a camera model? Its
-  licence page declares CC BY 4.0 but its origin is unclear (his earlier notes). REC: no; pre-train
-  on Urchinbot and the other cleared sources only.
-- **For Nick:** ST Edge AI Core is ST's own tool under ST's licence terms, which must be accepted
-  to install it (he used version 4.0.0 before, through OpenMV's tooling). REC: accept for 4.1.0 on
-  the laptop now: S6 starts with it; the builder reads the terms first and reports anything unusual.
 - Which runtime on the Pi Zero 2W (measured in S7), and whether the bench Pi runs a 64-bit system.
 - Which segmenter architecture places fully on the N6's NPU (compile check in S6).
 - The licence of each set of published starting weights (checked per model type before it is offered).

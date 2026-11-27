@@ -390,8 +390,8 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
 
 **Bite 1 — Prior art, toolchains, licences (plan nibble + setup, no app pages)**
 - [ ] re-read the earlier export and compile scripts and say what is reused and how it is brought in
-- [ ] set up as documented, versions and licences recorded: the PyTorch → 8-bit route, ST Edge AI Core (needs
-      Nick's yes to ST's licence terms), Arm Vela (Apache-2.0), and the Pi runtime candidates on the laptop
+- [ ] set up as documented, versions and licences recorded: the PyTorch → 8-bit route, ST Edge AI Core 4.1.0 (Nick said yes to
+      ST's licence terms, 2026-11-27: read them first, save a copy in the data folder, stop on anything unusual), Arm Vela (Apache-2.0), and the Pi runtime candidates on the laptop
 - [ ] known-good first: reproduce the earlier YOLOX-Nano result on both compilers (AE3 one `ethos-u` block; N6
       about 117 + 2 + 0 of 119, the earlier trained export; untrained it was 116 + 2 + 0 of 118) before changing anything
 - [ ] decide and log in DESIGN: where these tools' Python packages live (the app's PyTorch is pinned to 2.10.0,
@@ -425,7 +425,7 @@ compilers; 3c the Pi)**
 **Demo (Nick):** open "What runs where" and press "Run all": the table fills, cell by cell, for the three kinds
 on the N6, the Pi and the AE3. Click a cell: per candidate, the layers on the NPU and on the CPU, sizes against
 the limits, and for a failure the layers that stopped it.
-**Needs:** Nick's merge of the Build 2 spec; Nick's yes to ST's licence terms.
+**Needs:** the Build 2 spec on main.
 
 ### S7 — What runs where, on the boards  `[ ]`
 **Goal:** the table complete with measured numbers: each candidate that compiled is loaded on its board and
@@ -441,8 +441,8 @@ Nick's hand-over; builders and QE use a fake board. Nick is asked only for physi
 - [ ] bench units in `config.local.toml` (no names or addresses in git); any other target is refused; a fake board
 - [ ] test card page: question, units, frames and repeats, metric, pass bar, stop rules; saved with the run;
       Run is refused without it
-- [ ] timing run: load a model file through each board's documented route (back up what it replaces, restore
-      after; never flash firmware), run it a fixed number of times, read back ms per inference and memory
+- [ ] timing run: load a model file through each board's documented route (after the rig backup; every change in the rig log;
+      firmware only if a model route needs it), run it a fixed number of times, read back ms per inference and memory
 - [ ] several models on one camera, board part: load two (then three) of the best candidates together and
       measure peak memory; if they do not fit together, load, run and unload one after the other and time the
       whole sequence; headline per camera: both at once / one after the other / one kind only
@@ -482,7 +482,7 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 
 **Bite 3 — Outside data and starting weights**
 - [ ] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
-      use (not the DUO set until Nick answers); the page lists each source with its licence and counts; its
+      use (not the DUO set: Nick, 2026-11-27); the page lists each source with its licence and counts; its
       boxes are one class, "urchin", used for pre-training the detector only, never in the test split; the
       folder is a setting in `config.local.toml`
 - [ ] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or

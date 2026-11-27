@@ -60,7 +60,7 @@ the table shows that camera can run one.
 | OpenMV AE3: 1 MP global shutter | — | stretch goal (later milestones; from the full spec) |
 | Bench unit: a Pi Zero 2W rig with the IMX708, an N6 and the AE3 (name in `config.local.toml`) | 1 | Build 2 bench rig; Nick sets it up, then one team test session owns it (chat 2026-11-27; make-up from the rig repo's SPEC, not re-checked on the unit) |
 | A Pi 5, added by Nick later (name in `config.local.toml`) | 1 | drives the LCD screen and the power meter once bench tests run (Nick, chat 2026-11-27) |
-| Public urchin datasets and earlier model runs in `~/nereus_ml/` | — | extra detector training data and starting weights, each with its recorded licence (Nick, chat 2026-11-26); the earlier YOLOX weights wait for Nick's answer on the DUO set |
+| Public urchin datasets and earlier model runs in `~/nereus_ml/` | — | extra detector training data and starting weights, each with its recorded licence (Nick, chat 2026-11-26); the earlier YOLOX weights are not used for camera models (they include the DUO set; Nick, 2026-11-27) |
 
 ## Confirmed facts (verified, with sources)
 
@@ -105,12 +105,12 @@ the table shows that camera can run one.
    functional, not flashy (Nick, chat 2026-11-24).
 8. **The repo is public** (Nick, chat 2026-11-24). No real frames, video stills, people's
    names or tokens in git, PRs, issues or test fixtures. Tests use synthetic images.
-9. **Hardware (Build 2; Nick, 2026-11-27).** The app and the team touch only the bench rig Nick named
-   (SPEC inventory; names and addresses in `config.local.toml`), never a field unit. One team test
+9. **Hardware (Build 2; Nick, 2026-11-27).** The app and the team touch only the bench rig Nick named and, once he
+   adds it, the Pi 5 for the screen and power (SPEC inventory; names and addresses in `config.local.toml`), never a field unit. One team test
    session owns the rig; builder and QE sessions never touch hardware and test against a fake board.
    Before any change the test session takes a full backup (the Pi's SD card image over SSH; each
    camera's file flash, model area and firmware version; checksums; restore steps) and checks it.
-   After that the team may change anything on the rig, logs each change, and restores the rig to
+   After that the team may change anything on the rig, camera firmware included, logs each change, and restores the rig to
    the backup at the end or when Nick asks. Every bench run has a test card first. Nick is asked
    only for physical actions. Backups stay in the data folder. No unit names, addresses or serial
    numbers in git.
@@ -228,12 +228,13 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   comes later for the LCD screen and power.
 - Q31 (2026-11-27). Build 2 trains on sea stars and urchins only. Lead call: that is purple, red and black
   urchin, sea star and sunflower sea star; the other classes stay labeled and wait. Nick can reverse it.
+- Q32 (2026-11-27). Nick approved the plan; the spec lead merges the spec PR for him at the QE-passed head. Yes
+  to ST's licence terms for ST Edge AI Core 4.1.0. No to DUO-trained weights as a starting point for a camera model.
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 
 Open for Build 2 (flag, don't guess; `docs/source/build2_spec.md` §Open questions): the Pi's runtime
 and whether the bench Pi is 64-bit; a segmenter architecture that places fully on the N6's NPU; the
-licence of each set of published starting weights; what else runs on the two bench units; which
-meter Nick adds to the Pi 5 for power (optional; never blocks a bench run); whether weights trained on the DUO set may start a
-camera model (for Nick); accepting ST's licence terms for ST Edge AI Core (for Nick; S6 starts with it); what the
+licence of each set of published starting weights; what else runs on the bench rig; which
+meter Nick adds to the Pi 5 for power (optional; never blocks a bench run); what the
 `rfdetr[plus]` package sends out (S6 builder, before any frame goes through it).
