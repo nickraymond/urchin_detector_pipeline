@@ -445,6 +445,17 @@ Listed in the app but NOT offered:
   Roboflow sea-urchin/urchin-detector (74 images, CC BY 4.0): recorded as evaluation material; its label file
     on disk does not match its record. iNaturalist via GBIF: no boxes. corpus_v1 / corpus_v2: contain DUO.
   Any other folder: no licence record.
+RF-DETR from S6 bite 2e on: `rfdetr` 1.12.1 (Apache-2.0: the LICENSE inside the 1.12.1 package is the same text
+  as 1.9.4's, sha256 `8cabf52c…`, compared 2026-11-27), installed with its `tflite` extra in the Python 3.12
+  tool environment `rfdetr-tflite-venv` (`app/fit/toolchain/requirements-rfdetr-tflite.txt`, a full list of
+  what is installed). RF-DETR's own export is used to make the 8-bit file (`app/fit/to_int8_rfdetr.py`).
+  What that environment adds to the packages already listed for the conversion and RF-DETR environments,
+  licences from each installed version's metadata: onnx2tf 2.4.3 — MIT; tensorflow 2.19.1 and tf-keras
+  2.19.0 — Apache 2.0; ai-edge-litert 2.1.2 — Apache 2.0; onnx 1.20.1 — Apache-2.0; onnx-graphsurgeon 0.6.1
+  — Apache 2.0; onnxsim-prebuilt 0.4.39.post2 and onnxoptimizer 0.4.2 — Apache-2.0; onnx-ir 1.1.0 —
+  Apache-2.0; onnxscript 0.6.2 and onnxruntime 1.24.3 — MIT; sne4onnx 2.0.1 — MIT; opencv-python 4.11.0.86 —
+  Apache 2.0; pytest 9.0.2, pluggy 1.7.0, iniconfig 2.3.1 and backports.strenum 1.3.1 — MIT. All are tools
+  on the laptop; none is copied into git or goes onto a camera.
 The YOLOX + prototype-masks instance candidate (`app/modeldefs/yoloxproto.py`) is this project's own code on
   top of Megvii's YOLOX (Apache-2.0, above); it follows the idea of the YOLACT paper and uses no YOLACT code.
 
@@ -469,4 +480,14 @@ whether his plan covers these models, and what usage reporting it asks for (4).
 In S6 only the code is used: the models are built untrained, no weights file is downloaded, and no frame
 goes through them. The licence text is not copied here because nothing of the package is passed on; it is
 in the tool environment and in `<data_dir>`-side notes of the read (`s6/rfdetr_plus_read/`).
+Section 7 (the text goes with every copy), from bite 2e on: the 8-bit model and the compiled files made from
+one of these models are copies in the licence's sense, so the 8-bit step writes the licence's full text, taken
+from the installed package, as `LICENSE-PML-1.0.txt` into the model's folder (`<data_dir>/fit/rfdetrplus-*/`)
+before anything else is made there (`app/fit/to_int8.py`, `write_licence`). Anything that leaves that folder
+for a bench board in S7 takes the file with it.
+Section 4 (usage): the package has no usage tracking (static read, DESIGN §Bench results), so the record is
+ours to keep: every `convert` job of an `rfdetrplus` recipe is a row in `<data_dir>/jobs/jobs.sqlite` with
+its log, and every result folder holds `recipe.json`, `int8.json` and `fit.json` with their times.
+From bite 2e on the package is installed, at the same version, in `rfdetr-plus-tflite-venv` (Python 3.12;
+`requirements-rfdetr-plus-tflite.txt`); its LICENSE there is the same text (sha256 `a3b5627c…`).
 Its extra dependency, timm 1.0.31: Apache-2.0 (PyPI metadata).

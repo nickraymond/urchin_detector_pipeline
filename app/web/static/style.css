@@ -185,3 +185,6 @@ table.fit-detail td, table.fit-detail th { font-size: 14px; padding: 5px 6px; ve
 .fit-runs { background: #e9f6ec; } .fit-partly { background: #fff6dd; } .fit-no { background: #fde8e8; }
 .fit-not_tried { background: #f3f3f3; }
 pre.fit-error { font-size: 12px; white-space: pre-wrap; margin: 4px 0 0; max-width: 46em; }
+/* Train page: validation frames with boxes drawn, under the curves */
+.val-frames { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.val-frames img { border: 1px solid #999; image-rendering: pixelated; }
