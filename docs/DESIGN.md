@@ -856,9 +856,12 @@ are compiler results; nothing was run on a board, and the times are Vela's estim
 | `yoloxproto-nano-conv-256-c5` | 126 + 3 + 0 of 129; file 1,255 KiB, memory 792 KiB (DepthToSpace) | 392 NPU, 0 CPU; est. 32.55 ms; file 1,062 KiB, memory 608 KiB |
 | `yoloxproto-tiny-conv-256-c5` | 101 + 3 + 0 of 104; file 5,331 KiB, memory 1,030 KiB (DepthToSpace) | 302 NPU, 0 CPU; est. 49.7 ms; file 5,223 KiB, memory 1,036 KiB |
 
-Read from the table: YOLOX Nano / Tiny and the YOLOX + prototype-masks instance candidate place with no software
-step on the N6 and no CPU operator on the AE3 (the hybrid steps are the nearest-upsampling `DepthToSpace`, as in
-the measured YOLOX). The plain conv segmenter places the same way. torchvision's LR-ASPP leaves its bilinear
+Read from the table: YOLOX Nano / Tiny and the YOLOX + prototype-masks instance candidate have no software step
+on the N6 and no CPU operator on the AE3; on the N6 each has 2–3 hybrid steps (the nearest-upsampling
+`DepthToSpace`, which ST runs partly on the CPU), as the measured YOLOX has. The plain conv segmenter is the same.
+`yolox-nano-conv-256-c5` gives 117 + 2 + 0 of 119 here against 116 + 2 + 0 of 118 for the known-good untrained
+run of bite 1; that run had one class and this one five, and the count also moves with weights and calibration
+(bite 1), so the two are not expected to be equal; why it is exactly one more was not checked. torchvision's LR-ASPP leaves its bilinear
 resize on the AE3's CPU (1 operator) and 20 steps in software on the N6, where ST reports float convolutions;
 DeepLabV3 does the same and, on the AE3, makes a 35.1 MiB file needing 22.6 MiB of memory against a 24 MiB
 model area. The model area limit is the whole partition; what the vendor's models already use is bite 4's check.
