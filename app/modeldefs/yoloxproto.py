@@ -21,6 +21,10 @@ from app.modeldefs import yolox
 CODE = dict(yolox.CODE)
 PROTOS = 16                      # K; YOLACT uses 32 at 550 px
 OUTPUT_NAMES = [*yolox.OUTPUT_NAMES, "protos"]
+LICENCE = "Apache-2.0 (YOLOX) + own code"
+# shown wherever the app shows this candidate (spec lead, 2026-11-27)
+NOTE = ("our own untrained design, not trained anywhere yet: it shows whether a conv instance segmenter can "
+        "place on the NPU; it is not a published model with a known accuracy")
 
 
 def arch(size: str, input_px: int, classes: list[str]) -> dict:
@@ -31,7 +35,8 @@ def arch(size: str, input_px: int, classes: list[str]) -> dict:
                     "layout": f"per stride: 4 box values, objectness, one score per class (sigmoids applied), "
                               f"{PROTOS} mask coefficients; protos: {PROTOS} prototype masks at 1/4 of the input"},
         "export": {"env": "convert-venv", "opset": 13, "simplify": False},
-        "code": dict(CODE), "licence": "Apache-2.0", "licence_mark": None,
+        "code": dict(CODE), "licence": LICENCE, "licence_mark": None,
+        "note": NOTE,
     }
 
 
