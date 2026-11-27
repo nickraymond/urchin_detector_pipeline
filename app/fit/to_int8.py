@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -106,20 +107,24 @@ def main(argv: list[str]) -> None:
     if done.returncode != 0 or len(quant) != 1:
         raise SystemExit(f"onnx2tf did not produce an 8-bit model (exit code {done.returncode}, "
                          f"{len(quant)} file(s)); its last lines are above.")
+    # The 8-bit file's final name is what tells the job this step is done (D33), so it appears last and
+    # whole: int8.json first, then the file under a temporary name, then one rename. A kill at any point
+    # (Cancel ends the whole process group) leaves no model_int8.tflite, and the step runs again (QE PR 76).
     tflite = out / "model_int8.tflite"
-    tflite.write_bytes(quant[0].read_bytes())
-    shutil.rmtree(tf_dir, ignore_errors=True)        # float and half-quantised copies: several times the model
-
+    part = out / "model_int8.tflite.part"
+    part.write_bytes(quant[0].read_bytes())
     (out / "int8.json").write_text(json.dumps({
         "arch_key": modeldefs.arch_key(arch), "input": [h, w], "outputs": names,
         "weights": "untrained, seeded", "seed": SEED,
         "calibration": f"{CALIB_IMAGES} seeded noise images, 0-255 RGB (D55)",
         "export": settings, "code": version,
-        "onnx_bytes": onnx_path.stat().st_size, "tflite_bytes": tflite.stat().st_size,
-        "tflite_sha256": sha256(tflite),
+        "onnx_bytes": onnx_path.stat().st_size, "tflite_bytes": part.stat().st_size,
+        "tflite_sha256": sha256(part),
         "versions": {name: metadata.version(name) for name in ("torch", "onnx", "onnx2tf", "tensorflow")},
         "seconds": round(time.time() - t0, 1),
     }, indent=1))
+    os.replace(part, tflite)
+    shutil.rmtree(tf_dir, ignore_errors=True)        # float and half-quantised copies: several times the model
     print(f"[to_int8] done: {tflite.name}, {tflite.stat().st_size} bytes", flush=True)
 
 

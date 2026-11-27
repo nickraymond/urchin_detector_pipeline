@@ -118,6 +118,24 @@ def test_pause_ends_the_8_bit_step_and_resume_runs_it_again(jc, tmp_path):
     assert calls(folder) == 2 and convert.read_fit(folder, "fakecam")["converts"]
 
 
+def test_cancel_just_before_the_8_bit_file_is_named_leaves_nothing_to_compile(jc, tmp_path):
+    """Cancel kills the whole process group (QE PR 76): the step's file must not exist half-made."""
+    p = cell(tmp_path, fake={"before_rename_seconds": 30})
+    folder = Path(p["folder"])
+    jid = jc.submit("convert", p)
+    end = time.monotonic() + 20
+    while not (folder / "int8" / "int8.json").exists() and time.monotonic() < end:
+        time.sleep(0.05)
+    assert (folder / "int8" / "model_int8.tflite.part").exists()
+    jc.cancel(jid)
+    wait_state(jc, jid, "cancelled")
+    assert not convert.int8_path(folder).exists() and convert.read_fit(folder, "fakecam") is None
+    assert convert.progress(p) == (0, 2)
+    wait_state(jc, jc.submit("convert", cell(tmp_path)), "done")       # the step runs again, whole
+    assert calls(folder) == 2 and convert.read_fit(folder, "fakecam")["int8"]["tflite_bytes"] == 4
+    assert not (folder / "int8" / "model_int8.tflite.part").exists()
+
+
 def test_missing_tool_environment_fails_the_job_with_a_fix(jc, tmp_path):
     p = cell(tmp_path)
     del p["tool_python"]

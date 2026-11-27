@@ -2,6 +2,7 @@
 The recipe's arch may carry "fake": {"int8_fails": true} or {"int8_seconds": 5}."""
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -17,8 +18,12 @@ def main() -> None:
     if fake.get("int8_fails"):
         print("onnx2tf: Expand is not supported in this fake", flush=True)
         sys.exit(1)
+    # same order as the real step: int8.json, the file under a temporary name, one rename last
+    part = out / "model_int8.tflite.part"
+    part.write_bytes(b"TFL3")
     (out / "int8.json").write_text(json.dumps({"tflite_bytes": 4, "seed": 0}))
-    (out / "model_int8.tflite").write_bytes(b"TFL3")
+    time.sleep(fake.get("before_rename_seconds", 0))
+    os.replace(part, out / "model_int8.tflite")
 
 
 if __name__ == "__main__":

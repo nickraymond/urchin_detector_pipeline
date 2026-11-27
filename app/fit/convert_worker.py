@@ -53,6 +53,7 @@ def run_int8(job: dict, folder: Path, ctl) -> str:
         raise ToolsMissing(f"Tool environment not found: {python}. Fix: set the tools up (DESIGN D51).")
     out = folder / "int8"
     out.mkdir(parents=True, exist_ok=True)
+    (out / "model_int8.tflite.part").unlink(missing_ok=True)     # left by a step that was killed
     env = {**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1",
            "URCHIN_TOOLS_DIR": job["tools_dir"], "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
     with open(out / "convert.log", "w") as log:
