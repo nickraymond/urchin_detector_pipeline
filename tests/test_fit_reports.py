@@ -122,3 +122,27 @@ def test_pi_step_failure_is_a_result_and_a_missing_environment_is_a_job_error(tm
     fit = pi.compile(model, tmp_path, fake_tools(tmp_path.parent / (tmp_path.name + "_abort"), "kill -ABRT $$"))
     assert fit["converts"] is False and "aborted while preparing or running the model" in fit["error"]
 
+
+def test_pi_step_runtime_fault_is_a_job_error_not_a_result(tmp_path):
+    """QE PR 79 nit 1: LiteRT missing or changed says nothing about the model, so no fit result is made."""
+    from app.fit.pi_run import TOOL_FAULT
+    model = tmp_path / "model_int8.tflite"
+    model.write_bytes(b"x")
+    tools = fake_tools(tmp_path, "echo \"tool fault: ImportError: No module named 'ai_edge_litert'\" >&2; "
+                                 f"exit {TOOL_FAULT}")
+    with pytest.raises(ToolsMissing, match="LiteRT could not be used.*ai_edge_litert.*set the tools up"):
+        pi.compile(model, tmp_path, tools)
+
+
+def test_pi_run_exits_with_the_tool_fault_code_when_litert_is_missing(tmp_path):
+    """The app's own environment has no ai_edge_litert: pi_run must say "tool fault", not fail like a model."""
+    import importlib.util
+    import subprocess
+    import sys
+    from app.fit.pi_run import TOOL_FAULT
+    if importlib.util.find_spec("ai_edge_litert"):
+        pytest.skip("LiteRT is installed in this environment")
+    done = subprocess.run([sys.executable, "-m", "app.fit.pi_run", str(tmp_path / "m.tflite")],
+                          capture_output=True, text=True)
+    assert done.returncode == TOOL_FAULT and "tool fault: " in done.stderr
+

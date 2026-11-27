@@ -27,6 +27,14 @@ Each epoch ends with a check on fixed validation canvases (same crops every epoc
 blur or haze): recall and precision at IoU 0.5, score 0.3, all classes together, from the EMA
 weights. That is a training-progress signal on crops, not the evaluation of S9 (tiles on whole
 test frames). A few of those canvases are saved with boxes drawn in `val_frames/`.
+
+Device (D65): the Apple GPU when it is there. Its gradients were wrong at first (PR 72) because
+the batch was laid out channels-last in memory (`from_numpy(NHWC).permute(...).float()` keeps
+that layout), and in YOLOX's training graph the Apple GPU then gives wrong weight gradients
+(measured 2026-11-27 on torch 2.10.0 and 2.13.0; right on the CPU; a plain conv stack is right in
+both layouts, so the operation at fault is not isolated). `_batch` now hands over a contiguous
+tensor. That alone is not a promise, so `load()` checks one small batch on both devices before
+each start: if the gradients differ, the run uses the CPU and says so.
 """
 
 from __future__ import annotations
@@ -48,6 +56,7 @@ from app.train import samples, yolox_mps
 MAX_BOXES = 120          # targets per canvas (the earlier trainer's cap)
 VAL_SCORE, VAL_IOU, NMS_IOU = 0.3, 0.5, 0.45
 VAL_FRAMES = 4
+GPU_CHECK_FRAMES, GPU_CHECK_LIMIT = 8, 0.05   # load(): devices agreeing give about 0.002
 MAX_DETECTIONS = 100     # per canvas, as YOLOX's own evaluation keeps; an untrained head can fire
                          # on thousands of cells, which made one validation pass take 58 s (seen)
 GREY = samples.GREY
@@ -99,13 +108,7 @@ class Trainer:
         self.dir, self.arch, self.t = Path(model_dir), recipe["arch"], recipe["train"]
         limits = job.get("limits") or {}
         self.device = pick_device(limits.get("device"))
-        self.warning = ""
-        if self.device == "mps":
-            # wrong class-branch gradients on the Apple GPU with torch 2.10.0 (yolox_mps.py)
-            self.device = "cpu"
-            self.warning = ("YOLOX trains on the CPU for now (slower): on the Apple GPU its "
-                            "gradients come out wrong with this PyTorch version and the loss "
-                            "turns into NaN. Seen 2026-11-27; the cause is not found yet.")
+        self.warning, self.gpu_check = "", None
         self.threads = int(limits.get("threads") or 4)
         torch.set_num_threads(self.threads)
         self.seed, self.canvas = int(self.t["seed"]), int(self.t["tile"])
@@ -134,11 +137,12 @@ class Trainer:
         self.model = self.opt = self.ema = None
         self.ema_updates = 0
         self.best = -1.0
+        self.partial = None      # loss sums of an epoch paused part-way (kept in the checkpoint)
 
     def describe(self) -> dict:
         import torchvision
         return {"device": self.device, "warning": self.warning, "threads": self.threads,
-                "batch": self.batch,
+                "batch": self.batch, "gpu_check": self.gpu_check,
                 "steps_per_epoch": self.steps, "train_frames": len(self.train),
                 "valid_frames": len(self.valid),
                 "frames_left_out_not_fully_checked": self.left_out,
@@ -155,6 +159,19 @@ class Trainer:
         for m in model.modules():
             if isinstance(m, torch.nn.BatchNorm2d):
                 m.eps, m.momentum = 1e-3, 0.03
+        if self.device == "mps":
+            worst = self._gpu_gradients_differ_by(model)
+            self.gpu_check = {"worst_relative_difference": round(worst, 5),
+                              "limit": GPU_CHECK_LIMIT,
+                              # the same batch at every start: these frames as epoch 0 makes them
+                              "frames": [f["file"] for f in self.train[:GPU_CHECK_FRAMES]]}
+            if not worst <= GPU_CHECK_LIMIT:          # also true for NaN
+                self.device = "cpu"
+                self.warning = (
+                    "This run trains on the CPU (slower): one test batch gave different gradients "
+                    f"on the Apple GPU and on the CPU (worst difference {worst:.3g} of the CPU's "
+                    f"value; up to {GPU_CHECK_LIMIT} is rounding). The run's results are right; "
+                    "tell the team so the GPU fault can be found.")
         self.model = model.to(self.device).train()
         decay, other = [], []
         for name, p in self.model.named_parameters():
@@ -172,13 +189,32 @@ class Trainer:
         self.opt.load_state_dict(ck["opt"])
         self.ema = {k: v.to(self.device) for k, v in ck["ema"].items()}
         self.ema_updates, self.best = ck["ema_updates"], ck.get("best", -1.0)
+        self.partial = ck.get("partial")
         return ck["epoch"], ck["step"]
+
+    def _gpu_gradients_differ_by(self, model) -> float:
+        """One small batch through a copy of the model on the CPU and on the Apple GPU: the
+        largest gradient difference of any parameter, as a share of that parameter's largest CPU
+        gradient (parameters whose gradient is next to nothing are measured against the largest
+        gradient of the whole model). Agreeing devices give about 0.002 (measured)."""
+        import copy
+        n = min(GPU_CHECK_FRAMES, len(self.train))
+        with ThreadPoolExecutor(self.threads) as pool:
+            imgs, targets, _ = self._batch(list(range(n)), pool, 0, self.train, True)
+        grads = {}
+        for dev in ("cpu", self.device):
+            m = copy.deepcopy(model).to(dev).train()
+            m(imgs.to(dev), targets.to(dev))["total_loss"].backward()
+            grads[dev] = [p.grad.detach().cpu() for p in m.parameters() if p.grad is not None]
+        top = max(float(g.abs().max()) for g in grads["cpu"])
+        return max(float((c - g).abs().max()) / (float(c.abs().max()) + 1e-3 * top + 1e-30)
+                   for c, g in zip(grads["cpu"], grads[self.device]))
 
     def _lr(self, it: int) -> float:
         # the earlier rule (3 epochs, at most 1500 steps) assumed hundreds of steps per epoch;
-        # with a small dataset 3 epochs can be 3 steps, and the run diverged to NaN on the
-        # Apple GPU (seen 2026-11-27: 42 frames, 1 step per epoch, NaN from step 5). So: at
-        # least 300 steps, but never more than a third of the run.
+        # with a small dataset 3 epochs can be 3 steps. So: at least 300 steps, but never more
+        # than a third of the run. A guess, not measured: the NaN run that prompted it (42
+        # frames, 1 step per epoch) was on the Apple GPU while its gradients were wrong (D65).
         total = self.epochs * self.steps
         warm = min(1500, max(3 * self.steps, min(300, total // 3)), max(1, total))
         if it < warm:
@@ -210,7 +246,10 @@ class Trainer:
 
     def _batch(self, picks: list[int], pool, epoch: int, source: list[dict], train: bool):
         made = list(pool.map(lambda i: self._example(source[i], epoch, i, train), picks))
-        imgs = torch.from_numpy(np.stack([m[0] for m in made])).permute(0, 3, 1, 2).float()
+        # NCHW and contiguous: with a channels-last layout (what permute() of the stacked images
+        # leaves) YOLOX's gradients come out wrong on the Apple GPU (module docstring, D65)
+        imgs = torch.from_numpy(np.ascontiguousarray(
+            np.stack([m[0] for m in made]).transpose(0, 3, 1, 2))).float()
         targets = torch.zeros((len(made), MAX_BOXES, 5))
         for n, (_, boxes) in enumerate(made):
             if boxes:
@@ -222,9 +261,15 @@ class Trainer:
     def run_epoch(self, epoch: int, start_step: int, stop) -> dict:
         order = samples.order(len(self.train), self.seed, epoch)
         total, parts = 0.0, {"iou_loss": 0.0, "conf_loss": 0.0, "cls_loss": 0.0}
+        if start_step and self.partial and self.partial["at"] == [epoch, start_step]:
+            total, parts = self.partial["total"], dict(self.partial["parts"])   # resumed mid-epoch
+            done_before = start_step
+        else:
+            done_before = 0
         with ThreadPoolExecutor(self.threads) as pool:
             for step in range(start_step, self.steps):
                 if stop():
+                    self.partial = {"at": [epoch, step], "total": total, "parts": parts}
                     return {"done": False, "step": step}
                 picks = order[step * self.batch:(step + 1) * self.batch]
                 imgs, targets, _ = self._batch(picks, pool, epoch, self.train, True)
@@ -245,7 +290,10 @@ class Trainer:
                 total += loss
                 for k in parts:
                     parts[k] += float(torch.as_tensor(out[k]).detach())
-            n = max(1, self.steps - start_step)       # after a resume: the steps of this worker
+            # the epoch's mean; after a resume without the earlier steps' sums (an old
+            # checkpoint), the mean of this worker's steps only
+            n = max(1, self.steps - start_step + done_before)
+            self.partial = None
             metrics = {"loss": round(total / n, 4),
                        **{k: round(v / n, 4) for k, v in parts.items()},
                        "lr": round(self._lr(epoch * self.steps + self.steps - 1), 6)}
@@ -304,7 +352,8 @@ class Trainer:
 
     def save(self, epoch: int, step: int) -> None:
         ck = {"model": self.model.state_dict(), "opt": self.opt.state_dict(), "ema": self.ema,
-              "ema_updates": self.ema_updates, "epoch": epoch, "step": step, "best": self.best}
+              "ema_updates": self.ema_updates, "epoch": epoch, "step": step, "best": self.best,
+              "partial": self.partial if step else None}
         last = self.dir / "checkpoints" / "last.pt"
         tmp = last.with_name(".last.pt.tmp")
         torch.save(ck, tmp)

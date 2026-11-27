@@ -5,12 +5,13 @@ replaced with device-aware equivalents; the maths is unchanged. Adapted from Nic
 `ADIN_SPI_OpenMV/ml/yolox_urchin/model.py` `_patch_head_for_mps` @ 994b8c2. The checkout under
 tools_dir stays unmodified (D51). Training only: export never calls these (app/modeldefs).
 
-NOT ENOUGH ON torch 2.10.0 (measured 2026-11-27, YOLOX-Nano, 2 classes, one batch of 32): with
-these fixes the Apple GPU gives the same losses as the CPU (17.6497 both) but the gradients of
-the class branch (`head.cls_convs.*`) come out about 1e6-1e7 times larger than on the CPU, and
-training goes to NaN within a few steps; the CPU run is stable. Cause not found (handing
-get_assignments copies of the predictions did not change it). Until it is, app/train/yolox.py
-trains on the CPU and says so on the job."""
+These fixes were thought not to be enough (PR 72: same loss on both devices, class-branch
+gradients 1e6-1e7 times larger on the Apple GPU, NaN within a few steps). The cause was not in
+the loss: the image batch was channels-last in memory, and with that layout YOLOX's training
+graph gets wrong weight gradients on the Apple GPU (measured 2026-11-27, torch 2.10.0 and 2.13.0,
+already with the sum of YOLOX's first layer's output as the loss; a plain conv stack is right in
+both layouts, so the operation at fault is not isolated). app/train/yolox.py now builds a
+contiguous batch and checks the two devices against each other before every start (D65)."""
 
 from __future__ import annotations
 

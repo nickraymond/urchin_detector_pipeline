@@ -17,6 +17,34 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Fixes: a LiteRT fault on the Pi step is a job error; Run again (S6 builder 2)
+**Branch:** sprint/6-pi-tool-fault
+**Done:** QE's nit 1 on PR 79 (must-fix before the test build, Lead call): `pi_run` exits with its own code when
+LiteRT cannot be imported or its operator-listing method is gone, and `pi.compile` raises the job error with a
+fix ("set the tools up again") for that code. Before, any failure of the run wrote "does not run on the Pi".
+A model LiteRT refuses is still a result. Nits 2 and 3: a comment at the private LiteRT call; the laptop note
+says the peak memory is the whole Python process.
+Also QE's nit 4 on PR 80 (filed to this builder by the lead): "Run again" cleared the candidate's shared 8-bit
+file and only that camera's result, so the other cameras' cells described a file that was gone. Now it clears
+every camera's result of that candidate, and the page queues the other cameras' cells that had a result again
+behind it and says so.
+**Self-test:** the real `pi_run` on `plainseg-s-256-c6` in `convert-venv`: still 30 operators, exit 0; with the
+app's own Python (no LiteRT): exit 3, "tool fault: ModuleNotFoundError".
+**Next:** PRs 80–83, bite 2e, 2c-ii.
+## 2026-11-27 — Sprint S8 — Bite 4b (part 3): YOLOX trains on the Apple GPU (S8 builder 2)
+**Branch:** sprint/8-apple-gpu
+**Done:** found why YOLOX's gradients were wrong on the Apple GPU (PR 72's open fault): the trainer's batch was
+channels-last in memory, and in YOLOX's training graph the Apple GPU then gives wrong weight gradients (torch
+2.10.0 and 2.13.0; which operation is not isolated: a plain conv stack is right in both layouts, QE PR 84; DESIGN
+D65 and §Bench results). `app/train/yolox.py` builds a contiguous batch, trains on the
+GPU, and checks one small batch on both devices before every start (falls back to the CPU with a warning). A run
+paused mid-epoch now keeps its loss sums in the checkpoint, so the epoch's "loss" is the whole epoch's mean (QE PR
+72 nit 1). Self-test: 120 epochs on the scratch project through the Train page, 273 s, loss 17.65 → 4.42.
+**Broke/surprised us:** the first probes on random images agreed between the devices, because `torch.rand` makes
+a contiguous tensor; only the trainer's own batch showed the fault. The lead's fallback (a second environment
+with another torch) would not have helped: 2.13.0 has the same fault.
+**Next:** the Datasets view by the trainer's frame rule; bite 5 part 2 (Estimate, validation frames on the page);
+S8's docs (TRACKER ticks, as-built DESIGN).
 ## 2026-11-27 — Sprint S6 — RF-DETR through the convert job (S6 builder)
 **Branch:** sprint/6-rfdetr-results (docs only)
 **Done:** the six RF-DETR candidates × N6 and AE3 through the real job (12 jobs, all "done"), and the Pi step by
