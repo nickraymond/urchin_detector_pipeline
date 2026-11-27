@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S8 — Bite 1: prior art, licences, `datasets/` layout (S8 builder)
+**Branch:** sprint/8-prior-art (docs only)
+**Done:** re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` at `994b8c2` (trainer, model, data, tests, export, decode,
+eval, model card) and wrote what S8 reuses (DESIGN §Planned for S8): the training loop and its numbers, the
+sample / augmentation code, the blur tests; not its control page (the job module replaces it), not its corpus or
+weights (DUO). YOLOX's licence read at the source and added to `THIRD_PARTY_LICENSES` with the starting-weights
+record. `datasets/` layout and the split-carrying rule logged as D60 and D61.
+**Broke/surprised us:** the export is rebuilt from scratch on every Export, so "frames by reference" cannot point
+into `export/`: frames are stored once per project under their content hash instead (D60). YOLOX's published COCO
+weights carry no licence statement of their own and COCO's images stay under Flickr's terms: not offered. The
+earlier work left haze augmentation out on purpose (it hurt Nano); TRACKER 4b asks for it, so 4b measures it.
+RF100 (verdict GO, CC BY 4.0) shares DUO's URPC image lineage: raised with the spec lead before bite 3.
+**Next:** bite 2a (freeze a dataset version as a job; Datasets page).
+
 ## 2026-11-26 — Build 2 — Spec written with Nick (spec lead)
 **Branch:** sprint/6-build2-spec (docs only)
 **Done:** `docs/source/build2_spec.md` (train, evaluate, compare, fit to the cameras, bench test, in the same app);

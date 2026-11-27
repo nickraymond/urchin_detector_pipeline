@@ -1,7 +1,7 @@
 # DESIGN.md — Architecture & Decisions (as-built)
 
 *What it did / how it's shaped. Agents append; never silently rewrite history.*
-*Last updated: 2026-11-25*
+*Last updated: 2026-11-27*
 
 ## System topology
 
@@ -466,6 +466,90 @@ app/web/templates/export.html  the Export page
 - Tests: synthetic frames and a fake predictor (no torch, weights or real frames); the builder runs real SAM in
   the browser for bites 5 and 7.
 
+### Planned for S8 (dataset versions and the first detector) — builder's plan 2026-11-27 (TRACKER S8 bite 1); becomes as-built as bites land
+
+```
+app/datasets/versions.py   freeze a version from export/ (manifest, hash), list and read versions
+app/datasets/splits.py     carry each group's split from the version before; deal new groups (D61)
+app/datasets/view.py       what training will see: counts, classes under target, frames left out (bite 2b)
+app/datasets/loaders.py    detector samples from a version, honoring "fully checked" and the split check (bite 2b)
+app/datasets/outside.py    public sources from the outside-data folder, with their licence records (bite 3)
+app/datasets/worker.py     the `freeze` job kind
+app/train/worker.py        the `train` job kind: epochs as items, checkpoint + metrics line per epoch (bite 4a)
+app/train/yolox.py         the YOLOX trainer behind it (bite 4b; needs S6 bite 1's decisions)
+app/web/templates/datasets.html, train.html
+```
+
+- **Layout of `datasets/` (D60).** Per project:
+  ```
+  datasets/images/<sha256>.<jpg|png>   every frame any version uses, stored once under its content hash
+  datasets/v<N>/manifest.json          see below; written once, never changed
+  datasets/v<N>/detector_coco.json     copied from export/ as it was (labels are frozen by copy: they are small)
+  datasets/v<N>/seg_masks/             copied from export/ (8-bit PNGs + classes.json)
+  datasets/v<N>/frame_metrics.csv      copied from export/
+  ```
+  "Frames by reference" (spec §Outputs) = the manifest names each frame by its content hash and the file
+  lives once in `datasets/images/`, shared by every version that uses it. A reference into `export/images/`
+  or `frames/` would not hold: the export is rebuilt from scratch on every Export (D41), a frame rejected
+  later moves to `rejected/`, and rotated stills are re-saved (D44). The SSD is exFAT (as-built S5), so hard
+  links are not available. Cost: one extra copy of each accepted frame per project, not per version.
+  A version is built in `datasets/v<N>.new/` and renamed when complete; a half-built one is removed on the
+  next freeze. Nothing in the app rewrites or removes a `v<N>/` folder or a file in `datasets/images/`.
+- **`manifest.json`.** `number`, `name` (Nick's words, optional), `created`, `hash`; `export` (the export's
+  `summary.json` time and counts); `classes` (the export's `classes.json` list); `files` (sha256 of each
+  copied label file); `frames`: one row per frame with `file`, `image` (sha256 + extension), `width`,
+  `height`, `source`, `group`, `split`, `split_ok`, `checked_classes`; `groups` (`group`, `split`, `frames`,
+  `carried` from which version or `new`); `grouped_by` and the export's split warning; `counts` (objects and
+  frames per class and split); `outside` (bite 3: sources with licence, counts and their own content hash);
+  `previous` (the version it carried splits from). `hash` = sha256 of the canonical JSON of `classes`,
+  `files`, `frames`, `groups` and `outside`: the same content gives the same hash whatever its number, name
+  or date, and Freeze says "nothing changed since v<N>" instead of writing an identical version.
+- **Freeze is a job** (kind `freeze`, not pausable: it copies files into `v<N>.new/` and starts over if
+  stopped). Refused with no export, with an export whose checks did not pass (`summary.json` `ok`), or while
+  an export job is queued or running.
+- **Splits across versions (D61).** Version 1 takes the export's groups and splits as they are. Later
+  versions never ask the export where a frame goes: a frame that was in the version before keeps its split;
+  a group (site + dive date, or video when the export had to fall back, D43) that was in the version before
+  keeps its split, and its new frames join it; new groups are dealt, largest first, to the split furthest
+  below 70 / 20 / 10 counting the frames already placed (the export's rule, started from the carried
+  counts). One case the spec does not cover: the export's grouping changes from "video" to "site and dive
+  date" once a project has 3 dives, and a dive whose videos sat in different splits becomes one group. Its
+  old frames keep their splits (a test frame never moves to train); its new frames go to the most held-out
+  split its old frames are in (test before valid before train), and the page lists such groups.
+- **Training reads a version, never the export** (spec stage 7): the loaders take `datasets/v<N>/` and
+  `datasets/images/` and check each image's hash on first use.
+- **What training adds to S6 bite 1's decisions** (package location, `models/` layout, recipe: the S6
+  builder's calls, read from main before bite 4b; nothing here fixes them). Inside a model's folder the
+  train job needs: `run.json` (dataset version and hash, recipe, code version, seed, library versions,
+  device, starting weights and their licence record), `checkpoints/last.pt` (model, optimizer, EMA, epoch:
+  the earlier trainer's dict) plus the best one by validation, `metrics.jsonl` (one line per epoch) and
+  `val_frames/` (a few drawn validation frames per epoch for the Train page). Bite 4a builds the job kind
+  with a fake trainer against exactly these files, so 4b only swaps the trainer in.
+
+**Reuse from the earlier YOLOX work** (`ADIN_SPI_OpenMV` @ `994b8c2`, `ml/yolox_urchin/`, read 2026-11-27;
+read only, nothing is imported from that repo: pieces are adapted into `app/train/` with a note in each file).
+
+| Earlier file | What it is | Reused in S8 |
+|---|---|---|
+| `train.py` | the loop: SGD + Nesterov, peak lr 0.01 / 64 × batch, 3-epoch linear warm-up (at most 1500 steps), cosine decay to 5 %, EMA with ramped decay (fixed decay scored 0.478 against 0.573, its own note), BatchNorm eps 1e-3 / momentum 0.03, mosaic off for the last 10 epochs, checkpoint dict `{model, opt, ema, epoch}`, resume, run record (config, git sha, corpus hash) | **Adapted** (4b): same loop and numbers as the known-good start (value 5). Changed: SIGTERM stop → the job module's `pause` on stdin; `~/nereus_ml/runs` → the model's folder; one class → the run's class list; one `@@` metrics line and checkpoint per epoch |
+| `model.py` | `build_model` (YOLOX-Nano / -Tiny from YOLOX's own `exp`, Focus stem swapped for a stride-2 conv, the variant that compiled for both NPUs), three run-time patches for the Apple GPU (legacy `.type()` casts), `RawExport`, `decode_raw` | **Shared with S6** bite 2a (the detector's model definition is the S6 builder's); the trainer calls that definition. The Apple GPU patches are training-only and move to `app/train/` |
+| `data.py` | samples: scale so the median box lands in the 24–64 px band, box-aware crop to a 256 px canvas (15 % random), mosaic, flip, HSV, Gaussian blur on its own random stream so turning blur on never moves a box; boxes under 8 px dropped | **Adapted** (4b) as the recipe's tiling and augmentation. Uses OpenCV, which the app does not depend on: 4b first tries Pillow / numpy / scipy (already dependencies) and adds OpenCV only with its licence read. **New:** haze (TRACKER 4b asks for it; the earlier file left haze out on purpose: "measured harmless to tiny", hurt only Nano) |
+| `test_data_aug.py` | boxes unchanged by blur, same seed → same sample, evaluation never blurs | **Adapted** as tests (4b), on synthetic images |
+| `train_ctl.py`, the LaunchAgent in `README.md` | its own control page, SIGSTOP pause, night schedule | **Not reused**: `app/jobctl` does all of it (D4, D32–D38) |
+| `export.py`, `decode_np.py`, `eval_rung_a.py` | 8-bit export and compiles; numpy decode + NMS; COCOeval scoring | Not S8: S6 (convert) and S9 (evaluate) |
+| `train_species.py`, `stage2_autobox.py`, `harvest_crops.py`, `hil_stills.py`, `plot_curves.py` | the two-stage species head and rig tools | Not reused: Build 2 trains the urchin types as detector classes |
+| `~/nereus_ml/datasets/corpus_v1/` and the runs' weights | Urchinbot + DUO + RF100 corpus; stage-1 weights trained on it | **Not used** (spec, Nick 2026-11-27: no DUO, no DUO-trained weights); bite 3 builds its own view of the allowed sources |
+
+Licences for S8, read at the source 2026-11-27 (texts and details in `THIRD_PARTY_LICENSES`):
+YOLOX code Apache-2.0 (`Megvii-BaseDetection/YOLOX` `LICENSE` at `6ddff48`, the head of `main`; GitHub's
+licence API says Apache-2.0; the local checkout `~/nereus_ml/third_party/YOLOX` is the same commit and its
+`LICENSE` has the same sha256). YOLOX's published COCO weights: the repository has no separate licence
+statement for them; they are release files of that repository, trained on COCO, whose terms put the
+annotations under CC BY 4.0 and leave the images under Flickr's terms (`cocodataset.github.io`
+`dataset/termsofuse.htm`, the file the site's Terms of Use tab loads, read from its GitHub repository). So the weights' licence is **not verified as
+permissive**: S8 offers "from scratch" and "pre-trained on the allowed sources" only, and "published
+weights" stays off until the lead or Nick records a verdict (question sent to the spec lead, 2026-11-27).
+
 ## Decision log
 
 | # | Date | Decision | Rationale |
@@ -528,6 +612,8 @@ app/web/templates/export.html  the Export page
 | D48 | 2026-11-26 | **Lead call** (planning lead, D45): area classes (rock, kelp) run on the whole frame scaled to 2016 px (`areas_whole_px: 2016` in `classes.yaml`; 0 = tiles as before); objects stay in tiles. A `classes.yaml` without the setting gets 2016 too, so existing projects switch as well and re-run their areas (only) on the next Run; setting 0 in the class form keeps tiles. | S5 bite 7 bench (PR 49), real SAM 3, 10 frames from 4 videos incl. 5.3K: seam pixels 1078 → 29 and 2110 → 91; 2–5 s per frame; peak Apple GPU 22.7 GB; whole-frame areas missed 2 of 10 frames (a rock-face close-up, a hazy algae patch) where tiles found only fragments. Nick can reverse it. |
 | D49 | 2026-11-26 | **Lead call** (planning lead, S5 bite 7): the anemone prompt is "anemone" (was "sea anemone"); no confidence per class. | Same bench: urchins lost to an anemone mask under D22 rule 1: 27 of ~94 with "sea anemone", 6 with "anemone"; "sea anemone tentacles" took none but found almost no anemones. Anemone masks on urchins scored up to 0.93, so a per-class confidence would not separate them. The remaining 6 stay under the spec's "keep the higher score" and are fixed in review; whether urchin should beat anemone is a question for Nick. Nick can reverse it. |
 | D50 | 2026-11-26 | **Lead call** (planning lead, S5 fix): a project made before D39 has no black urchin, so its Review page has no B key. The Review page names each starting urchin type the project lacks and offers one button, "Add black urchin", which appends that class to the end of the project's `classes.yaml` (id 10 if no class or SAM result ever used it, else the next new id) through the usual checks; nothing else in the file and no SAM result changes. A type counts as present by name, or by id in the same group (renamed). | Found while Nick tested S5 on an older project. Smaller than a class-form offer: one route and one note, on the page where the key is missing. Adding a class to the urchin group does not change the group's settings key, so no re-run is needed. Nick can reverse it. |
+| D60 | 2026-11-27 | **Builder's design call (S8 bite 1; the lead may overrule)**: a dataset version is `datasets/v<N>/` with a `manifest.json`, its own copies of the export's label files, and frames named by content hash, stored once per project in `datasets/images/`. Versions are built under a temporary name, renamed, and never changed or removed by the app. The version's hash covers classes, label files, frames, groups and outside sources, not its number, name or date. | Spec stage 7: models train on a version, "never on whatever the export is today". The export is rebuilt from scratch each time (D41) and frames can be rejected later, so a path into `export/` or `frames/` is not a frozen reference; exFAT has no hard links. Labels are small, images are not: copy labels per version, images once. |
+| D61 | 2026-11-27 | **Builder's design call (S8 bite 1; a gap in the spec, sent to the spec lead)**: splits across versions are carried by frame first, then by group; new groups are dealt toward 70 / 20 / 10 from the carried counts. When the export's grouping changes from video to site + dive date and a dive straddles splits, old frames stay where they were and the dive's new frames go to its most held-out split (test, then valid, then train); the Datasets page lists such groups. | Spec stage 7: one fixed test set; every group keeps its split. A frame that was ever a test frame must never become a training frame, or an older model's test score and a newer model's training set overlap silently; the other direction only shrinks training data. |
 
 ## Bench / test results
 
