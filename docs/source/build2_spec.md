@@ -68,7 +68,7 @@ helper, to be re-read by the builder before the model type is added):
 | --- | --- | --- |
 | YOLOX Nano / Tiny | Apache-2.0 (`Megvii-BaseDetection/YOLOX` LICENSE; lead) | **First detector.** Nick's earlier work compiled it for both NPUs and measured it on both boards (below). |
 | RF-DETR Nano–Large (detector), RF-DETR-Seg Nano–2XLarge (instance segmenter) | Apache-2.0 (`roboflow/rf-detr` README; lead) | **Candidates in "what runs where"** at the Nano size (Nick, 2026-11-27), and the laptop reference for "how good could it get". Never compiled for the cameras so far; attention layers are expected to stay on the CPU (the earlier compile test saw even single transpose layers fall back). The table will show it. |
-| RF-DETR Atto / Femto / Pico (detectors smaller than Nano; package `rfdetr[plus]`) | Roboflow Platform Model License, PML 1.0 (`roboflow/rf-detr_plus` LICENSE; lead): use needs an accepted Roboflow platform plan; the README says commercial self-hosting "requires the Enterprise add-on"; the licence allows usage tracking in the software | **Evaluation only** (Nick, 2026-11-27): candidates in "what runs where" and on the laptop, to see how good the licensed small sizes are. Their weights, trained ones included, stay under PML: never on a field unit or in a product until Nick has the licence. Shown with a "Roboflow licence" mark everywhere. Before use: Nick accepts Roboflow's plan terms himself, and the builder checks what the package sends out (hard constraint 1). |
+| RF-DETR Atto / Femto / Pico (detectors smaller than Nano; package `rfdetr[plus]`) | Roboflow Platform Model License, PML 1.0 (`roboflow/rf-detr_plus` LICENSE; lead): use needs an accepted Roboflow platform plan; the README says commercial self-hosting "requires the Enterprise add-on"; the licence allows usage tracking in the software | **Evaluation only** (Nick, 2026-11-27): candidates in "what runs where" and on the laptop, to see how good the licensed small sizes are. Their weights, trained ones included, stay under PML: never on a field unit or in a product until Nick has the licence. Shown with a "Roboflow licence" mark everywhere. Nick has accepted Roboflow's terms on his own account (2026-11-27); before any frame goes through the package the builder checks what it sends out (hard constraint 1). |
 | torchvision DeepLabV3 / LR-ASPP with a MobileNet backbone | code BSD-3-Clause (helper); weights: torchvision says they "may have their own licenses" (helper) | Candidate first segmenter. NPU fit unproven: it must pass the compile check first. |
 | YOLACT, SparseInst, RTMDet-Ins | MIT (YOLACT LICENSE; lead), MIT (SparseInst; helper), Apache-2.0 (`open-mmlab/mmdetection` LICENSE; lead) | Candidate small instance segmenters. NPU fit unproven. |
 | NanoDet-Plus | Apache-2.0 (helper) | Second choice: its channel-shuffle layers fell back to the CPU on both NPUs in the earlier compile test. |
@@ -327,14 +327,17 @@ Model weights, datasets and bench results live in the data folder, never in git.
 10. **Several models at once (2026-11-27):** "also helpful to understand if multiple models can be
    installed on the hardware at once, of if there are only enough resources for one type at a
    time". Added to "what runs where".
+11. **Roboflow terms (2026-11-27):** "I have a robo flow account and agreed to their use terms so we
+    are good to go for testing". The PML sizes can be tested now; paying comes only if they work
+    and he wants to ship them.
 
 ## Open questions
 
-- **For Nick:** the PML sizes may be used only under an accepted Roboflow platform plan (PML 1.0,
-  section 1), and their software may track usage (section 4). REC: you accept the plan terms on
-  your own Roboflow account before S6 bite 2 installs `rfdetr[plus]`; until then the table carries
-  RF-DETR Nano and RF-DETR-Seg Nano (Apache-2.0) only. No frames go through the PML package until
-  the builder has shown what it sends out.
+- The PML sizes: Nick has a Roboflow account and has agreed to its terms (answer 11), so they can
+  be tested. Still to do before any frame goes through `rfdetr[plus]`: the builder shows what the
+  package sends out (PML 1.0 section 4 allows usage tracking; hard constraint 1 wins). Whether the
+  plan Nick is on covers a product is his question for later, only if these sizes turn out to be
+  the way onto the cameras.
 - **For Nick:** may weights trained on the DUO set be the starting point for a camera model? Its
   licence page declares CC BY 4.0 but its origin is unclear (his earlier notes). REC: no; pre-train
   on Urchinbot and the other cleared sources only.

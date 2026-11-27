@@ -402,8 +402,8 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       each as a model definition the app can build untrained at a given input size; anything not permissive
       stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
       instance segmenter (RF-DETR-Seg Nano and one or two small conv ones)
-- [ ] 2d: RF-DETR Atto / Femto / Pico (PML 1.0; evaluation only, SPEC constraint 6): added only after
-      Nick has accepted Roboflow's plan terms himself; first show what `rfdetr[plus]` sends out (no frames go
+- [ ] 2d: RF-DETR Atto / Femto / Pico (PML 1.0; evaluation only, SPEC constraint 6): Nick has
+      accepted Roboflow's terms on his own account (2026-11-27); first show what `rfdetr[plus]` sends out (no frames go
       through it before that); marked "Roboflow licence" in the table
 
 **Bites 3a, 3b, 3c — Convert job (3a the job and the 8-bit step with a fake compiler; 3b the N6 and AE3
