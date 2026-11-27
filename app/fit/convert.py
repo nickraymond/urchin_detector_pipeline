@@ -79,7 +79,7 @@ def build_job(p: dict) -> dict:
     settings = modeldefs.export_settings(p["arch"])
     tool_python = p.get("tool_python") or str(Path(p["tools_dir"]) / settings["env"] / "bin" / "python")
     return {**p, "fit": fit_settings(p.get("fit")), "compiler": compiler, "tool_python": tool_python,
-            "int8_module": p.get("int8_module") or "app.fit.to_int8",
+            "int8_module": p.get("int8_module") or modeldefs.INT8_MODULES[settings["route"]],
             "arch_key": modeldefs.arch_key(p["arch"])}
 
 

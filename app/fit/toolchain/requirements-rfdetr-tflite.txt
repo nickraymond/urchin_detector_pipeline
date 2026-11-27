@@ -1,7 +1,7 @@
 # S6 bite 2e: the environment the ONE retry of the RF-DETR family ran in (DESIGN §Bench results, bite 2e):
 # RF-DETR's own TFLite exporter with onnx2tf 2.4. Its extra installs only on Python 3.12 (rfdetr's metadata), so it
 # cannot share rfdetr-venv (3.11), and the known-good convert-venv is not touched (CLAUDE.md value 5).
-# NOT built by "Set up the tools" and not used by the convert job: a record of a probe, kept so it can be repeated:
+# Built by "Set up the tools" (app/fit/setup.py) and used by app/fit/to_int8_rfdetr.py; by hand it is:
 #   uv venv --python 3.12 rfdetr-tflite-venv && uv pip install --python rfdetr-tflite-venv/bin/python -r requirements-rfdetr-tflite.txt
 # This is the full `uv pip freeze` of that environment (2026-11-27). Licences: THIRD_PARTY_LICENSES.
 absl-py==2.5.1
