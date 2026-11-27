@@ -416,6 +416,8 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
 - [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
       runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
       their date; "Run all" queues every missing cell
+- [ ] several models on one camera, laptop part: for each pair and all three of the best candidates per
+      camera, whether their files fit in the model area side by side and how much room is left
 - [ ] the AE3 column is under the one-day time box: what is not converted in that time is recorded with its reason
 
 **Demo (Nick):** open "What runs where" and press "Run all": the table fills, cell by cell, for the three kinds
@@ -431,11 +433,15 @@ timed. Nick runs it on his Pi Zero 2W bench rig (IMX708, N6, AE3); builders and 
       Run is refused without it
 - [ ] timing run: load a model file through each board's documented route (back up what it replaces, restore
       after; never flash firmware), run it a fixed number of times, read back ms per inference and memory
+- [ ] several models on one camera, board part: load two (then three) of the best candidates together and
+      measure peak memory; if they do not fit together, load, run and unload one after the other and time the
+      whole sequence; headline per camera: both at once / one after the other / one kind only
 - [ ] Pi: the runtime candidates timed on the bench Pi; one picked, with its licence recorded
 - [ ] energy per inference only where a validated power meter is wired; otherwise "not measured"
 - [ ] the table shows measured numbers next to the compiler's estimates; a one-page "what runs where" report
 **Demo (Nick):** approve the test card and press Run: the table's cells fill with ms per inference and memory
-measured on the N6, the Pi and the AE3. Open the report: which kinds run on which camera, and why not.
+measured on the N6, the Pi and the AE3. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
+several models at once or only one kind at a time.
 **Needs:** S6; Nick at the bench; SPEC hard constraint 9.
 
 ### S8 — Dataset versions and the first detector  `[ ]`

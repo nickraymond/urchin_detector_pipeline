@@ -123,6 +123,17 @@ One page in the app, a table of model kind × camera, filled in before any model
 - **The AE3 is a full column here**, still under the MVP spec's time box: about one working day in
   total across the three kinds; what does not convert in that time is recorded as "does not run"
   with its reason.
+- **More than one model at once (Nick, 2026-11-27).** The MVP puts two models on a camera (detector
+  + segmenter), so the page also answers, per camera: can it hold and run several models, or only
+  one kind at a time? For each pair (and all three) of the best candidates it shows:
+  - **stored together:** do the files fit in the model area side by side, and how much room is left;
+  - **loaded together:** can both sit in memory at once, with the peak memory measured;
+  - **run in one wake-up:** if not together, can the camera load, run and unload one after the
+    other, and how long and how much energy the whole sequence takes.
+  The headline per camera is one of: "both at once", "one after the other" or "one kind only".
+  Known from the earlier work: one N6 model image held two YOLOX detectors plus the vendor's
+  models at 75.7% of the 24 MiB model area (`ml/yolox_urchin/STAGE1.md`); nothing is measured yet
+  about two models in memory at once, on any camera.
 - **What it decides.** Only kinds and architectures that run on a camera are trained for that
   camera. A kind that runs on no camera is still trainable as a laptop reference.
 - Numbers already measured in the earlier work are shown as "earlier work" with their date until
@@ -309,6 +320,9 @@ Model weights, datasets and bench results live in the data folder, never in git.
    are the ones under Roboflow's paid licence; RF-DETR's segmentation models, Nano included, are
    Apache-2.0 and need no paid licence. This narrows answer 2: permissive only for anything
    deployed; the PML sizes are allowed for evaluation.
+10. **Several models at once (2026-11-27):** "also helpful to understand if multiple models can be
+   installed on the hardware at once, of if there are only enough resources for one type at a
+   time". Added to "what runs where".
 
 ## Open questions
 

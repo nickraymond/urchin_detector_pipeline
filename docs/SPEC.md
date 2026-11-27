@@ -16,7 +16,8 @@ criteria in `docs/source/mvp_spec.md`.
 **Build 2 (added 2026-11-26; source `docs/source/build2_spec.md`):** in the same app, go from that
 export to models proven on the bench cameras. First (Nick, 2026-11-27): one table of what each camera
 (N6, Pi Zero 2W, AE3) can run for each kind of model (detector, segmenter, instance segmenter):
-converts, fits, speed, memory, energy; it needs no trained model. Then training. Done when Nick can, in the browser, train a detector
+converts, fits, speed, memory, energy, and whether a camera can hold and run several models at once or
+only one kind at a time; it needs no trained model. Then training. Done when Nick can, in the browser, train a detector
 and a segmenter on a Build 1 export, compare them with older models and other model types, convert
 both for the OpenMV N6 and the Raspberry Pi Zero 2W (the AE3 as a one-day stretch), run them on the
 bench units, and read one comparison page that says which model to put on which camera and why.
