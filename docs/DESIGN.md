@@ -511,9 +511,12 @@ app/web/templates/datasets.html, train.html
   stopped). Refused with no export, with an export whose checks did not pass (`summary.json` `ok`), or while
   an export job is queued or running.
 - **Splits across versions (D61).** Version 1 takes the export's groups and splits as they are. Later
-  versions never ask the export where a frame goes: a frame that was in the version before keeps its split;
-  a group (site + dive date, or video when the export had to fall back, D43) that was in the version before
-  keeps its split, and its new frames join it; new groups are dealt, largest first, to the split furthest
+  versions never ask the export where a frame goes: a frame that was in any earlier version keeps the split
+  it had in the newest version that holds it (so a frame left out of one version and back in the next is not
+  dealt again); a group (site + dive date, or video when the export had to fall back, D43) that was in an
+  earlier version keeps its split the same way, and its new frames join it. "The same frame" is the same
+  file name, not the same image hash: a rotated still is re-encoded on every Export (D44), so its bytes can
+  change while it is still that frame (QE PR 61). New groups are dealt, largest first, to the split furthest
   below 70 / 20 / 10 counting the frames already placed (the export's rule, started from the carried
   counts). One case the spec does not cover: the export's grouping changes from "video" to "site and dive
   date" once a project has 3 dives, and a dive whose videos sat in different splits becomes one group. Its
@@ -522,12 +525,16 @@ app/web/templates/datasets.html, train.html
 - **Training reads a version, never the export** (spec stage 7): the loaders take `datasets/v<N>/` and
   `datasets/images/` and check each image's hash on first use.
 - **What training adds to S6 bite 1's decisions** (package location, `models/` layout, recipe: the S6
-  builder's calls, read from main before bite 4b; nothing here fixes them). Inside a model's folder the
-  train job needs: `run.json` (dataset version and hash, recipe, code version, seed, library versions,
-  device, starting weights and their licence record), `checkpoints/last.pt` (model, optimizer, EMA, epoch:
-  the earlier trainer's dict) plus the best one by validation, `metrics.jsonl` (one line per epoch) and
-  `val_frames/` (a few drawn validation frames per epoch for the Train page). Bite 4a builds the job kind
-  with a fake trainer against exactly these files, so 4b only swaps the trainer in.
+  builder's calls, D51, D53 and D54 in PR 62; nothing here fixes them). S8 uses that layout's names as they
+  are: a trained model is `projects/<name>/models/m<number>-<arch key>/` with `recipe.json`, `checkpoints/`
+  and `train.jsonl`. What S8 puts in them: `recipe.json` → `train` holds the dataset version and its hash,
+  classes, tiling, epochs, augmentation preset, seed and the starting weights with their licence record
+  (D54), and the train job appends one `recorded` entry per start or resume (time, where it continued from,
+  code commit, library versions, device, limits); `checkpoints/last.*` is where Resume continues (model,
+  optimizer, EMA, epoch and step: the earlier trainer's dict plus the step) next to the best one by
+  validation; `train.jsonl` has one line per finished epoch; `val_frames/` (new, S8) holds a few drawn
+  validation frames per epoch for the Train page. Bite 4a builds the job kind with a fake trainer against
+  exactly these files, so 4b only swaps the trainer in.
 
 **Reuse from the earlier YOLOX work** (`ADIN_SPI_OpenMV` @ `994b8c2`, `ml/yolox_urchin/`, read 2026-11-27;
 read only, nothing is imported from that repo: pieces are adapted into `app/train/` with a note in each file).
@@ -616,7 +623,7 @@ weights" stays off until the lead or Nick records a verdict (question sent to th
 | D49 | 2026-11-26 | **Lead call** (planning lead, S5 bite 7): the anemone prompt is "anemone" (was "sea anemone"); no confidence per class. | Same bench: urchins lost to an anemone mask under D22 rule 1: 27 of ~94 with "sea anemone", 6 with "anemone"; "sea anemone tentacles" took none but found almost no anemones. Anemone masks on urchins scored up to 0.93, so a per-class confidence would not separate them. The remaining 6 stay under the spec's "keep the higher score" and are fixed in review; whether urchin should beat anemone is a question for Nick. Nick can reverse it. |
 | D50 | 2026-11-26 | **Lead call** (planning lead, S5 fix): a project made before D39 has no black urchin, so its Review page has no B key. The Review page names each starting urchin type the project lacks and offers one button, "Add black urchin", which appends that class to the end of the project's `classes.yaml` (id 10 if no class or SAM result ever used it, else the next new id) through the usual checks; nothing else in the file and no SAM result changes. A type counts as present by name, or by id in the same group (renamed). | Found while Nick tested S5 on an older project. Smaller than a class-form offer: one route and one note, on the page where the key is missing. Adding a class to the urchin group does not change the group's settings key, so no re-run is needed. Nick can reverse it. |
 | D60 | 2026-11-27 | **Builder's design call (S8 bite 1; the lead may overrule)**: a dataset version is `datasets/v<N>/` with a `manifest.json`, its own copies of the export's label files, and frames named by content hash, stored once per project in `datasets/images/`. Versions are built under a temporary name, renamed, and never changed or removed by the app. The version's hash covers classes, label files, frames, groups and outside sources, not its number, name or date. | Spec stage 7: models train on a version, "never on whatever the export is today". The export is rebuilt from scratch each time (D41) and frames can be rejected later, so a path into `export/` or `frames/` is not a frozen reference; exFAT has no hard links. Labels are small, images are not: copy labels per version, images once. |
-| D61 | 2026-11-27 | **Builder's design call (S8 bite 1; a gap in the spec, sent to the spec lead)**: splits across versions are carried by frame first, then by group; new groups are dealt toward 70 / 20 / 10 from the carried counts. When the export's grouping changes from video to site + dive date and a dive straddles splits, old frames stay where they were and the dive's new frames go to its most held-out split (test, then valid, then train); the Datasets page lists such groups. | Spec stage 7: one fixed test set; every group keeps its split. A frame that was ever a test frame must never become a training frame, or an older model's test score and a newer model's training set overlap silently; the other direction only shrinks training data. |
+| D61 | 2026-11-27 | **Builder's design call (S8 bite 1; a gap in the spec, sent to the spec lead)**: splits across versions are carried by frame first (by file name, from the newest earlier version that holds the frame), then by group the same way; new groups are dealt toward 70 / 20 / 10 from the carried counts. When the export's grouping changes from video to site + dive date and a dive straddles splits, old frames stay where they were and the dive's new frames go to its most held-out split (test, then valid, then train); the Datasets page lists such groups. | Spec stage 7: one fixed test set; every group keeps its split. A frame that was ever a test frame must never become a training frame, or an older model's test score and a newer model's training set overlap silently; the other direction only shrinks training data. |
 
 ## Bench / test results
 
