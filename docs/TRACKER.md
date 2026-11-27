@@ -402,6 +402,11 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       D7), the `models/` layout, what a "recipe" holds
 
 **Bites 2a, 2b, 2c — Candidate list, one bite per kind**
+- [x] 2a-i (split by the builder): `app/modeldefs/` (D51, D54): a candidate is the `arch` part of a recipe, with
+      its folder name (`arch_key`) and checks; YOLOX Nano / Tiny with the plain first layer at 256 and 320 px, five
+      classes, built untrained with the three raw output maps (adapted from the earlier `yolox_urchin/model.py`)
+- [x] 2a-ii: RF-DETR Nano (detector): licence at the source, what building it downloads or sends (nothing: built
+      with the network refused), model definition at 384 and 256 px; its own tool environment and export settings (D56)
 - [ ] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
       each as a model definition the app can build untrained at a given input size; anything not permissive
       stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
