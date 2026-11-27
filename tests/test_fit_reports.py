@@ -67,7 +67,7 @@ def test_fit_settings_defaults_and_overrides(tmp_path):
     s = convert.fit_settings(None)
     assert s["docker_image"] == "firmware-builder:latest" and "~" not in s["sdk_dir"] + s["openmv_dir"]
     assert convert.fit_settings({"sdk_dir": "/x", "other": 1}) == {**s, "sdk_dir": "/x"}
-    assert convert.COMPILERS == {"n6": "app.fit.n6", "ae3": "app.fit.ae3", "pi": "app.fit.pi"}
+    assert convert.COMPILERS == {"n6": "app.fit.n6", "ae3": "app.fit.ae3", "pi": "app.fit.pi", "n6_st41": "app.fit.n6_st41"}
 
 
 def test_n6_command_mounts_the_toolchain_read_only(tmp_path):
