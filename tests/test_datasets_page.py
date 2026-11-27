@@ -42,3 +42,23 @@ def test_freeze_from_the_page_on_a_real_export(tmp_path):
     # a name that is too long is refused before any job
     r = client.post("/p/p/datasets/freeze", data={"version_name": "x" * 81}, follow_redirects=False)
     assert "too+long" in r.headers["location"]
+
+
+def test_page_shows_what_training_will_see(tmp_path):
+    """Bite 2b: on a synthetic export with review flags set, the page shows the numbers of
+    app/datasets/view.py, and the class choice in the address changes them."""
+    from tests.test_dataset_loaders import frozen
+    from tests.test_preview import make_project
+    client, folder = make_project(tmp_path, 1)
+    frozen(folder)
+    page = client.get("/p/p/datasets").text
+    assert "What training will see (detector)" in page
+    assert "<td>purple urchin</td><td>22 (12)</td><td>8 (4)</td><td>0 (0)</td><td>30</td>" in page
+    assert "<b>under</b>: 120 more" in page and "6 objects on 3 frames" in page
+    assert "1 frame(s) left out by the split check" in page
+    assert "4 frame(s) with a class not fully checked" in page
+    assert "<b>12</b> (2 left out)" in page
+    stars = client.get("/p/p/datasets?classes=3").text
+    assert "<td>purple urchin</td><td>22 (12)</td>" not in stars
+    assert "<td>sea star</td><td>0 (11)</td>" in stars
+    assert "not object classes" in client.get("/p/p/datasets?classes=9").text
