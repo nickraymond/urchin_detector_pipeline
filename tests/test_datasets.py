@@ -91,7 +91,7 @@ def test_new_groups_are_dealt_toward_70_20_10_from_the_carried_counts():
     frames = [{"file": f"a{i}", "group": "A", "split": "test"} for i in range(10)]
     frames += [{"file": f"b{i}", "group": "B", "split": "train"} for i in range(4)]
     frames += [{"file": f"c{i}", "group": "C", "split": "train"} for i in range(2)]
-    by_frame, groups = ds_splits.assign(frames, prev)
+    by_frame, groups = ds_splits.assign(frames, [prev])
     got = {g["group"]: (g["split"], g["carried"]) for g in groups}
     assert got == {"A": ("train", "v3"), "B": ("valid", "new"), "C": ("test", "new")}
     assert by_frame["a0"] == "train" and by_frame["b0"] == "valid" and by_frame["c1"] == "test"
@@ -105,7 +105,7 @@ def test_a_dive_that_straddled_splits_keeps_its_test_frames_out_of_training():
             "groups": [{"group": "/v/a.MP4", "split": "train", "frames": 1},
                        {"group": "/v/b.MP4", "split": "test", "frames": 1}]}
     frames = [{"file": f, "group": "reef 2025-10-01", "split": "train"} for f in ("x1", "x2", "x3")]
-    by_frame, groups = ds_splits.assign(frames, prev)
+    by_frame, groups = ds_splits.assign(frames, [prev])
     assert by_frame == {"x1": "train", "x2": "test", "x3": "test"}
     assert groups == [{"group": "reef 2025-10-01", "frames": 3, "split": "test", "carried": "v1",
                        "straddles": ["test", "train"]}]
@@ -141,3 +141,42 @@ def test_stills_and_the_video_fallback_group_like_the_export():
     assert ds_splits.group_of(src, "f.png", "site and dive date") == "reef 2025-10-01"
     assert ds_splits.group_of(src, "f.png", "video") == src
     assert frame(src, 0)["file"].endswith("_0.png")
+
+
+def test_a_frame_left_out_of_one_version_and_back_in_the_next_keeps_its_split(tmp_path):
+    """QE PR 61 nit 3: the carry looks at every earlier version, newest first, not only the
+    one before: a test group that is un-accepted for one version and comes back stays test."""
+    fake_export(tmp_path, four_dives())
+    v1 = versions.freeze(tmp_path)["manifest"]
+    wall = [f["file"] for f in v1["frames"] if f["group"] == "wall 2025-10-03"]
+    assert {f["split"] for f in v1["frames"] if f["file"] in wall} == {"test"}
+    without = [f for f in four_dives() if "wall" not in f["file"]]
+    fake_export(tmp_path, without + dive("pinnacle", 5, 40))
+    v2 = versions.freeze(tmp_path)["manifest"]
+    assert not [f for f in v2["frames"] if f["file"] in wall]
+    fake_export(tmp_path, four_dives() + dive("pinnacle", 5, 40) + dive("ledge", 6, 30))
+    v3 = versions.freeze(tmp_path)["manifest"]
+    assert {f["split"] for f in v3["frames"] if f["file"] in wall} == {"test"}
+    groups = {g["group"]: g for g in v3["groups"]}
+    assert groups["wall 2025-10-03"]["carried"] == "v1"
+    assert groups["pinnacle 2025-10-05"]["carried"] == "v2" and groups["ledge 2025-10-06"]["carried"] == "new"
+    v2_split = {f["file"]: f["split"] for f in v2["frames"]}
+    assert all(f["split"] == v2_split[f["file"]] for f in v3["frames"] if f["file"] in v2_split)
+
+
+def test_the_same_frame_with_other_image_bytes_keeps_its_split(tmp_path):
+    """QE PR 61 nit 4: the carry key is the file name, not the image hash (a rotated still is
+    re-encoded on every Export, so its bytes may change). New bytes = a new version, a second
+    stored image, the same split; version 1 still reads its own image."""
+    from PIL import Image
+    export = fake_export(tmp_path, four_dives())
+    v1 = versions.freeze(tmp_path)["manifest"]
+    f0 = next(f for f in v1["frames"] if f["split"] == "test")
+    fake_export(tmp_path, four_dives() + dive("pinnacle", 5, 40))      # the export re-deals
+    Image.new("RGB", (64, 48), (9, 9, 9)).save(export / "images" / f0["file"])
+    res = versions.freeze(tmp_path)
+    again = next(f for f in res["manifest"]["frames"] if f["file"] == f0["file"])
+    assert res["new"] and again["split"] == "test" and again["image"] != f0["image"]
+    store = tmp_path / "datasets" / "images"
+    assert (store / f0["image"]).is_file() and (store / again["image"]).is_file()
+    assert versions.sha256_file(store / f0["image"]) == f0["image"].split(".")[0]
