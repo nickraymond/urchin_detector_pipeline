@@ -32,6 +32,22 @@
 <p class="hint">"Earlier work" numbers were measured on the boards before this app ({{ earlier_source }}), with one
   class and other training data; they stay until the same models are measured through the app.</p>
 
+<h2 id="tools">Tools</h2>
+<p class="hint">The converters and compilers live in their own folder, <code>{{ cfg.tools_dir }}</code>, outside
+  the app. "Set up the tools" makes what is missing (downloads from PyPI and GitHub; several GB the first time).
+  "Ready" means an environment holds at least what its requirements file lists; anything else installed in it by
+  hand stays. Docker is asked at most once a minute.</p>
+<table class="fit-detail">
+  <tr><th>Tool</th><th>For</th><th>State</th></tr>
+  {% for i in tools %}<tr class="{{ 'fit-runs' if i.ok else 'fit-partly' }}"><td>{{ i.name }}</td><td>{{ i.what }}</td>
+    <td>{% if i.ok %}ready{% else %}<b>not ready</b>: {{ i.why }}{% endif %}</td></tr>{% endfor %}
+  {% for o in outside %}<tr class="{{ 'fit-runs' if o.ok else 'fit-no' }}"><td>{{ o.name }}</td>
+    <td>the N6 compiler; from Nick's earlier work, not made here <span class="hint">{{ o.path }}</span></td>
+    <td>{% if o.ok %}found{% else %}<b>not found</b>: N6 cells will stop with a fix in their job{% endif %}</td></tr>{% endfor %}
+</table>
+<form method="post" action="/fit/setup"><button>Set up the tools</button>
+  {% if setup_job %}<span class="hint">last set-up: {{ setup_job.state }}{% if setup_job.message %} ({{ setup_job.message }}){% endif %} · <a href="/jobs/{{ setup_job.id }}/log">log</a></span>{% endif %}</form>
+
 <h2 id="together">Several models on one camera: stored together</h2>
 <p class="hint">For the best candidate of each kind that runs on a camera (permissive licences only; smallest file among the best): do their
   files fit side by side? This is the laptop part. Whether they can sit in memory together, or run one after the
