@@ -456,9 +456,10 @@ compilers; 3c the Pi)**
       queues the other cells that had a result again behind it (PR 85)
 - [x] a LiteRT fault on the Pi step (runtime missing or changed) is a job error with a fix, not "does not run on
       the Pi" (QE PR 79 nit 1; PR 85)
-- [ ] 3d (found by the builder, D51 promised it): "Set up the tools" as a job with a button: build the tool
-      environments from `app/fit/toolchain/` and check out YOLOX at its commit; today they exist on Nick's laptop
-      because the builder made them by hand (steps in the requirements files' headers)
+- [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
+      (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
+      YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's
+      earlier work are only checked. Tested with stand-ins for `uv` and `git`
 - [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
       runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
       their date; "Run all" queues every missing cell
@@ -473,6 +474,11 @@ the limits, and for a failure the layers that stopped it.
 **Needs:** the Build 2 spec on main.
 
 ### S7 — What runs where, on the boards  `[ ]`
+*State 2026-11-27 (lead): the rig test session owns the rig. Both cameras are backed up and checked (every
+readable partition read twice; files copied twice against checksums made on the boards; both back as found).
+Not yet: the Pi's card image (waits for root on the Pi, which Nick is giving), the AE3's RECOVERY partition
+(its bootloader refuses to read it), a rehearsal of the restore steps, QE's check of the evidence. Evidence:
+`~/NereusData/urchin_detector_pipeline/rig_backup/2026-11-27/` (never in git). No S7 code is started.*
 **Goal:** the table complete with measured numbers: each candidate that compiled is loaded on its board and
 timed. The team's test session runs it on Nick's Pi Zero 2W bench rig (IMX708, N6, AE3), which it owns from
 Nick's hand-over; builders and QE use a fake board. Nick is asked only for physical actions.

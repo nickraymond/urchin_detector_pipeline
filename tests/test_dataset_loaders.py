@@ -70,17 +70,19 @@ def test_view_counts_what_the_loader_gives_and_what_is_skipped(tmp_path):
     v = view.training_view(tmp_path, 1)
     urchin, star = v["classes"]
     assert (urchin["name"], star["name"]) == ("purple urchin", "sea star")
-    # train: 14 frames - split no - nothing checked = 12 with urchin checked; one has 0 urchins
-    assert urchin["seen"]["train"] == {"objects": 22, "frames": 12}
+    # a run of both classes uses a frame only when both are fully checked on it (loaders.usable):
+    # train: 14 frames - split no - reef[2] (nothing checked) - reef[1] (stars unchecked) = 11
+    assert urchin["seen"]["train"] == {"objects": 20, "frames": 11}
     assert urchin["seen"]["valid"] == {"objects": 8, "frames": 4}
     assert urchin["seen"]["test"] == {"objects": 0, "frames": 0}
-    assert urchin["skipped"]["train"] == {"objects": 2, "frames": 1}     # reef[2]
+    assert urchin["skipped"]["train"] == {"objects": 4, "frames": 2}     # reef[1], reef[2]
     assert urchin["skipped"]["test"] == {"objects": 4, "frames": 2}      # wall: stars only
     assert star["seen"]["train"] == {"objects": 0, "frames": 11}
     assert star["skipped"]["train"] == {"objects": 2, "frames": 2}       # reef[1], reef[2]
-    assert urchin["total"] == 30 and urchin["under_target"] and v["target"] == (150, 200)
+    assert urchin["total"] == 28 and urchin["under_target"] and v["target"] == (150, 200)
     assert v["split_no"] == [reef[0]["file"]]
-    assert v["frames"]["train"] == {"used": 12, "left_out": 2}
+    assert v["frames"]["train"] == {"used": 11, "left_out": 3, "partly_checked": 1}
+    assert v["frames"]["test"] == {"used": 0, "left_out": 2, "partly_checked": 2}
     listed = {u["file"]: u["classes"] for u in v["unchecked"]}
     assert listed[reef[1]["file"]] == ["sea star"]
     assert listed[reef[2]["file"]] == ["purple urchin", "sea star"]
@@ -89,6 +91,17 @@ def test_view_counts_what_the_loader_gives_and_what_is_skipped(tmp_path):
     assert v["unseen"] == ["sea star"]       # 2 stars labeled in train, on unchecked frames only
     one = view.training_view(tmp_path, 1, [3])
     assert [c["name"] for c in one["classes"]] == ["sea star"]
+    # urchins alone: reef[1] is back (22 objects on 12 frames), nothing is "partly checked"
+    alone = view.training_view(tmp_path, 1, [1])
+    assert alone["classes"][0]["seen"]["train"] == {"objects": 22, "frames": 12}
+    assert alone["frames"]["train"] == {"used": 12, "left_out": 2, "partly_checked": 0}
+    # the page's frame counts are the trainer's, for any class choice (QE PR 72)
+    from app.train import job as train_job
+    assert train_job.usable is loaders.usable
+    for ids, got in (([1, 3], v), ([1], alone), ([3], one)):
+        for split in ("train", "valid", "test"):
+            samples = loaders.detector_samples(tmp_path, 1, split, ids)["samples"]
+            assert got["frames"][split]["used"] == len(loaders.usable(samples, ids)[0])
     assert [c["picked"] for c in one["all_classes"]] == [False, True]
 
 

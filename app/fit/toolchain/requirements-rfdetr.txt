@@ -4,3 +4,11 @@
 # Adding rfdetr changes none of the conversion pins (uv dry run, 2026-11-27). Licences: THIRD_PARTY_LICENSES.
 -r requirements-convert.txt
 rfdetr==1.9.4
+# rfdetr's own dependencies, as installed and scanned for licences on 2026-11-27 (QE PR 82: they floated):
+transformers==5.24.1
+huggingface-hub==2.5.0
+safetensors==0.8.0
+tokenizers==0.23.3
+supervision==0.32.3
+pydantic==2.14.4
+pydeprecate==0.9.0
