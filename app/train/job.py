@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from app.datasets import loaders
 from app.train import models
 
 # name -> "module:Class". Only names listed here can run: the job file never carries a module
@@ -79,14 +80,7 @@ for _size, _note in (("nano", "smallest; 10.6 ms on the N6 and 26.4 ms on the AE
         "why": {"type": _note, **_YOLOX_WHY}, "licence": "Apache-2.0"}
 
 
-def usable(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], int]:
-    """(frames a detector run may train or validate on, frames left out). A frame is used only
-    when EVERY class of the run is fully checked on it: with one class unchecked, its unlabeled
-    animals would be taught as background (spec: "never treated as background"; QE PR 72).
-    Stricter than the spec's per-class skip; a per-class loss mask would let those frames back in."""
-    want = sorted(class_ids)
-    keep = [s for s in samples if sorted(s["checked"]) == want]
-    return keep, len(samples) - len(keep)
+usable = loaders.usable      # the one frame rule of a detector run (app/datasets/loaders.py)
 
 
 def arch_key(mtype: dict, input_px: int, n_classes: int) -> str:

@@ -186,6 +186,7 @@ def test_the_apple_gpu_is_used_when_its_gradients_match_the_cpu(run):
     d = t.describe()
     assert d["device"] == "mps" and d["warning"] == ""
     assert d["gpu_check"]["worst_relative_difference"] < GPU_CHECK_LIMIT / 2
+    assert d["gpu_check"]["frames"] == [f"train_{i}.png" for i in range(8)]   # which frames it used
     res = t.run_epoch(0, 0, lambda: False)
     assert res["done"] and np.isfinite(res["metrics"]["loss"])
 
