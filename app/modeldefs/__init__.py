@@ -71,11 +71,12 @@ def third_party(name: str, commit: str, repo: str, package: str) -> Path:
     return path
 
 
-DEFAULT_EXPORT = {"env": "convert-venv", "opset": 13}   # the known-good YOLOX route (D52)
+DEFAULT_EXPORT = {"env": "convert-venv", "opset": 13, "simplify": False}   # the known-good YOLOX route (D52)
 
 
 def export_settings(arch: dict) -> dict:
-    """Which tool environment builds and exports this model, and the ONNX opset."""
+    """Which tool environment builds and exports this model, the ONNX opset, and whether the ONNX file
+    goes through onnxsim before the 8-bit step."""
     return {**DEFAULT_EXPORT, **(arch.get("export") or {})}
 
 

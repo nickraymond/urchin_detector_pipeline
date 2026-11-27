@@ -32,7 +32,9 @@ def arch(input_px: int, classes: list[str]) -> dict:
         "outputs": {"names": OUTPUT_NAMES,
                     "layout": f"dets: {QUERIES} boxes (cx, cy, w, h; 0..1 of the input); labels: {QUERIES} rows "
                               "of one logit per class plus one (no sigmoid applied)"},
-        "export": {"env": "rfdetr-venv", "opset": 17},
+        # measured 2026-11-27: onnx2tf 1.28.8 fails on the raw ONNX (an Expand of a constant); after an
+        # onnxsim pass it converts
+        "export": {"env": "rfdetr-venv", "opset": 17, "simplify": True},
         "code": dict(CODE), "licence": "Apache-2.0", "licence_mark": None,
     }
 

@@ -81,8 +81,8 @@ def test_check_says_what_is_wrong(change, word):
 def test_rfdetr_checks_and_export_settings():
     from app.modeldefs import rfdetr
     a = rfdetr.arch(384, ["x"])
-    assert modeldefs.check(a) == [] and modeldefs.export_settings(a) == {"env": "rfdetr-venv", "opset": 17}
-    assert modeldefs.export_settings({}) == {"env": "convert-venv", "opset": 13}
+    assert modeldefs.check(a) == [] and modeldefs.export_settings(a) == {"env": "rfdetr-venv", "opset": 17, "simplify": True}
+    assert modeldefs.export_settings({}) == {"env": "convert-venv", "opset": 13, "simplify": False}
     assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [336, 336]}))
     assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [320, 384]}))
     assert any("Roboflow's own" in p for p in modeldefs.check({**a, "size": "pico"}))
