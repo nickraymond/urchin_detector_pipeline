@@ -111,7 +111,10 @@ def test_a_run_paused_mid_epoch_ends_with_the_same_weights(run):
     b.unload()
     b2 = trainer(b_dir, recipe)
     assert b2.load() == (0, 1)
-    finish(b2, b_dir, 0, 1)
+    rows_b = finish(b2, b_dir, 0, 1)
+    rows_a = __import__("app.train.models", fromlist=["x"]).read_metrics(a_dir)
+    assert rows_b[0]["loss"] == pytest.approx(rows_a[0]["loss"], abs=2e-4)   # the whole epoch's mean
+    assert rows_b[0]["cls_loss"] == pytest.approx(rows_a[0]["cls_loss"], abs=2e-4)
     wa = torch.load(a_dir / "checkpoints" / "last.pt", weights_only=True)
     wb = torch.load(b_dir / "checkpoints" / "last.pt", weights_only=True)
     assert wa["ema_updates"] == wb["ema_updates"] == 4
@@ -145,14 +148,10 @@ def test_yolox_is_offered_with_defaults_and_whys():
     assert modeldefs.check(recipe["arch"]) == []
 
 
-def test_the_apple_gpu_is_not_used_and_a_bad_loss_stops_the_run(run, monkeypatch):
-    """Measured 2026-11-27: wrong class-branch gradients on the Apple GPU (app/train/yolox_mps.py).
-    The trainer uses the CPU and says so; a loss that is not a number raises, with what to do."""
+def test_a_loss_that_is_not_a_number_stops_the_run(run, monkeypatch):
     import torch
-    from app.train.yolox import Trainer
     mdir, recipe = run("a")
-    t = Trainer(mdir, recipe, {"limits": {"device": "mps", "threads": 2}})
-    assert t.device == "cpu" and "on the CPU for now" in t.describe()["warning"]
+    t = trainer(mdir, recipe)
     t.load()
     real = t.model.forward
     monkeypatch.setattr(t.model, "forward", lambda *a, **k: {
@@ -160,6 +159,54 @@ def test_the_apple_gpu_is_not_used_and_a_bad_loss_stops_the_run(run, monkeypatch
     with pytest.raises(RuntimeError, match="stopped being a number at epoch 1, step 1"):
         t.run_epoch(0, 0, lambda: False)
     assert not (mdir / "train.jsonl").exists()
+
+
+def test_the_batch_is_contiguous_nchw(run):
+    """D65: a channels-last batch is what gave wrong gradients on the Apple GPU."""
+    from concurrent.futures import ThreadPoolExecutor
+    mdir, recipe = run("a")
+    t = trainer(mdir, recipe)
+    with ThreadPoolExecutor(2) as pool:
+        imgs, targets, made = t._batch([0, 1, 2], pool, 0, t.train, True)
+    assert imgs.shape == (3, 3, 96, 96) and imgs.is_contiguous()
+    assert np.array_equal(imgs[1].permute(1, 2, 0).numpy(), made[1][0].astype(np.float32))
+
+
+def _mps() -> bool:
+    import torch
+    return torch.backends.mps.is_available()
+
+
+@pytest.mark.skipif(not _mps(), reason="needs the Apple GPU")
+def test_the_apple_gpu_is_used_when_its_gradients_match_the_cpu(run):
+    from app.train.yolox import GPU_CHECK_LIMIT, Trainer
+    mdir, recipe = run("a")
+    t = Trainer(mdir, recipe, {"limits": {"device": "auto", "threads": 2}})
+    t.load()
+    d = t.describe()
+    assert d["device"] == "mps" and d["warning"] == ""
+    assert d["gpu_check"]["worst_relative_difference"] < GPU_CHECK_LIMIT / 2
+    assert d["gpu_check"]["frames"] == [f"train_{i}.png" for i in range(8)]   # which frames it used
+    res = t.run_epoch(0, 0, lambda: False)
+    assert res["done"] and np.isfinite(res["metrics"]["loss"])
+
+
+@pytest.mark.skipif(not _mps(), reason="needs the Apple GPU")
+def test_wrong_apple_gpu_gradients_send_the_run_to_the_cpu_with_a_warning(run, monkeypatch):
+    """The fault of PR 72, brought back on purpose: a channels-last batch. load() must see it."""
+    from app.train.yolox import Trainer
+    mdir, recipe = run("a")
+    t = Trainer(mdir, recipe, {"limits": {"device": "mps", "threads": 2}})
+    real = t._batch
+
+    def channels_last(*a, **k):
+        imgs, targets, made = real(*a, **k)
+        return imgs.cpu().permute(0, 2, 3, 1).contiguous().permute(0, 3, 1, 2).to(imgs.device), targets, made
+    monkeypatch.setattr(t, "_batch", channels_last)
+    t.load()
+    d = t.describe()
+    assert d["device"] == "cpu" and "trains on the CPU" in d["warning"]
+    assert d["gpu_check"]["worst_relative_difference"] > 1
 
 
 def test_validation_keeps_at_most_100_boxes_per_canvas():

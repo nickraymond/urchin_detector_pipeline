@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S8 — Bite 4b (part 3): YOLOX trains on the Apple GPU (S8 builder 2)
+**Branch:** sprint/8-apple-gpu
+**Done:** found why YOLOX's gradients were wrong on the Apple GPU (PR 72's open fault): the trainer's batch was
+channels-last in memory, and in YOLOX's training graph the Apple GPU then gives wrong weight gradients (torch
+2.10.0 and 2.13.0; which operation is not isolated: a plain conv stack is right in both layouts, QE PR 84; DESIGN
+D65 and §Bench results). `app/train/yolox.py` builds a contiguous batch, trains on the
+GPU, and checks one small batch on both devices before every start (falls back to the CPU with a warning). A run
+paused mid-epoch now keeps its loss sums in the checkpoint, so the epoch's "loss" is the whole epoch's mean (QE PR
+72 nit 1). Self-test: 120 epochs on the scratch project through the Train page, 273 s, loss 17.65 → 4.42.
+**Broke/surprised us:** the first probes on random images agreed between the devices, because `torch.rand` makes
+a contiguous tensor; only the trainer's own batch showed the fault. The lead's fallback (a second environment
+with another torch) would not have helped: 2.13.0 has the same fault.
+**Next:** the Datasets view by the trainer's frame rule; bite 5 part 2 (Estimate, validation frames on the page);
+S8's docs (TRACKER ticks, as-built DESIGN).
 ## 2026-11-27 — Sprint S6 — RF-DETR through the convert job (S6 builder)
 **Branch:** sprint/6-rfdetr-results (docs only)
 **Done:** the six RF-DETR candidates × N6 and AE3 through the real job (12 jobs, all "done"), and the Pi step by
