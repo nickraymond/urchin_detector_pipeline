@@ -1,0 +1,89 @@
+
+Epochs details
+------------------------------------------------------------------------------------
+Total number of epochs                               196
+>> pure software (SW) epochs                           2
+>> hybrid epochs (using both software and hardware)   36
+>> pure hardware (HW or EC) epochs                   158  (implemented in 39 epoch controller blobs/meta epochs)
+---
++--------------------+--------+-----------+
+| epoch ID           |  Type  |  Details  |
++--------------------+--------+-----------+
+| epochs    2 -> 6   |   EC   |           |
+| epoch_8            | Hybrid | Transpose |
+| epochs    9 -> 9   |   EC   |           |
+| epoch_10           | Hybrid | Transpose |
+| epochs   11 -> 16  |   EC   |           |
+| epoch_17           | Hybrid | Transpose |
+| epochs   18 -> 18  |   EC   |           |
+| epoch_19           | Hybrid | Transpose |
+| epochs   20 -> 25  |   EC   |           |
+| epoch_26           | Hybrid | Transpose |
+| epochs   27 -> 27  |   EC   |           |
+| epoch_28           | Hybrid | Transpose |
+| epochs   29 -> 34  |   EC   |           |
+| epoch_35           | Hybrid | Transpose |
+| epochs   36 -> 36  |   EC   |           |
+| epoch_37           | Hybrid | Transpose |
+| epochs   38 -> 43  |   EC   |           |
+| epoch_45           | Hybrid | Transpose |
+| epochs   46 -> 46  |   EC   |           |
+| epoch_47           | Hybrid | Transpose |
+| epochs   48 -> 53  |   EC   |           |
+| epoch_54           | Hybrid | Transpose |
+| epochs   55 -> 55  |   EC   |           |
+| epoch_56           | Hybrid | Transpose |
+| epochs   57 -> 62  |   EC   |           |
+| epoch_63           | Hybrid | Transpose |
+| epochs   64 -> 64  |   EC   |           |
+| epoch_65           | Hybrid | Transpose |
+| epochs   66 -> 71  |   EC   |           |
+| epoch_72           | Hybrid | Transpose |
+| epochs   73 -> 73  |   EC   |           |
+| epoch_74           | Hybrid | Transpose |
+| epochs   75 -> 80  |   EC   |           |
+| epoch_81           | Hybrid | Transpose |
+| epochs   82 -> 82  |   EC   |           |
+| epoch_83           | Hybrid | Transpose |
+| epochs   84 -> 89  |   EC   |           |
+| epoch_90           | Hybrid | Transpose |
+| epochs   91 -> 91  |   EC   |           |
+| epoch_92           | Hybrid | Transpose |
+| epochs   93 -> 98  |   EC   |           |
+| epoch_99           | Hybrid | Transpose |
+| epochs  100 -> 100 |   EC   |           |
+| epoch_101          | Hybrid | Transpose |
+| epochs  102 -> 107 |   EC   |           |
+| epoch_108          | Hybrid | Transpose |
+| epochs  109 -> 109 |   EC   |           |
+| epoch_110          | Hybrid | Transpose |
+| epochs  111 -> 115 |   EC   |           |
+| epoch_117          | Hybrid | Transpose |
+| epochs  118 -> 118 |   EC   |           |
+| epoch_119          | Hybrid | Transpose |
+| epochs  120 -> 126 |   EC   |           |
+| epoch_127          | Hybrid | Transpose |
+| epochs  128 -> 128 |   EC   |           |
+| epoch_129          | Hybrid | Transpose |
+| epochs  130 -> 136 |   EC   |           |
+| epoch_137          | Hybrid | Transpose |
+| epochs  138 -> 138 |   EC   |           |
+| epoch_139          | Hybrid | Transpose |
+| epochs  140 -> 146 |   EC   |           |
+| epoch_147          | Hybrid | Transpose |
+| epochs  148 -> 148 |   EC   |           |
+| epoch_149          | Hybrid | Transpose |
+| epochs  150 -> 153 |   EC   |           |
+| epoch_154          |   SW   |  Resize   |
+| epochs  155 -> 162 |   EC   |           |
+| epoch_163          |   SW   |  Resize   |
+| epochs  164 -> 185 |   EC   |           |
+| epoch_186          | Hybrid |   Split   |
+| epochs  187 -> 199 |   EC   |           |
+| epoch_200          | Hybrid |   Split   |
+| epochs  201 -> 205 |   EC   |           |
+| epoch_206          | Hybrid |   Split   |
+| epochs  207 -> 210 |   EC   |           |
+| epoch_211          | Hybrid |   Split   |
+| epochs  212 -> 214 |   EC   |           |
++--------------------+--------+-----------+

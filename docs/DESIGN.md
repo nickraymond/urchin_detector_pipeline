@@ -835,3 +835,30 @@ A probe by hand, not the `convert` job; the table's own numbers come from bite 3
 | onnxsim 0.7.3, then onnx2tf | 8-bit TFLite, 31.3 MB (onnxsim's command-line summary crashes after it has saved the file; the job must call its Python function) |
 | Vela 5.0.0 (AE3) | compiles; 3,789 operators on the NPU (92.8%), 293 on the CPU; needs 16,992 KiB of memory; output 35.1 MB (the model area is 24 MiB) |
 | ST Edge AI Core 4.0.0 (N6) | does not convert: `INTERNAL ERROR: 'NoneType' object is not subscriptable` |
+
+### S6 bite 3b: first cells through the real convert job (2026-11-27)
+
+The builder's self-test of the N6 and AE3 compiler modules: every candidate except RF-DETR, untrained, through the
+`convert` job (ST Edge AI Core 4.0.0 in the container; Vela 5.0.0 native). All 20 jobs ended "done" and every one
+converts. Files and logs: `~/NereusData/urchin_detector_pipeline/s6/selftest_3b/` (`run_all.jsonl`, `fit/`). These
+are compiler results; nothing was run on a board, and the times are Vela's estimates.
+
+| Candidate | N6: hardware + hybrid + software steps | AE3: operators |
+|---|---|---|
+| `yolox-nano-conv-256-c5` | 117 + 2 + 0 of 119; file 1,166 KiB, memory 608 KiB (DepthToSpace) | 378 NPU, 0 CPU; est. 28.11 ms; file 983 KiB, memory 512 KiB |
+| `yolox-nano-conv-320-c5` | 117 + 2 + 0 of 119; file 1,168 KiB, memory 741 KiB (DepthToSpace) | 378 NPU, 0 CPU; est. 43.24 ms; file 982 KiB, memory 800 KiB |
+| `yolox-tiny-conv-256-c5` | 95 + 2 + 0 of 97; file 5,149 KiB, memory 682 KiB (DepthToSpace) | 288 NPU, 0 CPU; est. 41.81 ms; file 5,051 KiB, memory 1,036 KiB |
+| `yolox-tiny-conv-320-c5` | 96 + 2 + 0 of 98; file 5,154 KiB, memory 1,238 KiB (DepthToSpace) | 288 NPU, 0 CPU; est. 62.9 ms; file 5,050 KiB, memory 1,612 KiB |
+| `tvseg-lraspp-mnv3l-256-c6` | 143 + 0 + 20 of 163; file 3,916 KiB, memory 3,454 KiB (Conv(float), DequantizeLinear, QuantizeLinear, Resize) | 193 NPU, 1 CPU; est. 56.61 ms; file 2,785 KiB, memory 1,283 KiB (RESIZE_BILINEAR) |
+| `tvseg-deeplabv3-mnv3l-256-c6` | 149 + 6 + 20 of 175; file 11,567 KiB, memory 8,140 KiB (Conv(float), DepthToSpace, DequantizeLinear, QuantizeLinear, Resize, SpaceToDepth, Tile) | 192 NPU, 1 CPU; est. 1400.41 ms; file 35,922 KiB, memory 23,181 KiB (RESIZE_BILINEAR) |
+| `plainseg-s-256-c6` | 27 + 2 + 0 of 29; file 101 KiB, memory 576 KiB (DepthToSpace) | 26 NPU, 0 CPU; est. 2.34 ms; file 68 KiB, memory 449 KiB |
+| `plainseg-m-256-c6` | 27 + 2 + 0 of 29; file 180 KiB, memory 816 KiB (DepthToSpace) | 26 NPU, 0 CPU; est. 3.66 ms; file 147 KiB, memory 706 KiB |
+| `yoloxproto-nano-conv-256-c5` | 126 + 3 + 0 of 129; file 1,255 KiB, memory 792 KiB (DepthToSpace) | 392 NPU, 0 CPU; est. 32.55 ms; file 1,062 KiB, memory 608 KiB |
+| `yoloxproto-tiny-conv-256-c5` | 101 + 3 + 0 of 104; file 5,331 KiB, memory 1,030 KiB (DepthToSpace) | 302 NPU, 0 CPU; est. 49.7 ms; file 5,223 KiB, memory 1,036 KiB |
+
+Read from the table: YOLOX Nano / Tiny and the YOLOX + prototype-masks instance candidate place with no software
+step on the N6 and no CPU operator on the AE3 (the hybrid steps are the nearest-upsampling `DepthToSpace`, as in
+the measured YOLOX). The plain conv segmenter places the same way. torchvision's LR-ASPP leaves its bilinear
+resize on the AE3's CPU (1 operator) and 20 steps in software on the N6, where ST reports float convolutions;
+DeepLabV3 does the same and, on the AE3, makes a 35.1 MiB file needing 22.6 MiB of memory against a 24 MiB
+model area. The model area limit is the whole partition; what the vendor's models already use is bite 4's check.
