@@ -227,6 +227,7 @@ def test_pretraining_on_outside_data_then_a_run_that_starts_from_it(page, monkey
     assert where == "/p/p/train?model=m2-fake-tiny-64-c1"
     start = models.read_recipe(folder / "models" / "m2-fake-tiny-64-c1")["train"]["start"]
     assert start["kind"] == "pretrained" and start["licences"] == ["CC-BY-4.0"]
+    assert start["sources"] == [{"key": "urchinbot", "licence": "CC-BY-4.0"}]      # once, not per start
     assert wait_for(lambda: client.get("/p/p/train").text.count("<td>done</td>") == 2, 60)
     assert "different+model+type+or+size" in run(
         client, version=2, model_type="fake-big", start_kind="pretrained", start_model="m1-fake-tiny-64-c1")
