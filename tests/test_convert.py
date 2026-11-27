@@ -148,7 +148,7 @@ def test_submit_refuses_a_bad_recipe_and_an_unknown_camera(jc, tmp_path):
     bad = cell(tmp_path)
     bad["arch"] = {**bad["arch"], "input": [250, 250]}
     assert "multiples of 32" in str(pytest.raises(JobError, convert.build_job, bad).value)
-    p = cell(tmp_path, camera="pi")
+    p = cell(tmp_path, camera="moon")
     del p["compiler"]
     assert "No compiler is set up" in str(pytest.raises(JobError, convert.build_job, p).value)
     assert convert.build_job(cell(tmp_path))["tool_python"] == sys.executable
