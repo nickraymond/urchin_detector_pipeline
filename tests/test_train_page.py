@@ -186,3 +186,47 @@ def test_the_form_carries_every_model_types_defaults_and_whys(page, monkeypatch)
                                                 "classes": ["1"]}, follow_redirects=False).headers["location"]
     assert where == "/p/p/train?model=m1-fake-big-128-c1"
     assert models.read_recipe(folder / "models" / "m1-fake-big-128-c1")["train"]["epochs"] == 9
+
+
+def test_pretraining_on_outside_data_then_a_run_that_starts_from_it(page, monkeypatch, tmp_path):
+    """TRACKER S8 bite 3 (its open half): "Train on: the version's outside data" makes a
+    one-class model; when it has finished it is offered as a start; a start of another model
+    type is refused."""
+    from app.datasets import versions
+    from tests.dataset_fixtures import dive, fake_export
+    from tests.test_outside_data import make_outside
+    client, folder = page
+    able = {**FAKE_TYPE, "outside": True, "starts": ("scratch", "pretrained")}
+    big = {**able, "name": "Fake-Big", "size": "big"}
+    monkeypatch.setattr(train_job, "MODEL_TYPES", {"fake-tiny": able, "fake-big": big})
+    root = make_outside(tmp_path / "outside")
+    fake_export(folder, dive("reef", 1, 6) + dive("cove", 2, 2) + dive("wall", 3, 1))
+    versions.freeze(folder)
+    html = client.get("/p/p/train").text
+    assert 'name="data" value="outside" disabled' in html and "holds no outside data" in html
+    assert "holds+no+outside+data" in run(client, data="outside")
+    versions.freeze(folder, outside_keys=["urchinbot"], outside_dir=root)
+    # the folder is not set in the settings: refused with what to do, no model made
+    assert "outside_data_dir+is+not+set" in run(client, version=2, data="outside")
+    cfg = next(tmp_path.glob("*.toml"))
+    cfg.write_text(cfg.read_text() + f'\noutside_data_dir = "{root}"\n')
+    html = client.get("/p/p/train?version=2").text
+    assert 'name="data" value="outside">' in html and "Urchinbot" in html and "CC-BY-4.0" in html
+    assert run(client, version=2, data="outside", classes=[]) == "/p/p/train?model=m1-fake-tiny-64-c1"
+    mdir = folder / "models" / "m1-fake-tiny-64-c1"
+    rec = models.read_recipe(mdir)
+    assert rec["arch"]["classes"] == ["urchin"] and rec["train"]["data"] == "outside"
+    assert wait_for(lambda: len(models.read_metrics(mdir)) == 3, 60)
+    assert wait_for(lambda: client.get("/p/p/train").text.count("<td>done</td>") == 1, 60)
+    used = models.read_recipe(mdir)["train"]["recorded"][0]["outside_used"]
+    assert used == [{"key": "urchinbot", "licence": "CC-BY-4.0"}]
+    html = client.get("/p/p/train?version=2&model=m1-fake-tiny-64-c1").text
+    assert "<option>m1-fake-tiny-64-c1</option>" in html and "pre-training on outside data" in html
+    # a run on the project's frames starts from it; its record carries the source's licence
+    where = run(client, version=2, start_kind="pretrained", start_model="m1-fake-tiny-64-c1")
+    assert where == "/p/p/train?model=m2-fake-tiny-64-c1"
+    start = models.read_recipe(folder / "models" / "m2-fake-tiny-64-c1")["train"]["start"]
+    assert start["kind"] == "pretrained" and start["licences"] == ["CC-BY-4.0"]
+    assert wait_for(lambda: client.get("/p/p/train").text.count("<td>done</td>") == 2, 60)
+    assert "different+model+type+or+size" in run(
+        client, version=2, model_type="fake-big", start_kind="pretrained", start_model="m1-fake-tiny-64-c1")

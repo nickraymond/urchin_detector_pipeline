@@ -44,25 +44,37 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
         out = {}
         for mid in models.list_ids(folder):
             try:
-                t = models.read_recipe(models.root(folder) / mid).get("train", {})
+                rec = models.read_recipe(models.root(folder) / mid)
+                t = rec.get("train", {})
             except models.ModelError:
                 continue
             if len(models.read_metrics(models.root(folder) / mid)) >= (t.get("epochs") or 1e9):
                 # the sources the run really trained on, as its trainer recorded them: a
                 # version that merely holds Urchinbot does not make a model "pre-trained"
                 used = [s for r in t.get("recorded", []) for s in r.get("outside_used", [])]
-                out[mid] = {"outside": used, "start": t.get("start")}
+                out[mid] = {"outside": used, "start": t.get("start"), "arch": rec.get("arch", {})}
         return out
 
     def plan(folder: Path, version: int, form, model_type: str, start_kind: str,
-             start_model: str) -> tuple[str, dict]:
+             start_model: str, cfg_outside=lambda: None) -> tuple[str, dict]:
         """(arch key, recipe) for the form as sent, for Run and for Estimate alike. Raises
         with a message for the page when the run cannot be made."""
         manifest, _ = loaders.load(folder, version)
-        ids = loaders.check_classes(manifest, form.getlist("classes"))
-        began = starting.record({"kind": start_kind, "model": start_model},
-                                start_records(folder))
+        on_outside = form.get("data") == "outside"      # pre-training: one class, no class pick
+        ids = [] if on_outside else loaders.check_classes(manifest, form.getlist("classes"))
+        records = start_records(folder)
+        began = starting.record({"kind": start_kind, "model": start_model}, records)
         key, recipe = train_job.build_recipe(model_type, dict(form), manifest, ids, began)
+        if began["kind"] == "pretrained":    # the weights must fit: same family, size, first layer
+            a, b = recipe["arch"], records[start_model]["arch"]
+            if any(a.get(k) != b.get(k) for k in ("family", "size", "variant")):
+                raise ValueError(f"Model {start_model} is a different model type or size: a run "
+                                 "can only start from a pre-trained model of its own type.")
+        if on_outside:
+            if not cfg_outside():
+                raise ValueError("outside_data_dir is not set in config.local.toml (or the "
+                                 "folder is missing): a run on outside data needs it.")
+            return key, recipe
         seen, _ = train_job.usable(
             loaders.detector_samples(folder, version, "train", ids)["samples"], ids)
         if not any(s["boxes"] for s in seen):
@@ -72,6 +84,11 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 "Review page mark them \"fully checked\" on the frames you reviewed, "
                 "export and freeze again (the Datasets page shows what is skipped).")
         return key, recipe
+
+    def outside_param(cfg, recipe: dict) -> dict:
+        """The outside data folder goes into the job file only for a run that reads it."""
+        return ({"outside_dir": str(cfg.outside_data_dir)}
+                if recipe["train"].get("data") == "outside" else {})
 
     BUSY = ("scheduled", "queued", "running", "pausing", "paused", "interrupted")
 
@@ -93,11 +110,12 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 and last.get("model_type") in train_job.MODEL_TYPES
             tkey = last["model_type"] if same else next(iter(train_job.MODEL_TYPES), "")
             d = train_job.MODEL_TYPES.get(tkey, {}).get("defaults", {})
-            form = {"model_type": tkey, "input": last["tile"] if same else d.get("input"),
+            form = {"model_type": tkey, "data": last.get("data", "project") if same else "project",
+                    "input": last["tile"] if same else d.get("input"),
                     "epochs": last["epochs"] if same else d.get("epochs"),
                     "augment": last["augment"] if same else d.get("augment"),
                     "seed": last["seed"] if same else d.get("seed"),
-                    "class_ids": last["class_ids"] if same
+                    "class_ids": last["class_ids"] if same and last["class_ids"]
                     else loaders.default_class_ids(picked) if picked else []}
             return templates.TemplateResponse(request, "train.html", {
                 "cfg": cfg, "info": info, "error": error, "versions": found, "picked": picked,
@@ -128,12 +146,14 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             if problem:
                 return back(problem)
             try:
-                key, recipe = plan(folder, version, form, model_type, start_kind, start_model)
+                key, recipe = plan(folder, version, form, model_type, start_kind, start_model,
+                                   lambda: cfg.outside_data_dir)
                 mdir = models.create(folder, key, recipe)
             except (loaders.DatasetError, starting.StartError, models.ModelError,
                     ValueError) as e:
                 return back(str(e))
-            jc.submit("train", {"model_dir": str(mdir), "trainer": recipe["train"]["trainer"]},
+            jc.submit("train", {"model_dir": str(mdir), "trainer": recipe["train"]["trainer"],
+                                **outside_param(cfg, recipe)},
                       project=str(folder), start_at=start_at, stop_by=stop_by,
                       keep_awake=bool(keep_awake))
             return RedirectResponse(f"/p/{name}/train?" + urlencode({"model": mdir.name}),
@@ -159,7 +179,8 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 return back("A training job of this project is waiting or running: finish, "
                             "resume or cancel it first.")
             try:
-                _, recipe = plan(folder, version, form, model_type, start_kind, start_model)
+                _, recipe = plan(folder, version, form, model_type, start_kind, start_model,
+                                 lambda: cfg.outside_data_dir)
             except (loaders.DatasetError, starting.StartError, models.ModelError,
                     ValueError) as e:
                 return back(str(e))
@@ -168,7 +189,8 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             (edir / "estimate.json").unlink(missing_ok=True)   # never show the old one as new
             models.write_json(edir / "recipe.json", recipe)
             jc.submit("train", {"model_dir": str(edir), "trainer": recipe["train"]["trainer"],
-                                "estimate": True}, project=str(folder))
+                                "estimate": True, **outside_param(cfg, recipe)},
+                      project=str(folder))
             return RedirectResponse(f"/p/{name}/train?" + urlencode({"version": version}),
                                     status_code=303)
         return with_project(request, name, work)

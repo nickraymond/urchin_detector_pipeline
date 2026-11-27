@@ -21,6 +21,10 @@
   <tr><th>Model type</th><td><select name="model_type" id="model-type">{% for k, t in types.items() %}<option value="{{ k }}"{% if k == form.model_type %} selected{% endif %}>{{ t.name }} ({{ t.kind }})</option>{% endfor %}</select></td>
     <td class="hint">{% for k, t in types.items() %}{{ t.name }}: {{ t.why.type }} {% endfor %}</td></tr>
   {% set t0 = types[form.model_type] %}
+  <tr><th>Train on</th><td><label><input type="radio" name="data" value="project"{% if form.data != "outside" %} checked{% endif %}> this project's frames</label><br>
+    <label><input type="radio" name="data" value="outside"{% if form.data == "outside" %} checked{% endif %}{% if not picked.outside %} disabled{% endif %}> the version's outside data (pre-training)</label></td>
+    <td class="hint">{% if picked.outside %}Outside data in this version: {% for o in picked.outside %}{{ o.name }} ({{ o.licence }}; {{ "{:,}".format(o.counts.train.images) }} training images){% if not loop.last %}, {% endif %}{% endfor %}.
+      A pre-training run learns one class, "urchin", from it and ignores the class boxes below; a later run on this project's frames can start from that model.{% else %}This version holds no outside data (add a source on the Datasets page and freeze again). Pre-training on it gives a model that later runs can start from.{% endif %}</td></tr>
   <tr><th>Classes</th><td>{% for c in classes %}<label><input type="checkbox" name="classes" value="{{ c.id }}"{% if c.id in form.class_ids %} checked{% endif %}> {{ c.name }}</label> {% endfor %}</td>
     <td class="hint">Default: sea stars and urchins (Nick, 2026-11-27). A class counts only on frames where it is fully checked.</td></tr>
   <tr><th>Input size (tile, px)</th><td><select name="input">{% for px in t0.inputs %}<option{% if px == form.input %} selected{% endif %}>{{ px }}</option>{% endfor %}</select></td><td class="hint" data-why="input">{{ t0.why.input }}</td></tr>
@@ -55,7 +59,7 @@
 {% if shown and not shown.error %}
 <h2>Model {{ shown.id }}</h2>
 <p class="hint">{{ shown.arch.classes | join(", ") }} · dataset version {{ shown.train.dataset.version }} ({{ shown.train.dataset.hash[:8] }})
-  · {{ shown.train.epochs }} epochs · augmentation {{ shown.train.augment }} · seed {{ shown.train.seed }} · start: {{ shown.train.start.kind }}{% if shown.train.start.model %} ({{ shown.train.start.model }}){% endif %}</p>
+  · {{ shown.train.epochs }} epochs · augmentation {{ shown.train.augment }} · seed {{ shown.train.seed }} · start: {{ shown.train.start.kind }}{% if shown.train.start.model %} ({{ shown.train.start.model }}){% endif %}{% if shown.train.data == "outside" %} · <b>pre-training on outside data</b>{% endif %}</p>
 <div id="curves" data-src="/p/{{ info.name }}/train/metrics/{{ shown.id }}" data-val="/p/{{ info.name }}/train/val/{{ shown.id }}/"><div class="charts"></div>
   <p class="hint curve-note"></p>
   <div class="val-frames"></div>
