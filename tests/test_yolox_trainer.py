@@ -251,3 +251,14 @@ def test_a_start_other_than_scratch_is_refused_and_outside_data_is_not_claimed(r
                                     {"kind": "scratch", "licences": []})
     assert rec["train"]["dataset"]["outside"] == [{"key": "urchinbot", "licence": "CC-BY-4.0"}]
     assert trainer(mdir, recipe).describe()["outside_used"] == []     # what the run really used
+
+
+def test_estimate_times_steps_and_validation_and_saves_nothing(run):
+    """Bite 5 part 2: Estimate = a few timed steps after one warm-up step + one validation pass."""
+    mdir, recipe = run("a")
+    t = trainer(mdir, recipe)
+    t.load()
+    got = t.estimate(2)
+    assert got["steps_timed"] == 2 and got["seconds_per_step"] > 0 and got["validation_seconds"] > 0
+    assert t.ema_updates == 3                               # 1 warm-up + 2 timed steps ran
+    assert not list((mdir / "checkpoints").iterdir()) and not (mdir / "train.jsonl").exists()

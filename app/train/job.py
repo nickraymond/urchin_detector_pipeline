@@ -3,6 +3,7 @@ and progress counted from the model's own files."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from app.train import models
@@ -19,8 +20,26 @@ def prepare(params: dict) -> dict:
     return {**params, "trainer": TRAINERS[name]}
 
 
+ESTIMATE_STEPS = 5               # training steps an Estimate times, after 1 warm-up step
+ESTIMATE_DIR = ".estimate"       # models/.estimate/: the recipe being estimated + estimate.json
+
+
+def estimate_dir(folder: Path) -> Path:
+    return models.root(folder) / ESTIMATE_DIR
+
+
+def read_estimate(folder: Path) -> dict | None:
+    """The last Estimate of this project (app/train/worker.py `estimate`), or None."""
+    try:
+        return json.loads((estimate_dir(folder) / "estimate.json").read_text())
+    except (OSError, ValueError):
+        return None
+
+
 def progress(params: dict) -> tuple[int, int]:
     """(epochs with a metrics line, epochs asked for), from the model folder."""
+    if params.get("estimate"):
+        return 0, 1
     mdir = Path(params["model_dir"])
     return len(models.read_metrics(mdir)), int(models.read_recipe(mdir)["train"]["epochs"])
 
