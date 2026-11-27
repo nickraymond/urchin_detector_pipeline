@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_PATH = Path("config.local.toml")
+DEFAULT_TOOLS_DIR = Path.home() / "NereusData" / "urchin_detector_pipeline" / "tools"
 
 
 @dataclass
@@ -15,6 +16,8 @@ class Config:
     path: Path
     data_dir: Path | None = None
     video_roots: list[Path] = field(default_factory=list)
+    # Build 2's tool environments (D51): on the laptop's own disk, never the exFAT SSD
+    tools_dir: Path = DEFAULT_TOOLS_DIR
     problems: list[str] = field(default_factory=list)   # the app cannot work until these are fixed
     warnings: list[str] = field(default_factory=list)   # the app works; some folders are missing
 
@@ -51,6 +54,13 @@ def load(path: Path = DEFAULT_PATH) -> Config:
             cfg.problems.append(
                 f"Data folder not found: {cfg.data_dir}. Fix: plug in the SSD, or create the "
                 f"folder, or correct data_dir in {path.name}; then reload this page.")
+
+    tools = raw.get("tools_dir")
+    if tools is not None:
+        if isinstance(tools, str) and tools.strip():
+            cfg.tools_dir = Path(tools).expanduser()
+        else:
+            cfg.warnings.append(f"tools_dir in {path.name} must be a folder path; using {cfg.tools_dir}.")
 
     roots = raw.get("video_roots", [])
     if isinstance(roots, str):

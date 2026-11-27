@@ -6,3 +6,7 @@ video_roots = ["/Volumes/Nick_R_SSD/NereusData/nereus-camera-test-rig"]
 
 # Where projects (frames, SAM results, exports, logs) are written. Outside the repo.
 data_dir = "/Volumes/Nick_R_SSD/NereusData/urchin_detector_pipeline"
+
+# Build 2 only, optional: where the conversion tools' own Python environments live. They need the
+# laptop's own disk (an exFAT SSD cannot hold them). Default: ~/NereusData/urchin_detector_pipeline/tools
+# tools_dir = "~/NereusData/urchin_detector_pipeline/tools"
