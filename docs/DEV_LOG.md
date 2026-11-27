@@ -17,6 +17,27 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S8 — Bite 1: prior art, licences, `datasets/` layout (S8 builder)
+**Branch:** sprint/8-prior-art (docs only)
+**Done:** re-read `ADIN_SPI_OpenMV/ml/yolox_urchin/` at `994b8c2` (trainer, model, data, tests, export, decode,
+eval, model card) and wrote what S8 reuses (DESIGN §Planned for S8): the training loop and its numbers, the
+sample / augmentation code, the blur tests; not its control page (the job module replaces it), not its corpus or
+weights (DUO). YOLOX's licence read at the source and added to `THIRD_PARTY_LICENSES` with the starting-weights
+record. `datasets/` layout and the split-carrying rule logged as D60 and D61.
+**Broke/surprised us:** the export is rebuilt from scratch on every Export, so "frames by reference" cannot point
+into `export/`: frames are stored once per project under their content hash instead (D60). YOLOX's published COCO
+weights carry no licence statement of their own and COCO's images stay under Flickr's terms: not offered. The
+earlier work left haze augmentation out on purpose (it hurt Nano); TRACKER 4b asks for it, so 4b measures it.
+RF100 (verdict GO, CC BY 4.0) shares DUO's URPC image lineage: raised with the spec lead before bite 3.
+**Later the same day (code in draft PRs, not merged; their DESIGN / TRACKER notes follow each merge):** bite 2a =
+PR 63 (`app/datasets/versions.py`, `splits.py`) + PR 64 (Datasets page, `freeze` job); 2b = PR 65 (loader and "what
+training will see"); 3 = PR 66 (outside data: Urchinbot and RF100 allowed, DUO and the rest refused with reasons;
+starting weights as a recorded choice); 4a = PR 67 (`train` job kind with a fake trainer, no torch). Self-tests in
+the browser on a scratch copy of the S5 project, data folder `~/NereusData/urchin_detector_pipeline/scratch_s8_builder/`.
+**Also seen:** on that real project no class is marked "fully checked" on any detector frame, so by the spec's rule
+training would see 0 objects: the demo needs those boxes ticked. The full suite must run at normal priority: under
+`nice -n 10` the job tests time out (319 passed without it).
+**Next:** bite 4b (YOLOX trainer) once S6 bite 2a's `app/modeldefs/` YOLOX definition exists; bite 5 (Train page).
 ## 2026-11-27 — Sprint S6 — Bite 1: prior art, toolchains, known-good reproduction (S6 builder)
 **Branch:** sprint/6-toolchains (docs, licence records and one requirements file; no app code)
 **Done:** read `ADIN_SPI_OpenMV/ml/` (export, compile scripts, gate report, STAGE1) and `~/nereus_ml/`; what is
