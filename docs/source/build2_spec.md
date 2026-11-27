@@ -329,7 +329,7 @@ Model weights, datasets and bench results live in the data folder, never in git.
    time". Added to "what runs where".
 11. **Roboflow terms (2026-11-27):** "I have a robo flow account and agreed to their use terms so we
     are good to go for testing". The PML sizes can be tested now; paying comes only if they work
-    and he wants to ship them.
+    and he wants to ship them (where payment starts: see open questions).
 
 ## Open questions
 

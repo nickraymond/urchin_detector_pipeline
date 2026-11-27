@@ -97,7 +97,7 @@ the table shows that camera can run one.
    type is offered only when the licences of its code, its starting weights and any outside data
    are recorded in `THIRD_PARTY_LICENSES`. One exception, evaluation only (Nick, 2026-11-27): RF-DETR
    Atto, Femto and Pico (PML 1.0: needs a Roboflow platform plan; commercial self-hosting needs their Enterprise
-   add-on) may be compiled, timed on the bench units and trained on the laptop, now that Nick has accepted the plan
+   add-on) may be compiled, timed on the bench units and trained on the laptop, now that Nick has accepted Roboflow's
    terms on his own account (2026-11-27), once the builder has shown the package sends no frames out (constraint 1 wins). Their weights,
    trained ones included, stay under PML: never on a field unit or in a product until Nick has the licence and
    changes this constraint. They are marked "Roboflow licence" in the app. XL / 2XL stay out.
