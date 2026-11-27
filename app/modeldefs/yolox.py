@@ -18,6 +18,7 @@ environment lacks them; the conversion environment has them).
 from __future__ import annotations
 
 CODE = {"repo": "https://github.com/Megvii-BaseDetection/YOLOX", "commit": "6ddff4824372906469a7fae2dc3206c7aa4bbaee"}
+CHECKOUT = "YOLOX"     # folder under <tools_dir>/third_party/; the convert job checks its commit
 SIZES = {"nano": "yolox-nano", "tiny": "yolox-tiny"}   # size -> YOLOX's own experiment name
 STRIDES = (8, 16, 32)
 OUTPUT_NAMES = ["out_s8", "out_s16", "out_s32"]
@@ -58,7 +59,7 @@ def build_model(a: dict):
     """The whole YOLOX model (backbone + head), untrained, with the plain first layer. Training (S8)
     uses this; export uses build()."""
     from app.modeldefs import third_party
-    third_party("YOLOX", CODE["commit"], CODE["repo"], package="yolox")
+    third_party(CHECKOUT, CODE["commit"], CODE["repo"], package="yolox")
     from yolox.exp.build import get_exp_by_name
     from yolox.models.network_blocks import BaseConv
 
