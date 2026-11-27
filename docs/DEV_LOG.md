@@ -17,6 +17,26 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2e: the RF-DETR family with RF-DETR's own export (S6 builder 2)
+**Branch:** sprint/6-rfdetr-retry
+**Done:** one retry with one thing changed (Lead call D70). By hand first (`s6/probe_rfdetr_tflite/`), then as the
+family's 8-bit step in the convert job: `app/fit/to_int8_rfdetr.py` (RF-DETR's own export to TFLite, then
+TensorFlow's full-integer converter on the SavedModel it leaves; network refused and counted), `arch.export.route`,
+two Python 3.12 tool environments in "Set up the tools", the licence text written next to every Roboflow-licensed
+result, and "how its 8-bit file is made" next to each RF-DETR candidate on the page.
+**Self-test:** the six candidates × AE3, N6, Pi through the real job: 18 of 18 "done", 0 network attempts, numbers
+equal to the by-hand probe; table in DESIGN §Bench results. Seen in the browser on those results: Detector / Pi
+"runs, best: rfdetr-nano-384-c5"; Atto on the AE3 "does not run: compiles, but needs 4.2 MiB of memory against
+3.9 MiB (free on the board in the earlier work, not re-measured; S7 measures it on the board); 355 of 2431
+operators on the CPU"; Femto on the N6 "the compiler stopped with an internal error", error text folded.
+**Broke/surprised us:** RF-DETR's exporter makes no full-integer file (it refuses), so the file the compilers get
+is partly our making. On the Apple GPU torch 2.15 crashes inside RF-DETR's export; the step builds on the CPU.
+The 256 px Nano's full-integer file makes LiteRT abort without a message; the Pi step now says so.
+**Also:** the set-up job was run on the real tools folder: the two new environments, made by hand from the same
+requirements files, were checked ("Checked 99 / 101 packages", nothing installed) and marked ready; done in 1 s
+(`s6/selftest_2e/jobs_setup/1.log`). The two environments of the route before stay on the laptop, unused.
+**Next:** 2c-ii (RTMDet-Ins-tiny), 2f (ST Edge AI Core 4.1.0), S6's close.
+
 ## 2026-11-27 — Sprint S6 — Fixes: a LiteRT fault on the Pi step is a job error; Run again (S6 builder 2)
 **Branch:** sprint/6-pi-tool-fault
 **Done:** QE's nit 1 on PR 79 (must-fix before the test build, Lead call): `pi_run` exits with its own code when
