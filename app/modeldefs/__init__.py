@@ -9,6 +9,7 @@ A candidate is the `arch` part of a recipe (D54):
 
     {"kind": "detector", "family": "yolox", "size": "nano", "variant": {"stem": "conv"},
      "input": [256, 256], "classes": [...], "outputs": {...}, "code": {"repo", "commit"},
+     "export": {"env": "convert-venv", "opset": 13},   # which tool environment builds it (D51)
      "licence": "Apache-2.0", "licence_mark": None}
 
     arch_key(arch)  -> "yolox-nano-conv-256-c5"   (the folder name under <data_dir>/fit/, D53)
@@ -35,7 +36,7 @@ DEFAULT_TOOLS_DIR = Path.home() / "NereusData" / "urchin_detector_pipeline" / "t
 BUILD2_CLASSES = ["purple urchin", "red urchin", "black urchin", "sea star", "sunflower sea star"]
 
 # family -> the module in this package that builds it
-FAMILIES = {"yolox": "app.modeldefs.yolox"}
+FAMILIES = {"yolox": "app.modeldefs.yolox", "rfdetr": "app.modeldefs.rfdetr"}
 
 
 class ModelDefError(ValueError):
@@ -68,6 +69,15 @@ def third_party(name: str, commit: str, repo: str, package: str) -> Path:
             del sys.modules[package]
             raise
     return path
+
+
+DEFAULT_EXPORT = {"env": "convert-venv", "opset": 13, "simplify": False}   # the known-good YOLOX route (D52)
+
+
+def export_settings(arch: dict) -> dict:
+    """Which tool environment builds and exports this model, the ONNX opset, and whether the ONNX file
+    goes through onnxsim before the 8-bit step."""
+    return {**DEFAULT_EXPORT, **(arch.get("export") or {})}
 
 
 def arch_key(arch: dict) -> str:
