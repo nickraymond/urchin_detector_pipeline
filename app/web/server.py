@@ -29,7 +29,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import config, db, project
-from app.web import datasets_pages
+from app.train import job as train_job
+from app.web import datasets_pages, train_pages
 from app.jobctl import JobControl, JobError
 from app.jobctl import limits as job_limits
 from app.jobctl import awake, schedule
@@ -59,7 +60,7 @@ def static_url(name: str) -> str:
 templates.env.globals["static"] = static_url
 JOB_NAMES = {"sam": "SAM labeling", "extract": "Extraction", "playback": "Playback copy",
              "export": "Export", "sam_add": "Add a missed object",
-             "freeze": "Freeze a dataset version"}
+             "freeze": "Freeze a dataset version", "train": "Training"}
 AWAKE_CMD: list[str] | None = None   # tests: a fake keep-awake command (D38); None = the real one
 # A duration as the pages show it: "7 min", or "2.5 h" from 90 min on.
 templates.env.globals["minutes"] = lambda s: (
@@ -104,6 +105,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             jc.register(label.add_kind())
             jc.register(export_worker.export_kind())
             jc.register(datasets_worker.freeze_kind())
+            jc.register(train_job.train_kind())
             jc.register(extract.extract_kind())
             jc.register(clips.playback_kind())
             controls[key] = jc
@@ -145,7 +147,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 "what": JOB_NAMES.get(job["kind"], job["kind"]) + (
                     " (preview)" if params.get("preview") else
                     " (estimate)" if params.get("estimate") else ""),
-                "item": "frame" if job["kind"] in ("sam", "extract", "export", "freeze") else "item",
+                "item": ("frame" if job["kind"] in ("sam", "extract", "export", "freeze")
+                         else "epoch" if job["kind"] == "train" else "item"),
                 "guard_paused": guard,   # D36c: resumes by itself at twice the limit
                 "guard_resume_gb": f"{2 * float((job.get('limits') or {}).get('memory_guard_gb') or 0):g}",
                 "percent": round(100 * job["done"] / total, 1) if total else 0.0,
@@ -224,7 +227,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
     @app.get("/p/{name}/live/{kind}", response_class=HTMLResponse)
     def live_panel(request: Request, name: str, kind: str, back: str = "", compact: str = ""):
         """The latest job of this kind in this project, as the pages show it."""
-        if kind not in ("sam", "extract", "export", "freeze"):
+        if kind not in ("sam", "extract", "export", "freeze", "train"):
             return PlainTextResponse(f"No job kind {kind!r}.", status_code=404)
         return with_project(request, name, lambda cfg, info, conn: live_html(
             LIVE["panel"].render(j=job_view(jobctl(cfg).latest(kind, str(info["folder"]))),
@@ -1224,6 +1227,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     # Build 2 pages live in their own modules (S8: Datasets).
     datasets_pages.register(app, templates, with_project, jobctl, job_view)
+    train_pages.register(app, templates, with_project, jobctl, job_view, read_schedule)
     return app
 
 
