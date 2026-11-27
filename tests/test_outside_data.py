@@ -43,8 +43,8 @@ def test_read_uses_train_and_valid_only_and_one_class(tmp_path):
     assert got["unused"] == {"test": 1, "no_split": 0} and got["on_disk"] == {"images": 4, "boxes": 6}
     assert {r["split"] for r in got["rows"]} == {"train", "valid"}
     assert got["rows"][0]["boxes"] == [[1, 2, 5, 6], [2, 2, 5, 6]]       # x, y, w, h; no class
-    rf = outside.read(root, "rf100_underwater")
-    assert [r["split"] for r in rf["rows"]] == ["train", "valid"] and rf["unused"]["test"] == 1
+    with pytest.raises(outside.OutsideError, match="Waits for Nick: same image lineage as DUO"):
+        outside.read(root, "rf100_underwater")           # D63: listed, cannot be switched on
 
 
 def test_sources_without_a_commercial_verdict_are_refused(tmp_path):
@@ -57,7 +57,8 @@ def test_sources_without_a_commercial_verdict_are_refused(tmp_path):
                 "urchin_detector_74"):
         assert not outside.BY_KEY[key]["allowed"] and outside.BY_KEY[key]["why_not"]
     cat = {c["key"]: c for c in outside.catalogue(root)}
-    assert cat["urchinbot"]["can_add"] and cat["rf100_underwater"]["can_add"]
+    assert cat["urchinbot"]["can_add"] and not cat["rf100_underwater"]["can_add"]
+    assert [c["key"] for c in cat.values() if c["can_add"]] == ["urchinbot"]
     assert cat["duo"]["present"] and not cat["duo"]["can_add"]
     assert cat["mystery_set"]["licence"] == "no record" and not cat["mystery_set"]["can_add"]
     assert not cat["fathomnet"]["present"]
@@ -138,11 +139,14 @@ def test_page_lists_sources_with_licences_and_adds_one(tmp_path):
     client.post("/projects", data={"name": "p"})
     fake_export(data / "projects" / "p", dive("reef", 1, 3))
     page = client.get("/p/p/datasets").text
-    assert 'name="outside_keys" value="urchinbot"' in page and "CC-BY-4.0" in page
+    assert 'name="outside_keys" value="urchinbot" aria-label="Add Urchinbot (U. Auckland)" checked' in page
+    assert "CC-BY-4.0" in page and 'value="rf100_underwater"' not in page
+    assert "Waits for Nick: same image lineage as DUO" in page
     assert 'value="duo"' not in page and "the DUO set stays out" in page
-    assert "No licence record for this folder" in page and "same image lineage as the DUO" in page
-    r = client.post("/p/p/datasets/freeze", data={"outside_keys": "duo"}, follow_redirects=False)
-    assert "cannot+be+added" in r.headers["location"]
+    assert "No licence record for this folder" in page
+    for key in ("duo", "rf100_underwater"):
+        r = client.post("/p/p/datasets/freeze", data={"outside_keys": key}, follow_redirects=False)
+        assert "cannot+be+added" in r.headers["location"]
     client.post("/p/p/datasets/freeze", data={"outside_keys": "urchinbot"})
     assert wait_for(lambda: "Version 1" in client.get("/p/p/datasets").text, 60)
     page = client.get("/p/p/datasets").text
@@ -165,15 +169,17 @@ def test_starting_weights_are_a_checked_recorded_choice():
         starting.record({"kind": "published", "name": "yolox_nano.pth"})
     models = {"m1": {"outside": [{"key": "urchinbot"}], "start": {"kind": "scratch"}},
               "m2": {"outside": [{"key": "duo"}]}, "m3": {"outside": []},
-              "m4": {"outside": [{"key": "rf100_underwater"}],
-                     "start": {"kind": "pretrained", "licences": ["CC-BY-4.0"]}},
+              "m4": {"outside": [{"key": "urchinbot"}],
+                     "start": {"kind": "pretrained", "licences": ["CC0-1.0"]}},
+              "m6": {"outside": [{"key": "rf100_underwater"}]},
               "m5": {"outside": [{"key": "urchinbot"}], "start": {"kind": "published"}}}
     got = starting.record({"kind": "pretrained", "model": "m1"}, models)
     assert got == {"kind": "pretrained", "model": "m1", "licences": ["CC-BY-4.0"],
                    "sources": [{"key": "urchinbot", "licence": "CC-BY-4.0"}]}
     assert starting.record({"kind": "pretrained", "model": "m4"}, models)["licences"] == \
-           ["CC BY 4.0", "CC-BY-4.0"]                      # the chain's licences are kept
+           ["CC-BY-4.0", "CC0-1.0"]                        # the chain's licences are kept
     for mid, msg in (("m2", "not an allowed outside source"), ("m3", "not trained on outside"),
+                     ("m6", "not an allowed outside source"),
                      ("m5", "not a clean"), ("nope", "No model")):
         with pytest.raises(starting.StartError, match=msg):
             starting.record({"kind": "pretrained", "model": mid}, models)
