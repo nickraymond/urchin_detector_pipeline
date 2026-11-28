@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S8 — The Train page's frame counts follow the class ticks (S7 builder 1, on S8)
+**Branch:** sprint/8-live-counts
+**Done:** one counter (`frame_counts` in `app/web/train_pages.py`) and one template (`_frame_counts.html`) for the
+page and for `GET /p/<name>/train/counts?version=&classes=`; `train.js` fetches it on every class tick and swaps the
+span (a late answer to an older tick is ignored); no class ticked says so; a bad class id or version says why.
+**Self-test:** s8_squares copy, version 1: "With the classes ticked: 42 training frames in full, 12 validation
+frames."; unticking sea star fetched `counts?version=1&classes=1` (200); unticking both: "Tick at least one class
+…"; ticking sea star again: the counts back. (Every class is fully checked there, so the numbers do not move; the
+test covers a version where they do.)
+**Broke/surprised us:** nothing.
+**Next:** shrunk copies of outside images (TRACKER S8).
+
+---
+
 ## 2026-11-27 — Sprint S8 — Fixes 2: validation at D90's eval scale, in tiles (S7 builder 1, on S8)
 **Branch:** sprint/8-val-tiles
 **Done:** `app/train/tiles.py`: the eval factor (44 px over the training split's median shorter box side, clamped to

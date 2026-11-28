@@ -1,0 +1,11 @@
+{#- What a run of the ticked classes would get (D66), before Run. Rendered with the Train page and again by
+    GET /p/<name>/train/counts whenever a class box is ticked or unticked (train.js swaps this span). -#}
+<span id="frame-counts"{% if frame_counts and (not frame_counts.full or not frame_counts.valid) %} class="problem"{% endif %} data-src="/p/{{ info.name }}/train/counts?version={{ picked.number }}">
+{%- if frame_counts -%}
+With the classes ticked: <b>{{ frame_counts.full }}</b> training frames in full{% if frame_counts.boxes_only %} + <b>{{ frame_counts.boxes_only }}</b> for their labeled boxes only (never as "nothing here"){% endif %}, <b>{{ frame_counts.valid }}</b> validation frames.{% if not frame_counts.full %} No frame teaches "no object" with these classes: the detector may fire everywhere. Tick "fully checked" on the Review page for the classes you reviewed.{% endif %}{% if not frame_counts.valid %} A run needs at least one validation frame with every ticked class fully checked.{% endif %}
+{%- elif counts_error -%}
+<span class="problem">{{ counts_error }}</span>
+{%- else -%}
+Tick at least one class to see how many frames a run would get.
+{%- endif -%}
+</span>

@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from urllib.parse import urlencode
 
-from fastapi import Form, Request
+from fastapi import Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from app.datasets import loaders, versions
@@ -89,6 +89,37 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 "export and freeze again (the Datasets page shows what is skipped).")
         return key, recipe
 
+    def frame_counts(folder: Path, picked, class_ids) -> tuple[dict | None, str]:
+        """Frames a run of these classes would get on this version (D66): in full, boxes only, validation.
+        (None, "") with no class ticked; (None, why) when the version cannot be read."""
+        if not picked or not class_ids:
+            return None, ""
+        try:
+            kinds = {s: loaders.run_frames(loaders.detector_samples(
+                folder, picked["number"], s, class_ids)["samples"], class_ids) for s in ("train", "valid")}
+        except loaders.DatasetError as e:
+            return None, str(e)
+        return {"full": len(kinds["train"][0]), "boxes_only": len(kinds["train"][1]),
+                "valid": len(kinds["valid"][0])}, ""
+
+    @app.get("/p/{name}/train/counts", response_class=HTMLResponse)
+    def train_counts(request: Request, name: str, version: int = 0, classes: list[str] = Query(default=[])):
+        """The frame counts for the classes ticked now (QE PR 93): the same span the page renders."""
+        def work(cfg, info, conn):
+            found = versions.list_versions(info["folder"])
+            picked = next((v for v in found if v["number"] == version), None)
+            if picked is None:
+                return HTMLResponse(f"No dataset version {version}.", status_code=404)
+            ids, error = [], ""
+            try:
+                ids = loaders.check_classes(loaders.load(info["folder"], version)[0], classes) if classes else []
+            except (ValueError, loaders.DatasetError) as e:
+                error = str(e)
+            counts, counts_error = frame_counts(info["folder"], picked, ids) if not error else (None, error)
+            return templates.TemplateResponse(request, "_frame_counts.html", {
+                "info": info, "picked": picked, "frame_counts": counts, "counts_error": counts_error})
+        return with_project(request, name, work)
+
     def outside_param(cfg, recipe: dict) -> dict:
         """The outside data folder goes into the job file only for a run that reads it."""
         return ({"outside_dir": str(cfg.outside_data_dir)}
@@ -122,16 +153,7 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                     "val_every": last.get("val_every", d.get("val_every")) if same else d.get("val_every"),
                     "class_ids": last["class_ids"] if same and last["class_ids"]
                     else loaders.default_class_ids(picked) if picked else []}
-            counts = None      # frames the classes ticked now would give (D66), before Run
-            if picked and form["class_ids"]:
-                try:
-                    kinds = {s: loaders.run_frames(loaders.detector_samples(
-                        folder, picked["number"], s, form["class_ids"])["samples"],
-                        form["class_ids"]) for s in ("train", "valid")}
-                    counts = {"full": len(kinds["train"][0]), "boxes_only": len(kinds["train"][1]),
-                              "valid": len(kinds["valid"][0])}
-                except loaders.DatasetError:
-                    counts = None
+            counts, counts_error = frame_counts(folder, picked, form["class_ids"])
             no_background = ""      # for the model shown: was it ever taught "no object"? (D66)
             if shown and not shown.get("error") and shown["train"].get("data") != "outside":
                 try:
@@ -142,7 +164,7 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 except (loaders.DatasetError, KeyError):
                     no_background = ""
             return templates.TemplateResponse(request, "train.html", {
-                "frame_counts": counts, "no_background": no_background,
+                "frame_counts": counts, "counts_error": counts_error, "no_background": no_background,
                 "cfg": cfg, "info": info, "error": error, "versions": found, "picked": picked,
                 "classes": loaders.object_classes(picked) if picked else [],
                 "form": form, "estimate": est, "estimate_steps": train_job.ESTIMATE_STEPS,

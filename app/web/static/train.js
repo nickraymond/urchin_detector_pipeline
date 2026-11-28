@@ -87,3 +87,21 @@
   setInterval(poll, 3000);
   document.addEventListener("visibilitychange", poll);   // a tab opened in the background: draw when shown
 })();
+(function () {            // the frame counts follow the class boxes (QE PR 93): the server renders the same span
+  const span = () => document.getElementById("frame-counts");
+  if (!span()) return;
+  const boxes = [...document.querySelectorAll('input[type=checkbox][name="classes"]')];
+  let asked = 0;
+  async function refresh() {
+    const n = ++asked, url = new URL(span().dataset.src, location.href);
+    boxes.filter(b => b.checked).forEach(b => url.searchParams.append("classes", b.value));
+    try {
+      const r = await fetch(url, {headers: {"Accept": "text/html"}});
+      if (!r.ok || n !== asked) return;                // an older answer arriving late is ignored
+      const t = document.createElement("template");
+      t.innerHTML = (await r.text()).trim();
+      if (t.content.firstElementChild) span().replaceWith(t.content.firstElementChild);
+    } catch (e) { /* the counts stay as they were; Run still checks on the server */ }
+  }
+  boxes.forEach(b => b.addEventListener("change", refresh));
+})();
