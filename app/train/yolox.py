@@ -58,11 +58,12 @@ from PIL import Image, ImageDraw
 from app import modeldefs
 from app.datasets import loaders
 from app.modeldefs import yolox as ydef
-from app.train import samples, yolox_mps
+from app.train import samples, tiles, yolox_mps
 
 MAX_BOXES = 120          # targets per canvas (the earlier trainer's cap)
 VAL_SCORE, VAL_IOU, NMS_IOU = 0.3, 0.5, 0.45
 VAL_FRAMES = 4
+DRAW_MAX = 1024         # px: the longer side of a drawn validation frame
 GPU_CHECK_FRAMES, GPU_CHECK_LIMIT = 8, 0.05   # load(): devices agreeing give about 0.002
 MAX_DETECTIONS = 100     # per canvas, as YOLOX's own evaluation keeps; an untrained head can fire
                          # on thousands of cells, which made one validation pass take 58 s (seen)
@@ -180,6 +181,12 @@ class Trainer:
                                    "classes (see the Datasets page: what training will see).")
             for s in self.train[:1] + self.valid[:1]:
                 loaders.verify_image(s)
+        # D90: validation sees each whole frame at one factor from the training split, in tiles; worked out
+        # at the run's first start and kept in recipe.json (the worker writes it), so a resume reuses it
+        self.eval_scale = self.t.get("eval_scale") or tiles.eval_scale(self.train)
+        factor = self.eval_scale["factor"]
+        self.eval_overlap = int(self.t["eval_overlap"]) if "eval_overlap" in self.t else (
+            tiles.overlap(self.train, factor, self.canvas) if factor else 0)
         self.steps = max(1, len(self.train) // self.batch) if len(self.train) >= self.batch \
             else 1                                    # a tiny dataset: one short batch per epoch
         self.epochs = int(self.t["epochs"])
@@ -260,6 +267,7 @@ class Trainer:
                 # start_used: the kind really used; start_loaded: what a pre-trained start put in
                 "start_used": self.start_used["kind"], "start_loaded": self.start_used,
                 "outside_used": self.outside_used,
+                "eval_scale": self.eval_scale, "eval_overlap": self.eval_overlap,
                 "libraries": {"torch": torch.__version__, "torchvision": torchvision.__version__,
                               "numpy": np.__version__, "yolox": ydef.CODE["commit"]}}
 
@@ -449,23 +457,58 @@ class Trainer:
             metrics.update(self._validate(epoch, pool))
         return {"done": True, "metrics": metrics}
 
+    def _val_frame(self, i: int) -> dict:
+        """Validation frame i at the eval factor (D90), its not-fully-checked regions grey, cut into tiles."""
+        got = samples.frame_at(self.valid[i], self.eval_scale["factor"], self.canvas)
+        img = got["image"].copy()
+        for cx, cy, w, h in got["ignore"]:            # not fully checked here: not scored
+            img[max(0, int(cy - h / 2)):int(cy + h / 2) + 1, max(0, int(cx - w / 2)):int(cx + w / 2) + 1] = GREY
+        th, tw = img.shape[:2]
+        cuts = []
+        for ox, oy in tiles.plan(tw, th, self.canvas, self.eval_overlap):
+            tile = np.full((self.canvas, self.canvas, 3), GREY, np.uint8)
+            part = img[oy:oy + self.canvas, ox:ox + self.canvas]
+            tile[:part.shape[0], :part.shape[1]] = part
+            cuts.append((ox, oy, tile))
+        truth = [[self.ids.index(c), cx, cy, w, h] for c, cx, cy, w, h in got["boxes"]]
+        return {"image": img, "tiles": cuts, "truth": truth}
+
     @torch.no_grad()
     def _validate(self, epoch: int, pool) -> dict:
+        """Recall and precision on the validation split as S9 will score it (D90): each whole frame at the
+        eval factor, in overlapping tiles of the training canvas, detections merged with NMS across seams."""
+        from torchvision.ops import batched_nms
         if not self.valid:
             return {}
         live = {k: v.clone() for k, v in self.model.state_dict().items()}
         self.model.load_state_dict({k: v.to(live[k].dtype) for k, v in self.ema.items()})
         export = ydef.export_module(self.model)       # eval mode, raw maps
-        tp = n_pred = n_true = 0
+        tp = n_pred = n_true = n_tiles = 0
         out_dir = self.dir / "val_frames"
         out_dir.mkdir(exist_ok=True)
         try:
             for at in range(0, len(self.valid), self.batch):
-                picks = list(range(at, min(at + self.batch, len(self.valid))))
-                imgs, _, made = self._batch(picks, pool, 0, self.valid, False)   # epoch 0: fixed
-                for n, det in enumerate(decode(export(imgs))):
-                    truth = np.array([b[1:] for b in made[n][1]], np.float32).reshape(-1, 4)
-                    cls_t = [b[0] for b in made[n][1]]
+                frames = list(pool.map(self._val_frame, range(at, min(at + self.batch, len(self.valid)))))
+                flat = [(n, ox, oy, t) for n, f in enumerate(frames) for ox, oy, t in f["tiles"]]
+                found: list[list[np.ndarray]] = [[] for _ in frames]
+                for k in range(0, len(flat), self.batch):     # tiles in batches of the training size
+                    part = flat[k:k + self.batch]
+                    imgs = torch.from_numpy(np.ascontiguousarray(
+                        np.stack([t for *_, t in part]).transpose(0, 3, 1, 2))).float().to(self.device)
+                    for (n, ox, oy, _), det in zip(part, decode(export(imgs))):
+                        if len(det):
+                            det[:, 0] += ox
+                            det[:, 1] += oy
+                            found[n].append(det)
+                n_tiles += len(flat)
+                for n, f in enumerate(frames):
+                    det = np.concatenate(found[n]) if found[n] else np.zeros((0, 6), np.float32)
+                    if len(det):                              # NMS again across the tiles' seams
+                        t = torch.from_numpy(det)
+                        xyxy = torch.cat([t[:, :2] - t[:, 2:4] / 2, t[:, :2] + t[:, 2:4] / 2], 1)
+                        det = det[batched_nms(xyxy, t[:, 4], t[:, 5].long(), NMS_IOU).numpy()]
+                    truth = np.array([b[1:] for b in f["truth"]], np.float32).reshape(-1, 4)
+                    cls_t = [b[0] for b in f["truth"]]
                     used = set()
                     for d in det[np.argsort(-det[:, 4])] if len(det) else []:
                         iou = box_iou(d[None, :4], truth)[0] if len(truth) else np.zeros(0)
@@ -474,8 +517,8 @@ class Trainer:
                         if ok:
                             used.add(ok[0])
                     tp, n_pred, n_true = tp + len(used), n_pred + len(det), n_true + len(truth)
-                    if picks[n] < VAL_FRAMES:
-                        self._draw(made[n][0], truth, det, out_dir / f"val_{picks[n]}.png")
+                    if at + n < VAL_FRAMES:
+                        self._draw(f["image"], truth, det, out_dir / f"val_{at + n}.png")
         finally:
             self.model.load_state_dict(live)
             self.model.train()
@@ -483,15 +526,20 @@ class Trainer:
         precision = tp / n_pred if n_pred else 0.0
         (out_dir / "epoch.txt").write_text(f"{epoch + 1}\n")
         return {"val_recall": round(recall, 4), "val_precision": round(precision, 4),
-                "val_objects": n_true}
+                "val_objects": n_true, "val_tiles": n_tiles}
 
     @staticmethod
     def _draw(img: np.ndarray, truth: np.ndarray, det: np.ndarray, path: Path) -> None:
-        """Ground truth in white, predictions in yellow."""
+        """Ground truth in white, predictions in yellow; a whole frame larger than DRAW_MAX px is drawn
+        smaller (the boxes with it)."""
         im = Image.fromarray(img)
+        k = min(1.0, DRAW_MAX / max(im.size))
+        if k < 1.0:
+            im = im.resize((max(1, round(im.size[0] * k)), max(1, round(im.size[1] * k))), Image.BOX)
         d = ImageDraw.Draw(im)
         for boxes, colour in ((truth, (255, 255, 255)), (det[:, :4] if len(det) else [], (255, 220, 0))):
             for cx, cy, w, h in boxes:
+                cx, cy, w, h = cx * k, cy * k, w * k, h * k
                 d.rectangle([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], outline=colour)
         tmp = path.with_name(f".{path.name}.tmp")
         im.save(tmp, format="PNG")

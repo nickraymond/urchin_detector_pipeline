@@ -15,6 +15,9 @@ class FakeTrainer:
     def __init__(self, model_dir, recipe, job):
         self.dir, self.t = Path(model_dir), recipe["train"]
         self.value = 0
+        # D90: like the real trainer, a factor from the recipe once one is stored, else a new one per start
+        self.eval_scale = self.t.get("eval_scale") or {"factor": 0.5, "started_pid": str(os.getpid())}
+        self.eval_overlap = self.t.get("eval_overlap", 7)
 
     def describe(self):
         return {"device": "none (fake)", "libraries": {"fake_trainer": "1"},

@@ -121,6 +121,9 @@ def main() -> None:
     epoch, step = trainer.load()
     rows = [r for r in models.read_metrics(mdir) if r["epoch"] < epoch]
     write_metrics(mdir, rows)
+    if hasattr(trainer, "eval_scale"):         # D90: fixed at the first start, the same on every resume
+        recipe["train"].setdefault("eval_scale", trainer.eval_scale)
+        recipe["train"].setdefault("eval_overlap", trainer.eval_overlap)
     recipe["train"].setdefault("recorded", []).append({
         "at": datetime.now().isoformat(timespec="seconds"), "from_epoch": epoch,
         "from_step": step, "code": code_version(), "python": platform.python_version(),
