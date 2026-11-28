@@ -72,8 +72,9 @@ def test_after_a_restart_a_passed_start_runs_unless_stop_by_passed_too(tmp_path)
     gone = c.submit("fake", params(tmp_path / "gone", n=1), start_at=past,
                     stop_by=past + timedelta(minutes=30))
     c.close()                                            # the app was closed at the start time
-    c = JobControl(root)
-    c.register(fake_kind())
+    c = JobControl(root, start=False)                    # as the app does: kinds first, then
+    c.register(fake_kind())                              # start (a due job must find its kind)
+    c.start()
     try:
         wait_state(c, late, "done")
         job = c.status(gone)
