@@ -25,8 +25,8 @@ import sys
 from pathlib import Path
 
 from app.bench.agent.bench_agent import file_name
-from app.bench.board import NO_ANSWER, BoardError
-from app.bench.units import Refused, _is_field
+from app.bench.board import BAD_ANSWER, NO_ANSWER, BoardError
+from app.bench.units import Refused, Unit, _is_field
 
 AGENT = Path(__file__).resolve().parent / "agent" / "bench_agent.py"
 REMOTE_FOLDER = "urchin_bench"            # the agent's folder in the bench Pi's home directory
@@ -38,6 +38,7 @@ class Transport:
 
     proc: subprocess.Popen | None = None
     timeout_s = TIMEOUT_S
+    log: Path | None = None           # the agent's stderr goes here (agent.log in the run folder), never a pipe
 
     def argv(self) -> list[str]:
         raise NotImplementedError
@@ -47,8 +48,11 @@ class Transport:
         raise NotImplementedError
 
     def start(self) -> dict:
-        self.proc = subprocess.Popen(self.argv(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE, text=True, bufsize=1)
+        self.log = Path(self.log or Path.cwd() / "agent.log")
+        self.log.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.log, "a", encoding="utf-8") as err:    # a runtime that warns a lot cannot fill a pipe and block
+            self.proc = subprocess.Popen(self.argv(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                         stderr=err, text=True, bufsize=1)
         self._ids = itertools.count(1)
         return self.request("hello")
 
@@ -61,10 +65,16 @@ class Transport:
         while True:
             line = self._readline()
             if not line:
-                err = self.proc.stderr.read() if self.proc.poll() is not None else ""
+                err = self.log_tail() if self.proc.poll() is not None else ""
                 raise BoardError(NO_ANSWER, f"no answer from the bench agent to {op!r} within {self.timeout_s:g} s "
                                             f"({self.where()}){': ' + err.strip()[-300:] if err.strip() else ''}")
-            answer = json.loads(line)
+            try:
+                answer = json.loads(line)
+                if not isinstance(answer, dict):
+                    raise ValueError
+            except ValueError:
+                raise BoardError(BAD_ANSWER, f"the bench agent printed a line that is not its answer to {op!r}: "
+                                             f"{line.strip()[:200]!r} ({self.where()})") from None
             if not (answer.get("alive") and answer.get("id") == rid):
                 break                                 # an "alive" line restarts the wait; anything else is the answer
         if answer.get("id") != rid:
@@ -92,6 +102,12 @@ class Transport:
                 self.proc.kill()
         self.proc = None
 
+    def log_tail(self) -> str:
+        try:
+            return Path(self.log).read_text(errors="replace")[-300:]
+        except (OSError, TypeError):
+            return ""
+
     def where(self) -> str:
         raise NotImplementedError
 
@@ -100,8 +116,9 @@ class LocalTransport(Transport):
     """The agent on the laptop, in `folder`, with `python` (any Python 3; the app's own by default)."""
 
     def __init__(self, folder: Path, runtime: str = "fake", python: str = sys.executable, timeout_s: float = TIMEOUT_S,
-                 extra: tuple[str, ...] = ()):
+                 extra: tuple[str, ...] = (), log: Path | None = None):
         self.folder, self.runtime, self.python, self.timeout_s = Path(folder), runtime, python, timeout_s
+        self.log = Path(log) if log else self.folder / "agent.log"
         self.extra = tuple(extra)                     # tests: --alive-s, --fake-ms
 
     def argv(self) -> list[str]:
@@ -129,16 +146,21 @@ def resolved_host(alias: str, run=subprocess.run) -> str:
 
 
 class SshTransport(Transport):
-    """The agent on a bench Pi. `check()` must pass before start(); start() calls it."""
+    """The agent on a bench Pi, for a listed unit (a `Unit` from `Bench.unit`, never a bare alias: QE PR 108).
+    `check()` must pass before anything runs; start(), install() and put() call it."""
 
-    def __init__(self, alias: str, field_units: frozenset[str], runtime: str = "litert", run=subprocess.run,
-                 timeout_s: float = TIMEOUT_S):
-        self.alias, self.field_units, self.runtime, self.run, self.timeout_s = (
-            alias, field_units, runtime, run, timeout_s)
+    def __init__(self, unit: Unit, field_units: frozenset[str], runtime: str = "litert", run=subprocess.run,
+                 timeout_s: float = TIMEOUT_S, log: Path | None = None):
+        if not isinstance(unit, Unit) or unit.fake or not unit.ssh_host:
+            raise Refused("an ssh link is made only for a bench unit listed under [bench]")
+        self.unit, self.alias, self.field_units, self.runtime, self.run, self.timeout_s = (
+            unit, unit.ssh_host, field_units, runtime, run, timeout_s)
+        self.log = Path(log) if log else None
 
     def check(self) -> str:
         host = resolved_host(self.alias, self.run)
-        if _is_field(host, self.field_units):
+        if _is_field(self.unit.name, self.field_units) or _is_field(self.alias, self.field_units) or \
+                _is_field(host, self.field_units):
             raise Refused(f"the ssh alias {self.alias!r} resolves to {host!r}, a field unit: the app never touches "
                           "field units (SPEC constraint 9). Fix: point the alias at the bench Pi.")
         return host
