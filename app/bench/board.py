@@ -35,6 +35,8 @@ BAD_ANSWER, LOW_MEMORY, NOT_BUILT = "bad_answer", "low_memory", "not_built"
 # the N6 (S7 bite 4b): the built-in restore of ROMFS0 from the backup did not verify
 RESTORE_FAILED = "restore_failed"
 INPUT_DIFFERS = "input_differs"           # D83a: the N6's input image is not the laptop's
+# the N6's timing in stages (after card 6): the board reset itself mid-stage; a board-side statement failed
+BOARD_RESET, SCRIPT_FAILED = "board_reset", "script_failed"
 
 
 class BoardError(Exception):
@@ -160,6 +162,13 @@ class FakeBoard(Board):
             raise ValueError("only the N6 ends a card with a hard reset")
         self._maybe_fail("finish")
         return {"hard_reset": True, "fake": True}
+
+    def use_rom(self, names: list[str]) -> dict:
+        """The fake N6's models already in /rom: timed with no write (fail={"load": ...} as for a load)."""
+        self._maybe_fail("load")
+        self.reached = True
+        self.loaded = {n: "rom" for n in names}
+        return {"loaded": sorted(names), "route": "already in /rom (no write)", "fake": True}
 
     def restore(self) -> dict:
         """The fake N6's "ROMFS0 back from the backup" (fail={"restore": ...} to make it fail), logged as the real one."""

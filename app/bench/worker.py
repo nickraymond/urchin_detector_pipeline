@@ -16,7 +16,7 @@ from app import config
 from app.bench import card as cards
 from app.bench import run as runs
 from app.bench.board import (BAD_ANSWER, LOAD_FAILED, LOW_MEMORY, NO_ANSWER, NOT_BUILT, NOT_LOADED, READBACK,
-                             INPUT_DIFFERS, RESTORE_FAILED, BoardError, Model, open_board)
+                             BOARD_RESET, INPUT_DIFFERS, RESTORE_FAILED, SCRIPT_FAILED, BoardError, Model, open_board)
 from app.bench.units import Refused
 from app.jobctl import worker as jw
 
@@ -31,6 +31,13 @@ HINTS = {   # D84: what to do after each stop rule
                 "report it; nothing more runs until it is understood",
     LOW_MEMORY: "the Pi had under 50 MB free (D89): find what uses its memory (another process?) before running again",
     NOT_BUILT: "this board's route is not built yet: use the fake board or wait for its bite",
+    BOARD_RESET: "the N6 reset itself during the timing (its port dropped or it showed its bootloader); the job put "
+                 "ROMFS0 back. The message names the last stage that answered: report it; the next card isolates that "
+                 "stage (a vendor model already in /rom needs no write)",
+    SCRIPT_FAILED: "a statement on the N6 failed (the message names the stage and quotes the board): report it. A "
+                   "failing stage 2 (ml.Model) means the model does not load on this firmware only when the board's "
+                   "words are not a NameError or ImportError of the script's own names (that would be the stages "
+                   "losing their state, not the model)",
     INPUT_DIFFERS: "the N6 timed another input than the laptop's (D83a): report it; the run's numbers are not used",
     RESTORE_FAILED: "the N6's model area is NOT known to be the backup's: run nothing more on the rig; put ROMFS0 "
                     "back by hand (RESTORE.md, \"N6: restore a partition\"), replugging the N6 if it shows neither "
@@ -120,12 +127,16 @@ def main() -> None:
             jw.emit("done", message=f"ROMFS0 restored from the backup: read back identical "
                                     f"({r['readback_sha256'][:16]}…), /rom lists {len(r['rom'])} entries")
             return
-        loaded = board.load_several([Model(m["name"], m["path"]) for m in c["models"]])
+        if c.get("rom_models"):                           # models already in the N6's /rom: no write (after card 6)
+            loaded = board.use_rom(c["rom_models"])
+        else:
+            loaded = board.load_several([Model(m["name"], m["path"]) for m in c["models"]])
+        timed = c["models"] or [{"name": n, "rom": True} for n in c.get("rom_models", [])]
         run["route"] = loaded.get("route", "")
         run.update(outcome="running", ended=None)
         _write(folder / "run.json", run)
         done = {(w.get("window"), w.get("model")) for w in runs.windows_done(folder)}
-        total, i = c["windows"] * len(c["models"]), len(done)
+        total, i = c["windows"] * len(timed), len(done)
         for window in range(1, c["windows"] + 1):
             if ctl.pause_requested():                     # Pause after a window (D84)
                 failed = _end_restore(board, run)         # an N6 is left as found; Resume loads again
@@ -136,7 +147,7 @@ def main() -> None:
                 _close(board)
                 jw.emit("paused")
                 return
-            for m in c["models"]:
+            for m in timed:
                 if (window, m["name"]) in done:
                     continue
                 t = board.time(m["name"], c["n"])
@@ -152,6 +163,8 @@ def main() -> None:
             if failed:
                 e = BoardError(failed.stop, f"{e} — and then the end of the card did not finish: {failed}")
         _close(board)
+        if e.detail.get("stage_failed"):                  # the N6's stages: which one, and the last that answered
+            run["stage"] = {k: e.detail[k] for k in ("stage_failed", "stage_name", "last_stage") if k in e.detail}
         run.update(outcome=f"stopped: {e.stop}", ended=_now(), error=str(e),
                    restores=getattr(locals().get("board"), "restores", []))     # the N6's built-in restore (bite 4b)
         _write(folder / "run.json", run)

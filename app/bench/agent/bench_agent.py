@@ -16,7 +16,7 @@ Board.time returns (n, warmups, ms_mean, ms_min, ms_max, mem_before_load, mem_af
 MemAvailable) plus vm_hwm.
 The N6 (bite 4b, kind "n6"): found by asking it; load writes our ROMFS0 image with dfu-util alt 3 (no other alt is
 ever written), reads it back, boots and lists /rom; restore does the same with the backup's partition; time runs
-TIME_SCRIPT through mpremote. mpremote and dfu-util are the Pi's own (RESTORE.md); tests pass fake ones. The AE3 is
+STAGES (one exec each) through mpremote. mpremote and dfu-util are the Pi's own (RESTORE.md); tests pass fake ones. The AE3 is
 bite 5: asked for it, the agent says so.
 """
 
@@ -172,6 +172,14 @@ PIP_ARGS = ["install", "--no-cache-dir", "--index-url", "https://pypi.org/simple
 FAKE_INSTALL = False            # tests only (--fake-install): make the environment without venv or pip
 
 
+def head_tail(text, keep):
+    """The start and the end of a long output (QE 10, card 6: the board's first lines were cut when only the tail was
+    kept): `keep` characters of each, with the cut said in between."""
+    if len(text) <= 2 * keep:
+        return text
+    return f"{text[:keep]}\n… [{len(text) - 2 * keep} characters cut] …\n{text[-keep:]}"
+
+
 def run_steps(argv, env, alive, cwd, limit_s=None, tail=1500):
     """Run one command, writing an alive line every ALIVE_S seconds even while it prints nothing (pip is silent
     while it downloads; dfu-util while it writes); returns (exit code, the output's tail). After `limit_s` seconds
@@ -188,12 +196,12 @@ def run_steps(argv, env, alive, cwd, limit_s=None, tail=1500):
                 p.kill()
                 p.wait()
                 reader.join(5)
-                return None, "".join(out)[-tail:]
+                return None, head_tail("".join(out), tail)
             if time.monotonic() - last >= ALIVE_S:
                 alive(len(out))
                 last = time.monotonic()
         reader.join(5)
-        return p.returncode, "".join(out)[-tail:]
+        return p.returncode, head_tail("".join(out), tail)
 
 
 # --- the N6 (S7 bite 4b; D82, D82a, D83): the mpremote and dfu-util command lines RESTORE.md uses ---------------
@@ -237,15 +245,30 @@ def synthetic_bytes(w, h, c, seed=SEED):
     return bytes(out)
 
 
-TIME_SCRIPT = """
+# The N6's timing in steps (Lead call, lead 2, after card 6: the one-exec script reset the board with no traceback).
+# Each stage is its own `mpremote exec` and prints its marker, so the run log shows the last stage that answered.
+# Stage 1 starts from a soft reset; stages 2-6 use mpremote's `resume` (no soft reset), so the board keeps their state.
+# D83: free memory before and after the load; stage 5's predict is the first warm-up, stage 6 does the second and
+# then times each of N predicts with ticks_us. D83a: the input buffer from the LCG in `synthetic_bytes`, its sha256 sent.
+STAGES = [
+    ("import", """
 import gc, json, time, ml, image, hashlib, binascii
 gc.collect()
-before = gc.mem_free()
+nb_before = gc.mem_free()
+print('NB:' + json.dumps({'stage': 1, 'mem_before_load': nb_before}))
+"""),
+    ("ml.Model", """
 m = ml.Model(%(path)r)
 gc.collect()
-loaded = gc.mem_free()
+nb_loaded = gc.mem_free()
+print('NB:' + json.dumps({'stage': 2, 'mem_after_load': nb_loaded}))
+"""),
+    ("input_shape", """
 s = m.input_shape[0]
 h, w, c = s[-3], s[-2], s[-1]
+print('NB:' + json.dumps({'stage': 3, 'input_shape': list(s)}))
+"""),
+    ("seeded image", """
 img = image.Image(w, h, image.GRAYSCALE if c == 1 else image.RGB565)
 b = img.bytearray()
 x = %(seed)d
@@ -253,8 +276,14 @@ for i in range(len(b)):
     x = (%(a)d * x + %(c)d) & %(m)d
     b[i] = (x >> 16) & 0xff
 sha = binascii.hexlify(hashlib.sha256(b).digest()).decode()
-for _ in range(%(warmups)d):
-    m.predict([img])
+print('NB:' + json.dumps({'stage': 4, 'input_sha256': sha, 'input_bytes': len(b)}))
+"""),
+    ("one predict", """
+m.predict([img])
+print('NB:' + json.dumps({'stage': 5}))
+"""),
+    ("N windows", """
+m.predict([img])
 total = 0
 lo = hi = None
 for _ in range(%(n)d):
@@ -265,10 +294,11 @@ for _ in range(%(n)d):
     lo = d if lo is None or d < lo else lo
     hi = d if hi is None or d > hi else hi
 gc.collect()
-print('NB:' + json.dumps({'us_total': total, 'us_min': lo, 'us_max': hi, 'mem_before_load': before,
-                          'mem_after_load': loaded, 'mem_after': gc.mem_free(), 'input_shape': list(s),
-                          'input_sha256': sha, 'input_bytes': len(b)}))
-"""
+print('NB:' + json.dumps({'stage': 6, 'us_total': total, 'us_min': lo, 'us_max': hi, 'mem_after': gc.mem_free()}))
+"""),
+]
+BOARD_RESET, SCRIPT_FAILED = "board_reset", "script_failed"
+
 
 
 def board_json(out):
@@ -365,6 +395,33 @@ class N6:
 
     def rom(self):
         return self.script(ROM_SCRIPT)
+
+    def stage(self, k, name, code, limit_s, resume, port):
+        """Stage k of the timing (STAGES): its own exec on `port`, found once before stage 1; nothing else is sent to
+        the board between stages (QE PR 130: any exec without `resume`, find()'s own question included, soft-resets
+        it and wipes what the stages before defined). Its marker must come back. A failure is named by the last
+        stage that answered: board_reset when the N6 then shows its bootloader or its port is gone (card 6),
+        no_answer on a timeout, else script_failed with the board's own words."""
+        argv = [self.mpremote, "connect", port, *(["resume"] if resume else []), "exec", code]
+        rc, out = self.run(argv, limit_s, tail=3000)
+        found = board_json(out)
+        if rc == 0 and found is not None and found.get("stage") == k:
+            return {key: v for key, v in found.items() if key != "stage"}
+        last = f"stage {k - 1} ({STAGES[k - 2][0]})" if k > 1 else "none"
+        where = f"stage {k} ({name}) did not answer; the last stage that answered: {last}"
+        extra = {"stage_failed": k, "stage_name": name, "last_stage": k - 1}
+        if rc is None:
+            raise Stop(NO_ANSWER, f"{where}: no end within {limit_s:g} s. {out.strip()[-400:]}", **extra)
+        gone = not os.path.exists(port)
+        try:
+            in_dfu = self.in_dfu()
+        except Stop:
+            in_dfu = True                            # a bootloader is there, whoever's: the board is not running
+        if gone or in_dfu:
+            raise Stop(BOARD_RESET, f"{where}: the N6 reset itself ({'its port dropped' if gone else 'it'}"
+                                    f"{' and it is in its bootloader' if in_dfu else ''}). Board output: "
+                                    f"{out.strip()[-600:]}", **extra)
+        raise Stop(SCRIPT_FAILED, f"{where}: the board's own words: {out.strip()[-800:]}", **extra)
 
     def dfu(self, *args):
         """A dfu-util command line for the pinned N6 only."""
@@ -556,16 +613,20 @@ class Agent:
         return {"restored": True, "readback_sha256": have, "rom": listing}
 
     def n6_time(self, req):
+        """One window in STAGES; a failure says which stage was the last to answer (and its stop rule)."""
         n = int(req["n"])
         if n < 1:
             raise Stop(LOAD_FAILED, "a window needs at least one inference")
-        code = TIME_SCRIPT % {"path": "/rom/" + req["rom_name"], "warmups": WARMUPS, "n": n, "seed": SEED,
-                              "a": LCG_A, "c": LCG_C, "m": LCG_M}
-        r = self.n6.script(code, TOOL_S + 2.0 * (n + WARMUPS))
-        return {"n": n, "warmups": WARMUPS, "ms_mean": r["us_total"] / n / 1000, "ms_min": r["us_min"] / 1000,
-                "ms_max": r["us_max"] / 1000, "mem_before_load": r["mem_before_load"],
-                "mem_after_load": r["mem_after_load"], "mem_after": r["mem_after"], "input_shape": r["input_shape"],
-                "input_sha256": r.get("input_sha256"), "input_bytes": r.get("input_bytes")}
+        fill = {"path": "/rom/" + req["rom_name"], "n": n, "seed": SEED, "a": LCG_A, "c": LCG_C, "m": LCG_M}
+        got, port = {}, self.n6.find()               # asked once, before stage 1 (which starts fresh anyway)
+        for k, (name, code) in enumerate(STAGES, 1):
+            limit = TOOL_S + (2.0 * (n + 1) if k == 6 else 0)
+            got.update(self.n6.stage(k, name, code % fill, limit, resume=k > 1, port=port))
+        return {"n": n, "warmups": WARMUPS, "ms_mean": got["us_total"] / n / 1000, "ms_min": got["us_min"] / 1000,
+                "ms_max": got["us_max"] / 1000, "mem_before_load": got["mem_before_load"],
+                "mem_after_load": got["mem_after_load"], "mem_after": got["mem_after"], "input_shape": got["input_shape"],
+                "input_sha256": got.get("input_sha256"), "input_bytes": got.get("input_bytes"),
+                "stages": [name for name, _ in STAGES]}
 
     def n6_reset(self, req):
         rc, out = self.n6.run([self.n6.mpremote, "connect", self.n6.find(), "soft-reset"], TOOL_S)
@@ -576,9 +637,12 @@ class Agent:
     def n6_hard_reset(self, req):
         """The card's last step (lead 2, after PR 123): `mpremote reset`, so the N6's own main.py runs again and the
         board is left as found. Nothing is asked of it afterwards (that would stop main.py again). A board in its
-        bootloader is not reset here: the restore boots it."""
+        bootloader is booted first (a read of alt 2 with -R, no write) when the laptop says our image is not on it
+        (QE PR 130: a /rom card's board that reset itself); otherwise it is refused (a restore must come first)."""
         if self.n6.in_dfu():
-            raise Stop(NO_ANSWER, "the N6 is in its bootloader, not booted: run a restore-only card, which boots it")
+            if not req.get("boot_if_in_bootloader"):
+                raise Stop(NO_ANSWER, "the N6 is in its bootloader, not booted: run a restore-only card, which boots it")
+            self.n6.boot()                           # no write: the model area is the backup's (nothing of ours there)
         rc, out = self.n6.run([self.n6.mpremote, "connect", self.n6.find(), "reset"], TOOL_S)
         if rc != 0:
             raise Stop(NO_ANSWER, f"the N6 did not take a hard reset (exit {rc}): {out.strip()[-300:]}")

@@ -32,6 +32,8 @@ The agent loads and times a QDQ file under onnxruntime 1.29.0 (conversion enviro
 
 ---
 
+---
+
 ## 2026-11-27 — Sprint S7 — QE PR 126's nits: no board serial in agent.log; no reset for a board that never answered (S7 builder)
 **Branch:** sprint/7-n6-nits
 **Done:** the agent writes the N6's serial as `<n6_dfu_serial>` (another board's: its last 4 digits) in `agent.log`

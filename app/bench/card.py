@@ -31,7 +31,8 @@ DEFAULT_STOP_RULES = [                                          # D84, D87
 ]
 FRAMES_N6 = ("one pseudo-random image at each model's input size, made on the N6 from seed 0; the run stops unless "
              "the board's sha256 of it equals the laptop's (D83a)")
-RESTORE_RULE = DEFAULT_STOP_RULES[-1]                         # D87: required on every card for a real unit
+RESTORE_RULE = DEFAULT_STOP_RULES[-1]
+ROM_NAME = __import__("re").compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.tflite$")                         # D87: required on every card for a real unit
 TEXT_MAX = 2000
 
 
@@ -89,7 +90,18 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
         problems.append("only an N6 card can be restore-only (it puts the backup's ROMFS0 back)")
     if restore_only and str(form.get("models", "")).strip():
         problems.append("a restore-only card lists no model files")
-    models = [] if restore_only else _models(data_dir, form.get("models", ""), problems)
+    # Lead call (lead 2, after card 6): an N6 card may time models already in /rom (a vendor's), with no write at all
+    rom_models = [l.strip() for l in str(form.get("rom_models", "")).splitlines() if l.strip()]
+    if rom_models and board != "n6":
+        problems.append("only an N6 card can time models already in /rom")
+    if rom_models and (restore_only or str(form.get("models", "")).strip()):
+        problems.append("a card times either model files (written to the model area) or models already in /rom, not both")
+    bad = [r for r in rom_models if not ROM_NAME.match(r)]
+    if bad:
+        problems.append(f"{', '.join(bad)}: a /rom model is a file name ending in .tflite, as /rom lists it")
+    if len(set(rom_models)) != len(rom_models):
+        problems.append("a /rom model is listed twice")
+    models = [] if restore_only or rom_models else _models(data_dir, form.get("models", ""), problems)
     runtime = None
     if board == "pi" and models:                        # D85: the Pi's runtime follows the model files' kind
         kinds = {SUFFIX_RUNTIME.get(Path(m["path"]).suffix) for m in models}
@@ -113,7 +125,8 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now(),
             **({"threads": threads} if board == "pi" else {}),    # fixed for the run and recorded (D83, D88)
             **({"runtime": runtime} if runtime else {}),
-            **({"restore_only": True} if restore_only else {})}
+            **({"restore_only": True} if restore_only else {}),
+            **({"rom_models": rom_models} if rom_models else {})}
 
 
 def has_restore_rule(rules) -> bool:
