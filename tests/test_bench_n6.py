@@ -124,7 +124,9 @@ def test_a_fault_in_a_window_restores_too(rig):
     with pytest.raises(BoardError) as e:
         b.time("yolox-nano-conv-256-c5", 10)
     b.close()
-    assert e.value.stop == LOAD_FAILED and "Failed to load network" in str(e.value) and "put back" in str(e.value)
+    assert e.value.stop == "script_failed" and "Failed to load network" in str(e.value) and "put back" in str(e.value)
+    assert "stage 2 (ml.Model) did not answer; the last stage that answered: stage 1 (import)" in str(e.value)
+    assert e.value.detail["stage_failed"] == 2 and e.value.detail["last_stage"] == 1
     assert (state / "romfs0.bin").read_bytes() == rig["partition"] and len(b.restores) == 1
 
 
@@ -231,7 +233,7 @@ def test_a_window_on_another_input_is_not_counted_and_restores(rig):
 
 
 def test_the_boards_timing_script_makes_the_laptops_image(monkeypatch, capsys):
-    """TIME_SCRIPT run by CPython with stand-ins for OpenMV's ml, image, gc and time: the sha256 it prints for its
+    """The six STAGES, run in turn by CPython with stand-ins for OpenMV's ml, image, gc and time: the sha256 it prints for its
     input buffer equals the laptop's synthetic_bytes, for RGB565 and grayscale inputs (D83a)."""
     import types
 
@@ -249,10 +251,14 @@ def test_the_boards_timing_script_makes_the_laptops_image(monkeypatch, capsys):
                 "time": types.SimpleNamespace(ticks_us=lambda: 0, ticks_diff=lambda a, b: a - b)}
         for k, v in mods.items():
             monkeypatch.setitem(sys.modules, k, v)
-        code = bench_agent.TIME_SCRIPT % {"path": "/rom/x.tflite", "warmups": 2, "n": 3, "seed": 0,
-                                          "a": bench_agent.LCG_A, "c": bench_agent.LCG_C, "m": bench_agent.LCG_M}
-        exec(compile(code, "time_script", "exec"), {})
-        out = bench_agent.board_json(capsys.readouterr().out)
+        fill = {"path": "/rom/x.tflite", "n": 3, "seed": 0, "a": bench_agent.LCG_A, "c": bench_agent.LCG_C,
+                "m": bench_agent.LCG_M}
+        board, out = {}, {}                                # one namespace: stages 2-6 run with `resume`
+        for k, (name, code) in enumerate(bench_agent.STAGES, 1):
+            exec(compile(code % fill, f"stage {k} ({name})", "exec"), board)
+            marker = bench_agent.board_json(capsys.readouterr().out)
+            assert marker["stage"] == k, name                  # each stage prints its own marker
+            out.update(marker)
         h, w, c = shape[1:]
         assert out["input_sha256"] == hashlib.sha256(bench_agent.synthetic_bytes(w, h, c)).hexdigest()
         assert out["input_bytes"] == w * h * (1 if c == 1 else 2) and out["us_total"] == 0
@@ -414,3 +420,40 @@ def test_no_board_serial_reaches_agent_log_or_an_answer(rig):
     log = (rig["tmp"] / "agent" / "agent.log").read_text()
     assert "<n6_dfu_serial>" in log and "-a 3 -D" in log
     assert "FAKE0N6SERIAL" not in log and "ANOTHER_N6" not in log and "ANOTHER_N6" not in str(e.value)
+
+
+def test_a_board_that_resets_mid_stage_is_board_reset_and_names_the_last_stage(rig):
+    """Card 6: the board dropped into its bootloader within 2 s of the timing, with no traceback."""
+    b, state = rig["board"], rig["state"]
+    b.load(rig["model"])
+    fault(state, reset_at_stage=4)
+    with pytest.raises(BoardError) as e:
+        b.time("yolox-nano-conv-256-c5", 5)
+    b.close()
+    assert e.value.stop == "board_reset" and "the last stage that answered: stage 3 (input_shape)" in str(e.value)
+    assert "put back from the backup" in str(e.value) and e.value.detail["stage_failed"] == 4
+    assert (state / "romfs0.bin").read_bytes() == rig["partition"] and not ae3_asks(state)
+    execs = [c for c in calls(state) if c[0] == "mpremote" and "'stage': " in c[-1]]
+    assert [("resume" in c) for c in execs] == [False, True, True, True]           # stage 1 fresh, then resume
+
+
+def test_a_vendor_model_in_rom_is_timed_with_no_write(rig):
+    """Lead call, lead 2 (after card 6): the known-good control: a model already in /rom, nothing written."""
+    b, state = rig["board"], rig["state"]
+    assert b.use_rom(["vendor_det.tflite"])["route"] == "already in /rom (no write)"
+    t = b.time("vendor_det.tflite", 5)
+    assert t["n"] == 5 and t["stages"][-1] == "N windows" and t["input_check"].startswith("sha256")
+    with pytest.raises(BoardError, match="not in the N6's /rom"):
+        b.use_rom(["ours_not_there.tflite"])
+    b.close()
+    assert not any(c[0] == "dfu-util" and ("-D" in c or "-U" in c) for c in calls(state))      # only `-l` listings
+    assert [r["what"] for r in riglog.read(rig["data"])] == ["copy the bench agent"]            # the agent itself only
+    assert (state / "romfs0.bin").read_bytes() == rig["partition"]
+
+
+def test_a_long_tool_output_keeps_its_head_and_its_tail():
+    """QE 10, card 6: only the tail was kept, and the board's first lines were lost."""
+    text = "BOARD: first line\n" + "x" * 10_000 + "\nmpremote: lost the port"
+    kept = bench_agent.head_tail(text, 3000)
+    assert kept.startswith("BOARD: first line") and kept.endswith("lost the port") and "characters cut" in kept
+    assert bench_agent.head_tail("short", 3000) == "short"

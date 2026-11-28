@@ -10,6 +10,7 @@
   <tr><th>Unit / board</th><td>{{ c.unit }} / {{ c.board }}{% if c.unit == "fake" %} <span class="hint">(the fake board: no hardware)</span>{% endif %}</td></tr>
   <tr><th>Models</th><td><ul>{% for m in c.models %}<li>{{ m.name }}: <code>{{ m.path }}</code>, {{ m.bytes }} bytes, sha256 <code>{{ m.sha256[:16] }}…</code></li>{% endfor %}</ul></td></tr>
   <tr><th>Frames</th><td>{{ c.frames }}</td></tr>
+  {% if c.rom_models %}<tr><th>Models in /rom</th><td>{{ c.rom_models | join(", ") }} <span class="hint">(already on the N6: timed with no write; each must be in /rom when the run starts)</span></td></tr>{% endif %}
   {% if c.restore_only %}<tr><th>Restore only</th><td>yes: the backup's ROMFS0 is written, read back, booted and /rom listed; nothing is timed</td></tr>{% endif %}
   <tr><th>Windows × N</th><td>{% if c.restore_only %}none (restore only){% else %}{{ c.windows }} windows of {{ c.n }} inferences, after 2 warm-ups{% endif %}</td></tr>
   {% if c.threads %}<tr><th>Threads</th><td>{{ c.threads }} <span class="hint">(fixed for the run, D88)</span></td></tr>{% endif %}

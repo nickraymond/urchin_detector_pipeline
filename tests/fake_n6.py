@@ -2,7 +2,7 @@
 
 It answers the command lines the agent uses, as RESTORE.md and ml/README.md show them, over a small fake ROMFS0 held
 in <state>/romfs0.bin. State files: `mode` (app | dfu | dead), `faults.json`, `calls.log` (one JSON argv per call).
-Faults: no_bootloader (machine.bootloader() leaves a board that shows nothing), write_fails (n writes fail), corrupt_write (n writes flip a byte), dead_unless_backup (a boot with anything
+Faults: reset_at_stage (the timing's stage k drops the board into DFU), no_bootloader (machine.bootloader() leaves a board that shows nothing), write_fails (n writes fail), corrupt_write (n writes flip a byte), dead_unless_backup (a boot with anything
 but backup.bin in ROMFS0 leaves the board answering nothing, neither serial nor DFU), time_fails, hide (a /rom name).
 """
 
@@ -50,8 +50,10 @@ class State:
 
 
 def mpremote(s, args):
-    port, verb = args[1], args[2]
-    code = args[3] if len(args) > 3 else ""
+    port = args[1]
+    rest = args[3:] if args[2:3] == ["resume"] else args[2:]       # `resume`: no soft reset (the timing's stages 2-6)
+    verb = rest[0]
+    code = rest[1] if len(rest) > 1 else ""
     if "OpenMV_Camera" in port:                       # the AE3: answers who it is, nothing else is asked of it
         print("NB:AE3")
         return 0
@@ -68,16 +70,27 @@ def mpremote(s, args):
     rom = {e.name: len(e.data) for e in entries if e.name != s.faults.get("hide")}
     if "os.listdir('/rom')" in code:
         print("NB:" + json.dumps(rom))
-    elif "ml.Model" in code:
-        name = re.search(r"ml\.Model\('/rom/([^']+)'\)", code).group(1)
-        n = int(re.search(r"for _ in range\((\d+)\):\n    t = time", code).group(1))
-        if name not in rom or s.faults.get("time_fails"):
-            print("Traceback (most recent call last):\nOSError: Failed to load network")
+    elif "'stage': " in code:
+        k = int(re.search(r"'stage': (\d)", code).group(1))
+        if s.faults.get("reset_at_stage") == k:          # card 6: the board drops into its bootloader mid-script
+            s.put("mode", "dfu")
+            print("Traceback (most recent call last):\nOSError: [Errno 5] Input/output error")
             return 1
-        image = synthetic_bytes(8, 8, 3) + (b"!" if s.faults.get("input_differs") else b"")
-        print("NB:" + json.dumps({"us_total": 10_600 * n, "us_min": 10_500, "us_max": 10_700, "input_shape": [1, 8, 8, 3],
-                                  "input_sha256": hashlib.sha256(image).hexdigest(), "input_bytes": len(image),
-                                  "mem_before_load": 25_000_000, "mem_after_load": 24_000_000, "mem_after": 24_000_000}))
+        if k == 2:
+            name = re.search(r"ml\.Model\('/rom/([^']+)'\)", code).group(1)
+            s.put("model", name)
+            if name not in rom or s.faults.get("time_fails"):
+                print("Traceback (most recent call last):\nOSError: Failed to load network")
+                return 1
+        answers = {1: {"mem_before_load": 25_000_000}, 2: {"mem_after_load": 24_000_000}, 3: {"input_shape": [1, 8, 8, 3]},
+                   5: {}}
+        if k == 4:
+            image = synthetic_bytes(8, 8, 3) + (b"!" if s.faults.get("input_differs") else b"")
+            answers[4] = {"input_sha256": hashlib.sha256(image).hexdigest(), "input_bytes": len(image)}
+        if k == 6:
+            n = int(re.search(r"for _ in range\((\d+)\):\n    t = time", code).group(1))
+            answers[6] = {"us_total": 10_600 * n, "us_min": 10_500, "us_max": 10_700, "mem_after": 24_000_000}
+        print("NB:" + json.dumps({"stage": k, **answers[k]}))
     elif "firmware" in code:
         print("NB:" + json.dumps({"board_type": "N6", "firmware": "fake N6 5.0.1", "machine": "fake N6",
                                   "mem_free": 25_000_000}))
