@@ -20,6 +20,7 @@ from app import sidecars
 from app.bench import units
 
 MIN_WINDOWS, DEFAULT_WINDOWS, DEFAULT_N = 3, 3, 300           # D83: never a cell from one window
+THREADS, DEFAULT_THREADS = range(1, 5), 1                    # the Pi's four cores; D88: the first card runs 1
 DEFAULT_METRIC = "ms per inference (median and spread over the windows); free memory before load, after load, after"
 DEFAULT_STOP_RULES = [                                          # D84, D87
     "a board that does not answer in 60 s stops the run",
@@ -72,6 +73,9 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
         problems.append(f"windows must be a whole number of at least {MIN_WINDOWS} (D83: no cell from one window)")
     if n is None or n < 1:
         problems.append("N (inferences per window) must be a whole number of at least 1")
+    threads = _int(form.get("threads"), DEFAULT_THREADS)
+    if board == "pi" and threads not in THREADS:
+        problems.append(f"threads must be a whole number from {THREADS[0]} to {THREADS[-1]} (the Pi Zero 2W has four cores)")
     cost = _int(form.get("cost_minutes"), None)
     if cost is None or cost < 1:
         problems.append("the cost (minutes on the rig) must be a whole number of at least 1")
@@ -87,7 +91,7 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             "frames": "one seeded synthetic image at each model's input size, sent as a file (D83)",
             "windows": windows, "n": n, "metric": text["metric"] or DEFAULT_METRIC, "pass_bar": text["pass_bar"],
             "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now(),
-            **({"threads": 1} if board == "pi" else {})}    # D88: the Pi's first LiteRT card runs 1 thread
+            **({"threads": threads} if board == "pi" else {})}    # fixed for the run and recorded (D83, D88)
 
 
 def has_restore_rule(rules) -> bool:

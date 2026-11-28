@@ -40,6 +40,7 @@
      <textarea name="models" rows="3" cols="80" required>{{ f.models }}</textarea></label></p>
   <p><label>Windows (at least {{ min_windows }}) <input name="windows" type="number" min="{{ min_windows }}" value="{{ f.windows }}"></label>
      <label>N per window <input name="n" type="number" min="1" value="{{ f.n }}"></label>
+     <label>Threads (Pi board only) <input name="threads" type="number" min="1" max="4" value="{{ f.threads }}"></label>
      <label>Cost, minutes on the rig <input name="cost_minutes" type="number" min="1" value="{{ f.cost_minutes }}" required></label></p>
   <p class="hint">Frames: one seeded synthetic image at each model's input size, sent as a file (D83).</p>
   <p><label>Metric<br><textarea name="metric" rows="2" cols="80">{{ f.metric }}</textarea></label></p>

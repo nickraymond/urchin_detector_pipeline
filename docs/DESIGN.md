@@ -827,8 +827,9 @@ first, runs `python3 -m venv` and `pip install --no-cache-dir --index-url https:
 --require-hashes -r` with `HOME` and `TMPDIR` inside the folder and `PIP_CONFIG_FILE` set to the null device, sends an alive
 line every 5 s while pip is silent, and writes `installed.json` (each package's version and licence field). A failed step is
 `install_failed` with pip's last lines, and nothing half-made is left. The agent then runs from
-`~/urchin_bench/venv-litert-2.2.0/bin/python`. A Pi card holds `threads: 1` (D88), shown on its page, and the worker passes it
-to the board.
+`~/urchin_bench/venv-litert-2.2.0/bin/python`. A Pi card holds `threads`, chosen on the form from 1 to 4 (default 1; D88: the first
+LiteRT card runs 1), shown on its page; the worker passes it to a real Pi's board (`board_settings`), and the agent
+opens the model with it and returns it with every window.
 
 **Folders:**
 
