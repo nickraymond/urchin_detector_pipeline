@@ -39,6 +39,9 @@ def params(cfg, number: int, fake: dict | None = None) -> dict:
         unit = cfg.bench.unit(c["unit"])
     except units.Refused as e:
         raise JobError(f"Card {number} cannot be run: {e}") from None
+    if not unit.fake and not cards.has_restore_rule(c["stop_rules"]):
+        raise JobError(f'Card {number} cannot be run: a card for a real unit keeps the stop rule '
+                       f'"{cards.RESTORE_RULE}" (D87); write a new card.')
     if fake and not unit.fake:
         raise JobError("fake board settings are for the fake unit only")
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}-card{number}"

@@ -22,7 +22,10 @@ what broke, what's next.*
 **Done:** job kind `bench` (`app/bench/run.py`, `worker.py`): a reviewed card → `bench/<run id>/` with `card.json`,
 `run.json`, `timing.jsonl`; Pause between windows, Resume skips what is on disk, Cancel keeps it; stop rules as job
 errors with a hint; model files and the card re-checked by sha256 in the worker; "Run this card" and the runs table
-on the card page. `FakeBoard` gained `fail_at` and `delay_s` for the Pause, Cancel and stop-rule tests.
+on the card page. `FakeBoard` gained `fail_at` and `delay_s` for the Pause, Cancel and stop-rule tests. QE PR 101 nits: (1) a card for a
+real unit must keep D87's "RESTORE.md matches the rig log", at save and at Run; (2) Run re-checks unit and model
+files (the worker); (3) a refused card comes back with the form filled in; (4) an unreadable card file is a row,
+not a 500; (5) DESIGN says the writer / reviewer check compares typed names only.
 **Self-test:** scratch data folder, card 1 (fake / n6, 3 × 300): "Run this card" → "Run queued"; after a few seconds
 the card page shows the run "done", 3 of 3 windows, median 10.00 ms, spread 9.97–10.01, 3,090,000 B free after load;
 the folder holds card.json, run.json (outcome done, route fake, job 1) and 3 timing lines; Jobs shows the job done

@@ -27,6 +27,7 @@ DEFAULT_STOP_RULES = [                                          # D84, D87
     "on the AE3: one operation per call, no retries",
     "RESTORE.md matches the rig log",
 ]
+RESTORE_RULE = DEFAULT_STOP_RULES[-1]                         # D87: required on every card for a real unit
 TEXT_MAX = 2000
 
 
@@ -59,7 +60,7 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             problems.append(f"{label} is empty")
     if any(len(v) > TEXT_MAX for v in text.values()):
         problems.append(f"a text field is longer than {TEXT_MAX} characters")
-    unit_name, board = str(form.get("unit", "")).strip(), str(form.get("board", "")).strip()
+    unit_name, board, unit = str(form.get("unit", "")).strip(), str(form.get("board", "")).strip(), None
     try:
         unit = bench.unit(unit_name)
         if board not in unit.kinds:
@@ -78,12 +79,18 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
     rules = [" ".join(r.split()) for r in str(form.get("stop_rules", "")).splitlines() if r.strip()]
     if not rules:
         problems.append("a card needs at least one stop rule")
+    if unit and not unit.fake and not has_restore_rule(rules):
+        problems.append(f'a card for a real unit keeps the stop rule "{RESTORE_RULE}" (D87)')
     if problems:
         raise CardError("; ".join(problems) + ".")
     return {"question": text["question"], "unit": unit_name, "board": board, "models": models,
             "frames": "one seeded synthetic image at each model's input size, sent as a file (D83)",
             "windows": windows, "n": n, "metric": text["metric"] or DEFAULT_METRIC, "pass_bar": text["pass_bar"],
             "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now()}
+
+
+def has_restore_rule(rules) -> bool:
+    return any(" ".join(r.split()).lower() == RESTORE_RULE.lower() for r in rules)
 
 
 def _int(value, default):
@@ -156,7 +163,13 @@ def list_cards(data_dir) -> list[dict]:
     d = folder(data_dir)
     nums = sorted((int(p.stem) for p in sidecars.real(d.glob("*.json")) if p.stem.isdigit()),
                   reverse=True) if d.is_dir() else []
-    return [load(data_dir, n) for n in nums]
+    out = []
+    for n in nums:                       # one unreadable file must not hide the others (QE PR 101 nit 4)
+        try:
+            out.append(load(data_dir, n))
+        except (ValueError, KeyError, OSError) as e:
+            out.append({"number": n, "unreadable": f"{type(e).__name__}: {e}"})
+    return out
 
 
 def review(data_dir, number: int, reviewed_by: str) -> dict:

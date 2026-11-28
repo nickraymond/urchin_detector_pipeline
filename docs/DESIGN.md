@@ -676,9 +676,9 @@ no "after" shows as "not finished" in red. The page lists unit names and their b
 **As built, bite 2a** (`app/bench/card.py`, `/bench/cards`): a card is `<data_dir>/bench/cards/<n>.json`, numbered,
 written once (`O_EXCL`), never changed; a review is a separate `<n>.review.json` holding the reviewer and the card
 file's sha256, so a card edited on disk after its review shows "changed after review" and cannot be run. The writer
-cannot review their own card. Checks at save: unit and board through `Bench.unit` (field units and unlisted units
+cannot review their own card; that compares the typed names only, so it is a guard against slips, not an identity check (QE PR 101 nit 5). Checks at save: unit and board through `Bench.unit` (field units and unlisted units
 refused), at least 3 windows, N and cost at least 1, at least one stop rule (D84's defaults and D87's "RESTORE.md
-matches the rig log" are prefilled), model files only under the data folder, each with its size and sha256. A model's
+matches the rig log" are prefilled, and that last rule is required on a card for a real unit, at save and again at Run; QE PR 101 nit 1), model files only under the data folder, each with its size and sha256. A model's
 name is its candidate folder for S6's files (`fit/<arch key>/int8/model_int8.tflite`), else its path under the data
 folder. Frames are fixed by D83 (one seeded synthetic image per model), so the card states them and has no field.
 

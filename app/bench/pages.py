@@ -40,16 +40,20 @@ def register_cards(app, templates, config_path, dashboard, jobctl) -> None:
     def back(path: str, **query) -> RedirectResponse:
         return RedirectResponse(path + ("?" + urlencode(query) if query else ""), status_code=303)
 
+    def cards_view(request, cfg, error: str = "", typed: dict | None = None, status: int = 200):
+        defaults = {"windows": card.DEFAULT_WINDOWS, "n": card.DEFAULT_N, "metric": card.DEFAULT_METRIC,
+                    "stop_rules": "\n".join(card.DEFAULT_STOP_RULES)}
+        return templates.TemplateResponse(request, "bench_cards.html", {
+            "cfg": cfg, "error": error, "cards": card.list_cards(cfg.data_dir), "units": cfg.bench.names(),
+            "kinds": KINDS, "f": {**defaults, **(typed or {})}, "min_windows": card.MIN_WINDOWS},
+            status_code=status)
+
     @app.get("/bench/cards", response_class=HTMLResponse)
     def cards_page(request: Request, error: str = ""):
         cfg = config.load(config_path)
         if not cfg.ok:
             return dashboard(request, status=503)
-        return templates.TemplateResponse(request, "bench_cards.html", {
-            "cfg": cfg, "error": error, "cards": card.list_cards(cfg.data_dir), "units": cfg.bench.names(),
-            "kinds": KINDS, "defaults": {"windows": card.DEFAULT_WINDOWS, "n": card.DEFAULT_N,
-                                         "metric": card.DEFAULT_METRIC, "stop_rules": "\n".join(card.DEFAULT_STOP_RULES)},
-            "min_windows": card.MIN_WINDOWS})
+        return cards_view(request, cfg, error)
 
     @app.post("/bench/cards")
     async def cards_save(request: Request):
@@ -59,8 +63,8 @@ def register_cards(app, templates, config_path, dashboard, jobctl) -> None:
         form = dict(await request.form())
         try:
             n = card.save(cfg.data_dir, card.build(cfg.data_dir, cfg.bench, form))
-        except card.CardError as e:
-            return back("/bench/cards", error=str(e))
+        except card.CardError as e:     # the form comes back filled in (QE PR 101 nit 3)
+            return cards_view(request, cfg, str(e), {k: str(v) for k, v in form.items()}, status=400)
         return back(f"/bench/cards/{n}", note=f"Card {n} saved. It can be run once someone other than its writer has reviewed it.")
 
     @app.get("/bench/cards/{number}", response_class=HTMLResponse)

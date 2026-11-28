@@ -29,7 +29,7 @@ def site(tmp_path):
 def new_card(data, bench, reviewed=True, **over):
     form = {"question": "q", "unit": "fake", "board": "n6", "windows": "3", "n": "50", "cost_minutes": "1",
             "models": "fit/yolox_nano/int8/model_int8.tflite\nfit/yolox_tiny/int8/model_int8.tflite",
-            "pass_bar": "p", "stop_rules": "a rule", "written_by": "lead", **over}
+            "pass_bar": "p", "stop_rules": "a rule\n" + card.RESTORE_RULE, "written_by": "lead", **over}
     n = card.save(data, card.build(data, bench, form))
     if reviewed:
         card.review(data, n, "qe")
@@ -93,6 +93,18 @@ def test_real_unit_card_ends_as_refused_and_fake_settings_are_fake_only(site, jc
         runs.params(cfg, n, fake={"ms": {}})
     job = wait(jc, jc.submit("bench", runs.params(cfg, n)), "done", "error")
     assert job["state"] == "error" and "not built yet" in job["message"]
+
+
+def test_run_refuses_a_real_unit_card_without_the_restore_rule(site):     # QE PR 101 nit 1, D87
+    cfg, data = site
+    n = new_card(data, cfg.bench, unit="bench-a", reviewed=False)
+    path = card.folder(data) / f"{n}.json"
+    body = json.loads(path.read_text())
+    body["stop_rules"] = ["a rule"]                     # written by hand, past the page's check
+    path.write_text(json.dumps(body))
+    card.review(data, n, "qe")
+    with pytest.raises(JobError, match="RESTORE.md matches the rig log"):
+        runs.params(cfg, n)
 
 
 def test_model_changed_after_the_card_stops_the_run(site, jc):
