@@ -9,7 +9,8 @@ Ops: hello, info, load, time, reset, bye. Model files are copied into <folder>/m
 
 Timing (D83): one seeded synthetic input at the model's input size; 2 warm-ups; time.perf_counter_ns() around
 each invoke of the window; peak memory is the process's VmHWM. Threads are fixed per load and recorded. While a
-window runs the agent writes {"id": n, "alive": true, "done": k} every ALIVE_S seconds, so a slow model (300
+window runs the agent writes {"id": n, "alive": true, "done": k} after the first inference that ends ALIVE_S
+seconds or more after the last such line (D84: after each inference at the latest once 10 s have passed), so a slow model (300
 inferences at a second each) is not taken for a board that stopped answering. `time` returns the fields every
 Board.time returns (n, warmups, ms_mean, ms_min, ms_max, mem_before_load, mem_after_load, mem_after: free memory,
 MemAvailable) plus vm_hwm.
@@ -28,8 +29,9 @@ VERSION = "1"
 WARMUPS = 2
 ALIVE_S = 5.0          # an "alive" line this often during a window: D84 asks at least every 10 s; 60 s is for silence
 SEED = 0
-NO_ANSWER, READBACK, LOAD_FAILED, NOT_LOADED, NOT_BUILT = (
-    "no_answer", "readback_differs", "load_failed", "not_loaded", "not_built")
+NO_ANSWER, READBACK, LOAD_FAILED, NOT_LOADED, NOT_BUILT, LOW_MEMORY = (
+    "no_answer", "readback_differs", "load_failed", "not_loaded", "not_built", "low_memory")
+MEM_FLOOR = 50 * 1024 * 1024   # D89: no load and no window when MemAvailable is under 50 MB
 
 
 def file_name(name):
@@ -116,6 +118,15 @@ class LiteRT:
 RUNTIMES = {"fake": FakeRuntime, "litert": LiteRT}
 
 
+def check_memory(what):
+    """The D89 floor: refuse `what` when free memory is known and under 50 MB (unknown on the laptop: no check)."""
+    free = proc_kib("/proc/meminfo", "MemAvailable")
+    if free is not None and free < MEM_FLOOR:
+        raise Stop(LOW_MEMORY, f"only {free / 1048576:.1f} MB free on the Pi (MemAvailable); {what} needs at least "
+                               f"{MEM_FLOOR // 1048576} MB free (D89)")
+    return free
+
+
 class Agent:
     def __init__(self, folder, runtime="litert"):
         self.folder = os.path.abspath(folder)
@@ -147,7 +158,7 @@ class Agent:
     def op_load(self, req):
         threads = int(req.get("threads", 1))
         self.loaded = {}
-        self.mem_before_load = proc_kib("/proc/meminfo", "MemAvailable")
+        self.mem_before_load = check_memory("a load")
         for name, want in sorted(req["files"].items()):
             path = os.path.join(self.models_dir, file_name(name))
             if not os.path.isfile(path):
@@ -171,6 +182,7 @@ class Agent:
         if n < 1:
             raise Stop(LOAD_FAILED, "a window needs at least one inference")
         model, threads = self.loaded[name]
+        check_memory("a window")
         for _ in range(WARMUPS):
             self.runtime.invoke(model)
         each, last = [], time.monotonic()
