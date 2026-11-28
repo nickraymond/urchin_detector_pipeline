@@ -497,6 +497,8 @@ class Trainer:
                         np.stack([t for *_, t in part]).transpose(0, 3, 1, 2))).float().to(self.device)
                     for (n, ox, oy, _), det in zip(part, decode(export(imgs))):
                         if len(det):
+                            th, tw = frames[n]["image"].shape[:2]
+                            det = det[~tiles.cut_by_inner_edge(det, ox, oy, self.canvas, tw, th)]
                             det[:, 0] += ox
                             det[:, 1] += oy
                             found[n].append(det)

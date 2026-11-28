@@ -90,7 +90,7 @@ def test_two_epochs_write_metrics_checkpoints_and_validation_frames(run):
     assert (mdir / "val_frames" / "epoch.txt").read_text().strip() == "2"
     with Image.open(mdir / "val_frames" / "val_0.png") as im:
         assert im.size == (282, 211)          # D90: the whole 320 x 240 frame at the eval factor 44 / 50
-    assert d["eval_scale"]["factor"] == 0.88 and d["eval_overlap"] == 44
+    assert d["eval_scale"]["factor"] == 0.88 and d["eval_overlap"] == 48   # 44 + 5, capped at half the 96 px canvas
     assert rows[0]["val_tiles"] == 4 * 20     # 5 x 4 tiles of 96 px per frame
     t.unload()
     assert trainer(mdir, recipe).load() == (2, 0)          # where a Resume would continue

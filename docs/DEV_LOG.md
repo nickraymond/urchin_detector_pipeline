@@ -17,6 +17,25 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S8 — Fixes 2: validation at D90's eval scale, in tiles (S7 builder 1, on S8)
+**Branch:** sprint/8-val-tiles
+**Done:** `app/train/tiles.py`: the eval factor (44 px over the training split's median shorter box side, clamped to
+0.03-1.5: Lead call added to D90; raw and clamped recorded), the tile plan (overlap = largest training box at the
+factor + 5 px, at most half a canvas), `cut_by_inner_edge`; `samples.frame_at`; the trainer validates whole frames at
+that factor in tiles of the canvas, drops copies cut by an inner tile edge, NMS again across seams; the factor and
+overlap are written to `recipe.json` at the first start and kept on resume (tested through the job); drawn validation
+frames are whole frames up to 1024 px; the Train page's note says so.
+**Self-test:** on a copy of S8 builder 2's synthetic `s8_squares` (scratch data folder): a 15-epoch run from the Train
+page (Apple GPU) recorded factor 0.7586 (median side 58 px over 183 boxes), overlap 56, 72 tiles over 12 validation
+frames, 56 objects (the old validation counted 34); the page shows four whole 486 × 364 frames. Builder 2's m4 (400
+epochs, a copy) scored by the new validation: recall 0.98, precision 0.83 before the inner-edge drop, 0.95 after (old:
+0.94 / 0.97 on 34 objects). Probe scripts in the session scratchpad.
+**Broke/surprised us:** the first edge-drop version lost boxes lying whole but within 2 px of an inner edge (the
+stand-in detector test caught it: recall 0.67): the overlap now adds that margin.
+**Next:** the other S8 open items in TRACKER, as the lead assigns.
+
+---
+
 ## 2026-11-27 — Sprint S7 — Bite 2b: the `bench` job on the fake board (S7 builder 1)
 **Branch:** sprint/7-bench-run (on top of 2a, PR 101)
 **Done:** job kind `bench` (`app/bench/run.py`, `worker.py`): a reviewed card → `bench/<run id>/` with `card.json`,

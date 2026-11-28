@@ -68,7 +68,7 @@
 <div id="curves" data-src="/p/{{ info.name }}/train/metrics/{{ shown.id }}" data-val="/p/{{ info.name }}/train/val/{{ shown.id }}/"><div class="charts"></div>
   <p class="hint curve-note"></p>
   <div class="val-frames"></div>
-  <p class="hint val-note" hidden>Validation frames after epoch <span class="val-epoch"></span>: cut-outs at the training scale.
+  <p class="hint val-note" hidden>Validation frames after epoch <span class="val-epoch"></span>: whole frames at the model's evaluation scale, checked in tiles of the training size, as the evaluation and the cameras will see them.
     <b>White</b> boxes are the labels, <b>yellow</b> boxes are what the model finds (score 0.3 or more). They are redrawn after every epoch.</p></div>
 {% endif %}
 
