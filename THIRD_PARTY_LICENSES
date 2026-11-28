@@ -183,6 +183,16 @@ main when read, 2026-11-27; package version 0.3.0). Its LICENSE file is the Apac
 licence API: Apache-2.0; sha256 of the file 0ec3668d3274bcf29e8a29e9576d5a2cd96fc78d3c5bec4387355a796e5d9088),
 reproduced below from that file. Permissive: allowed for on-camera models (SPEC hard constraint 6).
 
+Importing YOLOX needs three more Python packages in the app's environment (pyproject.toml, S8 bite 4b). Their
+licences, read 2026-11-27 from the installed packages' metadata and licence files: loguru 0.8.0, MIT (classifier
+"MIT License"; its LICENSE file); tabulate 0.10.0, MIT (licence expression "MIT"); opencv-python-headless
+4.11.0.86: its metadata's licence field says "Apache 2.0"; cv2/LICENSE.txt in the wheel is the MIT licence of the
+opencv-python packaging; the Apache-2.0 text for the OpenCV binary is the first block of
+cv2/LICENSE-3RD-PARTY.txt. That same file lists the other libraries whose binaries the wheel carries, each under
+its own terms, and includes the text of the GNU Lesser General Public License for some of them (FFmpeg, and more
+in the macOS wheels). They are used on the laptop as installed from PyPI, not changed
+and not passed on by this repository, and nothing of them goes into a trained model or onto a camera.
+
 Starting weights for YOLOX (the three checks of docs/source/build2_spec.md, "Models that are safe to use"):
 - From scratch: no licence involved. Offered.
 - Pre-trained in this app on outside data: the licence of each source is listed under "Outside data" in

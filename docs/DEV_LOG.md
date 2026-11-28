@@ -17,6 +17,32 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S8 — Bites 2a–5 as built; Estimate and validation frames; docs (S8 builders 1 and 2)
+**Branch:** sprint/8-docs (docs), sprint/8-train-estimate (PR 87), sprint/8-view-rule (PR 86), sprint/8-pretrain (PR 90), sprint/8-boxes-only (PR 93)
+**Done (first S8 builder, merged earlier today, logged here because its docs were held back):** bite 2a dataset
+versions and the `freeze` job (PRs 63, 64); 2b the detector loader and "what training will see" (PR 65); 3 outside
+data and starting weights as a recorded choice (PR 66); 4a the `train` job kind (PR 67); 4b the training samples
+(PR 71) and the YOLOX trainer, on the CPU at that point (PR 72); 5 the Train page (PR 69).
+**Done (S8 builder 2):** the Apple GPU fault found and fixed (PR 84, entry below). The Datasets view counts frames
+by the trainer's rule through one shared function (PR 86). Bite 5 part 2 (PR 87): Estimate as a short job, the
+validation frames with boxes under the curves, form fields that follow the model type. Bite 3's open half (PR 90):
+pre-training on a version's outside data, and starting a run from such a model. S8's docs: TRACKER ticks
+with what is open, DESIGN "As built" under §Planned for S8, D66 (which frames a run uses), the YOLOX import
+dependencies in `THIRD_PARTY_LICENSES`.
+**Broke/surprised us:** the OpenCV wheel that YOLOX's import needs carries other libraries' binaries, some under
+the LGPL (its own `LICENSE-3RD-PARTY.txt`); recorded, laptop only. On the scratch project one epoch is one step
+(42 frames, batch 32), so a 120-epoch run is 120 steps and proves little: the first run with recall well above 0
+needed more epochs (numbers in PR 87).
+A mistake of mine: PR 84 reached main with three conflict-marker lines in DESIGN (a second conflicted file missed
+when merging main in); fixed by PR 89, which adds a test that fails on such markers.
+The lead's call D66 (frames with only some classes checked train on their labeled boxes only) is built in PR 93,
+with the lead's two further calls: a run with no fully checked training frame is allowed with a visible warning; a
+run with no fully checked validation frame is refused.
+PR 103 makes the job runner start after the job kinds are registered (TRACKER S8 "Fixes", item 1).
+**Open in S8 (each has a box in TRACKER):** feeding outside images faster; mosaic; the haze preset and the warm-up
+rule are not measured; a full pre-training run (hours); no run on Nick's real frames yet (no class is fully checked
+on them, D64); the attribution text travelling with a model; three small carried QE nits.
+**Next:** shrunk copies of outside images; then a full pre-training run on Urchinbot.
 ## 2026-11-27 — Sprint S8 — Fix: the job runner starts after the job kinds are registered (S8 builder 2)
 **Branch:** sprint/8-runner-start (PR 103)
 **Done:** `JobControl.start()`; the app creates the job module without starting it, registers every kind, then
