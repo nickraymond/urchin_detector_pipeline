@@ -31,6 +31,23 @@ test covers a version where they do.)
 
 ---
 
+## 2026-11-27 — Sprint S7 — Bites 3a, 3b, 4a and follow-ups (S6 builder 3)
+**Branches:** sprint/7-bench-agent (PR 108), sprint/7-pi-runtime (112), sprint/7-pi-install (113), sprint/7-card-threads (115),
+sprint/7-bench-nits (117), sprint/7-n6-romfs (119); also sprint/6-camera-order (109)
+**Done:** the bench agent (JSON lines, LiteRT, alive lines), the ssh link only from a listed unit with the `ssh -G`
+field-unit check, the Pi board for real units, `bad_answer` / `low_memory` / `install_failed` stop rules, `agent.log`;
+the Pi's LiteRT environment from a hash-pinned file installed once as a logged rig change (D89); a Pi card's threads
+(1-4); unique run folders and the other PR 105 / 113 follow-ups; the N6 model-area image read and written as OpenMV does
+(D82a), the backup's image re-encoded byte for byte; Nick's camera order (Pi, N6, AE3) on every /fit table.
+**Broke/surprised us:** backports.strenum 1.3.1 requires Python < 3.11, so the Pi resolves 1.2.8 (the rig session's dry run
+gave the real versions; tqdm's piwheels file differs from PyPI's, hence PyPI only with hashes). The N6's vendor models are
+now built with `atonn-v1.1.0` (firmware v5.0.1) while ours are `STAI-3.0.0` (SDK 1.6.0): D82a's gate did not pass; card 4
+answers it on the board (Lead call (a)). The alive test was flaky because of a real fault, found by QE 9: the transport
+waited on the pipe and then read a buffered stream, so an answer in the same chunk as an alive line was lost (`no_answer`);
+now one reader thread hands over whole lines. I had first blamed Python's start time.
+**Next:** S7 bite 4b, the N6 write route with a built-in restore from the backup (handoff: S6_builder3_handoff.md in the
+lead's notes folder).
+
 ## 2026-11-27 — Sprint S8 — QE PR 111's nits: no best.pt yet, a capped overlap (S7 builder 1, on S8)
 **Branch:** sprint/8-val-nits
 **Done:** the Train page says when a model has no `best.pt` (taken from validated epochs only) and after which epoch
