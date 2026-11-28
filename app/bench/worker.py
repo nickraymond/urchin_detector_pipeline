@@ -34,8 +34,10 @@ HINTS = {   # D84: what to do after each stop rule
     BOARD_RESET: "the N6 reset itself during the timing (its port dropped or it showed its bootloader); the job put "
                  "ROMFS0 back. The message names the last stage that answered: report it; the next card isolates that "
                  "stage (a vendor model already in /rom needs no write)",
-    SCRIPT_FAILED: "a statement on the N6 failed (the message names the stage and quotes the board): report it; a "
-                   "failing stage 2 (ml.Model) means the model does not load on this firmware",
+    SCRIPT_FAILED: "a statement on the N6 failed (the message names the stage and quotes the board): report it. A "
+                   "failing stage 2 (ml.Model) means the model does not load on this firmware only when the board's "
+                   "words are not a NameError or ImportError of the script's own names (that would be the stages "
+                   "losing their state, not the model)",
     INPUT_DIFFERS: "the N6 timed another input than the laptop's (D83a): report it; the run's numbers are not used",
     RESTORE_FAILED: "the N6's model area is NOT known to be the backup's: run nothing more on the rig; put ROMFS0 "
                     "back by hand (RESTORE.md, \"N6: restore a partition\"), replugging the N6 if it shows neither "

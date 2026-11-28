@@ -942,7 +942,10 @@ script or a listing, 60 s + 2 s per inference for a window, 900 s for a 24 MiB w
 whether a board whose firmware cannot boot our image comes back in DFU by itself; the fake N6 covers both ends (it boots,
 or it shows nothing and the job ends as `restore_failed`). Laptop check, 2026-11-27: the real backup passes the checks above, and
 our image with `yolox-nano-conv-256-c5` (1,194,488 bytes) is 11,195,160 bytes with the 10 vendor entries unchanged. **Timing in steps** (D83b, after card 6): `STAGES` in the agent, one exec each (`N6.stage`), their markers' fields
-merged into the window's answer; `run.json` `stage` holds the failing stage, its name and the last that answered. The
+merged into the window's answer. The N6's port is found once, before stage 1, and nothing else goes to the board between
+the stages: any exec without `resume` soft-resets it and wipes what the stages before defined (QE PR 130). The end
+step boots an N6 left in its bootloader (a read of alt 2 with `-R`, no write) when nothing of ours is on it, as after a
+board reset on a /rom card, then hard-resets it; `run.json` `stage` holds the failing stage, its name and the last that answered. The
 agent keeps the head and the tail (3,000 characters each) of a stage's output in `agent.log` (QE 10). An N6 card's
 "/rom models" (one name per line, `.tflite`, not with model files or restore-only) are checked against `/rom` by
 `N6Board.use_rom` and timed with no write and no rig-log change; the card still ends with the hard reset.

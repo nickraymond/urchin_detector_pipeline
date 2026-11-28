@@ -319,6 +319,7 @@ def test_the_card_ends_with_a_hard_reset_of_the_booted_n6_only(rig):
     last = calls(state)[-1]
     assert last[0] == "mpremote" and last[1] == "connect" and "Pyboard" in last[2] and last[3:] == ["reset"]
     (state / "mode").write_text("dfu")
+    b.image_on_board = True                   # ours may be on it: never booted before a restore (QE PR 130 keeps this)
     with pytest.raises(BoardError, match="bootloader"):
         b.finish()
     b.close()
@@ -457,3 +458,45 @@ def test_a_long_tool_output_keeps_its_head_and_its_tail():
     kept = bench_agent.head_tail(text, 3000)
     assert kept.startswith("BOARD: first line") and kept.endswith("lost the port") and "characters cut" in kept
     assert bench_agent.head_tail("short", 3000) == "short"
+
+
+def test_a_window_sends_nothing_between_its_stages(rig):
+    """QE PR 130: find() before every stage soft-reset the board (no `resume`), so stage 2 lost stage 1's imports.
+    The fake N6 now loses state the same way; a whole window passes, and the stages are back to back."""
+    b, state = rig["board"], rig["state"]
+    b.use_rom(["vendor_det.tflite"])
+    assert b.time("vendor_det.tflite", 5)["n"] == 5
+    b.close()
+    mp = [c for c in calls(state) if c[0] == "mpremote"]
+    first = next(i for i, c in enumerate(mp) if "'stage': 1" in c[-1])
+    window = mp[first:first + 6]
+    assert [("'stage': %d" % k) in c[-1] for k, c in zip(range(1, 7), window)] == [True] * 6
+    assert [("resume" in c) for c in window] == [False] + [True] * 5
+
+
+def test_the_fake_n6_loses_the_stages_state_on_an_exec_without_resume(rig):
+    """The rule the fake models: put a non-resume call back between two stages and stage 2 answers a NameError."""
+    import subprocess as sp
+    state, port = rig["state"], str(next((rig["tmp"] / "by-id").glob("*Pyboard*")))
+    fake = [sys.executable, str(FAKE), str(state), "mpremote", "connect", port]
+    one, two = (code % {"path": "/rom/vendor_det.tflite", "n": 1, "seed": 0, "a": 1, "c": 1, "m": 1}
+                for _, code in bench_agent.STAGES[:2])
+    assert sp.run(fake + ["exec", one], capture_output=True, text=True).returncode == 0
+    assert sp.run(fake + ["exec", "import omv; print('NB:' + omv.board_type())"], capture_output=True).returncode == 0
+    r = sp.run(fake + ["resume", "exec", two], capture_output=True, text=True)
+    assert r.returncode == 1 and "NameError: name 'ml'" in r.stdout
+
+
+def test_a_no_write_card_whose_board_reset_is_booted_at_the_end(rig):
+    """QE PR 130: a /rom card's board left in its bootloader is booted by the end step (alt 2 read with -R, no write),
+    then hard-reset; with nothing of ours on it no restore is needed."""
+    b, state = rig["board"], rig["state"]
+    b.use_rom(["vendor_det.tflite"])
+    fault(state, reset_at_stage=3)
+    with pytest.raises(BoardError) as e:
+        b.time("vendor_det.tflite", 5)
+    assert e.value.stop == "board_reset" and (state / "mode").read_text() == "dfu"
+    assert b.finish()["hard_reset"] is True
+    b.close()
+    assert (state / "mode").read_text() == "app" and not any("-D" in c for c in calls(state) if c[0] == "dfu-util")
+    assert any(c[0] == "dfu-util" and "-R" in c and c[c.index("-a") + 1] == "2" for c in calls(state))

@@ -356,11 +356,12 @@ class N6:
     def rom(self):
         return self.script(ROM_SCRIPT)
 
-    def stage(self, k, name, code, limit_s, resume):
-        """Stage k of the timing (STAGES): its own exec; its marker must come back. A failure is named by the last
+    def stage(self, k, name, code, limit_s, resume, port):
+        """Stage k of the timing (STAGES): its own exec on `port`, found once before stage 1; nothing else is sent to
+        the board between stages (QE PR 130: any exec without `resume`, find()'s own question included, soft-resets
+        it and wipes what the stages before defined). Its marker must come back. A failure is named by the last
         stage that answered: board_reset when the N6 then shows its bootloader or its port is gone (card 6),
         no_answer on a timeout, else script_failed with the board's own words."""
-        port = self.find()
         argv = [self.mpremote, "connect", port, *(["resume"] if resume else []), "exec", code]
         rc, out = self.run(argv, limit_s, tail=3000)
         found = board_json(out)
@@ -577,10 +578,10 @@ class Agent:
         if n < 1:
             raise Stop(LOAD_FAILED, "a window needs at least one inference")
         fill = {"path": "/rom/" + req["rom_name"], "n": n, "seed": SEED, "a": LCG_A, "c": LCG_C, "m": LCG_M}
-        got = {}
+        got, port = {}, self.n6.find()               # asked once, before stage 1 (which starts fresh anyway)
         for k, (name, code) in enumerate(STAGES, 1):
             limit = TOOL_S + (2.0 * (n + 1) if k == 6 else 0)
-            got.update(self.n6.stage(k, name, code % fill, limit, resume=k > 1))
+            got.update(self.n6.stage(k, name, code % fill, limit, resume=k > 1, port=port))
         return {"n": n, "warmups": WARMUPS, "ms_mean": got["us_total"] / n / 1000, "ms_min": got["us_min"] / 1000,
                 "ms_max": got["us_max"] / 1000, "mem_before_load": got["mem_before_load"],
                 "mem_after_load": got["mem_after_load"], "mem_after": got["mem_after"], "input_shape": got["input_shape"],
@@ -596,9 +597,12 @@ class Agent:
     def n6_hard_reset(self, req):
         """The card's last step (lead 2, after PR 123): `mpremote reset`, so the N6's own main.py runs again and the
         board is left as found. Nothing is asked of it afterwards (that would stop main.py again). A board in its
-        bootloader is not reset here: the restore boots it."""
+        bootloader is booted first (a read of alt 2 with -R, no write) when the laptop says our image is not on it
+        (QE PR 130: a /rom card's board that reset itself); otherwise it is refused (a restore must come first)."""
         if self.n6.in_dfu():
-            raise Stop(NO_ANSWER, "the N6 is in its bootloader, not booted: run a restore-only card, which boots it")
+            if not req.get("boot_if_in_bootloader"):
+                raise Stop(NO_ANSWER, "the N6 is in its bootloader, not booted: run a restore-only card, which boots it")
+            self.n6.boot()                           # no write: the model area is the backup's (nothing of ours there)
         rc, out = self.n6.run([self.n6.mpremote, "connect", self.n6.find(), "reset"], TOOL_S)
         if rc != 0:
             raise Stop(NO_ANSWER, f"the N6 did not take a hard reset (exit {rc}): {out.strip()[-300:]}")

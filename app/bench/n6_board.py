@@ -190,7 +190,8 @@ class N6Board(PiBoard):
         """The card's last step, after the end-of-card restore (lead 2, after PR 123): a hard reset of the booted N6
         so its own main.py runs again. Not a rig-log change: nothing stored on the board changes."""
         self.connect()
-        done = self.transport.request("hard_reset", kind="n6", dfu_serial=self.dfu_serial)
+        done = self.transport.request("hard_reset", kind="n6", dfu_serial=self.dfu_serial,
+                                      boot_if_in_bootloader=not self.image_on_board)
         self.finished = done
         return done
 
