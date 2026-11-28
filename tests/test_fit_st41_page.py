@@ -46,3 +46,12 @@ def test_its_button_runs_the_step_and_run_again_on_the_n6_queues_it_with_the_oth
     again = convert.read_fit(folder, "n6_st41")
     assert again["when"] >= first["when"] and again["int8"] == convert.read_fit(folder, "n6")["int8"]
     assert (folder / "int8" / "calls.log").read_text() == "int8\n"
+
+
+def test_an_older_4_1_result_says_run_again(tmp_path):
+    arch = next(a for a in modeldefs.candidates() if modeldefs.arch_key(a) == "yolox-nano-conv-256-c5")
+    old = {**convert.made_with(arch), "code": {**arch["code"], "commit": "an older commit"}}
+    write_fit(tmp_path, "yolox-nano-conv-256-c5", "n6_st41", converts=True, placement=placed(117, 2, 0), made_with=old)
+    cells = {r["kind"]: r for r in table.table(tmp_path)}["detector"]["cells"]
+    yolo = next(c for c in cells["n6"]["candidates"] if c["key"] == "yolox-nano-conv-256-c5")
+    assert yolo["second"]["older"] and not yolo["older"]
