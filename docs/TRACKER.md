@@ -545,9 +545,11 @@ against the fake board only; the rig test session runs each board's first card a
 - [x] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
       stop rules, cost, written by, reviewed by); Run is refused without a saved card; the card is saved with the run
       *(2a, split by the builder: `app/bench/card.py`, `/bench/cards`; Run and "saved with the run" land with 2b)*
-- [ ] job kind `bench` on `app/jobctl/`: one card → windows → `bench/<run id>/` (`run.json`, `timing.jsonl`); Pause
+- [x] job kind `bench` on `app/jobctl/`: one card → windows → `bench/<run id>/` (`run.json`, `timing.jsonl`); Pause
       after a window, Cancel keeps finished windows; stop rules as job errors with a recovery hint; tested end to end
       with the fake board
+      *(2b: `app/bench/run.py`, `worker.py`; "Run this card" and the runs on `/bench/cards/<n>`; the card is saved
+      with the run as `card.json`)*
 
 **Bite 3 — The bench agent and the Pi** (D81, D85)
 - [ ] the agent (`app/bench/agent/`, plain Python 3): copied to its folder on the Pi over ssh, speaks JSON lines;

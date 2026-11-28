@@ -12,6 +12,9 @@
 <table>
   <tr><th>Card</th><th>Question</th><th>Unit / board</th><th>Models</th><th>Windows × N</th><th>Written by</th><th>Review</th></tr>
   {% for c in cards %}
+  {% if c.unreadable %}
+  <tr><td>{{ c.number }}</td><td colspan="6" class="error">bench/cards/{{ c.number }}.json cannot be read: {{ c.unreadable }}</td></tr>
+  {% else %}
   <tr>
     <td><a href="/bench/cards/{{ c.number }}">{{ c.number }}</a></td>
     <td>{{ c.question }}</td>
@@ -21,6 +24,7 @@
     <td>{{ c.written_by }}</td>
     <td>{% if c.reviewed %}{{ c.review.reviewed_by }}{% elif c.review %}<span class="error">card changed after review</span>{% else %}not reviewed{% endif %}</td>
   </tr>
+  {% endif %}
   {% endfor %}
 </table>
 {% else %}
@@ -29,19 +33,19 @@
 
 <h2>New card</h2>
 <form method="post" action="/bench/cards" class="card-form">
-  <p><label>Question<br><textarea name="question" rows="2" cols="80" required></textarea></label></p>
-  <p><label>Unit <select name="unit">{% for u in units %}<option>{{ u }}</option>{% endfor %}</select></label>
-     <label>Board <select name="board">{% for k in kinds %}<option>{{ k }}</option>{% endfor %}</select></label></p>
+  <p><label>Question<br><textarea name="question" rows="2" cols="80" required>{{ f.question }}</textarea></label></p>
+  <p><label>Unit <select name="unit">{% for u in units %}<option{% if f.unit == u %} selected{% endif %}>{{ u }}</option>{% endfor %}</select></label>
+     <label>Board <select name="board">{% for k in kinds %}<option{% if f.board == k %} selected{% endif %}>{{ k }}</option>{% endfor %}</select></label></p>
   <p><label>Model files, one path per line (under the data folder; relative paths start there)<br>
-     <textarea name="models" rows="3" cols="80" required></textarea></label></p>
-  <p><label>Windows (at least {{ min_windows }}) <input name="windows" type="number" min="{{ min_windows }}" value="{{ defaults.windows }}"></label>
-     <label>N per window <input name="n" type="number" min="1" value="{{ defaults.n }}"></label>
-     <label>Cost, minutes on the rig <input name="cost_minutes" type="number" min="1" required></label></p>
+     <textarea name="models" rows="3" cols="80" required>{{ f.models }}</textarea></label></p>
+  <p><label>Windows (at least {{ min_windows }}) <input name="windows" type="number" min="{{ min_windows }}" value="{{ f.windows }}"></label>
+     <label>N per window <input name="n" type="number" min="1" value="{{ f.n }}"></label>
+     <label>Cost, minutes on the rig <input name="cost_minutes" type="number" min="1" value="{{ f.cost_minutes }}" required></label></p>
   <p class="hint">Frames: one seeded synthetic image at each model's input size, sent as a file (D83).</p>
-  <p><label>Metric<br><textarea name="metric" rows="2" cols="80">{{ defaults.metric }}</textarea></label></p>
-  <p><label>Pass bar<br><textarea name="pass_bar" rows="2" cols="80" required></textarea></label></p>
-  <p><label>Stop rules, one per line<br><textarea name="stop_rules" rows="5" cols="80">{{ defaults.stop_rules }}</textarea></label></p>
-  <p><label>Written by <input name="written_by" required></label></p>
+  <p><label>Metric<br><textarea name="metric" rows="2" cols="80">{{ f.metric }}</textarea></label></p>
+  <p><label>Pass bar<br><textarea name="pass_bar" rows="2" cols="80" required>{{ f.pass_bar }}</textarea></label></p>
+  <p><label>Stop rules, one per line (a card for a real unit keeps "RESTORE.md matches the rig log", D87)<br><textarea name="stop_rules" rows="5" cols="80">{{ f.stop_rules }}</textarea></label></p>
+  <p><label>Written by <input name="written_by" value="{{ f.written_by }}" required></label></p>
   <button>Save the card</button>
 </form>
 {% endblock %}

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -82,10 +83,13 @@ class FakeBoard(Board):
 
     ms:      base ms per inference per model name (default 10.0); windows vary by up to `jitter` of it
     fail:    {"load" | "time" | "info" | "reset": stop} to raise BoardError with that stop rule
+    fail_at: the time() call number (1, 2, ...) at which "time" fails, when set; earlier calls work
+    delay_s: seconds each time() call takes (tests of Pause and Cancel)
     """
 
     def __init__(self, unit: Unit, kind: str, data_dir, ms: dict | None = None, jitter: float = 0.05,
-                 mem_free: int = 4_090_000, model_bytes: int = 1_000_000, fail: dict | None = None, seed: int = 0):
+                 mem_free: int = 4_090_000, model_bytes: int = 1_000_000, fail: dict | None = None, seed: int = 0,
+                 fail_at: int = 0, delay_s: float = 0.0):
         if not unit.fake:
             raise ValueError("FakeBoard runs only on the fake unit")
         if kind not in unit.kinds:
@@ -93,11 +97,16 @@ class FakeBoard(Board):
         self.unit, self.kind, self.data_dir = unit, kind, Path(data_dir)
         self.ms, self.jitter, self.mem_free, self.model_bytes = ms or {}, jitter, mem_free, model_bytes
         self.fail, self.rng = dict(fail or {}), random.Random(seed)
+        self.fail_at, self.delay_s, self.timed = fail_at, delay_s, 0
         self.loaded: dict[str, str] = {}
         self.calls: list[str] = []
 
     def _maybe_fail(self, op: str) -> None:
         self.calls.append(op)
+        if op == "time":
+            self.timed += 1
+            if self.fail_at and self.timed < self.fail_at:
+                return
         if op in self.fail:
             raise BoardError(self.fail[op], f"fake {self.kind} board: {op} failed ({self.fail[op]}) as asked")
 
@@ -117,6 +126,8 @@ class FakeBoard(Board):
             raise BoardError(NOT_LOADED, f"{name} is not loaded on the fake {self.kind} board")
         if n < 1:
             raise ValueError("a window needs at least one inference")
+        if self.delay_s:
+            time.sleep(self.delay_s)
         base = float(self.ms.get(name, 10.0))
         each = [base * (1 + self.rng.uniform(-self.jitter, self.jitter)) for _ in range(n)]
         after_load = self.mem_free - self.model_bytes * len(self.loaded)
