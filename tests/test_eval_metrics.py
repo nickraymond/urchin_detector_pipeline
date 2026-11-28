@@ -106,7 +106,9 @@ def test_the_bootstrap_is_seeded_and_holds_the_value():
     r = a["classes"]["1"]["recall"]
     assert r == b["classes"]["1"]["recall"] and r["interval"][0] < r["value"] < r["interval"][1]
     assert a["intervals"]["unit"] == "frames" and a["intervals"]["draws"] == 1000 and "dives only" in a["intervals"]["note"]
-    assert a["classes"]["1"]["precision"]["interval"] == [1.0, 1.0]          # every prediction is right in every draw
+    pr = a["classes"]["1"]["precision"]                # every prediction is right in every draw: D92a's Wilson
+    assert pr["interval"] == metrics.wilson(20, 20) and pr["interval_note"] == "bootstrap gave no spread; Wilson on 20 predictions"
+    assert "interval_note" not in r
     assert a["classes"]["1"]["ap50"]["interval"][1] <= 1.0
 
 
@@ -139,3 +141,16 @@ def test_the_rank_floor():
     assert metrics.figures(frames, {}, [1], 1.0, 0.3)["classes"]["1"]["rank_floor"] == {"ok": True, "why": ""}
     few = metrics.figures(frames[:10], {}, [1, 2], 1.0, 0.3)["classes"]["2"]["rank_floor"]
     assert not few["ok"] and "0 true objects" in few["why"]
+
+
+def test_a_collapsed_bootstrap_shows_wilson_on_the_objects():
+    """D92a (Lead call, lead 2): recall 1.0 [1.0, 1.0] on 10 objects says nothing; Wilson on the 10 objects does."""
+    frames, preds, _ = _set([0] * 10, {0})                                  # 10 frames, 10 objects, all found
+    c = metrics.figures(frames, preds, [1], 1.0, 0.3)["classes"]["1"]
+    assert c["recall"]["value"] == 1.0 and c["recall"]["interval"] == metrics.wilson(10, 10)
+    assert c["recall"]["interval"][0] == pytest.approx(0.72247, abs=1e-5)  # scipy's Wilson for 10 of 10
+    assert c["recall"]["interval_note"] == "bootstrap gave no spread; Wilson on 10 objects"
+    assert c["small_recall"]["interval_note"] == "bootstrap gave no spread; Wilson on 10 objects"   # 20 px < 32
+    assert c["ap50"]["interval"] == [1.0, 1.0] and c["ap50"]["interval_note"] == "bootstrap gave no spread"
+    assert c["count_error_mean"]["interval"] == [0.0, 0.0] and c["count_error_mean"]["interval_note"] == "bootstrap gave no spread"
+    assert "interval_note" not in c["within_20"]                            # Wilson already

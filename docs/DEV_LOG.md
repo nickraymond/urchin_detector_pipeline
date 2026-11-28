@@ -17,6 +17,18 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S9 — D92a: a collapsed bootstrap shows Wilson on the objects (S7 builder 1, on S9)
+**Branch:** sprint/9-d92a
+**Done:** the lead's call D92a in `app/evaluate/metrics.py` (`_collapsed`): a zero-width bootstrap interval on
+recall, small-object recall or precision becomes the Wilson interval on its objects (or predictions), labeled in
+`interval_note`; AP50 and the means keep theirs with "bootstrap gave no spread". TRACKER boxes for QE 10's four
+nits on PR 120 (the cache) and its note for bite 3 (an eval goes stale when best.pt changes).
+**Self-test:** tests only (no page): 10 of 10 found gives recall 1.0 with Wilson [0.722, 1.0] (scipy 0.72247).
+**Broke/surprised us:** nothing.
+**Next:** S9 bite 3 (per-frame view), as the lead assigns.
+
+---
+
 ## 2026-11-27 — Sprint S9 — Bite 2b: how far a figure can be trusted (S7 builder 1, on S9)
 **Branch:** sprint/9-intervals (PR 124)
 **Done:** D92 in `app/evaluate/metrics.py`: a 95 % interval on every figure (Wilson for frame shares; a seeded
