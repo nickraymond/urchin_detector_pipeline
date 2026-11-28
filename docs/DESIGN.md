@@ -667,7 +667,7 @@ kind only".
 
 **As built, bite 1** (`app/bench/`): `[bench]` is `field_units = [...]` plus one `[bench.units.<name>]` table per unit
 (`ssh_host`, `cameras` from `n6` / `ae3`); a unit whose name or ssh host is in `field_units`, or with a bad entry, is
-left out with a warning, and a bad `field_units` list leaves every unit out. The unit `fake` always exists (all three
+left out with a warning; a `[bench]` with no `field_units`, a bad one, or an unknown key leaves every unit out, and an unknown key in a unit leaves that unit out. Names and hosts are compared with `field_units` case-blind, without `user@` or `:port`, and by the first label of a dotted host too (QE PR 98). The unit `fake` always exists (all three
 kinds) and is the only one `open_board` gives a board for until bites 3-5. `Board.load` / `load_several` write the rig
 log themselves (before, then after with ok or the error), with the sha256 of each file and the kind's undo; the fake
 board's lines carry `"fake": true` and the Rig log page (`/bench/rig-log`) hides them unless asked. A "before" with
