@@ -262,27 +262,36 @@ def test_partly_checked_frames_train_on_their_boxes_only(run, monkeypatch):
     assert t.run_epoch(0, 0, lambda: False)["done"]
 
 
-def test_runs_without_background_or_without_validation_frames(run, monkeypatch):
-    """QE PR 93: every training frame boxes-only = a detector never shown background: refused.
-    No fully checked validation frame: the run says so and keeps the last epoch as best.pt."""
+def test_runs_without_background_or_without_validation_frames_are_refused(run, monkeypatch):
+    """QE PR 93 and the lead's call on it: every training frame boxes-only = a detector never
+    shown background; no fully checked validation frame = a run that cannot be checked. Both are
+    refused with what to do. A pre-training source without validation images is not refused:
+    the run says so and keeps the last epoch as best.pt."""
     import torch
     from app.datasets import loaders
     mdir, recipe = run("a")
     data = {s: loaders.detector_samples(None, 1, s)["samples"] for s in ("train", "valid")}
     for f in data["valid"]:
         f["checked"] = [1]
+    with pytest.raises(RuntimeError, match="No validation frame has every picked class fully checked"):
+        trainer(mdir, recipe)
+    for f in data["valid"]:
+        f["checked"] = [1, 3]
+    for f in data["train"]:
+        f["checked"] = [3]
+    with pytest.raises(RuntimeError, match="None of the 8 training frames has every picked class"):
+        trainer(mdir, recipe)
+    for f in data["train"]:
+        f["checked"] = [1, 3]
+    # no validation at all (the outside-data case, made here by emptying the list after the checks)
     t = trainer(mdir, recipe)
-    assert t.valid == [] and "No validation frames" in t.describe()["warning"]
+    t.valid, t.no_valid = [], "No validation images in this version's outside data: ..."
+    assert "No validation images" in t.describe()["warning"]
     t.load()
     rows = finish(t, mdir, 0, 0)
     assert "val_recall" not in rows[-1] and "loss" in rows[-1]
     best = torch.load(mdir / "checkpoints" / "best.pt", weights_only=True)
     assert best["epoch"] == 2 and best["score"] is None and "last epoch" in best["kept_as"]
-    for f in data["train"]:
-        f["checked"] = [3]
-    other, _ = run("b")
-    with pytest.raises(RuntimeError, match="None of the 8 training frames has every picked class"):
-        trainer(other, recipe)
 
 
 def test_the_boxes_only_loss_knows_which_call_is_objectness():

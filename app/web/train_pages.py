@@ -80,6 +80,8 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
         full, boxes_only = loaders.run_frames(
             loaders.detector_samples(folder, version, "train", ids)["samples"], ids)
         loaders.need_background(full, boxes_only)
+        loaders.need_validation(loaders.usable(
+            loaders.detector_samples(folder, version, "valid", ids)["samples"], ids)[0])
         if not any(s["boxes"] for s in full + boxes_only):
             raise ValueError(
                 f"Version {version} gives training no object of these classes: a class "

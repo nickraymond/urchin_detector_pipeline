@@ -174,11 +174,7 @@ class Trainer:
             self.valid, out_valid = loaders.usable(
                 loaders.detector_samples(folder, version, "valid", self.ids)["samples"], self.ids)
             self.boxes_only, self.left_out = len(boxes_only), {"train": 0, "valid": out_valid}
-            if not self.valid:
-                self.no_valid = (
-                    "No validation frames: none in the validation split has every class of "
-                    "this run fully checked. The run has no validation curve, and the weights "
-                    "kept as best.pt are the last epoch's.")
+            loaders.need_validation(self.valid)
             if not self.train:
                 raise RuntimeError(f"Dataset version {version} has no training frame for these "
                                    "classes (see the Datasets page: what training will see).")
@@ -219,6 +215,10 @@ class Trainer:
         self.boxes_only, self.left_out = 0, {"train": 0, "valid": 0}
         if not self.train:
             raise RuntimeError(f"The outside data of version {version} has no training image.")
+        if not self.valid:               # a source without a validation list: said, not refused
+            self.no_valid = ("No validation images in this version's outside data: the run has "
+                             "no validation curve, and the weights kept as best.pt are the last "
+                             "epoch's.")
         for s in self.train[:1] + self.valid[:1]:     # frozen by size in bytes (DESIGN, bite 3)
             p = Path(s["image"])
             if not p.is_file() or p.stat().st_size != s["bytes"]:

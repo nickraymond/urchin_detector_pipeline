@@ -69,6 +69,9 @@
   ({{ w.frames.train.boxes_only }} have only some of them). A run of these classes is refused: it would never be shown what "nothing here"
   looks like. Pick only the classes that are fully checked, or tick "fully checked" for the others on the
   <a href="/p/{{ info.name }}/labels">Review page</a>, then Export and freeze a new version.</p></section>{% endif %}
+{% if w.frames.train.used and not w.frames.valid.used %}<section class="problem no-valid-frames"><p><b>No validation frame has every class picked above fully checked.</b>
+  A run of these classes is refused: it could not be checked while it trains. Pick only the classes that are fully checked, or tick
+  "fully checked" for the others on the <a href="/p/{{ info.name }}/labels">Review page</a>, then Export and freeze a new version.</p></section>{% endif %}
 <table class="stages counts training-view">
   <thead><tr><th>Class</th>{% for s in splits %}<th>{{ s }}: objects (frames)</th>{% endfor %}<th>Total</th><th>Target {{ w.target[0] }}–{{ w.target[1] }}</th><th>Skipped: not fully checked</th></tr></thead>
   <tbody>

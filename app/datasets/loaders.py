@@ -115,6 +115,18 @@ def run_frames(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], l
     return full, [s for s in samples if sorted(s["checked"]) != want]
 
 
+def need_validation(valid_full: list[dict]) -> None:
+    """Refuse a run with no fully checked validation frame (Lead call, lead 2, 2026-11-27, on
+    QE's FAIL of PR 93): it would have no validation curve and no way to pick its best epoch."""
+    if not valid_full:
+        raise DatasetError(
+            "No validation frame has every picked class fully checked, so this run could not "
+            "be checked while it trains. Pick only the classes that are fully checked on the "
+            "reviewed frames, or tick \"fully checked\" for the others on the Review page, then "
+            "export and freeze again (the Datasets page shows the frame counts for a class "
+            "choice).")
+
+
 def need_background(full: list[dict], boxes_only: list[dict]) -> None:
     """Refuse a run whose training frames are all boxes-only (QE PR 93): no frame would ever
     teach "nothing here", and the detector would never have been shown background."""

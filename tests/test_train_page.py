@@ -251,3 +251,12 @@ def test_a_run_without_any_fully_checked_training_frame_is_refused(page):
     assert "No training frame has every class picked above fully checked" in ds
     assert "No training frame has every class" not in client.get("/p/p/datasets?classes=1").text
     assert run(client, classes=["1"]) == "/p/p/train?model=m1-fake-tiny-64-c1"
+    assert wait_for(lambda: client.get("/p/p/train").text.count("<td>done</td>") == 1, 60)
+    # the lead's call on QE's FAIL of PR 93: no fully checked validation frame = refused as well
+    fake_export(folder, dive("reef", 1, 6, stars=1) + dive("cove", 2, 2, checked=[1]) + dive("wall", 3, 1))
+    assert versions.freeze(folder)["number"] == 2
+    where = run(client, version=2, classes=["1", "3"])
+    assert "No+validation+frame+has+every+picked+class" in where
+    assert "A run needs at least one validation frame" in client.get("/p/p/train?version=2").text
+    assert "No validation frame has every class picked above fully checked" in client.get("/p/p/datasets").text
+    assert models.list_ids(folder) == ["m1-fake-tiny-64-c1"]
