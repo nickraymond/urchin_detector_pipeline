@@ -108,7 +108,9 @@ def main(argv: list[str]) -> None:
         "arch_key": modeldefs.arch_key(arch), "input": [h, w], "outputs": arch["outputs"]["names"],
         "weights": "untrained, seeded", "seed": SEED,
         "calibration": f"{CALIB_IMAGES} seeded noise images, 0-255 RGB (D55)",
-        "export": modeldefs.export_settings(arch), "code": version, "repo": repo_version(),
+        "export": {**{k: v for k, v in modeldefs.export_settings(arch).items() if k in ("env", "route")},
+                   "opset, simplify": "not used by this route (RF-DETR's exporter picks its own; QE PR 92 nit 2)"},
+        "code": version, "repo": repo_version(),
         "route": "RF-DETR's own export (ONNX, GridSample rewrite, onnx2tf) to a SavedModel; then TensorFlow's "
                  "converter in full-integer mode (our step: RF-DETR's exporter refuses full-integer)",
         "exporter_files": {p.name: p.stat().st_size for p in tf_files(tf_dir, "*.tflite")},

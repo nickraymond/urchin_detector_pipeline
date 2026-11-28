@@ -22,7 +22,7 @@
   <tr><th>{{ row.label }}</th>
     {% for c, label in cameras %}{% set cell = row.cells[c] %}
     <td class="fit-{{ cell.code }}"><a href="#{{ row.kind }}-{{ c }}"><b>{{ cell.headline }}</b></a>
-      {% if cell.best and cell.code != "not_tried" %}<br><span class="hint">best: {{ cell.best.key }}{% if cell.best.mark %} ({{ cell.best.mark }}){% endif %}{% if cell.best.arch.note %} (our own untrained design){% endif %}{% if cell.best.why %}; {{ cell.best.why }}{% endif %}</span>{% endif %}
+      {% if cell.best and cell.code != "not_tried" %}<br><span class="hint">best: {{ cell.best.key }}{% if cell.best.mark %} ({{ cell.best.mark }}){% endif %}{% if cell.best.arch.note %} (our own untrained design){% endif %}{% if cell.best.why %}; {{ cell.best.why }}{% endif %}{% if cell.best.older %}; <b>made with an older recipe</b>{% endif %}</span>{% endif %}
       {% if cell.best_marked %}{% set m = cell.best_marked %}<br><span class="hint"><b class="warn-text">{{ m.mark }}: evaluation only</b>: {{ m.key }} {{ m.headline }}</span>{% endif %}
       {% for e in cell.earlier %}<br><span class="hint">earlier work: {{ e.model }} {{ e.ms }} ms, {{ e.mj }} mJ gross ({{ e.date }})</span>{% endfor %}
     </td>{% endfor %}
@@ -78,7 +78,7 @@
     <td>{{ cand.key }}<br><span class="hint">{{ cand.arch.licence }}{% if cand.mark %} · <b class="warn-text">{{ cand.mark }}: evaluation only</b>{% endif %}</span>
       {% if cand.arch.note %}<br><span class="hint">{{ cand.arch.note }}</span>{% endif %}
       {% if cand.arch.route_note %}<details class="hint"><summary>how its 8-bit file is made</summary>{{ cand.arch.route_note }}</details>{% endif %}</td>
-    <td><b>{{ cand.headline }}</b>{% if cand.active %} <span class="hint">(waiting or running)</span>{% endif %}{% if cand.why %}<br><span class="hint">{{ cand.why }}</span>{% endif %}
+    <td><b>{{ cand.headline }}</b>{% if cand.active %} <span class="hint">(waiting or running)</span>{% endif %}{% if cand.why %}<br><span class="hint">{{ cand.why }}</span>{% endif %}{% if cand.older %}<br><b>made with an older recipe: Run again</b>{% endif %}
       {% if f and not f.converts and f.error %}<details><summary>the error text</summary><pre class="fit-error">{{ f.error }}</pre></details>{% endif %}</td>
     <td>{% if f and f.placement %}{% set p = f.placement %}{% if c == "pi" %}{{ p.total }} operators, all on the CPU{% else %}{{ p.npu }} NPU{% if p.unit == "epochs" %} + {{ p.hybrid }} hybrid{% endif %} + {{ p.cpu }} CPU of {{ p.total }} {{ "steps" if p.unit == "epochs" else p.unit }}{% endif %}{% endif %}
       {% if f and f.failing_layers %}<details><summary>{{ f.failing_layers | length }} {{ 'not built into the runtime' if c == 'pi' else 'not fully on the NPU' }}</summary><ul>{% for l in f.failing_layers[:40] %}<li>{{ l.type }} <span class="hint">{{ l.name }}: {{ l.why }}</span></li>{% endfor %}{% if f.failing_layers | length > 40 %}<li class="hint">… {{ f.failing_layers | length - 40 }} more in fit.json</li>{% endif %}</ul></details>{% endif %}</td>

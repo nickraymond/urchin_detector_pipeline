@@ -496,7 +496,8 @@ its progress (D33): a step whose output exists is skipped on Resume.
 <data_dir>/projects/<name>/models/<model id>/    trained models (S8)
   recipe.json                        D54
   checkpoints/  train.jsonl          S8 adds these
-  int8/                              model.onnx, model_int8.tflite, int8.json (how it was made), convert.log
+  int8/                              model.onnx, model_int8.tflite, int8.json (how it was made), convert.log,
+                                     made_with.json (the recipe's export settings and code pin)
   targets/<n6|ae3|pi>/               the compiler's output file, compile.log, the compiler's own report, fit.json
 ```
 
@@ -505,6 +506,11 @@ its progress (D33): a step whose output exists is skipped on Resume.
 why}]; `file_bytes` and `limit_bytes` with the limit's source; `memory_bytes`; `estimate_ms` marked as the
 compiler's estimate; `tool` name and version; `error` (the compiler's message when it does not convert). A failed
 conversion writes `fit.json` with `converts: false`; the job itself ends "done".
+`made_with` (QE PR 92 nit 1): the worker writes `int8/made_with.json` before the 8-bit step starts and copies it
+into every camera's `fit.json`. Results are kept per arch key, and the route and the code pin are not in the key,
+so the page compares `made_with` with the candidate's current recipe and marks a result "made with an older
+recipe: Run again" when they differ. A result from before the record is compared by its `int8.json`'s `export`;
+one with neither is not marked. "Run all" still queues only missing cells; an older result waits for "Run again".
 ### Planned for S8 (dataset versions and the first detector) — builder's plan 2026-11-27 (TRACKER S8 bite 1); becomes as-built as bites land
 
 ```
