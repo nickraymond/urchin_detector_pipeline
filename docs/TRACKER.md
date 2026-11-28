@@ -501,8 +501,9 @@ against the fake board only; the rig test session runs each board's first card a
       PASS with three declared gaps: the AE3's RECOVERY partition (its bootloader refuses it), no raw card image (a
       software-only backup instead), and the restore steps not rehearsed. A rehearsal plan waits for Nick (SPEC
       "Waiting for Nick")
-- [ ] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
-      like the rest; **the first rig change waits for it** and for QE's review of the first card
+- [x] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
+      like the rest: QE 9 PASS 2026-11-27 with declared gaps (unused blocks zero-filled; restore not rehearsed).
+      The first rig change now waits only for QE's review of the first card
 
 **Bite 1 — Bench units, the `Board` interface, the fake board, the rig log** (D81)
 - [x] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
@@ -553,6 +554,8 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
+**Lead calls for the S7 test build's note:** D80–D87; the Pi image with zero-filled unused blocks taken as meeting
+constraint 9 (SPEC Q33).
 **Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
 measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.
