@@ -156,19 +156,23 @@ def test_installing_the_agent_on_a_unit_is_a_logged_rig_change(tmp_path):
 def test_a_window_longer_than_the_answer_limit_is_kept_alive(tmp_path):
     """QE PR 108 finding 1: 60 s is for silence, not for a long window (300 × 200 ms on the Pi Zero is 60 s)."""
     data = tmp_path / "data"
-    slow = LocalTransport(tmp_path / "agent", timeout_s=1.0, extra=("--alive-s", "0.2", "--fake-ms", "50"))
+    # The short limit is set only after the load: starting Python can take more than a second when the laptop is
+    # busy (a full suite), and that start is not what this test is about.
+    slow = LocalTransport(tmp_path / "agent", extra=("--alive-s", "0.2", "--fake-ms", "50"))
     board = PiBoard(fake_unit(), data, slow)
     try:
         src, _ = model_file(tmp_path)
         board.load(Model("slow", src))
-        w = board.time("slow", 60)                    # about 3 s of window against a 1 s answer limit
+        board.transport.timeout_s = 1.5
+        w = board.time("slow", 60)                    # about 3 s of window against a 1.5 s answer limit
         assert w["n"] == 60 and w["ms_mean"] >= 50
     finally:
         board.close()
-    silent = LocalTransport(tmp_path / "agent2", timeout_s=1.0, extra=("--alive-s", "30", "--fake-ms", "50"))
+    silent = LocalTransport(tmp_path / "agent2", extra=("--alive-s", "30", "--fake-ms", "50"))
     board = PiBoard(fake_unit(), data, silent)
     try:
         board.load(Model("slow", src))
+        board.transport.timeout_s = 1.5
         with pytest.raises(BoardError) as e:          # no alive line within the limit: no_answer, as before
             board.time("slow", 60)
         assert e.value.stop == NO_ANSWER
