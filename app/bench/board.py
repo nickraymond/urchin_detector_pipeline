@@ -186,7 +186,12 @@ def open_board(unit: Unit, kind: str, data_dir, bench=None, log_dir=None, thread
         log = Path(log_dir or data_dir) / "agent.log"
         if kind == "n6":                  # S7 bite 4b: the agent runs with the system python3 (no runtime needed)
             from app.bench.n6_board import N6Board
-            return N6Board(unit, data_dir, SshTransport(unit, bench.field_units, log=log), work_dir=log_dir or data_dir)
+            if not bench.n6_dfu_serial:
+                raise Refused("the N6 route needs the bench N6's DFU serial: set [bench] n6_dfu_serial in "
+                              "config.local.toml (the rig backup's cameras/n6/dfu_list.txt); nothing is written to an "
+                              "unpinned N6")
+            return N6Board(unit, data_dir, SshTransport(unit, bench.field_units, log=log), work_dir=log_dir or data_dir,
+                           dfu_serial=bench.n6_dfu_serial)
         from app.bench.pi_board import PiBoard
         return PiBoard(unit, data_dir, SshTransport(unit, bench.field_units, log=log), threads=threads, install="litert")
     raise Refused(f"the {kind} route on real units is not built yet (S7 bite 5); use the fake board")

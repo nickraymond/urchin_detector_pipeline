@@ -895,7 +895,8 @@ the AE3 stays refused. **Load:** the backup file must be 25,165,828 bytes with t
 alt 2 and `-R` (`ml/README.md`), waits for the N6 to answer, and checks that `/rom` lists exactly the image's names and
 sizes. The N6 is found by asking (`omv.board_type()`), and only ports whose name holds `Pyboard` (RESTORE.md) are ever
 asked: the AE3's port is never touched on this route (QE PR 123). Every dfu-util call names the bench N6's bootloader by
-its serial (`-S`, the one recorded with the backup in `cameras/n6/dfu_list.txt`, sent by the laptop), and nothing is
+its serial (`-S`; `[bench] n6_dfu_serial` in `config.local.toml`, taken from the backup's `cameras/n6/dfu_list.txt`,
+sent by the laptop; never in git: without it `open_board` refuses the N6 and nothing is written), and nothing is
 written unless `dfu-util -l` shows exactly one `37c5:9206` device with that serial. An N6 found in its bootloader is a
 normal start: `info` says so, and the restore writes from there. **Restore** (built in):
 any stop rule from a load whose write may have started (the agent answers `written`; unknown counts as written), from a

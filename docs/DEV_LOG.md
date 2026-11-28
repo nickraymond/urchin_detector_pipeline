@@ -17,6 +17,19 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — The N6's DFU serial out of git (S7 builder, lead 2's ask)
+**Branch:** sprint/7-n6-serial-config
+**Done:** PR 123 had put the bench N6's real DFU serial in `app/bench/n6_board.py`, against SPEC's hard constraint (no
+unit serials in git). It is now `[bench] n6_dfu_serial` in `config.local.toml` (placeholder in `config.example.toml`);
+without it `open_board` refuses the N6, and `N6Board` refuses any load or restore before anything is sent. A test fails on
+any run of exactly 24 hex digits in app/, tests/, docs/ or the example config. The history keeps the old line (rewriting
+it is Nick's call).
+**Self-test:** tests only (no page changed); the guard finds the old line's pattern and ignores sha256 values.
+**Broke/surprised us:** my own slip in PR 123: I read the serial from the backup and wrote it as a constant.
+**Next:** the N6 hard-reset PR (126) on top of this.
+
+---
+
 ## 2026-11-27 — Sprint S7 — Bite 4b: the N6 write route with a built-in restore of ROMFS0 (S7 builder, bite 4b)
 **Branch:** sprint/7-n6-write (PR 123)
 **Done:** `N6Board` (`app/bench/n6_board.py`) and the agent's `N6`: our ROMFS0 image built from the checked backup plus

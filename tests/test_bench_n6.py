@@ -168,9 +168,14 @@ def test_the_agent_writes_no_alt_but_3(tmp_path):
 
 def test_rom_names_and_the_real_unit_wiring(tmp_path):
     assert rom_name("yolox-nano-conv-256-c5") == "yolox-nano-conv-256-c5.tflite" and rom_name("a/b.tflite") == "a_b.tflite"
-    bench = parse({"field_units": ["field-pi"], "units": {"benchpi": {"ssh_host": "benchpi", "cameras": ["n6"]}}})
+    unpinned = parse({"field_units": ["field-pi"], "units": {"benchpi": {"ssh_host": "benchpi", "cameras": ["n6"]}}})
+    with pytest.raises(Refused, match="n6_dfu_serial"):                  # no serial in config: no N6 board at all
+        open_board(unpinned.unit("benchpi"), "n6", tmp_path, bench=unpinned)
+    bench = parse({"field_units": ["field-pi"], "n6_dfu_serial": "ABCDEF0123456789",
+                   "units": {"benchpi": {"ssh_host": "benchpi", "cameras": ["n6"]}}})
     board = open_board(bench.unit("benchpi"), "n6", tmp_path, bench=bench, log_dir=tmp_path / "run")
     assert isinstance(board, N6Board) and board.transport.unit.name == "benchpi"       # built; nothing connected
+    assert board.dfu_serial == "ABCDEF0123456789"
     with pytest.raises(Refused, match="not built yet"):
         open_board(bench.unit("benchpi"), "ae3", tmp_path, bench=bench)
     pi_only = parse({"field_units": ["field-pi"], "units": {"benchpi": {"ssh_host": "benchpi", "cameras": []}}})
@@ -297,3 +302,20 @@ def test_an_unpinned_or_doubtful_bootloader_gets_nothing_written(rig, setup, why
     b.close()
     assert e.value.stop == LOAD_FAILED and not any("-D" in c for c in calls(state) if c[0] == "dfu-util")
     assert (state / "romfs0.bin").read_bytes() == rig["partition"] and not b.restores
+
+
+def test_an_n6_board_without_a_serial_sends_and_writes_nothing(rig):
+    b, state = rig["board"], rig["state"]
+    b.dfu_serial = ""
+    for step in (lambda: b.load(rig["model"]), b.restore):
+        with pytest.raises(BoardError, match="n6_dfu_serial"):
+            step()
+    b.close()
+    assert not any(c[0] == "dfu-util" for c in calls(state)) and not (rig["tmp"] / "agent" / "models" / "n6_romfs0_ours.img").exists()
+
+
+@pytest.mark.parametrize("value, ok", [("ABCDEF0123456789", True), ("not hex!", False), (12345, False)])
+def test_the_serial_is_read_from_bench_config(value, ok):
+    bench = parse({"field_units": [], "n6_dfu_serial": value, "units": {"b": {"ssh_host": "b", "cameras": ["n6"]}}})
+    assert bench.n6_dfu_serial == (value if ok else "") and ("b" in bench.units)
+    assert ok or any("n6_dfu_serial" in p for p in bench.problems)
