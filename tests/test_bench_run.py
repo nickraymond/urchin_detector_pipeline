@@ -71,7 +71,7 @@ def test_run_end_to_end(site, jc):
     assert "yolox_nano: median" in job["message"]
     rows = riglog.read(data)                                     # newest first: the N6 is left as found (Lead call)
     assert [r["what"] for r in rows] == ["restore ROMFS0 from the backup (DFU alt 3)", "load yolox_nano, yolox_tiny"]
-    assert len(run["restores"]) == 1
+    assert len(run["restores"]) == 1 and run["finish"]["hard_reset"] is True      # then main.py runs again
 
 
 def test_run_is_refused_without_a_review_or_on_a_changed_card(site):
@@ -221,7 +221,7 @@ def test_a_stop_rule_still_ends_with_the_restore_and_a_failed_end_restore_is_lou
     assert json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())["restores"]
     p = runs.params(cfg, n, fake={"fail": {"restore": "no_answer"}})
     job = wait(jc, jc.submit("bench", p), "done", "error")
-    assert job["state"] == "error" and "stop rule restore_failed" in job["message"] and "end-of-card restore" in job["message"]
+    assert job["state"] == "error" and "stop rule restore_failed" in job["message"] and "end of the card" in job["message"]
     assert json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())["outcome"] == "stopped: restore_failed"
 
 
@@ -234,3 +234,16 @@ def test_a_plain_error_after_the_load_still_ends_restored(site, jc):
     assert job["state"] == "error" and "did not report" in job["message"] and "put back from the backup" in job["message"]
     run = json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
     assert run["outcome"] == "stopped: error" and len(run["restores"]) == 1
+
+
+def test_a_failed_hard_reset_at_the_end_is_a_stop_rule_and_restore_only_ends_with_one(site, jc):
+    """Lead 2, after PR 123: every N6 card ends with a hard reset of the booted board."""
+    cfg, data = site
+    p = runs.params(cfg, new_card(data, cfg.bench), fake={"fail": {"finish": "no_answer"}})
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "error" and "stop rule no_answer" in job["message"] and "hard reset failed" in job["message"]
+    run = json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
+    assert run["outcome"] == "stopped: no_answer" and len(run["restores"]) == 1       # restored first, then the reset
+    p = runs.params(cfg, new_card(data, cfg.bench, models="", restore_only="on"))
+    assert wait(jc, jc.submit("bench", p), "done", "error")["state"] == "done"
+    assert json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())["finish"]["hard_reset"] is True

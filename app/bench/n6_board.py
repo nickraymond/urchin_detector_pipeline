@@ -167,6 +167,14 @@ class N6Board(PiBoard):
         e.args = (f"{e} — ROMFS0 was then put back from the backup: read back identical "
                   f"({done['readback_sha256'][:16]}…), /rom lists the backup's {len(done['rom'])} entries",)
 
+    def finish(self) -> dict:
+        """The card's last step, after the end-of-card restore (lead 2, after PR 123): a hard reset of the booted N6
+        so its own main.py runs again. Not a rig-log change: nothing stored on the board changes."""
+        self.connect()
+        done = self.transport.request("hard_reset", kind="n6", dfu_serial=self.dfu_serial)
+        self.finished = done
+        return done
+
     def _backup_on_pi(self, backup: Backup) -> None:
         """The backup's partition into the agent's models/ unless the same bytes are there already."""
         if self.transport.request("file_sha256", name=BACKUP_NAME)["sha256"] == backup.sha256:

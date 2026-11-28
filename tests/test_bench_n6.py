@@ -297,3 +297,27 @@ def test_an_unpinned_or_doubtful_bootloader_gets_nothing_written(rig, setup, why
     b.close()
     assert e.value.stop == LOAD_FAILED and not any("-D" in c for c in calls(state) if c[0] == "dfu-util")
     assert (state / "romfs0.bin").read_bytes() == rig["partition"] and not b.restores
+
+
+def test_the_card_ends_with_a_hard_reset_of_the_booted_n6_only(rig):
+    """Lead 2, after PR 123: `mpremote reset` on the N6's own port, last; never asked of the AE3; refused in DFU."""
+    b, state = rig["board"], rig["state"]
+    b.load(rig["model"])
+    b.restore()
+    assert b.finish()["hard_reset"] is True
+    last = calls(state)[-1]
+    assert last[0] == "mpremote" and last[1] == "connect" and "Pyboard" in last[2] and last[3:] == ["reset"]
+    (state / "mode").write_text("dfu")
+    with pytest.raises(BoardError, match="bootloader"):
+        b.finish()
+    b.close()
+    assert not ae3_asks(state)
+
+
+def test_a_refused_bootloader_check_says_ours_stays_in_it(rig):
+    """QE PR 123 nit: the refusal says our N6 was sent to its bootloader and how it gets out."""
+    b, state = rig["board"], rig["state"]
+    (state / "faults.json").write_text(json.dumps({"two_devices": 1}))
+    with pytest.raises(BoardError, match="stays in it: a restore-only card boots it"):
+        b.load(rig["model"])
+    b.close()

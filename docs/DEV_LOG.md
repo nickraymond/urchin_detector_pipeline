@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — The N6 card ends with a hard reset (D82d); QE PR 123's nit (S7 builder, bite 4b)
+**Branch:** sprint/7-n6-reset
+**Done:** `N6Board.finish()` and the agent's `hard_reset`: `mpremote reset` on the N6's own port after the end-of-card
+restore, on every exit the restore covers (done, Pause, a stop rule, another error) and after a restore-only card; not in
+its bootloader; a failed reset is `no_answer`. A refused bootloader check says our N6 stays in its bootloader and how it
+gets out. The end-of-card messages name the step that failed.
+**Self-test:** no page changed beyond two hints. Tests on the fake N6 and the fake board: the last call is `mpremote
+connect <Pyboard port> reset`, the AE3 untouched; a reset in DFU is refused; a failed reset ends the job after the
+restore; a restore-only card ends with the reset.
+**Broke/surprised us:** nothing.
+**Next:** the next open S7 item.
+
+---
+
 ## 2026-11-27 — Sprint S7 — Bite 4b: the N6 write route with a built-in restore of ROMFS0 (S7 builder, bite 4b)
 **Branch:** sprint/7-n6-write (PR 123)
 **Done:** `N6Board` (`app/bench/n6_board.py`) and the agent's `N6`: our ROMFS0 image built from the checked backup plus

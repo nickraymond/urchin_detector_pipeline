@@ -58,7 +58,7 @@ def mpremote(s, args):
     if s.get("mode", "app") != "app":
         print(f"mpremote: failed to access {port} (it may be in use by another program)")
         return 1
-    if verb == "soft-reset":
+    if verb in ("soft-reset", "reset"):
         return 0
     if "machine.bootloader()" in code:
         s.put("mode", "dfu")

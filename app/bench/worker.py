@@ -62,13 +62,18 @@ def _close(board) -> None:
 
 def _end_restore(board, run: dict):
     """Lead call (lead 2, PR 123): every N6 card ends with ROMFS0 put back from the backup and read back, pass or
-    fail, so the board is left as found. Returns the restore's BoardError, or None (done, or nothing to restore)."""
-    if board is None or not getattr(board, "image_on_board", False):
+    fail, then a hard reset of the booted board so its own main.py runs again (lead 2, after PR 123): the board is
+    left as found. Returns the BoardError of either step, or None."""
+    if board is None or getattr(board, "kind", "") != "n6":
         return None
     try:
-        board.restore()
+        if getattr(board, "image_on_board", False):
+            board.restore()
+        run["finish"] = board.finish()
         return None
     except BoardError as e:
+        if e.stop != RESTORE_FAILED:
+            e = BoardError(e.stop, f"the end-of-card hard reset failed: {e}")
         return e
     finally:
         run["restores"] = list(getattr(board, "restores", []))
@@ -101,6 +106,9 @@ def main() -> None:
         run["board_info"] = board.info()
         if c.get("restore_only"):                         # the N6 rehearsal card: the restore and nothing else
             r = board.restore()
+            failed = _end_restore(board, run)             # restored already: the hard reset only
+            if failed:
+                raise failed
             run.update(outcome="done", ended=_now(), restores=list(board.restores))
             _write(folder / "run.json", run)
             _close(board)
@@ -137,7 +145,7 @@ def main() -> None:
         if e.stop != RESTORE_FAILED:                      # a failed restore is not tried twice
             failed = _end_restore(board, run)
             if failed:
-                e = BoardError(RESTORE_FAILED, f"{e} — and then the end-of-card restore of ROMFS0 did not verify: {failed}")
+                e = BoardError(failed.stop, f"{e} — and then the end of the card did not finish: {failed}")
         _close(board)
         run.update(outcome=f"stopped: {e.stop}", ended=_now(), error=str(e),
                    restores=getattr(locals().get("board"), "restores", []))     # the N6's built-in restore (bite 4b)
@@ -153,9 +161,9 @@ def main() -> None:
         board = locals().get("board")
         failed = _end_restore(board, run)
         _close(board)
-        note = (f" The end-of-card restore of ROMFS0 did not verify: {failed}. Next: {HINTS[RESTORE_FAILED]}." if failed
-                else " ROMFS0 was put back from the backup." if run.get("restores") else "")
-        run.update(outcome=f"stopped: {RESTORE_FAILED if failed else 'error'}", ended=_now(),
+        note = (f" The end of the card did not finish: {failed}. Next: {HINTS.get(failed.stop, 'see the job log')}."
+                if failed else " ROMFS0 was put back from the backup." if run.get("restores") else "")
+        run.update(outcome=f"stopped: {failed.stop if failed else 'error'}", ended=_now(),
                    error=f"{type(e).__name__}: {e}.{note}")
         try:
             _write(folder / "run.json", run)
@@ -168,8 +176,8 @@ def main() -> None:
     if failed:
         run.update(outcome=f"stopped: {failed.stop}", ended=_now(), error=str(failed))
         _write(folder / "run.json", run)
-        raise RuntimeError(f"stop rule {failed.stop}: every window was timed, but the end-of-card restore of ROMFS0 did "
-                           f"not verify: {failed}. Next: {HINTS[RESTORE_FAILED]}.") from None
+        raise RuntimeError(f"stop rule {failed.stop}: every window was timed, but the end of the card (restore, then "
+                           f"hard reset) did not finish: {failed}. Next: {HINTS.get(failed.stop, 'see the job log')}.") from None
     run.update(outcome="done", ended=_now())
     _write(folder / "run.json", run)
     s = runs.summary(folder)["models"]
