@@ -617,7 +617,9 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
-**Lead calls for the S7 test build's note:** D80–D89 (with D82a, D82b, D82c, D82d, D83a); the Pi image with zero-filled unused blocks taken as meeting
+**Lead calls for the S7 test build's note:** D80–D89 (with D82a, D82b, D82c, D82d, D83a, D85a; D85b: ONNX Runtime's
+bench environment under D89 (3): Eigen MPL-2.0 and Mbed TLS (taken under Apache-2.0) inside onnxruntime's library, and an
+Intel MKL notice for code that is not in the aarch64 build); the Pi image with zero-filled unused blocks taken as meeting
 constraint 9 (SPEC Q33); bench tools under other OSI licences (D89 (3): tqdm MPL-2.0 AND MIT, typing_extensions PSF-2.0,
 numpy BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 with libgfortran GPL-3.0-or-later WITH GCC-exception-3.1
 and LAPACK BSD-3-Clause-Open-MPI in its wheel, Eigen MPL-2.0 in ml-dtypes, pip MIT; each "bench tool, not deployed").

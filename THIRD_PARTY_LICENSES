@@ -578,6 +578,8 @@ The bench Pi's ONNX Runtime environment (S7 bite 3, D85, D89's install): `~/urch
   numpy 2.5.5 (cp313 manylinux aarch64) — the same wheel as the LiteRT environment's; its `LICENSE.txt` names
   OpenBLAS (BSD-3-Clause), LAPACK (BSD-3-Clause-Open-MPI) and libgfortran (GPL-3.0-or-later WITH GCC-exception-3.1),
   as QE 9 read it.
-  Not plainly permissive, so for Nick (stopped and reported to the lead, 2026-11-27): Eigen's MPL-2.0 inside
-  onnxruntime's library, and the Intel licence named in its notice (not in this build). Nothing is installed on the
-  Pi before Nick's word.
+  Not plainly permissive, stopped and reported to the lead (2026-11-27): Eigen's MPL-2.0 inside onnxruntime's library,
+  and the Intel licence its notice names (MKL: not in this aarch64 build). Lead call, lead 2 (D85b): the class D89 (3)
+  already allows (bench tools used unmodified, never deployed; Eigen MPL-2.0 already accepted for the LiteRT
+  environment, PR 114; Mbed TLS taken under Apache-2.0; MKL not in the binary), so the Pi install may go ahead under a
+  reviewed card. On S7's Lead-call list for Nick, who can reverse it.
