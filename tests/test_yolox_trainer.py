@@ -360,7 +360,10 @@ def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monk
     import torch
     from app.datasets import loaders, outside
     from app.train import models
+    from app.train import yolox
     from app.train.yolox import Trainer
+    assert yolox.outside_cache(tmp_path / "data" / "projects" / "p") == tmp_path / "data" / "cache" / "outside_images"
+    monkeypatch.setattr(yolox, "outside_cache", lambda folder: tmp_path / "cache")   # keep copies in this test's folder
     mdir, recipe = run("a")                                   # the project run, made first
     assert trainer(mdir, recipe).describe()["outside_used"] == []
     rows = {s: [{"file": f["file"], "image": f["image"], "bytes": __import__("os").path.getsize(f["image"]),

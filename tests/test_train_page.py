@@ -244,7 +244,7 @@ def test_a_run_without_any_fully_checked_training_frame_warns_and_one_without_va
     fake_export(folder, dive("reef", 1, 6, checked=[1], stars=1) + dive("cove", 2, 2) + dive("wall", 3, 1))
     assert versions.freeze(folder)["new"]
     html = client.get("/p/p/train").text
-    assert 'id="frame-counts" class="problem"' in html and "<b>0</b> training frames in full" in html
+    assert 'id="frame-counts" class="problem"' in html and "<b>0</b> training frames in full" in html and "With the classes ticked:" in html
     assert 'No frame teaches "no object" with these classes' in html
     ds = client.get("/p/p/datasets").text
     assert "No training frame has every class picked above fully checked" in ds and "may fire everywhere" in ds
@@ -281,6 +281,26 @@ def test_estimate_counts_one_validation_pass_per_val_every_epochs(page):
     assert est["seconds_per_epoch"] == pytest.approx(0.75 + 0.5 * 5 / 40, abs=1e-3)
     html = client.get("/p/p/train").text
     assert "0.5 s per validation × 5 passes" in html and 'name="val_every" type="number" min="1" max="1000" value="8"' in html
+
+
+def test_frame_counts_follow_the_class_ticks(page):
+    """QE PR 93: the counts under the class boxes are fetched again for the classes ticked now
+    (GET /p/<name>/train/counts, the same span the page renders; train.js swaps it on every change)."""
+    from app.datasets import versions
+    from tests.dataset_fixtures import dive, fake_export
+    client, folder = page
+    fake_export(folder, dive("reef", 1, 6, checked=[1], stars=1) + dive("cove", 2, 2, checked=[1])
+                + dive("wall", 3, 1, checked=[1]))
+    assert versions.freeze(folder)["new"]
+    html = client.get("/p/p/train").text
+    assert 'data-src="/p/p/train/counts?version=1"' in html
+    both = client.get("/p/p/train/counts?version=1&classes=1&classes=3").text
+    urchins = client.get("/p/p/train/counts?version=1&classes=1").text
+    assert both.lstrip().startswith('<span id="frame-counts" class="problem"') and "<b>0</b> training frames in full" in both
+    assert 'class="problem"' not in urchins and "<b>0</b> training frames in full" not in urchins
+    assert "Tick at least one class" in client.get("/p/p/train/counts?version=1").text
+    assert "not object classes" in client.get("/p/p/train/counts?version=1&classes=99").text
+    assert client.get("/p/p/train/counts?version=7&classes=1").status_code == 404
 
 
 def test_the_model_says_when_it_has_no_best_weights_and_when_the_overlap_was_capped(page):

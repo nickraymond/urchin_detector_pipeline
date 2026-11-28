@@ -25,12 +25,44 @@ stop rule after a write may have started runs the restore from the backup itself
 backup's), or ends as the new `restore_failed`. QE PR 119 nits 1-3. Lead calls D82b (a restore-only card), D82c (every N6 card ends restored), D83a (the board's
 input sha256 checked against the laptop's). A fake N6 (`tests/fake_n6.py`: fake mpremote and
 dfu-util over a 64 KiB partition) for every test; nothing touched the rig.
-**Self-test:** no page changed. `tests/test_bench_n6.py` (12): load and time, three failed loads restored, a failed window
-restored, a board that never comes back is `restore_failed`, a wrong backup sends nothing, alt 0-2 refused. With the
-restore switched off 5 of them fail. On the laptop: the real backup passes the size, sha256 and re-encode checks, and our
+**Self-test:** `tests/test_bench_n6.py` (14): load and time, three failed loads restored, a failed window restored, a
+board that never comes back is `restore_failed`, a wrong backup sends nothing, alt 0-2 refused, `input_differs`, the
+board script's sha256 equal to the laptop's. With the restore switched off 5 of them fail. Browser (scratch data
+folder): a restore-only card on fake / n6 runs to "ROMFS0 restored 1×"; a 3 × 20 fake N6 card ends with the restore in
+the rig log. On the laptop: the real backup passes the size, sha256 and re-encode checks, and our
 image with `yolox-nano-conv-256-c5` is 11,195,160 bytes with the 10 vendor entries unchanged.
-**Broke/surprised us:** nothing; open for card 4: whether an N6 that cannot boot our image comes back in DFU by itself.
+**Broke/surprised us:** an older test (an N6 card on a made-up real unit, ssh host `h`) reached `ssh h` once the N6 had
+a board; `h` resolves to nothing here, and the test now uses the AE3. Open for card 4: whether an N6 that cannot boot our image comes back in DFU by itself.
 **Next:** the restore-only card, then card 4 (the lead writes both; the rig session runs each after QE's review).
+
+---
+
+## 2026-11-27 — Sprint S8 — Shrunk copies of outside images (S7 builder 1, on S8)
+**Branch:** sprint/8-outside-cache
+**Done:** `samples._load` with a cache folder: the smallest stored copy at least the size asked for, else decode
+the original and store a copy at twice that size (not when that is the original's size); keyed by path, bytes and
+mtime; whole files only. Pre-training samples name `<data_dir>/cache/outside_images/` (`yolox.outside_cache`).
+**Self-test:** 64 Urchinbot photos (read only), probe scripts in my scratchpad: 0.093 s per image before; first pass
+0.131 (writes 63 copies, 61 MB against 372 MB); then 0.023; epochs 1-3 at new scales 0.024-0.030 with 3, 2, 0 new
+copies. Table in DESIGN §Bench results.
+**Broke/surprised us:** the first version made no copy: JPEG's draft decode had already shrunk the image, and the
+"as large as the original" check looked at that; it now uses the original's size. The trainer's outside-data test
+wrote its copies one folder above its own: it now points the cache at its own folder.
+**Next:** S9 bite 1 (the evaluate job, D90), on the tiling code.
+
+---
+
+## 2026-11-27 — Sprint S8 — The Train page's frame counts follow the class ticks (S7 builder 1, on S8)
+**Branch:** sprint/8-live-counts
+**Done:** one counter (`frame_counts` in `app/web/train_pages.py`) and one template (`_frame_counts.html`) for the
+page and for `GET /p/<name>/train/counts?version=&classes=`; `train.js` fetches it on every class tick and swaps the
+span (a late answer to an older tick is ignored); no class ticked says so; a bad class id or version says why.
+**Self-test:** s8_squares copy, version 1: "With the classes ticked: 42 training frames in full, 12 validation
+frames."; unticking sea star fetched `counts?version=1&classes=1` (200); unticking both: "Tick at least one class
+…"; ticking sea star again: the counts back. (Every class is fully checked there, so the numbers do not move; the
+test covers a version where they do.)
+**Broke/surprised us:** nothing.
+**Next:** shrunk copies of outside images (TRACKER S8).
 
 ---
 

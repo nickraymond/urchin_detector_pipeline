@@ -673,16 +673,18 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       recipe, code version, seed, library versions and device
       *Also Tiny. Trains on the Apple GPU, with a check against the CPU before every start (D65). Not in: mosaic.*
 - [x] pre-training on a version's outside data, and starting a run from such a model (bite 3's open half; PR 90)
-- [ ] pre-training is slow to feed: about 3 s per step of 32 on Urchinbot's 12-megapixel photos against 0.9 s
+- [x] pre-training is slow to feed: about 3 s per step of 32 on Urchinbot's 12-megapixel photos against 0.9 s
       on small frames (decoding, not the GPU); keep shrunk copies of outside images in the data folder
+      *(`<data_dir>/cache/outside_images/`; 0.093 → 0.023-0.030 s per image once made, DESIGN §Bench results)*
 - [x] frames where only some of the run's classes are fully checked are used for their labeled boxes only
       (Lead call D66; PR 93)
 - [ ] mosaic (four frames quilted into one canvas; in the earlier v2 recipe, not built here)
 - [ ] measure the warm-up rule (at least 300 steps, at most a third of the run: a guess for small datasets)
 - [ ] a full pre-training run on Urchinbot (hours; so far one epoch as a path check)
 - [ ] the first run on Nick's real frames (needs frames with classes marked fully checked, D64)
-- [ ] the Train page's frame counts (in full / boxes only / validation) follow the class checkboxes; today they
+- [x] the Train page's frame counts (in full / boxes only / validation) follow the class checkboxes; today they
       are for the classes ticked when the page opened (QE PR 93)
+      *(`GET /p/<name>/train/counts` renders the same span, `_frame_counts.html`; train.js swaps it on each tick)*
 - [ ] carried from QE: a box cut by the canvas edge and left under 8 px is dropped, not made an ignore region
       (`samples._clip`, PR 71); the preset is recorded by its display name "standard + blur + haze" (PR 71);
       the Datasets page builds "what training will see" for every version on each load (PR 65)
