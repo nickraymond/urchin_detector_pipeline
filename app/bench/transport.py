@@ -20,6 +20,7 @@ import copy
 import itertools
 import json
 import selectors
+import tempfile
 import shutil
 import subprocess
 import sys
@@ -65,7 +66,7 @@ class Transport:
         raise NotImplementedError
 
     def start(self) -> dict:
-        self.log = Path(self.log or Path.cwd() / "agent.log")
+        self.log = Path(self.log or Path(tempfile.mkdtemp(prefix="bench-agent-")) / "agent.log")   # never the checkout
         self.log.parent.mkdir(parents=True, exist_ok=True)
         with open(self.log, "a", encoding="utf-8") as err:    # a runtime that warns a lot cannot fill a pipe and block
             self.proc = subprocess.Popen(self.argv(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,

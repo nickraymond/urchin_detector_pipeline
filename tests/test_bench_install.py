@@ -142,3 +142,15 @@ def test_a_pi_card_states_its_one_thread(tmp_path):
     (d / "fit" / "yolox_nano" / "int8" / "model_int8.tflite").write_bytes(b"model")
     assert card.build(d, units.Bench(), form(board="pi"))["threads"] == 1
     assert "threads" not in card.build(d, units.Bench(), form(board="n6"))
+
+
+def test_a_transport_with_no_log_path_writes_outside_the_checkout(tmp_path, monkeypatch):
+    """QE PR 112 nit 3: the fallback agent.log is a temporary folder, never the current folder."""
+    monkeypatch.chdir(tmp_path)
+    t = LocalTransport(tmp_path / "agent")
+    t.log = None
+    t.start()
+    try:
+        assert t.log.name == "agent.log" and tmp_path not in t.log.parents and not (tmp_path / "agent.log").exists()
+    finally:
+        t.close()

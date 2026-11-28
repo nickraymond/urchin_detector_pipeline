@@ -93,6 +93,8 @@ def test_real_unit_card_ends_as_refused_and_fake_settings_are_fake_only(site, jc
         runs.params(cfg, n, fake={"ms": {}})
     job = wait(jc, jc.submit("bench", runs.params(cfg, n)), "done", "error")
     assert job["state"] == "error" and "not built yet" in job["message"]
+    outcomes = [json.loads(f.read_text())["outcome"] for f in (data / "bench").glob("*/run.json")]
+    assert outcomes == ["stopped: refused"]                      # QE PR 112 nit 2: recorded, not only a job error
 
 
 def test_run_refuses_a_real_unit_card_without_the_restore_rule(site):     # QE PR 101 nit 1, D87
