@@ -501,8 +501,9 @@ against the fake board only; the rig test session runs each board's first card a
       PASS with three declared gaps: the AE3's RECOVERY partition (its bootloader refuses it), no raw card image (a
       software-only backup instead), and the restore steps not rehearsed. A rehearsal plan waits for Nick (SPEC
       "Waiting for Nick")
-- [ ] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
-      like the rest; **the first rig change waits for it** and for QE's review of the first card
+- [x] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
+      like the rest: QE 9 PASS 2026-11-27 with declared gaps (unused blocks zero-filled; restore not rehearsed).
+      The first rig change now waits only for QE's review of the first card
 
 **Bite 1 — Bench units, the `Board` interface, the fake board, the rig log** (D81)
 - [x] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
