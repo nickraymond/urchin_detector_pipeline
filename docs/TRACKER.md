@@ -565,11 +565,11 @@ against the fake board only; the rig test session runs each board's first card a
       *(3a: the agent's LiteRT runtime is built and self-tested on the laptop (convert-venv, ai-edge-litert 2.2.0,
       Apache 2.0 by its metadata). 3b-ii: the install into its own environment in the agent's folder, a logged rig
       change, from PyPI's cp313 aarch64 wheel (D89). 3c: ONNX Runtime 1.29.0 in the agent, its pinned environment, a
-      Pi card's runtime from its files' kind; the 8-bit QDQ file: see the PR. Open: the Pi cards; ncnn)*
+      Pi card's runtime from its files' kind; the 8-bit QDQ file `targets/pi/model_qdq.onnx` from S6's Pi step (D85a, `app/fit/to_qdq.py`). Open: the Pi cards; ncnn)*
 - [x] ONNX Runtime telemetry off everywhere (D85c, Lead call; QE 11's card 9 check): app, agent, child envs, tests
       *(S7 builder 4)*
 - [ ] Nick: telemetry may already have reached Microsoft from the Pi (card 9) and the laptop; whether to delete the two
-      local stores (the lead's batch; no store deleted until he says)
+      local stores (Nick answered via the lead, 2026-11-28: delete them; not done in this PR)
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
 - [x] 3b, before the Pi's first card (QE PR 108 nits; D89): `PiBoard` wired into `open_board`, an `SshTransport` built
       only from a unit `Bench.unit` returned (a test that an unlisted alias never reaches ssh); a non-JSON line on
@@ -596,6 +596,15 @@ against the fake board only; the rig test session runs each board's first card a
       verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
       tested with the fake board and on a ROMFS image file on the laptop *(4a + 4b)*
 - [ ] first real card (rig test session): YOLOX Nano re-measured against the earlier 10.6 ms before any new model
+- [ ] **N6 stopped** (lead 2, 2026-11-28): `ml.Model` resets this N6 on firmware v5.0.1-2 in cards 6, 7 and 8 (8: the
+      vendor's own `fomo_face_detection.tflite` from /rom, camera started first, no write). No more N6 cards until Nick
+      answers the firmware question (with the lead)
+- [x] card 8's two job faults (QE 11's run check, D83d): the end step gives a board that reset itself 10 s to come back
+      on its port before calling it a hang; run.json keeps the stage when the end step fails too *(S7 builder 4)*
+- [x] QE PR 131 nits: the free-memory figure on a CSI-first card says it lacks the frame buffer; D83c "on an N6";
+      DEV_LOG's stage list *(S7 builder 4)*
+- [x] QE PR 132 nits: D85b in bite 3c's as-built text; the ORT input 0-255 (D55); the QDQ step stops after 600 s and
+      leaves no half-made `model_qdq.onnx`; TRACKER names the file *(S7 builder 4; PR 132 merged before they landed)*
 - [ ] a suite-wide guard: any test that starts `ssh`, `scp`, `dfu-util` or `mpremote` from PATH fails (QE PR 123: one older
       test reached `ssh -G h` once the N6 had a board)
 - [x] the N6's undo text in the rig log set from what the route really does (QE PR 98 nit 4; bite 1's is a placeholder)

@@ -113,3 +113,21 @@ def test_the_pi_step_makes_the_qdq_file_and_the_agent_runs_it(tmp_path):
         assert board.time("tiny", 10)["n"] == 10
     finally:
         board.close()
+
+
+@pytest.mark.parametrize("body, why", [('echo half > "$4"; echo boom >&2; exit 1', "exit code 1"),
+                                       ('echo half > "$4"; exec sleep 30', "did not finish within 1 s")])
+def test_a_failed_or_hung_qdq_step_leaves_no_file(tmp_path, monkeypatch, body, why):
+    """QE PR 132 nits 3 and 4: a hang is stopped, and neither leaves a half-made model_qdq.onnx beside the TFLite."""
+    import stat
+
+    from app.fit import pi
+    fake = tmp_path / "python"
+    fake.write_text(f"#!/bin/sh\n{body}\n")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    (tmp_path / "model.onnx").write_bytes(b"onnx")
+    out = tmp_path / "pi"
+    out.mkdir()
+    monkeypatch.setattr(pi, "QDQ_TIMEOUT_S", 1)
+    got = pi.qdq(fake, tmp_path / "model.onnx", out)
+    assert got["file"] is None and why in got["error"] and not (out / pi.QDQ_NAME).exists()

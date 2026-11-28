@@ -124,7 +124,9 @@ class FakeBoard(Board):
         if op in self.fail and self.fail[op] == "plain_error":     # tests: a fault that is not a BoardError
             raise RuntimeError(f"fake {self.kind} board: {op} raised a plain error as asked")
         if op in self.fail:
-            raise BoardError(self.fail[op], f"fake {self.kind} board: {op} failed ({self.fail[op]}) as asked")
+            stage = ({"stage_failed": 4, "stage_name": "ml.Model", "last_stage": 3}     # as N6Board's stages say it
+                     if self.fail[op] == BOARD_RESET else {})
+            raise BoardError(self.fail[op], f"fake {self.kind} board: {op} failed ({self.fail[op]}) as asked", stage)
 
     def info(self) -> dict:
         self._maybe_fail("info")

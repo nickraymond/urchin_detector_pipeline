@@ -147,7 +147,7 @@ class OnnxRuntime:
             info = np.iinfo(dtype)
             data = rng.integers(info.min, info.max, size=shape, endpoint=True, dtype=dtype)
         else:
-            data = rng.uniform(0.0, 1.0, size=shape).astype(dtype)
+            data = rng.uniform(0.0, 255.0, size=shape).astype(dtype)   # 0-255, as to_qdq calibrates (D55)
         return {"sess": sess, "feed": {inp.name: data}, "inp": inp, "shape": shape, "dtype": dtype.name}
 
     def invoke(self, model):
@@ -215,6 +215,8 @@ RESTORE_FAILED = "restore_failed"
 TOOL_S = 60.0                  # one mpremote call or dfu-util listing; longer is a fault
 FLASH_S = 900.0                # one 24 MiB write or read over DFU
 BACK_S = 60.0                  # the N6 answering again after a boot, or its bootloader after machine.bootloader()
+SETTLE_S = 10.0                # QE 11, card 8: an N6 that reset itself shows its bootloader ~0.5 s later and may come back
+                               # as its port ~2.7 s after the drop by itself; the end step waits this long before judging
 N6_PORTS = "/dev/serial/by-id/*"
 MARK = "NB:"                   # the line a board script prints its JSON on (JSON lines, never base64: hil_board.py)
 
@@ -502,6 +504,19 @@ class N6:
             if os.path.exists(check):
                 os.remove(check)
 
+    def settle(self):
+        """Wait up to SETTLE_S for the N6 to answer on its port, asking once a second; returns quietly either way, so
+        the caller then judges what is there (its port, its bootloader, or nothing). Only the N6's port is asked."""
+        deadline, last = time.monotonic() + SETTLE_S, time.monotonic()
+        while True:
+            try:
+                self.find()
+                return
+            except Stop:
+                if time.monotonic() >= deadline:
+                    return
+                last = self.waiting(last)
+
     def boot(self):
         """Leave the bootloader (a read of alt 2 with -R; exit 251 is normal), then wait for the N6 to answer."""
         junk = os.path.join(self.folder, "models", "n6_boot.bin")
@@ -656,7 +671,10 @@ class Agent:
         """The card's last step (lead 2, after PR 123): `mpremote reset`, so the N6's own main.py runs again and the
         board is left as found. Nothing is asked of it afterwards (that would stop main.py again). A board in its
         bootloader is booted first (a read of alt 2 with -R, no write) when the laptop says our image is not on it
-        (QE PR 130: a /rom card's board that reset itself); otherwise it is refused (a restore must come first)."""
+        (QE PR 130: a /rom card's board that reset itself); otherwise it is refused (a restore must come first).
+        A board that reset itself is given SETTLE_S to answer on its port first (QE 11, card 8: the bootloader was
+        looked for 0.5 s before it showed, and the board came back on its own 2.7 s after the drop)."""
+        self.n6.settle()
         if self.n6.in_dfu():
             if not req.get("boot_if_in_bootloader"):
                 raise Stop(NO_ANSWER, "the N6 is in its bootloader, not booted: run a restore-only card, which boots it")
@@ -828,9 +846,10 @@ def main(argv):
     mpremote = os.path.expanduser("~/mpv/bin/mpremote")             # the Pi's mpremote (RESTORE.md)
     tools = {"mpremote": opt("--mpremote", mpremote if os.path.exists(mpremote) else "mpremote"),
              "dfu_util": opt("--dfu-util", "dfu-util"), "ports_glob": opt("--ports", N6_PORTS)}
-    global PARTITION, BACK_S
+    global PARTITION, BACK_S, SETTLE_S
     PARTITION = int(opt("--partition", PARTITION))                # tests only: a small fake model area
     BACK_S = float(opt("--back-s", BACK_S))
+    SETTLE_S = float(opt("--settle-s", SETTLE_S))
 
     def write(obj):
         sys.stdout.write(json.dumps(obj) + "\n")
