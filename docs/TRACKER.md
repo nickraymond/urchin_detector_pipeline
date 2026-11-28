@@ -677,8 +677,9 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [ ] measure the warm-up rule (at least 300 steps, at most a third of the run: a guess for small datasets)
 - [ ] a full pre-training run on Urchinbot (hours; so far one epoch as a path check)
 - [ ] the first run on Nick's real frames (needs frames with classes marked fully checked, D64)
-- [ ] the Train page's frame counts (in full / boxes only / validation) follow the class checkboxes; today they
+- [x] the Train page's frame counts (in full / boxes only / validation) follow the class checkboxes; today they
       are for the classes ticked when the page opened (QE PR 93)
+      *(`GET /p/<name>/train/counts` renders the same span, `_frame_counts.html`; train.js swaps it on each tick)*
 - [ ] carried from QE: a box cut by the canvas edge and left under 8 px is dropped, not made an ignore region
       (`samples._clip`, PR 71); the preset is recorded by its display name "standard + blur + haze" (PR 71);
       the Datasets page builds "what training will see" for every version on each load (PR 65)
