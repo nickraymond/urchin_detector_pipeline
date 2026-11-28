@@ -11,7 +11,7 @@ A board is one of three kinds: `pi` (the bench Pi itself), `n6`, `ae3`. Its five
     reset()                     back to a known state (a soft reset; no rig change)
 
 A failure is a BoardError whose `stop` names the test card's stop rule (D84). The real kinds come with
-bites 3 (pi), 4 (n6) and 5 (ae3); `open_board` refuses them until then.
+bites 3 (pi, `pi_board.py`), 4 (n6, `n6_board.py`) and 5 (ae3); `open_board` refuses the AE3 until then.
 """
 
 from __future__ import annotations
@@ -32,10 +32,15 @@ NO_ANSWER, READBACK, LOAD_FAILED, NOT_LOADED = "no_answer", "readback_differs", 
 BAD_ANSWER, LOW_MEMORY, NOT_BUILT = "bad_answer", "low_memory", "not_built"
 
 
+# the N6 (S7 bite 4b): the built-in restore of ROMFS0 from the backup did not verify
+RESTORE_FAILED = "restore_failed"
+INPUT_DIFFERS = "input_differs"           # D83a: the N6's input image is not the laptop's
+
+
 class BoardError(Exception):
-    def __init__(self, stop: str, message: str):
+    def __init__(self, stop: str, message: str, detail: dict | None = None):
         super().__init__(message)
-        self.stop = stop
+        self.stop, self.detail = stop, dict(detail or {})
 
 
 @dataclass(frozen=True)
@@ -75,7 +80,8 @@ class Board:
 
     def _undo(self) -> str:
         return {"pi": "delete the model files from the agent's folder on the Pi",
-                "n6": "write the backup's ROMFS0 partition back (DFU alt 3)",
+                "n6": "write the backup's ROMFS0 partition back (DFU alt 3: the job's own restore, or RESTORE.md "
+                      "\"N6: restore a partition\"), then delete n6_*.img from ~/urchin_bench/models on the Pi",
                 "ae3": "delete the file from /flash, or write the backup's ROMFS0 partition back"}[self.kind]
 
     def _load(self, models: list[Model], files: dict) -> dict:
@@ -104,6 +110,7 @@ class FakeBoard(Board):
         self.fail_at, self.delay_s, self.timed = fail_at, delay_s, 0
         self.loaded: dict[str, str] = {}
         self.calls: list[str] = []
+        self.image_on_board, self.restores = False, []    # the N6's model area (bite 4b), pretended
 
     def _maybe_fail(self, op: str) -> None:
         self.calls.append(op)
@@ -111,6 +118,8 @@ class FakeBoard(Board):
             self.timed += 1
             if self.fail_at and self.timed < self.fail_at:
                 return
+        if op in self.fail and self.fail[op] == "plain_error":     # tests: a fault that is not a BoardError
+            raise RuntimeError(f"fake {self.kind} board: {op} raised a plain error as asked")
         if op in self.fail:
             raise BoardError(self.fail[op], f"fake {self.kind} board: {op} failed ({self.fail[op]}) as asked")
 
@@ -122,6 +131,7 @@ class FakeBoard(Board):
     def _load(self, models, files) -> dict:
         self._maybe_fail("load")
         self.loaded = dict(files)
+        self.image_on_board = self.kind == "n6"
         return {"loaded": sorted(files), "route": "fake", "mem_free": self.mem_free - self.model_bytes * len(files)}
 
     def time(self, name: str, n: int) -> dict:
@@ -142,6 +152,21 @@ class FakeBoard(Board):
         self._maybe_fail("reset")
         self.loaded = {}
 
+    def restore(self) -> dict:
+        """The fake N6's "ROMFS0 back from the backup" (fail={"restore": ...} to make it fail), logged as the real one."""
+        if self.kind != "n6":
+            raise ValueError("only the N6 has a model area to restore")
+        with riglog.change(self.data_dir, self.unit.name, self.kind, "restore ROMFS0 from the backup (DFU alt 3)",
+                           "none needed: this writes the backup's own ROMFS0 back", fake=True):
+            try:
+                self._maybe_fail("restore")
+            except BoardError as e:                    # as N6Board.restore: any failure is restore_failed
+                raise BoardError(RESTORE_FAILED, str(e)) from None
+        self.image_on_board, self.loaded = False, {}
+        done = {"restored": True, "readback_sha256": "f" * 64, "rom": {"fake.tflite": 1}, "fake": True}
+        self.restores.append(done)
+        return done
+
 
 def open_board(unit: Unit, kind: str, data_dir, bench=None, log_dir=None, threads: int = 1, **fake) -> Board:
     """The board to run on. The fake unit gets a FakeBoard. A real unit's Pi gets a PiBoard over ssh (S7 bite 3b),
@@ -152,11 +177,16 @@ def open_board(unit: Unit, kind: str, data_dir, bench=None, log_dir=None, thread
         return FakeBoard(unit, kind, data_dir, **fake)
     if fake:
         raise Refused("fake settings are for the fake unit only")
-    if kind == "pi":
+    if kind in ("pi", "n6"):
         if bench is None or bench.unit(unit.name) != unit:
             raise Refused(f"{unit.name} was not given by [bench]; a real unit is only used as [bench] lists it")
-        from app.bench.pi_board import PiBoard
+        if kind not in unit.kinds:
+            raise Refused(f"[bench] lists no {kind} on unit {unit.name}")
         from app.bench.transport import SshTransport
-        return PiBoard(unit, data_dir, SshTransport(unit, bench.field_units, log=Path(log_dir or data_dir) / "agent.log"),
-                       threads=threads, install="litert")
-    raise Refused(f"the {kind} route on real units is not built yet (S7 bites 4-5); use the fake board")
+        log = Path(log_dir or data_dir) / "agent.log"
+        if kind == "n6":                  # S7 bite 4b: the agent runs with the system python3 (no runtime needed)
+            from app.bench.n6_board import N6Board
+            return N6Board(unit, data_dir, SshTransport(unit, bench.field_units, log=log), work_dir=log_dir or data_dir)
+        from app.bench.pi_board import PiBoard
+        return PiBoard(unit, data_dir, SshTransport(unit, bench.field_units, log=log), threads=threads, install="litert")
+    raise Refused(f"the {kind} route on real units is not built yet (S7 bite 5); use the fake board")

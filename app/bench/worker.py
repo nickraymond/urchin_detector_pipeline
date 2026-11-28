@@ -16,13 +16,14 @@ from app import config
 from app.bench import card as cards
 from app.bench import run as runs
 from app.bench.board import (BAD_ANSWER, LOAD_FAILED, LOW_MEMORY, NO_ANSWER, NOT_BUILT, NOT_LOADED, READBACK,
-                             BoardError, Model, open_board)
+                             INPUT_DIFFERS, RESTORE_FAILED, BoardError, Model, open_board)
 from app.bench.units import Refused
 from app.jobctl import worker as jw
 
 HINTS = {   # D84: what to do after each stop rule
     NO_ANSWER: "the board did not answer: check its cable and power, then run the card again",
-    READBACK: "the model area's read-back differs: put that board back from the backup (RESTORE.md) before "
+    READBACK: "the model area's read-back differs: unless the message says the built-in restore already put it back "
+              "(the N6), put that board back from the backup (RESTORE.md) before "
               "anything else, and note it in the rig log",
     LOAD_FAILED: "the load failed: check the rig log for this change and undo it before the next run",
     NOT_LOADED: "the model was not on the board when it was timed: run the card again; if it repeats, report it",
@@ -30,6 +31,10 @@ HINTS = {   # D84: what to do after each stop rule
                 "report it; nothing more runs until it is understood",
     LOW_MEMORY: "the Pi had under 50 MB free (D89): find what uses its memory (another process?) before running again",
     NOT_BUILT: "this board's route is not built yet: use the fake board or wait for its bite",
+    INPUT_DIFFERS: "the N6 timed another input than the laptop's (D83a): report it; the run's numbers are not used",
+    RESTORE_FAILED: "the N6's model area is NOT known to be the backup's: run nothing more on the rig; put ROMFS0 "
+                    "back by hand (RESTORE.md, \"N6: restore a partition\"), replugging the N6 if it shows neither "
+                    "its serial port nor its bootloader, and read it back before the next card",
 }
 
 
@@ -53,6 +58,20 @@ def _close(board) -> None:
     close = getattr(board, "close", None)
     if close:
         close()
+
+
+def _end_restore(board, run: dict):
+    """Lead call (lead 2, PR 123): every N6 card ends with ROMFS0 put back from the backup and read back, pass or
+    fail, so the board is left as found. Returns the restore's BoardError, or None (done, or nothing to restore)."""
+    if board is None or not getattr(board, "image_on_board", False):
+        return None
+    try:
+        board.restore()
+        return None
+    except BoardError as e:
+        return e
+    finally:
+        run["restores"] = list(getattr(board, "restores", []))
 
 
 def main() -> None:
@@ -80,6 +99,14 @@ def main() -> None:
         board = open_board(unit, c["board"], data_dir, bench=cfg.bench, log_dir=folder,
                            **board_settings(c, unit), **job.get("fake", {}))
         run["board_info"] = board.info()
+        if c.get("restore_only"):                         # the N6 rehearsal card: the restore and nothing else
+            r = board.restore()
+            run.update(outcome="done", ended=_now(), restores=list(board.restores))
+            _write(folder / "run.json", run)
+            _close(board)
+            jw.emit("done", message=f"ROMFS0 restored from the backup: read back identical "
+                                    f"({r['readback_sha256'][:16]}…), /rom lists {len(r['rom'])} entries")
+            return
         loaded = board.load_several([Model(m["name"], m["path"]) for m in c["models"]])
         run["route"] = loaded.get("route", "")
         run.update(outcome="running", ended=None)
@@ -88,6 +115,9 @@ def main() -> None:
         total, i = c["windows"] * len(c["models"]), len(done)
         for window in range(1, c["windows"] + 1):
             if ctl.pause_requested():                     # Pause after a window (D84)
+                failed = _end_restore(board, run)         # an N6 is left as found; Resume loads again
+                if failed:
+                    raise failed
                 run["outcome"] = "paused"
                 _write(folder / "run.json", run)
                 _close(board)
@@ -103,8 +133,14 @@ def main() -> None:
                 jw.emit("item", i=i, n=total, name=f"window {window}, {m['name']}",
                         seconds=round(t["ms_mean"] * t["n"] / 1000, 3))
     except BoardError as e:
-        _close(locals().get("board"))
-        run.update(outcome=f"stopped: {e.stop}", ended=_now(), error=str(e))
+        board = locals().get("board")
+        if e.stop != RESTORE_FAILED:                      # a failed restore is not tried twice
+            failed = _end_restore(board, run)
+            if failed:
+                e = BoardError(RESTORE_FAILED, f"{e} — and then the end-of-card restore of ROMFS0 did not verify: {failed}")
+        _close(board)
+        run.update(outcome=f"stopped: {e.stop}", ended=_now(), error=str(e),
+                   restores=getattr(locals().get("board"), "restores", []))     # the N6's built-in restore (bite 4b)
         _write(folder / "run.json", run)
         raise RuntimeError(f"stop rule {e.stop}: {e}. Next: {HINTS.get(e.stop, 'see the job log')}. "
                            "The windows already timed are kept.") from None
@@ -113,7 +149,27 @@ def main() -> None:
         run.update(outcome="stopped: refused", ended=_now(), error=str(e))
         _write(folder / "run.json", run)
         raise RuntimeError(f"refused: {e} Nothing more was done on the unit; the windows already timed are kept.") from None
+    except Exception as e:                # QE PR 123: any other exit (a full disk, a bad answer) still ends restored (D82c)
+        board = locals().get("board")
+        failed = _end_restore(board, run)
+        _close(board)
+        note = (f" The end-of-card restore of ROMFS0 did not verify: {failed}. Next: {HINTS[RESTORE_FAILED]}." if failed
+                else " ROMFS0 was put back from the backup." if run.get("restores") else "")
+        run.update(outcome=f"stopped: {RESTORE_FAILED if failed else 'error'}", ended=_now(),
+                   error=f"{type(e).__name__}: {e}.{note}")
+        try:
+            _write(folder / "run.json", run)
+        except OSError:
+            pass                          # the disk may be the fault; the job's error still says it all
+        raise RuntimeError(f"the run stopped on an error the board did not report: {type(e).__name__}: {e}.{note} "
+                           "The windows already timed are kept.") from None
+    failed = _end_restore(board, run)
     _close(board)
+    if failed:
+        run.update(outcome=f"stopped: {failed.stop}", ended=_now(), error=str(failed))
+        _write(folder / "run.json", run)
+        raise RuntimeError(f"stop rule {failed.stop}: every window was timed, but the end-of-card restore of ROMFS0 did "
+                           f"not verify: {failed}. Next: {HINTS[RESTORE_FAILED]}.") from None
     run.update(outcome="done", ended=_now())
     _write(folder / "run.json", run)
     s = runs.summary(folder)["models"]

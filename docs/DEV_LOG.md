@@ -17,6 +17,29 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — Bite 4b: the N6 write route with a built-in restore of ROMFS0 (S7 builder, bite 4b)
+**Branch:** sprint/7-n6-write (PR 123)
+**Done:** `N6Board` (`app/bench/n6_board.py`) and the agent's `N6`: our ROMFS0 image built from the checked backup plus
+ours (D82a), written with DFU alt 3 only, read back, booted, `/rom` checked; the timing script over `mpremote exec`; any
+stop rule after a write may have started runs the restore from the backup itself (read back whole, `/rom` equal to the
+backup's), or ends as the new `restore_failed`. QE PR 119 nits 1-3. Lead calls D82b (a restore-only card), D82c (every N6 card ends restored), D83a (the board's
+input sha256 checked against the laptop's). A fake N6 (`tests/fake_n6.py`: fake mpremote and
+dfu-util over a 64 KiB partition) for every test; nothing touched the rig.
+**Self-test:** `tests/test_bench_n6.py` (14): load and time, three failed loads restored, a failed window restored, a
+board that never comes back is `restore_failed`, a wrong backup sends nothing, alt 0-2 refused, `input_differs`, the
+board script's sha256 equal to the laptop's. With the restore switched off 5 of them fail. Browser (scratch data
+folder): a restore-only card on fake / n6 runs to "ROMFS0 restored 1×"; a 3 × 20 fake N6 card ends with the restore in
+the rig log. On the laptop: the real backup passes the size, sha256 and re-encode checks, and our
+image with `yolox-nano-conv-256-c5` is 11,195,160 bytes with the 10 vendor entries unchanged.
+**Broke/surprised us:** an older test (an N6 card on a made-up real unit, ssh host `h`) reached `ssh h` once the N6 had
+a board; `h` resolves to nothing here, and the test now uses the AE3. Open for card 4: whether an N6 that cannot boot our image comes back in DFU by itself.
+**Changed before merge (QE 10 FAIL on 9467ea0):** the restore copies the backup itself; an N6 in its bootloader is a
+normal start; only Pyboard ports are asked; dfu-util pinned to the backup's serial (`-S`, one device only); any other
+error after a load ends restored too. QE 10's two probes pass on the fix.
+**Next:** the restore-only card, then card 4 (the lead writes both; the rig session runs each after QE's review).
+
+---
+
 ## 2026-11-27 — Sprint S9 — Bite 2a: the figures of an eval (S7 builder 1, on S9)
 **Branch:** sprint/9-figures (stacked on sprint/9-evaluate, PR 121)
 **Done:** `app/evaluate/metrics.py` (D91): count error (mean, mean absolute), within ±20 % and the strict share with
