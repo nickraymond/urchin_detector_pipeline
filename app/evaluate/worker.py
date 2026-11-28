@@ -113,7 +113,7 @@ def main() -> None:
             f.write(json.dumps(line) + "\n")
         jw.emit("item", i=i, n=n, name=s["file"], seconds=line["seconds"])
     preds = runs.read_predictions(out, [f["file"] for f in frames])    # every test frame once, or no eval.json
-    figs = metrics.figures(frames, preds, ids, factor, runs.THRESHOLD)      # bite 2a (D91)
+    figs = metrics.figures(frames, preds, ids, factor, runs.THRESHOLD, runs.test_groups(folder, version))  # D91, D92
     tmp = out / ".metrics.json.tmp"
     tmp.write_text(json.dumps(figs, indent=1, sort_keys=True))
     os.replace(tmp, out / "metrics.json")

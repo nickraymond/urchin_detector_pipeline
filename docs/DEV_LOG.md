@@ -35,6 +35,34 @@ not in each run folder, and the backup is copied to the Pi only when it is not t
 
 ---
 
+## 2026-11-27 — Sprint S7 — The N6's DFU serial out of git (S7 builder, lead 2's ask)
+**Branch:** sprint/7-n6-serial-config
+**Done:** PR 123 had put the bench N6's real DFU serial in `app/bench/n6_board.py`, against SPEC's hard constraint (no
+unit serials in git). It is now `[bench] n6_dfu_serial` in `config.local.toml` (placeholder in `config.example.toml`);
+without it `open_board` refuses the N6, and `N6Board` refuses any load or restore before anything is sent. A test fails on
+any run of exactly 24 hex digits in app/, tests/, docs/ or the example config. The history keeps the old line (rewriting
+it is Nick's call).
+**Self-test:** tests only (no page changed); the guard finds the old line's pattern and ignores sha256 values.
+**Broke/surprised us:** my own slip in PR 123: I read the serial from the backup and wrote it as a constant.
+**Next:** the N6 hard-reset PR (126) on top of this.
+
+---
+
+## 2026-11-27 — Sprint S9 — Bite 2b: how far a figure can be trusted (S7 builder 1, on S9)
+**Branch:** sprint/9-intervals (PR 124)
+**Done:** D92 in `app/evaluate/metrics.py`: a 95 % interval on every figure (Wilson for frame shares; a seeded
+bootstrap, 1,000 draws, for the rest); whole site-and-date groups resampled from 5 groups up, frames below that with
+a note; the rank floor per class (10 frames, 30 objects). `run.test_groups` reads the groups from the manifest (none
+for a version split by video). QE 10's nit on PR 118: no class ticked on the Train page is red now.
+**Self-test:** builder 2's m4 copy, metrics recomputed from its predictions: class 1 recall 0.941 [0.842, 1.0], AP50
+0.941 [0.842, 1.0]; class 3 recall 1.0 [1.0, 1.0]; within ±20 % 1.0 [0.610, 1.0] (Wilson, 6 frames); 1 group, so
+frames are resampled and the note says so; both classes under the rank floor (6 frames). Train page, every class
+unticked: the span has class "problem", border rgb(198, 40, 40).
+**Broke/surprised us:** nothing.
+**Next:** S9 bite 3 (per-frame view), as the lead assigns.
+
+---
+
 ## 2026-11-27 — Sprint S7 — Bite 4b: the N6 write route with a built-in restore of ROMFS0 (S7 builder, bite 4b)
 **Branch:** sprint/7-n6-write (PR 123)
 **Done:** `N6Board` (`app/bench/n6_board.py`) and the agent's `N6`: our ROMFS0 image built from the checked backup plus

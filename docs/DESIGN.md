@@ -750,7 +750,20 @@ order each take the unmatched true box of the same class with the highest IoU �
 recall uses the same matches, on true boxes whose shorter side × the eval factor is under 32 px; a frame with true
 objects and no prediction counts its largest-box error as minus the true share. AP50 is COCO's 101-point interpolated
 AP over every saved score, equal to pycocotools' COCOeval (IoU 0.5, one area range, 100 detections) to 1e-6 on a
-hand-made case. Intervals and the rank floor (D92) are bite 2b.
+hand-made case.
+
+**As built, bite 2b** (`app/evaluate/metrics.py`; D92): every figure carries `"interval"` (95 %). Wilson for the
+frame shares (within ±20 %, the strict share, empty frames with a prediction), equal to scipy's
+`binomtest(...).proportion_ci(method="wilson")` to 1e-6. A seeded bootstrap (1,000 draws, seed 0, percentiles 2.5 and
+97.5) for precision, recall, AP50 and mean count error, and also (builder's reading of "every figure shows ... a 95 %
+interval") for mean absolute count error, small-object recall and largest-box % error; `passed_by_one_rule` is a
+count, with no interval. The draws are made once per eval and shared by every class and figure, so bite 5's paired
+comparison can reuse `metrics.draws`. Groups are the version manifest's D43 groups of the test frames
+(`run.test_groups`); a version split by video has none (its groups are videos, not dives). From 5 groups the draws
+resample whole groups; below that they resample frames and `metrics.json`'s `intervals.note` says the intervals
+speak for those dives only. The rank floor is per class (`rank_floor: {"ok", "why"}`): at least 10 test frames and
+30 true objects of the class; the paired rule is bite 5's. On 600 synthetic frames × 2 classes the intervals take
+about 5 s, once per eval.
 
 Status in the model list comes from the files, not a stored field: trained (`checkpoints/best.pt`) →
 evaluated (an `eval/`) → converted (`int8/` and a `targets/*/fit.json`) → bench tested (a bench run that
@@ -897,7 +910,8 @@ call the agent makes goes to `agent.log` with its exit code and output (QE 10). 
 alt 2 and `-R` (`ml/README.md`), waits for the N6 to answer, and checks that `/rom` lists exactly the image's names and
 sizes. The N6 is found by asking (`omv.board_type()`), and only ports whose name holds `Pyboard` (RESTORE.md) are ever
 asked: the AE3's port is never touched on this route (QE PR 123). Every dfu-util call names the bench N6's bootloader by
-its serial (`-S`, the one recorded with the backup in `cameras/n6/dfu_list.txt`, sent by the laptop), and nothing is
+its serial (`-S`; `[bench] n6_dfu_serial` in `config.local.toml`, taken from the backup's `cameras/n6/dfu_list.txt`,
+sent by the laptop; never in git: without it `open_board` refuses the N6 and nothing is written), and nothing is
 written unless `dfu-util -l` shows exactly one `37c5:9206` device with that serial. An N6 found in its bootloader is a
 normal start: `info` says so, and the restore writes from there. **Restore** (built in):
 any stop rule from a load whose write may have started (the agent answers `written`; unknown counts as written), from a

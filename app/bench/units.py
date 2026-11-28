@@ -46,6 +46,7 @@ class Bench:
     field_units: frozenset[str] = frozenset()   # the refusal set: each entry in its full and short form
     field_count: int = 0                         # entries as written (QE PR 98 nit 1)
     problems: list[str] = field(default_factory=list)   # shown on the page; a bad entry is left out
+    n6_dfu_serial: str = ""                     # the bench N6's bootloader serial (SPEC: never in git); "" = no N6 writes
 
     def unit(self, name: str) -> Unit:
         """The unit to run on, or Refused. The fake unit always exists and touches nothing."""
@@ -63,7 +64,8 @@ class Bench:
         return [FAKE, *sorted(self.units)]
 
 
-BENCH_KEYS = {"field_units", "units"}
+BENCH_KEYS = {"field_units", "units", "n6_dfu_serial"}
+SERIAL = re.compile(r"^[0-9A-Fa-f]{8,64}$")
 UNIT_KEYS = {"ssh_host", "cameras"}
 
 
@@ -90,7 +92,8 @@ def parse(raw) -> Bench:
         return bench
     unknown = sorted(set(raw) - BENCH_KEYS)
     if unknown:
-        bench.problems.append(f"[bench] has unknown key(s) {', '.join(unknown)} (known: field_units, units); "
+        bench.problems.append(f"[bench] has unknown key(s) {', '.join(unknown)} (known: field_units, units, "
+                              "n6_dfu_serial); "
                               "no bench unit is used until it is fixed.")
         return bench
     if "field_units" not in raw:
@@ -105,6 +108,12 @@ def parse(raw) -> Bench:
     # Each entry counts by its full form and by its first label, so "field-pi.local" also refuses "field-pi".
     bench.field_units = frozenset(k for f in fields if f.strip() for k in (_key(f), _key(f).split(".", 1)[0]))
     bench.field_count = len({_key(f) for f in fields if f.strip()})
+    serial = raw.get("n6_dfu_serial", "")
+    if isinstance(serial, str) and SERIAL.match(serial.strip()):
+        bench.n6_dfu_serial = serial.strip()
+    elif serial != "":
+        bench.problems.append("[bench] n6_dfu_serial must be the N6's DFU serial (hex digits, from the rig backup's "
+                              "dfu_list.txt); the N6 route writes nothing until it is fixed.")
     units = raw.get("units", {})
     if not isinstance(units, dict):
         bench.problems.append("[bench.units] must be a table of units; none is used.")
