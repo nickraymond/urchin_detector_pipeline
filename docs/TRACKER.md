@@ -593,6 +593,13 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [ ] live: loss and validation curves, a few validation frames with boxes drawn, time left; the finished
       model appears in a plain model list
 
+**Fixes found 2026-11-27**
+- [ ] the job runner starts before the job kinds are registered (`app/web/server.py` `jobctl`), so a queued or
+      due scheduled job at app start can end "no job kind … is registered" (QE 8, reproduced with a 0.3 s delay;
+      one `tests/test_schedule.py` failure in PR 97's suite): create it without starting, register, then start
+- [ ] the trainer's validation shrinks the whole frame to the canvas (`samples.py` `_scale` with `train=False`),
+      a different mode from training and from S9's eval scale (D90): validate at the eval scale with tiles
+
 **Demo (Nick):** on a project with an export, open Datasets and press "Freeze a version": the page shows counts
 per class and split. Open Train, pick YOLOX-Nano, press Estimate, then Run: the loss curve moves and validation
 frames show boxes. Pause, quit the app, start it, Resume: training continues from the last checkpoint. The
@@ -601,15 +608,37 @@ model is in the list when it ends.
 it can run beside S6–S7.
 
 ### S9 — Evaluate, model list, compare  `[ ]`
-**Goal:** spec stages 9 and 10 for detectors.
-- [ ] evaluate job on the test split with the recipe's tiling: count error per class and frame (share within
-      ±20%), precision / recall / mAP50 per class, small-object breakdown; how many frames and objects stand
-      behind each figure
-- [ ] per-frame view: ground truth and predictions drawn, sorted by worst error, in the app's large viewer
-- [ ] model list with status, scores, notes, archive; compare page: table, one chart per metric, the same
-      frames side by side; differences in dataset version or test set are called out
-- [ ] re-evaluate older models on a newer version's test split; RF-DETR as a second trainable detector type
-      (Nano; Atto / Femto / Pico only under SPEC constraint 6's exception)
+**Goal:** spec stages 9 and 10 for detectors. Design: DESIGN §Planned for S9; Lead calls D90–D94. One draft PR
+per bite, about 300 lines each. Bites 1–2 need only a trained model folder (a fake one in tests).
+
+**Bite 1 — Evaluate job and tiled inference** (D90)
+- [ ] the trainer stores `train.eval_scale` (44 px over the training split's median shorter box side) in
+      `recipe.json` at the start of a run; models trained before it get it worked out from their dataset version
+- [ ] job kind `evaluate`: one model × one test set → `eval/<version>-<test hash>/` (`eval.json`,
+      `predictions.jsonl`); frames as items; the eval scale, then tiles of the trained canvas with NMS across
+      seams; tests with a fake model
+
+**Bite 2 — The figures and how far they can be trusted** (D91, D92)
+- [ ] count error per class and frame (share within ±20 %, the strict share beside it), empty frames with a
+      prediction, precision / recall / mAP50 per class, small-object recall, largest object % error; frames and
+      objects behind each figure; Wilson for frame shares, frame (or group) bootstrap for the rest; the rank floor;
+      synthetic tests, mAP50 checked against pycocotools on a hand-made case
+
+**Bite 3 — Per-frame view**
+- [ ] ground truth and predictions drawn, sorted by worst error, in the app's large viewer
+
+**Bite 4 — Model list**
+- [ ] `/models`: every model with kind, type, size, dataset version, date, key scores, file size, status from the
+      files (DESIGN §Planned for S9), notes in Nick's words, archive (hides, never removes)
+
+**Bite 5 — Compare** (D92, D93)
+- [ ] pick models and one test set: one table, one chart per metric, the same frames side by side; differences in
+      version, recipe or classes called out; the paired rank rule; "Evaluate on this test set" for a model without
+      an eval there; a model that saw a test frame in training flagged
+
+**Bite 6 — RF-DETR Nano as a laptop reference** (D94; time-boxed to one day)
+- [ ] a second trainable detector type, laptop only; starting weights only with their licence recorded
+
 **Demo (Nick):** train a second detector with a different size or recipe; the compare page shows old vs new on
 the same test frames, and which frames each one gets wrong.
 **Needs:** S8.
