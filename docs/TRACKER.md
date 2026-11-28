@@ -554,6 +554,8 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
+**Lead calls for the S7 test build's note:** D80–D87; the Pi image with zero-filled unused blocks taken as meeting
+constraint 9 (SPEC Q33).
 **Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
 measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.
