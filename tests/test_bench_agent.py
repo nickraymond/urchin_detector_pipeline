@@ -156,19 +156,23 @@ def test_installing_the_agent_on_a_unit_is_a_logged_rig_change(tmp_path):
 def test_a_window_longer_than_the_answer_limit_is_kept_alive(tmp_path):
     """QE PR 108 finding 1: 60 s is for silence, not for a long window (300 × 200 ms on the Pi Zero is 60 s)."""
     data = tmp_path / "data"
-    slow = LocalTransport(tmp_path / "agent", timeout_s=1.0, extra=("--alive-s", "0.2", "--fake-ms", "50"))
+    # The short limit is set only after the load: starting Python can take more than a second when the laptop is
+    # busy (a full suite), and that start is not what this test is about.
+    slow = LocalTransport(tmp_path / "agent", extra=("--alive-s", "0.2", "--fake-ms", "50"))
     board = PiBoard(fake_unit(), data, slow)
     try:
         src, _ = model_file(tmp_path)
         board.load(Model("slow", src))
-        w = board.time("slow", 60)                    # about 3 s of window against a 1 s answer limit
+        board.transport.timeout_s = 1.5
+        w = board.time("slow", 60)                    # about 3 s of window against a 1.5 s answer limit
         assert w["n"] == 60 and w["ms_mean"] >= 50
     finally:
         board.close()
-    silent = LocalTransport(tmp_path / "agent2", timeout_s=1.0, extra=("--alive-s", "30", "--fake-ms", "50"))
+    silent = LocalTransport(tmp_path / "agent2", extra=("--alive-s", "30", "--fake-ms", "50"))
     board = PiBoard(fake_unit(), data, silent)
     try:
         board.load(Model("slow", src))
+        board.transport.timeout_s = 1.5
         with pytest.raises(BoardError) as e:          # no alive line within the limit: no_answer, as before
             board.time("slow", 60)
         assert e.value.stop == NO_ANSWER
@@ -259,3 +263,34 @@ def test_the_agent_refuses_a_load_and_a_window_under_50_mb_free(tmp_path, monkey
     free["v"] = 30 * 1024 * 1024
     window, load = talk(agent, {"id": 2, "op": "time", "name": "m", "n": 3}, {"id": 3, "op": "load", "files": {"m": sha}})
     assert window["stop"] == LOW_MEMORY == load["stop"] and "30.0 MB free" in window["error"]
+
+
+def test_an_answer_in_the_same_write_as_an_alive_line_is_read(tmp_path):
+    """QE PR 119: both lines in one chunk; the answer must not stay behind in a buffer."""
+    class Burst(LocalTransport):
+        def argv(self):
+            return [sys.executable, "-c",
+                    "import sys, json\n"
+                    "for line in sys.stdin:\n"
+                    "    r = json.loads(line)\n"
+                    "    sys.stdout.write(json.dumps({'id': r['id'], 'alive': True, 'done': 1}) + '\\n'"
+                    " + json.dumps({'id': r['id'], 'ok': True, 'op': r['op']}) + '\\n')\n"
+                    "    sys.stdout.flush()\n"]
+    t = Burst(tmp_path, timeout_s=5)
+    try:
+        assert t.start() == {"op": "hello"}
+        for _ in range(20):
+            assert t.request("time", n=1) == {"op": "time"}
+    finally:
+        t.close()
+
+
+def test_no_alive_line_after_the_last_inference_of_a_window(tmp_path, monkeypatch):
+    monkeypatch.setattr(ag, "ALIVE_S", 0.0)                         # an alive line after every inference but the last
+    agent = ag.Agent(tmp_path / "agent", "fake")
+    src, sha = model_file(tmp_path)
+    (tmp_path / "agent" / "models").mkdir(parents=True)
+    (tmp_path / "agent" / "models" / "m").write_bytes(src.read_bytes())
+    out = talk(agent, {"id": 1, "op": "load", "files": {"m": sha}}, {"id": 2, "op": "time", "name": "m", "n": 4})
+    alive = [o["done"] for o in out if o.get("alive")]
+    assert alive == [1, 2, 3] and out[-1]["ok"] and out[-1]["n"] == 4
