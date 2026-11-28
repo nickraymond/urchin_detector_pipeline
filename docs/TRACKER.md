@@ -727,10 +727,12 @@ per bite, about 300 lines each. Bites 1–2 need only a trained model folder (a 
       `train.eval_overlap_capped` into `eval.json`
 
 **Bite 2 — The figures and how far they can be trusted** (D91, D92)
-- [ ] count error per class and frame (share within ±20 %, the strict share beside it), empty frames with a
+- [~] count error per class and frame (share within ±20 %, the strict share beside it), empty frames with a
       prediction, precision / recall / mAP50 per class, small-object recall, largest object % error; frames and
       objects behind each figure; Wilson for frame shares, frame (or group) bootstrap for the rest; the rank floor;
       synthetic tests, mAP50 checked against pycocotools on a hand-made case
+      *(split by the builder: 2a the figures with the frames and objects behind each, `metrics.json`, AP50 against
+      pycocotools: `app/evaluate/metrics.py`; 2b open: the intervals (Wilson, bootstrap, groups) and the rank floor)*
 
 **Bite 3 — Per-frame view**
 - [ ] ground truth and predictions drawn, sorted by worst error, in the app's large viewer

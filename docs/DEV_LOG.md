@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S9 — Bite 2a: the figures of an eval (S7 builder 1, on S9)
+**Branch:** sprint/9-figures (stacked on sprint/9-evaluate, PR 121)
+**Done:** `app/evaluate/metrics.py` (D91): count error (mean, mean absolute), within ±20 % and the strict share with
+the frames passed by the one-object rule, empty frames with a prediction, precision, recall, AP50, small-object recall,
+largest-box % error; each with its frames and objects; written as `metrics.json` by the evaluate worker. Bite 2
+split: 2b is the intervals and the rank floor (D92).
+**Self-test:** builder 2's m4 copy re-evaluated: class 1 recall 16 / 17, AP50 0.941, within ±20 % 1.0 (strict 0.833,
+1 frame by the one-object rule); class 3 recall 10 / 10, AP50 1.0; together the 26 / 27 of bite 1's probe.
+**Broke/surprised us:** the pycocotools check first disagreed (0.33 against 0.14): my test gave the boxes of one frame
+the same annotation id, so COCO read one box several times; with one id per box they agree to 1e-6.
+**Next:** S9 bite 2b (intervals, rank floor).
+
+---
+
 ## 2026-11-27 — Sprint S9 — Bite 1: the evaluate job (S7 builder 1, on S9)
 **Branch:** sprint/9-evaluate
 **Done:** `app/evaluate/` (D90): job kind `evaluate`, one model × one test set → `eval/v<version>-<test hash>/`
