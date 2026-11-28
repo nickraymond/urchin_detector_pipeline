@@ -380,3 +380,30 @@ def test_progress_event_sets_percent_and_message(jc, tmp_path):
     jc.runner._on_event(jid, {"event": "progress", "percent": 42.4, "message": "copying"})
     job = jc.status(jid)
     assert (job["done"], job["total"], job["message"]) == (42, 100, "copying")
+
+
+def test_a_job_waiting_at_app_start_is_not_run_before_its_kind_is_registered(tmp_path):
+    """TRACKER S8 Fixes (QE 8): the app made the job module, which started its runner, and only
+    then registered the kinds; a job already queued could end "no job kind ... is registered".
+    Now: create without starting, register, start."""
+    first = JobControl(tmp_path / "jobs", start=False)
+    first.register(fake_kind())
+    jid = first.submit("fake", params(tmp_path, n=2))        # queued; this module never runs it
+    first.close()
+    # the old order, slowed down as QE did: the runner is alive before the kind is known
+    old = JobControl(tmp_path / "jobs")
+    time.sleep(0.4)
+    old.register(fake_kind())
+    bad = wait_state(old, jid, "error", "done")
+    old.close()
+    assert bad["state"] == "error" and "no job kind" in (bad.get("message") or "")
+    # the new order with another queued job: it waits for start() and then runs
+    c = JobControl(tmp_path / "jobs", start=False)
+    again = c.store.add("fake", params(tmp_path, n=2), project="", state="queued", message="waiting")
+    time.sleep(0.4)
+    assert c.status(again)["state"] == "queued"               # nothing runs before start()
+    c.register(fake_kind())
+    c.start()
+    c.start()                                                 # twice: harmless
+    assert wait_state(c, again, "done", "error")["state"] == "done"
+    c.close()
