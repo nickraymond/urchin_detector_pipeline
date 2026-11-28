@@ -43,7 +43,8 @@ class Unit:
 @dataclass
 class Bench:
     units: dict[str, Unit] = field(default_factory=dict)
-    field_units: frozenset[str] = frozenset()
+    field_units: frozenset[str] = frozenset()   # the refusal set: each entry in its full and short form
+    field_count: int = 0                         # entries as written (QE PR 98 nit 1)
     problems: list[str] = field(default_factory=list)   # shown on the page; a bad entry is left out
 
     def unit(self, name: str) -> Unit:
@@ -103,6 +104,7 @@ def parse(raw) -> Bench:
         return bench
     # Each entry counts by its full form and by its first label, so "field-pi.local" also refuses "field-pi".
     bench.field_units = frozenset(k for f in fields if f.strip() for k in (_key(f), _key(f).split(".", 1)[0]))
+    bench.field_count = len({_key(f) for f in fields if f.strip()})
     units = raw.get("units", {})
     if not isinstance(units, dict):
         bench.problems.append("[bench.units] must be a table of units; none is used.")

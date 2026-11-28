@@ -17,6 +17,22 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — Bite 2a: test cards as data and a page (S7 builder 1)
+**Branch:** sprint/7-bench-job
+**Done:** bite 2 split in two by the builder: 2a the card (D84), 2b the `bench` job. `app/bench/card.py`: build with
+every problem at once, save once under the next number, review in its own file against the card's sha256 (not by
+its writer), list; `/bench/cards` (list + new card, D84/D87 stop rules prefilled) and `/bench/cards/<n>` (the card,
+"Record the review"); links from the dashboard and the Rig log page. QE PR 98 nits: 1 (field units counted as
+written), 2 (an "after" with no "before" is its own row), 3 (tests and self-test in their own data folders), 4 and 5
+placed in TRACKER bites 3-5.
+**Self-test:** scratch data folder, fake unit. The browser itself blocked windows = 2; card 1 saved with windows 3;
+"S7 builder" as reviewer refused ("someone other than its writer"); "QE 8" recorded; the list shows the review.
+**Broke/surprised us:** the page showed the model as "model_int8": every S6 candidate's file has that name, so a
+model is now named by its candidate folder (tested with two candidates).
+**Next:** S7 bite 2b (the `bench` job on the fake board).
+
+---
+
 ## 2026-11-27 — Sprint S7 — Bite 1: bench units, the Board interface, FakeBoard, the rig log (S7 builder 1)
 **Branch:** sprint/7-bench-core
 **Done:** `app/bench/` (D81): `[bench]` units read from `config.local.toml` (field units refused by name or ssh host;

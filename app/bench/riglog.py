@@ -72,11 +72,16 @@ def read(data_dir) -> list[dict]:
         if phase == "before":
             rows[cid] = {**line, "state": "not finished"}
             order.append(cid)
-        elif cid in rows:
+        elif cid in rows and "ended" not in rows[cid]:
             row = rows[cid]
             row["ended"] = line.get("at", "")
             row["state"] = "done" if line.get("ok") else "failed"
             row["error"] = line.get("error", "")
+        else:   # an "after" with no "before" before it, or a second one: shown, never dropped (QE PR 98 nit 2)
+            key = f"orphan-{n}"
+            rows[key] = {**line, "change": key, "state": "unmatched",
+                         "what": f"an \"after\" line (line {n}, change {cid}) with no \"before\" line before it"}
+            order.append(key)
     return [rows[k] for k in reversed(order)]
 
 
