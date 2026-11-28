@@ -423,6 +423,12 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       *2026-11-27 (D59): what it sends out is shown (static read; built with the network refused: 0 attempts) and
       the three sizes are candidates, marked. Open, with Nick through the spec lead: whether his plan covers
       `rfdetr[plus]` (a builder cannot see his account) and the usage reporting of PML section 4.*
+- [x] 2e (Lead call D70; the question Nick asked): one retry of the RF-DETR family with one thing changed,
+      RF-DETR's own export (onnx2tf 2.4.3) plus a full-integer step, in two new Python 3.12 tool environments;
+      `convert-venv` untouched. Result (DESIGN §Bench results, bite 2e): all six convert; none compiles for the N6;
+      on the AE3 only Atto compiles and fits, partly on the CPU; on the Pi side the files run under plain LiteRT.
+      The route is now the family's 8-bit step in the convert job; the licence text goes with every
+      Roboflow-licensed result (PML section 7)
 
 **Bites 3a, 3b, 3c — Convert job (3a the job and the 8-bit step with a fake compiler; 3b the N6 and AE3
 compilers; 3c the Pi)**
@@ -585,7 +591,9 @@ the same test frames, and which frames each one gets wrong.
       classes not fully checked on a frame (`seg_masks/` cannot show them; the flags are in `frame_metrics.csv`)
 - [ ] per-pixel segmenter from `seg_masks/`, classes as in S8 with every other pixel as "other";
       cover error in percentage points per class (share within 10 points), IoU per class, largest object % error
-- [ ] instance segmenter from the COCO outlines, laptop first; its counts and cover scored like the other two
+- [ ] instance segmenter from the COCO outlines: on the laptop, and for the N6 if `yoloxproto` or RTMDet-Ins-tiny
+      runs there in S7 (Nick, build2 spec answer 16: own permissive instance segmenters for the N6); its counts
+      and cover scored like the other two
 **Demo (Nick):** train a segmenter and an instance segmenter; the compare page shows % cover error per class
 and the same frames with each model's masks.
 **Needs:** S9; S6–S7's table.

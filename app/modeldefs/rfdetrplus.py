@@ -23,11 +23,13 @@ CODE = {"repo": "https://github.com/roboflow/rf-detr_plus", "commit": "pip:" + P
 # size -> (config class in rfdetr_plus.models.detection, stock input px, boxes returned): read from the package
 SIZES = {"atto": ("RFDETRAttoConfig", 380, 300), "femto": ("RFDETRFemtoConfig", 384, 200),
          "pico": ("RFDETRPicoConfig", 560, 200)}
+WRAPPERS = {"atto": "RFDETRAtto", "femto": "RFDETRFemto", "pico": "RFDETRPico"}   # the classes `rfdetr` exposes
 OUTPUT_NAMES = ["dets", "labels"]
 LICENCE_MARK = "Roboflow licence"
 
 
 def arch(size: str, classes: list[str]) -> dict:
+    from app.modeldefs import RFDETR_ROUTE_NOTE
     _, px, queries = SIZES[size]
     return {
         "kind": "detector", "family": "rfdetrplus", "size": size, "variant": {},
@@ -35,7 +37,9 @@ def arch(size: str, classes: list[str]) -> dict:
         "outputs": {"names": OUTPUT_NAMES,
                     "layout": f"dets: {queries} boxes (cx, cy, w, h; 0..1 of the input); labels: {queries} rows "
                               "of one logit per class plus one"},
-        "export": {"env": "rfdetr-plus-venv", "opset": 17, "simplify": True},
+        # bite 2e: RF-DETR's own export route; with ours (onnx2tf 1.28.8 on our ONNX file) these did not convert
+        "export": {"env": "rfdetr-plus-tflite-venv", "opset": 17, "simplify": False, "route": "rfdetr-own"},
+        "route_note": RFDETR_ROUTE_NOTE,
         "code": dict(CODE), "licence": "PML-1.0", "licence_mark": LICENCE_MARK,
     }
 
@@ -56,6 +60,31 @@ def check(a: dict) -> list[str]:
     return problems
 
 
+def build_model(a: dict):
+    """Roboflow's wrapper object, untrained, on the CPU: what RF-DETR's own export is called on (bite 2e).
+
+    The wrapper has no argument for "no upstream weights": with `pretrain_weights=None` it still asks the Hugging
+    Face Hub for the backbone's weights (bite 2d). The switch lives in the package's `MODEL_DEFAULTS`
+    (`force_no_pretrain`), which the wrapper reads through the default argument of
+    `rfdetr._namespace._namespace_from_configs`; that default is replaced here, in this process only. If a later
+    `rfdetr` moves it, the build fails loudly: the 8-bit step refuses every network connection."""
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+    try:
+        import dataclasses
+        import rfdetr
+        import rfdetr._namespace as namespace
+        from rfdetr.models._defaults import MODEL_DEFAULTS
+        import rfdetr_plus  # noqa: F401  (the sizes below come from it; a clear message when it is missing)
+    except ImportError as e:
+        from app.modeldefs import ModelDefError
+        raise ModelDefError(f"Roboflow's rfdetr_plus is not in this environment ({e}). Fix: set the tools up "
+                            f"(it installs {PINNED} into rfdetr-plus-tflite-venv).") from None
+    namespace._namespace_from_configs.__defaults__ = (dataclasses.replace(MODEL_DEFAULTS, force_no_pretrain=True),)
+    return getattr(rfdetr, WRAPPERS[a["size"]])(pretrain_weights=None, num_classes=len(a["classes"]),
+                                                resolution=a["input"][0], device="cpu")
+
+
 def build(a: dict):
     """The network, untrained, with no download of any kind, switched to its export form."""
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
@@ -68,7 +97,7 @@ def build(a: dict):
     except ImportError as e:
         from app.modeldefs import ModelDefError
         raise ModelDefError(f"Roboflow's rfdetr_plus is not in this environment ({e}). Fix: set the tools up "
-                            f"(it installs {PINNED} into rfdetr-plus-venv).") from None
+                            f"(it installs {PINNED} into rfdetr-plus-tflite-venv).") from None
     config = getattr(detection, SIZES[a["size"]][0])(pretrain_weights=None, num_classes=len(a["classes"]))
     core = build_model_from_config(config, defaults=dataclasses.replace(MODEL_DEFAULTS, force_no_pretrain=True))
     core.eval()

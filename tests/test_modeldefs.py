@@ -49,7 +49,7 @@ def test_detector_candidates_are_complete_recipes():
         else:
             assert a["licence"] in PERMISSIVE and a["licence_mark"] is None
         assert len(a["code"]["commit"]) == 40 or a["code"]["commit"].startswith("pip:")
-        assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-venv", "rfdetr-plus-venv")
+        assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-tflite-venv", "rfdetr-plus-tflite-venv")
     assert {"rfdetr-nano-384-c5", "rfdetr-nano-256-c5"} <= set(keys)
     keys = [modeldefs.arch_key(a) for a in modeldefs.candidates("instance")]
     assert keys == ["rfdetr-seg-nano-312-c5", "yoloxproto-nano-conv-256-c5", "yoloxproto-tiny-conv-256-c5"]
@@ -150,8 +150,10 @@ def test_check_says_what_is_wrong(change, word):
 def test_rfdetr_checks_and_export_settings():
     from app.modeldefs import rfdetr
     a = rfdetr.arch(384, ["x"])
-    assert modeldefs.check(a) == [] and modeldefs.export_settings(a) == {"env": "rfdetr-venv", "opset": 17, "simplify": True}
-    assert modeldefs.export_settings({}) == {"env": "convert-venv", "opset": 13, "simplify": False}
+    assert modeldefs.check(a) == [] and modeldefs.export_settings(a) == {
+        "env": "rfdetr-tflite-venv", "opset": 17, "simplify": False, "route": "rfdetr-own"}
+    assert modeldefs.export_settings({}) == {"env": "convert-venv", "opset": 13, "simplify": False, "route": "onnx2tf"}
+    assert modeldefs.INT8_MODULES[modeldefs.export_settings(a)["route"]] == "app.fit.to_int8_rfdetr"
     assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [336, 336]}))
     assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [320, 384]}))
     assert any("Roboflow's own" in p for p in modeldefs.check({**a, "size": "pico"}))
@@ -170,7 +172,7 @@ def test_rfdetr_missing_package_says_how_to_fix():
     if importlib.util.find_spec("rfdetr") is not None:
         pytest.skip("rfdetr is installed here")
     from app.modeldefs import rfdetr
-    with pytest.raises(modeldefs.ModelDefError, match="rfdetr-venv"):
+    with pytest.raises(modeldefs.ModelDefError, match="rfdetr-tflite-venv"):
         modeldefs.build(rfdetr.arch(384, ["x"]))
 
 
@@ -179,7 +181,7 @@ def test_roboflow_licensed_sizes_are_always_marked_and_never_permissive():
     keys = [modeldefs.arch_key(a) for a in rfdetrplus.candidates()]
     assert keys == ["rfdetrplus-atto-380-c5", "rfdetrplus-femto-384-c5", "rfdetrplus-pico-560-c5"]
     a = rfdetrplus.arch("atto", ["x"])
-    assert modeldefs.export_settings(a)["env"] == "rfdetr-plus-venv" and a["licence"] not in PERMISSIVE
+    assert modeldefs.export_settings(a)["env"] == "rfdetr-plus-tflite-venv" and a["licence"] not in PERMISSIVE
     for change in ({"licence_mark": None}, {"licence": "Apache-2.0"}):
         assert any("Roboflow licence" in p for p in modeldefs.check({**a, **change}))
     assert any("stock input" in p for p in modeldefs.check({**a, "input": [256, 256]}))

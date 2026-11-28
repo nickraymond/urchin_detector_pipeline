@@ -50,7 +50,7 @@ def calls(bin_dir) -> list[str]:
 
 def test_nothing_is_ready_in_an_empty_folder(tmp_path):
     items = setup.items(tmp_path)
-    assert [i["name"] for i in items] == ["convert-venv", "vela-5.0.0-venv", "rfdetr-venv", "rfdetr-plus-venv",
+    assert [i["name"] for i in items] == ["convert-venv", "vela-5.0.0-venv", "rfdetr-tflite-venv", "rfdetr-plus-tflite-venv",
                                           "third_party/YOLOX"]
     assert not any(i["ok"] for i in items) and all(i["why"] == "not there" for i in items)
     assert "Roboflow licence" in items[3]["what"]
@@ -66,7 +66,8 @@ def test_set_up_makes_every_tool_once_and_a_second_run_does_nothing(box):
     assert sum(l.startswith("fake uv venv") for l in log) == 4 and sum("pip install" in l for l in log) == 4
     assert any("venv --python 3.11" in l and l.endswith("convert-venv") for l in log)
     assert any("pip install" in l and l.endswith("ethos-u-vela==5.0.0") for l in log)
-    assert any(l.endswith("requirements-rfdetr-plus.txt") for l in log)
+    assert any(l.endswith("requirements-rfdetr-plus-tflite.txt") for l in log)
+    assert any("venv --python 3.12" in l and l.endswith("rfdetr-tflite-venv") for l in log)
     assert f"fake git checkout --detach {yolox.CODE['commit']}" in log
     assert (tools / "third_party" / "YOLOX" / ".git" / "HEAD").read_text().strip() == yolox.CODE["commit"]
     before = len(log)
@@ -77,11 +78,11 @@ def test_a_hand_made_or_outdated_environment_is_made_again(box):
     jc, tools, bin_dir = box
     run(jc, tools, bin_dir)
     (tools / "convert-venv" / setup.MARK).unlink()                       # as if made by hand
-    (tools / "rfdetr-venv" / setup.MARK).write_text("an older requirements file\n")
+    (tools / "rfdetr-tflite-venv" / setup.MARK).write_text("an older requirements file\n")
     (tools / "third_party" / "YOLOX" / ".git" / "HEAD").write_text("0" * 40 + "\n")
     why = {i["name"]: i["why"] for i in setup.items(tools) if not i["ok"]}
-    assert set(why) == {"convert-venv", "rfdetr-venv", "third_party/YOLOX"}
-    assert "made by hand" in why["convert-venv"] and "have changed" in why["rfdetr-venv"]
+    assert set(why) == {"convert-venv", "rfdetr-tflite-venv", "third_party/YOLOX"}
+    assert "made by hand" in why["convert-venv"] and "have changed" in why["rfdetr-tflite-venv"]
     assert why["third_party/YOLOX"].startswith("at 000000000000, not 6ddff4824372")
     assert run(jc, tools, bin_dir)["state"] == "done" and all(i["ok"] for i in setup.items(tools))
 

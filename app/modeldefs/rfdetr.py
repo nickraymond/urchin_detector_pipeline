@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import os
 
-PINNED = "rfdetr==1.9.4"   # the version of Nick's earlier work (~/nereus_ml/venvs/rfdetr); PyPI has newer
+# 1.12.1 since bite 2e: its export route is the one that converts the whole family (DESIGN §Bench results).
+# Bites 2a-ii and 2c-i built and read 1.9.4, the version of Nick's earlier work (~/nereus_ml/venvs/rfdetr);
+# the network code of 1.12.1 was read again for bite 2e (D59's note).
+PINNED = "rfdetr==1.12.1"
 CODE = {"repo": "https://github.com/roboflow/rf-detr", "commit": "pip:" + PINNED}
 STOCK_INPUT = 384          # RFDETRNanoConfig.resolution
 QUERIES = 300              # boxes per image the model always returns
@@ -27,6 +30,9 @@ OUTPUT_NAMES = ["dets", "labels"]
 # resolution 312, patch 12, 100 queries; measured: masks come out at 1/4 of the input (78 × 78).
 SEG_INPUT, SEG_QUERIES, SEG_PATCH = 312, 100, 12
 SIZES = {"nano": "RFDETRNano", "seg-nano": "RFDETRSegNano"}
+def _route_note() -> str:
+    from app.modeldefs import RFDETR_ROUTE_NOTE
+    return RFDETR_ROUTE_NOTE
 
 
 def seg_arch(input_px: int, classes: list[str]) -> dict:
@@ -45,9 +51,11 @@ def arch(input_px: int, classes: list[str]) -> dict:
         "outputs": {"names": OUTPUT_NAMES,
                     "layout": f"dets: {QUERIES} boxes (cx, cy, w, h; 0..1 of the input); labels: {QUERIES} rows "
                               "of one logit per class plus one (no sigmoid applied)"},
-        # measured 2026-11-27: onnx2tf 1.28.8 fails on the raw ONNX (an Expand of a constant); after an
-        # onnxsim pass it converts
-        "export": {"env": "rfdetr-venv", "opset": 17, "simplify": True},
+        # bite 2e: RF-DETR's own export, then a full-integer step of ours (app/fit/to_int8_rfdetr.py). Before
+        # that: {"env": "rfdetr-venv", "opset": 17, "simplify": True} with onnx2tf 1.28.8, which converted Nano
+        # only after an onnxsim pass and left operators plain LiteRT does not have
+        "export": {"env": "rfdetr-tflite-venv", "opset": 17, "simplify": False, "route": "rfdetr-own"},
+        "route_note": _route_note(),
         "code": dict(CODE), "licence": "Apache-2.0", "licence_mark": None,
     }
 
@@ -80,9 +88,10 @@ def build_model(a: dict):
     except ImportError as e:
         from app.modeldefs import ModelDefError
         raise ModelDefError(f"RF-DETR's code is not in this environment ({e}). Fix: set the tools up "
-                            f"(it installs {PINNED} into rfdetr-venv).") from None
+                            f"(it installs {PINNED} into rfdetr-tflite-venv).") from None
+    # device="cpu": on this laptop torch 2.15's Apple-GPU path crashes inside RF-DETR's export (measured, bite 2e)
     return getattr(rfdetr, SIZES[a["size"]])(pretrain_weights=None, num_classes=len(a["classes"]),
-                                             resolution=a["input"][0])
+                                             resolution=a["input"][0], device="cpu")
 
 
 def build(a: dict):

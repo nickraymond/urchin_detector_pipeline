@@ -77,12 +77,21 @@ def third_party(name: str, commit: str, repo: str, package: str) -> Path:
     return path
 
 
-DEFAULT_EXPORT = {"env": "convert-venv", "opset": 13, "simplify": False}   # the known-good YOLOX route (D52)
+# The known-good YOLOX route (D52). "route" names the 8-bit step: "onnx2tf" is app/fit/to_int8.py; "rfdetr-own"
+# is RF-DETR's own export plus a full-integer step (app/fit/to_int8_rfdetr.py, bite 2e).
+DEFAULT_EXPORT = {"env": "convert-venv", "opset": 13, "simplify": False, "route": "onnx2tf"}
+INT8_MODULES = {"onnx2tf": "app.fit.to_int8", "rfdetr-own": "app.fit.to_int8_rfdetr"}
+# Shown next to every RF-DETR candidate on the "What runs where" page (bite 2e; rfdetr.py and rfdetrplus.py).
+RFDETR_ROUTE_NOTE = ("8-bit file: RF-DETR's own export, then a full-integer step of this project's. RF-DETR's exporter "
+                     "itself makes float and dynamic-range files only (8-bit weights, float activations): \"Static "
+                     "(full-integer) INT8 is not supported and raises ValueError\" (rfdetr 1.12.1, "
+                     "export/_tflite/exporter.py). The cameras' compilers need full-integer, so that step is ours, and "
+                     "what it costs in accuracy is not measured yet.")
 
 
 def export_settings(arch: dict) -> dict:
-    """Which tool environment builds and exports this model, the ONNX opset, and whether the ONNX file
-    goes through onnxsim before the 8-bit step."""
+    """Which tool environment builds and exports this model, the ONNX opset, whether the ONNX file goes
+    through onnxsim before the 8-bit step, and which 8-bit route it takes."""
     return {**DEFAULT_EXPORT, **(arch.get("export") or {})}
 
 

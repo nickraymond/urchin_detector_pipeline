@@ -49,6 +49,23 @@ def repo_version(repo: Path | None = None) -> dict:
         return {"commit": None, "dirty": None}
 
 
+def write_licence(arch: dict, folder: Path) -> Path | None:
+    """A recipe with a licence mark (Roboflow's PML 1.0, evaluation only) gets the licence's full text next to
+    everything made from it: PML section 7 asks for the text "with all copies or substantial portions of the
+    Software" (QE PR 78). Copied from the installed package, so it is the text of the version that was used."""
+    want = arch["code"]["commit"]
+    if not arch.get("licence_mark") or not want.startswith("pip:"):
+        return None
+    name = want[4:].partition("==")[0]
+    texts = [f for f in (metadata.files(name) or []) if Path(str(f)).name.upper().startswith(("LICENSE", "LICENCE"))]
+    if not texts:
+        raise SystemExit(f"{name} is marked \"{arch['licence_mark']}\" but its package holds no licence text to "
+                         "keep with the results. Fix: set the tools up again.")
+    out = Path(folder) / f"LICENSE-{arch['licence']}.txt"
+    out.write_text(texts[0].read_text())
+    return out
+
+
 def code_version(arch: dict) -> str:
     """What model code is really on this machine, checked against the recipe's `code.commit`."""
     from app import modeldefs
@@ -77,6 +94,7 @@ def main(argv: list[str]) -> None:
     out.mkdir(parents=True, exist_ok=True)
     arch = recipe["arch"]
     t0 = time.time()
+    write_licence(arch, out.parent)                  # before anything is made, so a failed step has it too
 
     import numpy as np
     import torch
