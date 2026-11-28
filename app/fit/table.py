@@ -25,7 +25,7 @@ from pathlib import Path
 from app import modeldefs
 from app.fit import convert
 
-CAMERA_ORDER = ("n6", "pi", "ae3")
+CAMERA_ORDER = convert.CAMERA_ORDER          # Pi, N6, AE3 (one order for the whole page)
 KIND_LABELS = {"detector": "Detector", "segmenter": "Segmenter", "instance": "Instance segmenter"}
 RANK = {"runs": 0, "partly": 1, "no": 2, "not_tried": 3}
 NO_ROUTE = "does not convert with today's route (8-bit step)"
