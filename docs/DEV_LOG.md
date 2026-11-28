@@ -34,6 +34,20 @@ so a "done" eval could miss a frame silently. Fixed: whole lines on every start,
 
 ---
 
+## 2026-11-27 — Sprint S8 — The Train page's frame counts follow the class ticks (S7 builder 1, on S8)
+**Branch:** sprint/8-live-counts
+**Done:** one counter (`frame_counts` in `app/web/train_pages.py`) and one template (`_frame_counts.html`) for the
+page and for `GET /p/<name>/train/counts?version=&classes=`; `train.js` fetches it on every class tick and swaps the
+span (a late answer to an older tick is ignored); no class ticked says so; a bad class id or version says why.
+**Self-test:** s8_squares copy, version 1: "With the classes ticked: 42 training frames in full, 12 validation
+frames."; unticking sea star fetched `counts?version=1&classes=1` (200); unticking both: "Tick at least one class
+…"; ticking sea star again: the counts back. (Every class is fully checked there, so the numbers do not move; the
+test covers a version where they do.)
+**Broke/surprised us:** nothing.
+**Next:** shrunk copies of outside images (TRACKER S8).
+
+---
+
 ## 2026-11-27 — Sprint S7 — Bites 3a, 3b, 4a and follow-ups (S6 builder 3)
 **Branches:** sprint/7-bench-agent (PR 108), sprint/7-pi-runtime (112), sprint/7-pi-install (113), sprint/7-card-threads (115),
 sprint/7-bench-nits (117), sprint/7-n6-romfs (119); also sprint/6-camera-order (109)
