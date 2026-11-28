@@ -298,7 +298,8 @@ def test_frame_counts_follow_the_class_ticks(page):
     urchins = client.get("/p/p/train/counts?version=1&classes=1").text
     assert both.lstrip().startswith('<span id="frame-counts" class="problem"') and "<b>0</b> training frames in full" in both
     assert 'class="problem"' not in urchins and "<b>0</b> training frames in full" not in urchins
-    assert "Tick at least one class" in client.get("/p/p/train/counts?version=1").text
+    none = client.get("/p/p/train/counts?version=1").text      # QE 10: no class ticked is a problem, in red
+    assert "Tick at least one class" in none and none.lstrip().startswith('<span id="frame-counts" class="problem"')
     assert "not object classes" in client.get("/p/p/train/counts?version=1&classes=99").text
     assert client.get("/p/p/train/counts?version=7&classes=1").status_code == 404
 
