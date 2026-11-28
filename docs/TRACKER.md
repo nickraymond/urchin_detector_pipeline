@@ -503,9 +503,9 @@ against the fake board only; the rig test session runs each board's first card a
 - [x] `<data_dir>/bench/rig_log.jsonl`: every change appended before and after, with its undo; a "Rig log" page
       *(S7 builder 1, branch `sprint/7-bench-core`: `app/bench/units.py`, `board.py`, `riglog.py`, `pages.py`; real
       units have no board yet and are refused until bites 3-5)*
-- [~] "Restore the rig" steps kept true to the rig log (QE PR 94 carried nit 1): the Rig log page lists every real
-      change's undo, newest first, under "To put the rig back"; who copies them into the backup's `RESTORE.md` and when
-      is a Lead call (asked in PR 98)
+- [x] "Restore the rig" steps kept true to the rig log (QE PR 94 carried nit 1): the Rig log page lists every real
+      change's undo, newest first, under "To put the rig back"; the rig test session copies them into the backup's
+      `RESTORE.md` after each card, before the next (D87); every card's stop rules include "RESTORE.md matches the rig log"
 
 **Bite 2 — Test card and the `bench` job** (D83, D84)
 - [ ] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
