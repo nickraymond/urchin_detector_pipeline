@@ -31,6 +31,21 @@ card 8's "does not answer". Card page (TestClient): the hint shows on a CSI-firs
 
 ---
 
+## 2026-11-28 — Sprint S7 — ONNX Runtime telemetry off everywhere (D85c) (S7 builder 4)
+**Branch:** sprint/7-ort-telemetry-off
+**Done:** `ORT_DISABLE_TELEMETRY=1` in `app/__init__.py` (`ORT_OFF`), in every child env the app builds (fit's Pi and
+convert steps, the job runner, the SAM test), at the top of `to_qdq.py` and the Pi agent, in the agent's install
+environment, and in `tests/conftest.py`. `tests/test_ort_telemetry.py`: a stand-in onnxruntime started from an
+environment without the switch sees "1" via the app package, the QDQ step and the agent alone; a scan fails any file
+that imports onnxruntime without the switch above it and any child env without `ORT_OFF`. With the switch lines
+removed, 4 of its 6 tests fail.
+**Self-test:** tests only (no page changed). The full suite ran with `ORT_DISABLE_TELEMETRY=1` exported.
+**Broke/surprised us:** ONNX Runtime's official builds send telemetry by default (QE 11, card 9); my four earlier suite
+runs tonight loaded it on the laptop without the switch. No store deleted.
+**Next:** QE; Nick's answer on the stores (the lead's batch).
+
+---
+
 ## 2026-11-28 — Sprint S7 — "CSI first" on an N6 card (D83c); a board_reset's text follows what was written (S7 builder)
 **Branch:** sprint/7-n6-csi
 **Done:** the card option "CSI first" (N6, a card that times something): a stage between the imports and `ml.Model`

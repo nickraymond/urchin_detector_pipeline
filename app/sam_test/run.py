@@ -22,6 +22,7 @@ import webbrowser
 from pathlib import Path
 
 from app.sam_test import report
+from app import ORT_OFF
 
 # "urchin" instead of "sea urchin": far more urchins kept in S1 (DESIGN D10).
 PROMPTS = ["urchin", "purple sea urchin", "red sea urchin", "sea star",
@@ -80,7 +81,7 @@ def run_attempt(name: str, job: dict, out_dir: Path) -> dict:
     device, fallback = ATTEMPTS[name]
     result_path = out_dir / f"result_{name}.json"
     result_path.unlink(missing_ok=True)
-    env = dict(os.environ, PYTORCH_ENABLE_MPS_FALLBACK="1" if fallback else "0")
+    env = dict(os.environ, **ORT_OFF, PYTORCH_ENABLE_MPS_FALLBACK="1" if fallback else "0")
     job = dict(job, attempt=name, device=device, mps_fallback=fallback,
                result_path=str(result_path))
     print(f"\n=== attempt: {name} (device {device}, CPU fallback {'on' if fallback else 'off'})")

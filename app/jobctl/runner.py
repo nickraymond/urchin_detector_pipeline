@@ -265,7 +265,7 @@ class Runner:
             proc = subprocess.Popen(
                 cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True,
                 bufsize=1, cwd=kind.cwd or REPO,
-                env={**os.environ, "OMP_NUM_THREADS": threads, "MKL_NUM_THREADS": threads,
+                env={**os.environ, "ORT_DISABLE_TELEMETRY": "1", "OMP_NUM_THREADS": threads, "MKL_NUM_THREADS": threads,
                      **kind.env},
                 start_new_session=True)   # Ctrl-C on the app must not cut an item in half
         try:

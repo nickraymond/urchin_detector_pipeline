@@ -566,6 +566,10 @@ against the fake board only; the rig test session runs each board's first card a
       Apache 2.0 by its metadata). 3b-ii: the install into its own environment in the agent's folder, a logged rig
       change, from PyPI's cp313 aarch64 wheel (D89). 3c: ONNX Runtime 1.29.0 in the agent, its pinned environment, a
       Pi card's runtime from its files' kind; the 8-bit QDQ file `targets/pi/model_qdq.onnx` from S6's Pi step (D85a, `app/fit/to_qdq.py`). Open: the Pi cards; ncnn)*
+- [x] ONNX Runtime telemetry off everywhere (D85c, Lead call; QE 11's card 9 check): app, agent, child envs, tests
+      *(S7 builder 4)*
+- [ ] Nick: telemetry may already have reached Microsoft from the Pi (card 9) and the laptop; whether to delete the two
+      local stores (Nick answered via the lead, 2026-11-28: delete them; not done in this PR)
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
 - [x] 3b, before the Pi's first card (QE PR 108 nits; D89): `PiBoard` wired into `open_board`, an `SshTransport` built
       only from a unit `Bench.unit` returned (a test that an unlisted alias never reaches ssh); a non-JSON line on

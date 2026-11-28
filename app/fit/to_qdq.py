@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import os
+
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"      # before ONNX Runtime starts (Lead call, lead 2; app/__init__.py)
 import sys
 import time
 
