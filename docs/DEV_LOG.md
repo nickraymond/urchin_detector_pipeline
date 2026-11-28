@@ -47,6 +47,21 @@ nit 3: the stage list.)* Card page: see the PR.
 
 ---
 
+## 2026-11-27 — Sprint S7 — Bite 3c: ONNX Runtime, the Pi's second runtime (S7 builder)
+**Branch:** sprint/7-pi-onnxruntime (on sprint/7-n6-nits, PR 129)
+**Done:** the agent's `OnnxRuntime` (CPU provider, the card's threads); `requirements-onnxruntime-1.29.0.txt`, hash-pinned
+from PyPI (D89's install path, its own venv); a Pi card's runtime from its files' kind (.tflite / .onnx), shown on the
+card and passed to the Pi; D85a (Lead call): S6's Pi step also writes `targets/pi/model_qdq.onnx` (`app/fit/to_qdq.py`),
+shown on /fit. Licences read from the five pinned wheels' own files (fetched, sha256 = pins, read only).
+**Self-test:** /fit on a scratch copy of YOLOX Nano's `int8/`: "Run" on the Pi cell writes `model_qdq.onnx` (1,512,939 B)
+beside the TFLite; the cell reads "1.1 MiB and model_qdq.onnx, 1.4 MiB, for onnxruntime 1.29.0 (4.07 ms on the laptop)".
+The agent loads and times a QDQ file under onnxruntime 1.29.0 (conversion environment).
+**Broke/surprised us:** onnxruntime's library carries Eigen (MPL-2.0); its notice names Intel MKL under a non-OSI licence
+(not in the aarch64 build): stopped and reported to the lead; no Pi install before Nick's word.
+**Next:** QE; then the Pi's ONNX Runtime card (the lead's), once Nick has answered on the licences.
+
+---
+
 ## 2026-11-27 — Sprint S7 — QE PR 126's nits: no board serial in agent.log; no reset for a board that never answered (S7 builder)
 **Branch:** sprint/7-n6-nits
 **Done:** the agent writes the N6's serial as `<n6_dfu_serial>` (another board's: its last 4 digits) in `agent.log`

@@ -28,6 +28,33 @@ RUNTIME_ENV = "convert-venv"
 REPO = Path(__file__).resolve().parents[2]
 
 
+QDQ_NAME = "model_qdq.onnx"
+
+
+def qdq(python: Path, onnx_file: Path, out: Path) -> dict:
+    """The Pi's second file (S7 bite 3c; Lead call, lead 2): the 8-bit QDQ ONNX file for ONNX Runtime, from the
+    candidate's own `model.onnx`. Its failure is recorded here and never changes the LiteRT result."""
+    if not onnx_file.is_file():
+        return {"file": None, "runtime": "ONNX Runtime", "error": f"no {onnx_file.name} beside the 8-bit file to make it from"}
+    made = out / QDQ_NAME
+    made.unlink(missing_ok=True)
+    done = subprocess.run([str(python), "-m", "app.fit.to_qdq", str(onnx_file), str(made)], capture_output=True,
+                          text=True, cwd=REPO, env={**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1"})
+    (out / "qdq.log").write_text(done.stdout + done.stderr)
+    try:
+        ran = json.loads(done.stdout.strip().splitlines()[-1]) if done.returncode == 0 and made.is_file() else None
+    except (ValueError, IndexError):
+        ran = None
+    if ran is None:
+        return {"file": None, "runtime": "ONNX Runtime",
+                "error": (f"the QDQ step ended with exit code {done.returncode}.\n"
+                          + reports.error_lines(done.stdout + done.stderr)).strip()}
+    return {"file": QDQ_NAME, "file_bytes": made.stat().st_size, "runtime": ran["runtime"], "laptop_ms": ran["laptop_ms"],
+            "runs": ran["runs"], "calibration": ran["calibration"], "quantization": ran["quantization"],
+            "operator_types": ran["operator_types"],
+            "note": "for ONNX Runtime on the Pi (D85); laptop time, one thread, says nothing about the Pi"}
+
+
 def compile(tflite: Path, out: Path, job: dict) -> dict:
     from app.fit.convert_worker import ToolsMissing
     python = Path(job["tools_dir"]) / RUNTIME_ENV / "bin" / "python"
@@ -55,7 +82,7 @@ def compile(tflite: Path, out: Path, job: dict) -> dict:
         return {**base, "converts": False, "failing_layers": [],
                 "error": (how + ".\n" + reports.error_lines(done.stdout + done.stderr)).strip()}
     shutil.copyfile(tflite, out / tflite.name)
-    return {**base, "converts": True, "tool": ran["runtime"] + " on the laptop (the Pi runs the 8-bit file on its CPU)",
+    return {**base, "converts": True, "second_file": qdq(python, tflite.parent / "model.onnx", out), "tool": ran["runtime"] + " on the laptop (the Pi runs the 8-bit file on its CPU)",
             "file": tflite.name, "file_bytes": tflite.stat().st_size, "memory_bytes": None,
             "placement": {"npu": 0, "hybrid": 0, "cpu": ran["operators"], "total": ran["operators"],
                           "unit": "operators"},

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from app import sidecars
 from app.bench import units
+from app.bench.agent.bench_agent import SUFFIX_RUNTIME
 
 MIN_WINDOWS, DEFAULT_WINDOWS, DEFAULT_N = 3, 3, 300           # D83: never a cell from one window
 THREADS, DEFAULT_THREADS = range(1, 5), 1                    # the Pi's four cores; D88: the first card runs 1
@@ -101,6 +102,15 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
     if len(set(rom_models)) != len(rom_models):
         problems.append("a /rom model is listed twice")
     models = [] if restore_only or rom_models else _models(data_dir, form.get("models", ""), problems)
+    runtime = None
+    if board == "pi" and models:                        # D85: the Pi's runtime follows the model files' kind
+        kinds = {SUFFIX_RUNTIME.get(Path(m["path"]).suffix) for m in models}
+        if None in kinds:
+            problems.append(f"a Pi model file must end in {' or '.join(SUFFIX_RUNTIME)} (LiteRT or ONNX Runtime)")
+        elif len(kinds) > 1:
+            problems.append("a Pi card times one runtime: its model files are all .tflite or all .onnx")
+        else:
+            runtime = kinds.pop()
     # Lead call D83c (lead 2): an N6 card may take a CSI snapshot before ml.Model, as ml/deploy_probe.py did
     csi_first = str(form.get("csi_first", "")).strip().lower() in ("on", "1", "true", "yes")
     if csi_first and (board != "n6" or restore_only):
@@ -118,6 +128,7 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             "windows": windows, "n": n, "metric": text["metric"] or DEFAULT_METRIC, "pass_bar": text["pass_bar"],
             "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now(),
             **({"threads": threads} if board == "pi" else {}),    # fixed for the run and recorded (D83, D88)
+            **({"runtime": runtime} if runtime else {}),
             **({"restore_only": True} if restore_only else {}),
             **({"rom_models": rom_models} if rom_models else {}),
             **({"csi_first": True} if csi_first else {})}
