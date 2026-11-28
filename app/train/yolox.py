@@ -193,6 +193,9 @@ class Trainer:
         self.steps = max(1, len(self.train) // self.batch) if len(self.train) >= self.batch \
             else 1                                    # a tiny dataset: one short batch per epoch
         self.epochs = int(self.t["epochs"])
+        # Lead call (D90): validate every val_every epochs and always the last; a recipe from before the
+        # setting validated every epoch and keeps doing so
+        self.val_every = max(1, int(self.t.get("val_every") or 1))
         self.model = self.opt = self.ema = None
         self.ema_updates = 0
         self.best = -1.0
@@ -458,8 +461,13 @@ class Trainer:
             metrics = {"loss": round(total / n, 4),
                        **{k: round(v / n, 4) for k, v in parts.items()},
                        "lr": round(self._lr(epoch * self.steps + self.steps - 1), 6)}
-            metrics.update(self._validate(epoch, pool))
+            if self.validates(epoch):
+                metrics.update(self._validate(epoch, pool))
         return {"done": True, "metrics": metrics}
+
+    def validates(self, epoch: int) -> bool:
+        """Is epoch (0-based) validated? Every val_every-th epoch and the last one."""
+        return (epoch + 1) % self.val_every == 0 or epoch + 1 >= self.epochs
 
     def _val_frame(self, i: int) -> dict:
         """Validation frame i at the eval factor (D90), its not-fully-checked regions grey, cut into tiles."""
@@ -565,7 +573,10 @@ class Trainer:
             rows = [r for r in _metrics(self.dir) if r["epoch"] == epoch - 1]
             scored = bool(rows) and "val_recall" in rows[0]
             score = rows[0]["val_recall"] + rows[0].get("val_precision", 0) if scored else None
-            # without validation frames there is no "best": keep the newest epoch (QE PR 93)
+            # without validation frames there is no "best": keep the newest epoch (QE PR 93);
+            # with them, best.pt comes from validated epochs only (D90: val_every)
+            if self.valid and not scored:
+                return
             if not scored or score > self.best or not (self.dir / "checkpoints" / "best.pt").is_file():
                 self.best = max(self.best, score) if scored else self.best
                 tmp = last.with_name(".best.pt.tmp")

@@ -65,6 +65,9 @@ _YOLOX_WHY = {
              "training tiles are cut so urchins are 24-64 px, as the cameras see them.",
     "epochs": "The earlier Nano run kept improving to 120 epochs (mAP50 0.44 at epoch 20, 0.65 "
               "at 120, on public urchin data).",
+    "val_every": "Validation scores whole frames in tiles (a 4K frame can be hundreds of tiles), so it can "
+                 "take as long as an epoch; the last epoch is always validated, and best.pt is picked "
+                 "from validated epochs only (Lead call, D90). 1 = every epoch.",
     "augment": "Blur and haze stand in for turbid water; haze is new and not yet measured "
                "(the earlier work found it hurt Nano), so compare a run without it."}
 for _size, _note in (("nano", "smallest; 10.6 ms on the N6 and 26.4 ms on the AE3 in the earlier "
@@ -76,7 +79,8 @@ for _size, _note in (("nano", "smallest; 10.6 ms on the N6 and 26.4 ms on the AE
         "trainer": "yolox", "modeldef": "app.modeldefs.yolox", "family": "yolox", "size": _size,
         "variant": "conv", "inputs": [256, 320],
         "presets": ["standard + blur + haze", "standard", "none"],
-        "defaults": {"epochs": 120, "input": 256, "augment": "standard + blur + haze", "seed": 0},
+        "defaults": {"epochs": 120, "input": 256, "augment": "standard + blur + haze", "seed": 0,
+                     "val_every": 5},
         "starts": ("scratch", "pretrained"), "outside": True,
         "why": {"type": _note, **_YOLOX_WHY}, "licence": "Apache-2.0"}
 
@@ -116,8 +120,11 @@ def build_recipe(mtype_key: str, form: dict, manifest: dict, class_ids: list[int
         epochs = int(form.get("epochs") or d["epochs"])
         input_px = int(form.get("input") or d["input"])
         seed = int(form.get("seed") or d["seed"])
+        val_every = int(form.get("val_every") or d.get("val_every", 1))
     except ValueError:
-        raise ValueError("Epochs, input size and seed must be whole numbers.") from None
+        raise ValueError("Epochs, input size, seed and \"validate every\" must be whole numbers.") from None
+    if not 1 <= val_every <= 1000:
+        raise ValueError("Validate every: between 1 and 1000 epochs.")
     augment = form.get("augment") or d["augment"]
     if not 1 <= epochs <= 1000:
         raise ValueError("Epochs must be between 1 and 1000.")
@@ -146,5 +153,5 @@ def build_recipe(mtype_key: str, form: dict, manifest: dict, class_ids: list[int
                          "outside": [{"key": o["key"], "licence": o["licence"]}
                                      for o in manifest.get("outside", [])]},
              "class_ids": class_ids, "tile": input_px, "epochs": epochs, "augment": augment,
-             "seed": seed, "start": start}
+             "seed": seed, "start": start, "val_every": val_every}
     return key, {"arch": arch, "train": train}

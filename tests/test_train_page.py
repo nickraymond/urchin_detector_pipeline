@@ -128,6 +128,7 @@ def test_estimate_times_a_few_steps_as_a_job_and_makes_no_model(page):
     assert (est["steps_per_epoch"], est["seconds_per_step"], est["validation_seconds"]) == (3, 0.25, 0.5)
     assert est["seconds_per_epoch"] == 1.25 and est["total_seconds"] == 50 and est["epochs"] == 40
     assert est["steps_timed"] == train_job.ESTIMATE_STEPS and est["recipe"]["train"]["tile"] == 96
+    assert est["validation_passes"] == 40                       # this type's recipe validates every epoch
     assert models.list_ids(folder) == []                       # no model, no number used
     edir = folder / "models" / ".estimate"
     assert not (edir / "train.jsonl").exists() and not list(edir.glob("checkpoints/*"))
@@ -263,3 +264,20 @@ def test_a_run_without_any_fully_checked_training_frame_warns_and_one_without_va
     assert "A run needs at least one validation frame" in client.get("/p/p/train?version=2").text
     assert "No validation frame has every class picked above fully checked" in client.get("/p/p/datasets").text
     assert models.list_ids(folder) == ["m1-fake-tiny-64-c2", "m2-fake-tiny-64-c1"]
+
+
+def test_estimate_counts_one_validation_pass_per_val_every_epochs(page):
+    """Lead call (D90): with val_every = 8, 40 epochs validate 5 times (8, 16, 24, 32, 40), so validation's
+    time is spread as 5 passes over the run, not one per epoch."""
+    client, folder = page
+    frozen(folder)
+    form = {"version": 1, "model_type": "fake-tiny", "classes": ["1"], "epochs": "40",
+            "input": "96", "augment": "none", "seed": "3", "val_every": "8"}
+    assert client.post("/p/p/train/estimate", data=form, follow_redirects=False).headers["location"] \
+        == "/p/p/train?version=1"
+    assert wait_for(lambda: train_job.read_estimate(folder) is not None, 60)
+    est = train_job.read_estimate(folder)
+    assert est["validation_passes"] == 5 and est["recipe"]["train"]["val_every"] == 8
+    assert est["seconds_per_epoch"] == pytest.approx(0.75 + 0.5 * 5 / 40, abs=1e-3)
+    html = client.get("/p/p/train").text
+    assert "0.5 s per validation × 5 passes" in html and 'name="val_every" type="number" min="1" max="1000" value="8"' in html

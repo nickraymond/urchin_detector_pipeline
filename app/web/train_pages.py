@@ -119,6 +119,7 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                     "epochs": last["epochs"] if same else d.get("epochs"),
                     "augment": last["augment"] if same else d.get("augment"),
                     "seed": last["seed"] if same else d.get("seed"),
+                    "val_every": last.get("val_every", d.get("val_every")) if same else d.get("val_every"),
                     "class_ids": last["class_ids"] if same and last["class_ids"]
                     else loaders.default_class_ids(picked) if picked else []}
             counts = None      # frames the classes ticked now would give (D66), before Run

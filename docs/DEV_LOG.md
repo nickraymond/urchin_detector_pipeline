@@ -32,6 +32,7 @@ epochs, a copy) scored by the new validation: recall 0.98, precision 0.83 before
 0.94 / 0.97 on 34 objects). Probe scripts in the session scratchpad.
 **Broke/surprised us:** the first edge-drop version lost boxes lying whole but within 2 px of an inner edge (the
 stand-in detector test caught it: recall 0.67): the overlap now adds that margin.
+**Changed before merge (QE FAIL on 1b20435):** with the overlap capped at half a canvas, the inner-edge drop lost large objects in every tile: an edge-touching box is now dropped only up to overlap − 5 px, and the cap is recorded. Lead calls: the drop confirmed in D90; validation every `train.val_every` epochs (default 5) and the last, best.pt from validated epochs only.
 **Next:** the other S8 open items in TRACKER, as the lead assigns.
 
 ---

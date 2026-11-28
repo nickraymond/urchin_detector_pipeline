@@ -148,6 +148,12 @@ def test_yolox_is_offered_with_defaults_and_whys():
                                          {"kind": "scratch", "licences": []})
     assert key == "yolox-nano-conv-256-c2" and recipe["arch"]["variant"] == {"stem": "conv"}
     assert recipe["arch"]["code"]["commit"] == ydef.CODE["commit"] and recipe["train"]["epochs"] == 120
+    assert recipe["train"]["val_every"] == 5 and nano["why"]["val_every"]               # D90 cadence
+    assert train_job.build_recipe("yolox-nano-conv", {"val_every": "1"}, manifest, [1, 3],
+                                  {"kind": "scratch"})[1]["train"]["val_every"] == 1
+    for bad in ("0", "x", "1001"):
+        with pytest.raises(ValueError, match="alidate every"):
+            train_job.build_recipe("yolox-nano-conv", {"val_every": bad}, manifest, [1, 3], {"kind": "scratch"})
     assert modeldefs.check(recipe["arch"]) == []
 
 
@@ -492,3 +498,28 @@ def test_a_resumed_run_keeps_the_eval_factor_of_its_first_start(run):
                                   "eval_overlap": 20}}
     t = trainer(mdir, stored)
     assert t.eval_scale["factor"] == 0.5 and t.eval_overlap == 20
+
+
+def test_validation_every_n_epochs_and_the_last_and_best_only_from_validated(run):
+    """Lead call (D90): val_every = 5 on a 2-epoch run validates epoch 2 only (the last); after epoch 1
+    there is no best.pt yet, because it is picked from validated epochs only."""
+    mdir, recipe = run("a")
+    rec = {**recipe, "train": {**recipe["train"], "val_every": 5}}
+    t = trainer(mdir, rec)
+    assert [t.validates(e) for e in range(2)] == [False, True]
+    t.epochs = 12
+    assert [e + 1 for e in range(12) if t.validates(e)] == [5, 10, 12]
+    t.epochs = 2
+    t.load()
+    from app.train import worker
+    res = t.run_epoch(0, 0, lambda: False)
+    assert "val_recall" not in res["metrics"]
+    worker.write_metrics(mdir, [{"epoch": 0, **res["metrics"]}])
+    t.save(1, 0)
+    assert not (mdir / "checkpoints" / "best.pt").exists()
+    res2 = t.run_epoch(1, 0, lambda: False)
+    assert "val_recall" in res2["metrics"]
+    worker.write_metrics(mdir, [{"epoch": 0, **res["metrics"]}, {"epoch": 1, **res2["metrics"]}])
+    t.save(2, 0)
+    import torch
+    assert torch.load(mdir / "checkpoints" / "best.pt", weights_only=True)["epoch"] == 2
