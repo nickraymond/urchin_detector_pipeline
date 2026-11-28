@@ -545,3 +545,39 @@ def test_a_reset_in_the_csi_stage_names_it(rig):
     b.close()
     assert e.value.stop == "board_reset"
     assert "stage 2 (csi start) did not answer; the last stage that answered: stage 1 (import)" in str(e.value)
+
+
+def test_a_whole_given_image_is_written_timed_and_the_backup_put_back(rig):
+    """D82f (Lead call, lead 2): OpenMV's stock romfs0.img written whole (alt 3, read back, booted, /rom equal to the
+    image's own listing), its vendor model timed, then the backup's partition restored."""
+    b, state = rig["board"], rig["state"]
+    stock = [romfs.Entry("fomo_face_detection.tflite", bytes(range(200)) * 5, 32), romfs.Entry("fomo.txt", b"face\n", 4)]
+    img = rig["tmp"] / "romfs0.img"
+    img.write_bytes(romfs.encode(stock))
+    sha = hashlib.sha256(img.read_bytes()).hexdigest()
+    done = b.load_image(img, sha, ["fomo_face_detection.tflite"])
+    try:
+        assert romfs.decode((state / "romfs0.bin").read_bytes())[0] == stock and done["route"] == "ROMFS0, DFU alt 3"
+        assert done["rom"] == {"fomo_face_detection.tflite": 1000, "fomo.txt": 5}
+        assert b.time("fomo_face_detection.tflite", 5)["n"] == 5
+        b.restore()
+        assert (state / "romfs0.bin").read_bytes() == rig["partition"]
+    finally:
+        b.close()
+    assert only_alt3_written(state)
+    assert [r["what"] for r in riglog.read(rig["data"]) if r["what"] != "copy the bench agent"] == [
+        "restore ROMFS0 from the backup (DFU alt 3)", "write the ROMFS0 image romfs0.img"]          # newest first
+
+
+@pytest.mark.parametrize("change, why", [("sha", "no longer has the card's sha256"), ("name", "is not in the image"),
+                                         ("junk", "not a ROMFS image"), ("big", "more than the model area")])
+def test_a_given_image_that_fails_a_check_sends_nothing(rig, change, why):
+    b, state = rig["board"], rig["state"]
+    img = rig["tmp"] / "romfs0.img"
+    img.write_bytes(b"\x00" * (P + 1) if change == "big" else b"junk" * 50 if change == "junk"
+                    else romfs.encode([romfs.Entry("a.tflite", b"a" * 64, 32)]))
+    sha = "0" * 64 if change == "sha" else hashlib.sha256(img.read_bytes()).hexdigest()
+    with pytest.raises(BoardError, match=why):
+        b.load_image(img, sha, ["fomo_face_detection.tflite" if change == "name" else "a.tflite"])
+    b.close()
+    assert calls(state) == [] and riglog.read(rig["data"]) == []

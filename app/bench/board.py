@@ -172,6 +172,18 @@ class FakeBoard(Board):
         self.loaded = {n: "rom" for n in names}
         return {"loaded": sorted(names), "route": "already in /rom (no write)", "fake": True}
 
+    def load_image(self, path, sha256: str, names: list[str]) -> dict:
+        """The fake N6's whole-image write (D82f; fail={"load": ...} as for a load), logged as the real one."""
+        if self.kind != "n6":
+            raise ValueError("only the N6 takes a whole ROMFS0 image")
+        with riglog.change(self.data_dir, self.unit.name, self.kind, f"write the ROMFS0 image {Path(path).name}",
+                           self._undo(), fake=True, sha256={Path(path).name: sha256}):
+            self._maybe_fail("load")
+            self.reached, self.image_on_board = True, True
+            self.loaded = {n: "image" for n in names}
+        return {"loaded": sorted(names), "route": "fake", "readback_sha256": sha256, "rom": {n: 1 for n in names},
+                "fake": True}
+
     def restore(self) -> dict:
         """The fake N6's "ROMFS0 back from the backup" (fail={"restore": ...} to make it fail), logged as the real one."""
         if self.kind != "n6":

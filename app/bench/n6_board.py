@@ -45,6 +45,22 @@ def rom_name(name: str) -> str:
     return base if base.endswith(".tflite") else base + ".tflite"
 
 
+def image_entries(raw: bytes, partition: int = PARTITION) -> list:
+    """A whole ROMFS0 image's entries, or LOAD_FAILED: it must fit the model area and re-encode to itself (D82f,
+    as D82a's known-good check for the backup)."""
+    if len(raw) > partition:
+        raise BoardError(LOAD_FAILED, f"the image is {len(raw):,} bytes, more than the model area's {partition:,}: "
+                                      "nothing was sent")
+    try:
+        entries, length = romfs.decode(raw)
+    except romfs.RomfsError as e:
+        raise BoardError(LOAD_FAILED, f"the image is not a ROMFS image ({e}): nothing was sent") from None
+    if not entries or romfs.encode(entries) != raw[:length]:
+        raise BoardError(LOAD_FAILED, "re-encoding the image's entries does not give the image back byte for byte: "
+                                      "nothing was sent")
+    return entries
+
+
 def check_input(t: dict) -> None:
     """D83a (Lead call, lead 2): the window counts only if the board's input image is the laptop's, byte for byte."""
     try:
@@ -121,12 +137,38 @@ class N6Board(PiBoard):
             image = romfs.with_ours(backup.entries, ours, self.partition)
         except romfs.RomfsError as e:
             raise BoardError(LOAD_FAILED, f"our ROMFS0 image cannot be built: {e}. Nothing was sent") from None
+        rom = {**backup.rom, **{e.name: len(e.data) for e in ours}}
+        return self._write_image(backup, image, rom, {m.name: rom_name(m.name) for m in models})
+
+    def load_image(self, path, sha256: str, names: list[str]) -> dict:
+        """D82f (Lead call, lead 2): write a whole given ROMFS0 image (OpenMV's own stock `romfs0.img`) instead of
+        building one, then time models in its /rom. Checked before anything is sent: the file's sha256 is the card's,
+        it decodes and re-encodes to itself, it fits the model area, and it holds every model the card names. The
+        card still ends with the backup's ROMFS0 restored (D82c): the board is left as found."""
+        self._pinned(LOAD_FAILED)
+        p = Path(path)
+        raw = p.read_bytes() if p.is_file() else b""
+        if not raw or hashlib.sha256(raw).hexdigest() != sha256:
+            raise BoardError(LOAD_FAILED, f"the ROMFS0 image {p} is missing or no longer has the card's sha256 "
+                                          f"{sha256[:16]}…: nothing was sent")
+        entries = image_entries(raw, self.partition)
+        rom = {e.name: len(e.data) for e in entries}
+        missing = [n for n in names if n not in rom]
+        if missing:
+            raise BoardError(NOT_LOADED, f"{', '.join(missing)} is not in the image {p.name} (it holds "
+                                         f"{', '.join(rom)}): nothing was sent")
+        backup = Backup(self.backup_path, self.backup_sha256, self.partition)
+        with riglog.change(self.data_dir, self.unit.name, self.kind, f"write the ROMFS0 image {p.name}",
+                           self._undo(), fake=self.unit.fake, sha256={p.name: sha256}):
+            return self._write_image(backup, raw, rom, {n: n for n in names})
+
+    def _write_image(self, backup: "Backup", image: bytes, rom: dict, rom_names: dict) -> dict:
+        """The image into ROMFS0 by the agent (alt 3, read-back, boot, /rom equal to `rom`); a fault restores."""
         local_image = self._stored(image)
         self.connect()
         self._backup_on_pi(backup)                             # the way back is on the Pi before the first write
         self.transport.put(local_image, IMAGE_NAME)
-        rom = {**backup.rom, **{e.name: len(e.data) for e in ours}}
-        self.rom_names = {m.name: rom_name(m.name) for m in models}
+        self.rom_names = rom_names
         self._backup = backup
         try:
             done = self.transport.request("load", kind="n6", dfu_serial=self.dfu_serial, image=IMAGE_NAME,

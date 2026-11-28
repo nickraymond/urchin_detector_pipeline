@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app import config
 from app.bench import card as cards
@@ -118,6 +119,10 @@ def main() -> None:
     for m in c["models"]:
         if cards.sha256_file(m["path"]) != m["sha256"]:
             raise RuntimeError(f"model file {m['path']} changed since card {c['number']} was written; write a new card")
+    img = c.get("romfs_image")
+    if img and (not Path(img["path"]).is_file() or cards.sha256_file(img["path"]) != img["sha256"]):
+        raise RuntimeError(f"ROMFS0 image {img['path']} changed or went missing since card {c['number']} was written; "
+                           "write a new card")
     folder.mkdir(parents=True, exist_ok=True)
     if not (folder / "card.json").is_file():
         _write(folder / "card.json", c)
@@ -140,7 +145,12 @@ def main() -> None:
             jw.emit("done", message=f"ROMFS0 restored from the backup: read back identical "
                                     f"({r['readback_sha256'][:16]}…), /rom lists {len(r['rom'])} entries")
             return
-        if c.get("rom_models"):                           # models already in the N6's /rom: no write (after card 6)
+        if c.get("romfs_image"):                          # D82f: a whole given ROMFS0 image (OpenMV's stock one)
+            img = c["romfs_image"]
+            loaded = board.load_image(img["path"], img["sha256"], c.get("rom_models", []))
+            run["image"] = {"path": img["path"], "sha256": img["sha256"], "bytes": img["bytes"],
+                            "readback_sha256": loaded.get("readback_sha256"), "rom": loaded.get("rom")}
+        elif c.get("rom_models"):                         # models already in the N6's /rom: no write (after card 6)
             loaded = board.use_rom(c["rom_models"])
         else:
             loaded = board.load_several([Model(m["name"], m["path"]) for m in c["models"]])
