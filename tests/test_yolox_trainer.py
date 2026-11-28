@@ -89,7 +89,10 @@ def test_two_epochs_write_metrics_checkpoints_and_validation_frames(run):
     assert (mdir / "val_frames" / "val_0.png").is_file()
     assert (mdir / "val_frames" / "epoch.txt").read_text().strip() == "2"
     with Image.open(mdir / "val_frames" / "val_0.png") as im:
-        assert im.size == (96, 96)
+        assert im.size == (282, 211)          # D90: the whole 320 x 240 frame at the eval factor 44 / 50
+    assert d["eval_scale"]["factor"] == 0.88 and d["eval_overlap"] == 48   # 44 + 5, capped at half the 96 px canvas
+    assert d["eval_overlap_capped"] is True
+    assert rows[0]["val_tiles"] == 4 * 20     # 5 x 4 tiles of 96 px per frame
     t.unload()
     assert trainer(mdir, recipe).load() == (2, 0)          # where a Resume would continue
 
@@ -145,6 +148,12 @@ def test_yolox_is_offered_with_defaults_and_whys():
                                          {"kind": "scratch", "licences": []})
     assert key == "yolox-nano-conv-256-c2" and recipe["arch"]["variant"] == {"stem": "conv"}
     assert recipe["arch"]["code"]["commit"] == ydef.CODE["commit"] and recipe["train"]["epochs"] == 120
+    assert recipe["train"]["val_every"] == 5 and nano["why"]["val_every"]               # D90 cadence
+    assert train_job.build_recipe("yolox-nano-conv", {"val_every": "1"}, manifest, [1, 3],
+                                  {"kind": "scratch"})[1]["train"]["val_every"] == 1
+    for bad in ("0", "x", "1001"):
+        with pytest.raises(ValueError, match="alidate every"):
+            train_job.build_recipe("yolox-nano-conv", {"val_every": bad}, manifest, [1, 3], {"kind": "scratch"})
     assert modeldefs.check(recipe["arch"]) == []
 
 
@@ -438,3 +447,79 @@ def test_estimate_times_steps_and_validation_and_saves_nothing(run):
     assert got["steps_timed"] == 2 and got["seconds_per_step"] > 0 and got["validation_seconds"] > 0
     assert t.ema_updates == 3                               # 1 warm-up + 2 timed steps ran
     assert not list((mdir / "checkpoints").iterdir()) and not (mdir / "train.jsonl").exists()
+
+
+def test_validation_scores_whole_frames_in_tiles_with_nms_across_seams(run, tmp_path, monkeypatch):
+    """S8 Fixes 2 (D90). A stand-in detector that finds the painted squares lying whole in a tile: every
+    object is found in at least one tile and duplicates from overlapping tiles are merged, so recall and
+    precision are exactly 1. Offsets, the tile plan and the seam NMS are what is under test."""
+    import torch
+    from scipy import ndimage
+    from app.train import yolox
+    colours = {(230, 200, 60): 0, (200, 60, 200): 1}
+
+    def find(imgs):
+        out = []
+        for img in imgs.permute(0, 2, 3, 1).numpy().astype(np.uint8):
+            rows = []
+            for colour, cls in colours.items():
+                lab, n = ndimage.label(np.all(np.abs(img.astype(int) - colour) < 12, axis=-1))
+                for sl in ndimage.find_objects(lab):
+                    y, x = sl
+                    if x.start == 0 or y.start == 0 or x.stop == img.shape[1] or y.stop == img.shape[0]:
+                        continue                          # cut by the tile edge: another tile has it whole
+                    rows.append([(x.start + x.stop) / 2, (y.start + y.stop) / 2, x.stop - x.start,
+                                 y.stop - y.start, 0.9, cls])
+            out.append(np.array(rows, np.float32).reshape(-1, 6))
+        return out
+    monkeypatch.setattr(ydef, "export_module", lambda model: (lambda imgs: imgs.cpu()))
+    monkeypatch.setattr(yolox, "decode", find)
+    mdir, recipe = run("a")
+    t = trainer(mdir, recipe)
+    t.load()
+    a = np.full((240, 320, 3), (20, 60, 120), np.uint8)
+    boxes = []
+    for k, (x, y) in enumerate([(10, 10), (40, 120), (130, 60), (160, 160), (250, 20), (255, 170)]):
+        a[y:y + 50, x:x + 50] = (230, 200, 60) if k % 2 else (200, 60, 200)
+        boxes.append([1 if k % 2 else 3, x, y, 50, 50])
+    Image.fromarray(a).save(tmp_path / "seams.png")
+    t.valid = [{"file": "seams.png", "image": str(tmp_path / "seams.png"), "width": 320, "height": 240,
+                "boxes": boxes, "checked": [1, 3], "ignore": []}]
+    with __import__("concurrent.futures").futures.ThreadPoolExecutor(2) as pool:
+        got = t._validate(0, pool)
+    assert got == {"val_recall": 1.0, "val_precision": 1.0, "val_objects": 6, "val_tiles": 20}
+    assert torch.is_grad_enabled()
+
+
+def test_a_resumed_run_keeps_the_eval_factor_of_its_first_start(run):
+    mdir, recipe = run("a")
+    stored = {**recipe, "train": {**recipe["train"], "eval_scale": {"raw": 0.5, "factor": 0.5,
+                                                                    "median_side_px": 88, "boxes": 1},
+                                  "eval_overlap": 20}}
+    t = trainer(mdir, stored)
+    assert t.eval_scale["factor"] == 0.5 and t.eval_overlap == 20
+
+
+def test_validation_every_n_epochs_and_the_last_and_best_only_from_validated(run):
+    """Lead call (D90): val_every = 5 on a 2-epoch run validates epoch 2 only (the last); after epoch 1
+    there is no best.pt yet, because it is picked from validated epochs only."""
+    mdir, recipe = run("a")
+    rec = {**recipe, "train": {**recipe["train"], "val_every": 5}}
+    t = trainer(mdir, rec)
+    assert [t.validates(e) for e in range(2)] == [False, True]
+    t.epochs = 12
+    assert [e + 1 for e in range(12) if t.validates(e)] == [5, 10, 12]
+    t.epochs = 2
+    t.load()
+    from app.train import worker
+    res = t.run_epoch(0, 0, lambda: False)
+    assert "val_recall" not in res["metrics"]
+    worker.write_metrics(mdir, [{"epoch": 0, **res["metrics"]}])
+    t.save(1, 0)
+    assert not (mdir / "checkpoints" / "best.pt").exists()
+    res2 = t.run_epoch(1, 0, lambda: False)
+    assert "val_recall" in res2["metrics"]
+    worker.write_metrics(mdir, [{"epoch": 0, **res["metrics"]}, {"epoch": 1, **res2["metrics"]}])
+    t.save(2, 0)
+    import torch
+    assert torch.load(mdir / "checkpoints" / "best.pt", weights_only=True)["epoch"] == 2

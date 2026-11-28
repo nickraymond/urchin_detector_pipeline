@@ -79,6 +79,7 @@ def test_pause_mid_epoch_then_resume_repeats_and_skips_no_step(jc, tmp_path):
     assert (ck["epoch"], ck["step"]) != (2, 0) and ck["value"] == len(steps(mdir))   # saved
     assert [r["epoch"] for r in models.read_metrics(mdir)] == list(range(ck["epoch"]))
     assert (mdir / "unloads.log").is_file()             # unloaded: the worker is gone
+    first = models.read_recipe(mdir)["train"]["eval_scale"]
     jc.resume(jid)
     job = wait_state(jc, jid, "done", "error")
     assert job["state"] == "done" and job["done"] == 3
@@ -87,6 +88,10 @@ def test_pause_mid_epoch_then_resume_repeats_and_skips_no_step(jc, tmp_path):
     assert [r["epoch"] for r in rows] == [0, 1, 2] and rows[-1]["value"] == 18
     rec = models.read_recipe(mdir)["train"]["recorded"]
     assert len(rec) == 2 and (rec[1]["from_epoch"], rec[1]["from_step"]) == (ck["epoch"], ck["step"])
+    # D90: the eval factor is fixed at the first start; the resumed worker made a new trainer but kept it
+    train = models.read_recipe(mdir)["train"]
+    assert train["eval_overlap"] == 7 and train["eval_scale"] == first     # the first worker's, not the second's
+    assert first["started_pid"] in pids(mdir) and len(pids(mdir)) == 2
 
 
 def test_cancel_keeps_checkpoints_and_metrics(jc, tmp_path):

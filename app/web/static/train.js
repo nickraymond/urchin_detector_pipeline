@@ -18,6 +18,7 @@
     options(form.elements.augment, t.presets, t.defaults.augment);
     form.elements.epochs.value = t.defaults.epochs;
     form.elements.seed.value = t.defaults.seed;
+    if (form.elements.val_every && t.defaults.val_every) form.elements.val_every.value = t.defaults.val_every;
     form.querySelectorAll("[data-why]").forEach(td => { td.textContent = (t.why || {})[td.dataset.why] || ""; });
   });
 })();

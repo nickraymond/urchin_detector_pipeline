@@ -6,8 +6,9 @@ Adapted from Nick's earlier trainer, `ADIN_SPI_OpenMV/ml/yolox_urchin/data.py` @
 (`_pick_scale`, `_single`, `_clip_boxes`, `_hsv`, the blur step and its own random stream):
 
 - scale: a training frame is resized so that its median box's shorter side lands in the 24-64 px
-  band the cameras see (BAND), never above 1.5x; a frame without boxes, or any frame in
-  evaluation, is only shrunk to fit the canvas;
+  band the cameras see (BAND), never above 1.5x; a frame without boxes is only shrunk to fit the
+  canvas. Validation does not use `make`: it takes the whole frame at the model's eval factor
+  (`frame_at`, app/train/tiles.py, D90) and cuts it into tiles;
 - crop: a canvas-sized window aimed at a random box with jitter (15 % of the time anywhere, so
   backgrounds are seen); outside the frame the canvas is grey (114);
 - a box cut by the canvas edge is clipped; one left under 8 px (MIN_BOX) on a side is dropped;
@@ -154,3 +155,16 @@ def make(sample: dict, canvas: int, seed: int, epoch: int, index: int,
     if train and steps["haze"] and haze_rng.random() < steps["haze"]:
         out = haze(out, haze_rng.uniform(*HAZE_STRENGTH), haze_rng.choice(HAZE_VEILS))
     return {"image": np.ascontiguousarray(out), "boxes": boxes, "ignore": ignore, "scale": s}
+
+
+def frame_at(sample: dict, factor: float | None, canvas: int) -> dict:
+    """A whole frame for evaluation (D90): resized by the model's eval factor (with no factor, only shrunk to
+    fit the canvas, as validation did before). Returns {"image": h x w x 3 uint8 RGB, "boxes": [[class id,
+    cx, cy, w, h]], "ignore": [[cx, cy, w, h]], "scale"} in resized-frame pixels; no augmentation."""
+    full = (sample["width"], sample["height"])
+    s = factor if factor else min(1.0, canvas / max(full))
+    img = _load(sample["image"], (max(1, round(full[0] * s)), max(1, round(full[1] * s))))
+    sx, sy = img.shape[1] / full[0], img.shape[0] / full[1]
+    boxes = [[c, (x + w / 2) * sx, (y + h / 2) * sy, w * sx, h * sy] for c, x, y, w, h in sample["boxes"]]
+    ignore = [[(x + w / 2) * sx, (y + h / 2) * sy, w * sx, h * sy] for x, y, w, h in sample.get("ignore", [])]
+    return {"image": img, "boxes": boxes, "ignore": ignore, "scale": s}

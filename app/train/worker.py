@@ -91,10 +91,13 @@ def estimate(job: dict, mdir: Path, recipe: dict, ctl) -> None:
         jw.emit("paused")
         return
     steps = int(d.get("steps_per_epoch") or 1)
-    per_epoch = steps * timed["seconds_per_step"] + timed.get("validation_seconds", 0.0)
+    val_every = max(1, int(recipe["train"].get("val_every") or 1))
+    passes = sum(1 for e in range(epochs) if (e + 1) % val_every == 0 or e + 1 == epochs)   # D90: val_every
+    val_s = timed.get("validation_seconds", 0.0)
+    per_epoch = steps * timed["seconds_per_step"] + val_s * passes / epochs   # validation spread over the epochs
     out = {"at": datetime.now().isoformat(timespec="seconds"), "epochs": epochs,
            "steps_per_epoch": steps, "seconds_per_step": round(timed["seconds_per_step"], 3),
-           "validation_seconds": round(timed.get("validation_seconds", 0.0), 3),
+           "validation_seconds": round(val_s, 3), "validation_passes": passes,
            # the whole run: its epochs plus one start (model load and the device check)
            "seconds_per_epoch": round(per_epoch, 3),
            "total_seconds": round(per_epoch * epochs + load_s),
@@ -121,6 +124,10 @@ def main() -> None:
     epoch, step = trainer.load()
     rows = [r for r in models.read_metrics(mdir) if r["epoch"] < epoch]
     write_metrics(mdir, rows)
+    if hasattr(trainer, "eval_scale"):         # D90: fixed at the first start, the same on every resume
+        recipe["train"].setdefault("eval_scale", trainer.eval_scale)
+        recipe["train"].setdefault("eval_overlap", trainer.eval_overlap)
+        recipe["train"].setdefault("eval_overlap_capped", getattr(trainer, "eval_overlap_capped", False))
     recipe["train"].setdefault("recorded", []).append({
         "at": datetime.now().isoformat(timespec="seconds"), "from_epoch": epoch,
         "from_step": step, "code": code_version(), "python": platform.python_version(),

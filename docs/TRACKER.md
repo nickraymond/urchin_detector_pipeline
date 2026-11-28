@@ -690,8 +690,10 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       due scheduled job at app start can end "no job kind … is registered" (QE 8, reproduced with a 0.3 s delay;
       one `tests/test_schedule.py` failure in PR 97's suite): create it without starting, register, then start
       *Done (PR 103): `JobControl.start()`; the app registers every kind first.*
-- [ ] the trainer's validation shrinks the whole frame to the canvas (`samples.py` `_scale` with `train=False`),
+- [x] the trainer's validation shrinks the whole frame to the canvas (`samples.py` `_scale` with `train=False`),
       a different mode from training and from S9's eval scale (D90): validate at the eval scale with tiles
+      *(`app/train/tiles.py`: the factor (clamped to 0.03-1.5, Lead call in D90) and the tile plan, kept in
+      `recipe.json` at the first start; validation scores whole frames in tiles with NMS across seams)*
 
 **Demo (Nick):** on a project with an export, open Datasets and press "Freeze a version": the page shows counts
 per class and split. Open Train, pick YOLOX-Nano, press Estimate, then Run: the loss curve moves and validation
