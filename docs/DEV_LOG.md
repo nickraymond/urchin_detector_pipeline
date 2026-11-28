@@ -59,6 +59,9 @@ The agent loads and times a QDQ file under onnxruntime 1.29.0 (conversion enviro
 **Broke/surprised us:** onnxruntime's library carries Eigen (MPL-2.0); its notice names Intel MKL under a non-OSI licence
 (not in the aarch64 build): stopped and reported to the lead; no Pi install before Nick's word.
 **Next:** QE; then the Pi's ONNX Runtime card (the lead's), once Nick has answered on the licences.
+*QE PR 132 nits (S7 builder 4, 2026-11-28):* DESIGN's as-built text says D85b; the agent's float input is uniform 0-255
+as `to_qdq` calibrates (D55); the QDQ step stops after 600 s; a failed or stopped step leaves no `model_qdq.onnx`;
+TRACKER names the file.
 
 ---
 

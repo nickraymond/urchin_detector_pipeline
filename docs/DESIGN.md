@@ -893,9 +893,9 @@ the agent with it and installs `~/urchin_bench/venv-onnxruntime-1.29.0` from
 `requirements-onnxruntime-1.29.0.txt` the same way as LiteRT's (D89: hash-pinned, PyPI only, its own rig change). The
 pins are onnxruntime 1.29.0's required dependencies resolved on the laptop from PyPI (numpy, flatbuffers and protobuf as
 the LiteRT environment runs them, packaging 26.4), not a dry run on the Pi: a missing one stops pip and leaves nothing
-half-made. Licences in `THIRD_PARTY_LICENSES`, read from the five pinned wheels' own files. Not plainly permissive, so
-for Nick before any Pi install: Eigen's MPL-2.0 inside onnxruntime's library, and the Intel licence its notice names
-(MKL, not in the aarch64 build). The file (D85a): `app/fit/to_qdq.py`, run by `app/fit/pi.py` (`qdq`); YOLOX Nano's is
+half-made. Licences in `THIRD_PARTY_LICENSES`, read from the five pinned wheels' own files. Inside onnxruntime's
+library: Eigen's MPL-2.0 and Mbed TLS; its notice names an Intel licence (MKL, not in the aarch64 build). D85b (Lead
+call): the Pi install may go ahead under a reviewed card. The file (D85a): `app/fit/to_qdq.py`, run by `app/fit/pi.py` (`qdq`); YOLOX Nano's is
 1,512,939 bytes, 4.07 ms on the laptop at one thread (a laptop figure).
 
 **As built, bite 4a** (`app/bench/romfs.py`, laptop only, D82a): `decode` reads an image's file records (name, data,

@@ -145,7 +145,7 @@ class OnnxRuntime:
             info = np.iinfo(dtype)
             data = rng.integers(info.min, info.max, size=shape, endpoint=True, dtype=dtype)
         else:
-            data = rng.uniform(0.0, 1.0, size=shape).astype(dtype)
+            data = rng.uniform(0.0, 255.0, size=shape).astype(dtype)   # 0-255, as to_qdq calibrates (D55)
         return {"sess": sess, "feed": {inp.name: data}, "inp": inp, "shape": shape, "dtype": dtype.name}
 
     def invoke(self, model):
