@@ -22,7 +22,7 @@ def site(tmp_path):
         (data / "fit" / key / "int8" / "model_int8.tflite").write_bytes(key.encode())
     p = tmp_path / "config.local.toml"
     p.write_text(f'data_dir = "{data}"\nvideo_roots = []\n'
-                 '[bench]\nfield_units = ["field-pi"]\n[bench.units.bench-a]\nssh_host = "h"\ncameras = ["n6"]\n')
+                 '[bench]\nfield_units = ["field-pi"]\n[bench.units.bench-a]\nssh_host = "h"\ncameras = ["n6", "ae3"]\n')
     return config.load(p), data
 
 
@@ -88,7 +88,7 @@ def test_run_is_refused_without_a_review_or_on_a_changed_card(site):
 
 def test_real_unit_card_ends_as_refused_and_fake_settings_are_fake_only(site, jc):
     cfg, data = site
-    n = new_card(data, cfg.bench, unit="bench-a")
+    n = new_card(data, cfg.bench, unit="bench-a", board="ae3")   # the AE3: refused before any link (the N6 has a route)
     with pytest.raises(JobError, match="fake unit only"):
         runs.params(cfg, n, fake={"ms": {}})
     job = wait(jc, jc.submit("bench", runs.params(cfg, n)), "done", "error")
