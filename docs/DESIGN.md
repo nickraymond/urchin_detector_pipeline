@@ -640,6 +640,14 @@ one process) and reads peak memory; if they do not load together it loads, runs 
 in one script and times the whole sequence. The cell's headline: "both at once", "one after the other" or "one
 kind only".
 
+**As built, bite 1** (`app/bench/`): `[bench]` is `field_units = [...]` plus one `[bench.units.<name>]` table per unit
+(`ssh_host`, `cameras` from `n6` / `ae3`); a unit whose name or ssh host is in `field_units`, or with a bad entry, is
+left out with a warning, and a bad `field_units` list leaves every unit out. The unit `fake` always exists (all three
+kinds) and is the only one `open_board` gives a board for until bites 3-5. `Board.load` / `load_several` write the rig
+log themselves (before, then after with ok or the error), with the sha256 of each file and the kind's undo; the fake
+board's lines carry `"fake": true` and the Rig log page (`/bench/rig-log`) hides them unless asked. A "before" with
+no "after" shows as "not finished" in red. The page lists unit names and their boards, never ssh hosts.
+
 **Folders:**
 
 ```

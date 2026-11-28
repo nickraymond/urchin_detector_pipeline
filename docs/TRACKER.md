@@ -497,10 +497,12 @@ against the fake board only; the rig test session runs each board's first card a
       like the rest; **the first rig change waits for it** and for QE's review of the first card
 
 **Bite 1 — Bench units, the `Board` interface, the fake board, the rig log** (D81)
-- [ ] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
+- [x] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
       `app/bench/`: `Board` (info, load, time, load-several, reset) and `FakeBoard` (timings, memory, failures on
       request); any unit not listed is refused, tested
-- [ ] `<data_dir>/bench/rig_log.jsonl`: every change appended before and after, with its undo; a "Rig log" page
+- [x] `<data_dir>/bench/rig_log.jsonl`: every change appended before and after, with its undo; a "Rig log" page
+      *(S7 builder 1, branch `sprint/7-bench-core`: `app/bench/units.py`, `board.py`, `riglog.py`, `pages.py`; real
+      units have no board yet and are refused until bites 3-5)*
 
 **Bite 2 — Test card and the `bench` job** (D83, D84)
 - [ ] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,

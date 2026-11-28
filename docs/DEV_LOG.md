@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — Bite 1: bench units, the Board interface, FakeBoard, the rig log (S7 builder 1)
+**Branch:** sprint/7-bench-core
+**Done:** `app/bench/` (D81): `[bench]` units read from `config.local.toml` (field units refused by name or ssh host;
+any unit not listed refused; no `[bench]` = the fake board only); `Board` with info / load / load-several / time /
+reset and `FakeBoard` (seeded timings, memory, failures on request as the card's stop rules); the rig log
+(`<data_dir>/bench/rig_log.jsonl`, "before" fsynced before the change, "after" with ok or the error); the "Rig log"
+page at `/bench/rig-log`, linked from the dashboard; a commented `[bench]` example in `config.example.toml`.
+**Self-test:** the app on a scratch data folder with no `[bench]`: the page says only the fake board can be used;
+two fake loads (one done, one failed on request) are hidden until "Show them", then listed with their undo.
+**Broke/surprised us:** nothing. No hardware touched; `[bench]` set only in tests' temporary settings with made-up names.
+**Next:** S7 bite 2 (test card and the `bench` job).
+
+---
+
 ## 2026-11-27 — Sprint S6 — Bite 2e: the RF-DETR family with RF-DETR's own export (S6 builder 2)
 **Branch:** sprint/6-rfdetr-retry
 **Done:** one retry with one thing changed (Lead call D70). By hand first (`s6/probe_rfdetr_tflite/`), then as the
