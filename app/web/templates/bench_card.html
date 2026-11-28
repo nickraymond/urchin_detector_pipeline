@@ -12,6 +12,7 @@
   <tr><th>Frames</th><td>{{ c.frames }}</td></tr>
   {% if c.restore_only %}<tr><th>Restore only</th><td>yes: the backup's ROMFS0 is written, read back, booted and /rom listed; nothing is timed</td></tr>{% endif %}
   <tr><th>Windows × N</th><td>{% if c.restore_only %}none (restore only){% else %}{{ c.windows }} windows of {{ c.n }} inferences, after 2 warm-ups{% endif %}</td></tr>
+  {% if c.runtime %}<tr><th>Runtime</th><td>{{ {"litert": "LiteRT", "onnxruntime": "ONNX Runtime"}.get(c.runtime, c.runtime) }} <span class="hint">(from the model files' kind, D85)</span></td></tr>{% endif %}
   {% if c.threads %}<tr><th>Threads</th><td>{{ c.threads }} <span class="hint">(fixed for the run, D88)</span></td></tr>{% endif %}
   <tr><th>Metric</th><td>{{ c.metric }}</td></tr>
   <tr><th>Pass bar</th><td>{{ c.pass_bar }}</td></tr>

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from app import sidecars
 from app.bench import units
+from app.bench.agent.bench_agent import SUFFIX_RUNTIME
 
 MIN_WINDOWS, DEFAULT_WINDOWS, DEFAULT_N = 3, 3, 300           # D83: never a cell from one window
 THREADS, DEFAULT_THREADS = range(1, 5), 1                    # the Pi's four cores; D88: the first card runs 1
@@ -89,6 +90,15 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
     if restore_only and str(form.get("models", "")).strip():
         problems.append("a restore-only card lists no model files")
     models = [] if restore_only else _models(data_dir, form.get("models", ""), problems)
+    runtime = None
+    if board == "pi" and models:                        # D85: the Pi's runtime follows the model files' kind
+        kinds = {SUFFIX_RUNTIME.get(Path(m["path"]).suffix) for m in models}
+        if None in kinds:
+            problems.append(f"a Pi model file must end in {' or '.join(SUFFIX_RUNTIME)} (LiteRT or ONNX Runtime)")
+        elif len(kinds) > 1:
+            problems.append("a Pi card times one runtime: its model files are all .tflite or all .onnx")
+        else:
+            runtime = kinds.pop()
     rules = [" ".join(r.split()) for r in str(form.get("stop_rules", "")).splitlines() if r.strip()]
     if not rules:
         problems.append("a card needs at least one stop rule")
@@ -102,6 +112,7 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             "windows": windows, "n": n, "metric": text["metric"] or DEFAULT_METRIC, "pass_bar": text["pass_bar"],
             "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now(),
             **({"threads": threads} if board == "pi" else {}),    # fixed for the run and recorded (D83, D88)
+            **({"runtime": runtime} if runtime else {}),
             **({"restore_only": True} if restore_only else {})}
 
 

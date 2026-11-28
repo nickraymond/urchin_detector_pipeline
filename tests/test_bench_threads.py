@@ -38,7 +38,7 @@ def test_a_saved_cards_threads_reach_the_agent(data, tmp_path):
     assert c["threads"] == 3
     unit = bench.unit("bench-a")
     settings = board_settings(c, unit)
-    assert settings == {"threads": 3}
+    assert settings == {"threads": 3, "runtime": "litert"}
     real = open_board(unit, "pi", data, bench=bench, log_dir=tmp_path / "run", **settings)   # nothing is started
     assert isinstance(real, PiBoard) and real.threads == 3
     local = PiBoard(units.Bench().unit("fake"), tmp_path / "d", LocalTransport(tmp_path / "agent"), threads=settings["threads"])

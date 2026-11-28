@@ -49,8 +49,11 @@ def _write(path, body: dict) -> None:
 
 
 def board_settings(c: dict, unit) -> dict:
-    """What the card fixes on the board itself: a real Pi runs the card's thread count (D83, D88)."""
-    return {"threads": c.get("threads", 1)} if c["board"] == "pi" and not unit.fake else {}
+    """What the card fixes on the board itself: a real Pi runs the card's thread count (D83, D88) under the
+    runtime its model files name (.tflite: LiteRT, .onnx: ONNX Runtime; D85)."""
+    if c["board"] != "pi" or unit.fake:
+        return {}
+    return {"threads": c.get("threads", 1), "runtime": c.get("runtime", "litert")}
 
 
 def _close(board) -> None:

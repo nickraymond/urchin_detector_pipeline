@@ -1,0 +1,13 @@
+# The bench Pi's ONNX Runtime environment (D85, D89's install): <agent folder>/venv-onnxruntime-1.29.0, built by
+#   pip install --no-cache-dir --index-url https://pypi.org/simple --only-binary=:all: --require-hashes -r <this file>
+# Versions: onnxruntime 1.29.0's required dependencies (PyPI metadata: flatbuffers, numpy>=1.21.6, packaging,
+# protobuf>=4.25.8; sympy and ml_dtypes are extras only), resolved on the laptop from PyPI, not by a dry run on the Pi:
+# numpy, flatbuffers and protobuf at the versions the Pi's LiteRT environment already runs (its pin file), packaging
+# at its newest. A dependency missing here makes pip stop (--require-hashes), so nothing half-made is installed.
+# Hashes: PyPI's own, for the wheel the Pi takes (cp313 manylinux aarch64, or a pure-Python wheel), read 2026-11-27.
+# Licences: THIRD_PARTY_LICENSES, "bench tool, not deployed".
+onnxruntime==1.29.0 --hash=sha256:d67673c5367727860922c5262d724472f1b5539fb7ccf4c81a638f9b71719803
+flatbuffers==25.12.19 --hash=sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4
+numpy==2.5.5 --hash=sha256:ae2b8285d0b4eed24739c3ca9ec0fa424a0247489c01e1d5fe2815a599e11d33
+packaging==26.4 --hash=sha256:81383611a09c1bc0b08b76e0fd5829d7c6824c65b27a6aee339da133f4233ea2
+protobuf==7.36.2 --hash=sha256:e11e1f0180583a2af89db6a2ecd9e8dc40aa6d2988ca175bfd0e6d12ea72d74e

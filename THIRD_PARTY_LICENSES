@@ -559,3 +559,16 @@ The bench Pi's LiteRT environment (S7 bite 3b, D85, D89): `~/urchin_bench/venv-l
   bundles libgfortran under GPL-3.0-or-later WITH GCC-exception-3.1 (the GCC runtime library exception) and LAPACK
   under BSD-3-Clause-Open-MPI; ml-dtypes 0.7.0 ships Eigen headers under MPL-2.0; the venv holds pip 25.1.1 (MIT),
   bundled by Python's venv. Each a bench tool, not deployed.
+
+The bench Pi's ONNX Runtime environment (S7 bite 3, D85, D89's install): `~/urchin_bench/venv-onnxruntime-1.29.0` on the
+  bench Pi only, from `app/bench/agent/requirements-onnxruntime-1.29.0.txt` (onnxruntime 1.29.0's required dependencies
+  resolved on the laptop from PyPI, pinned by PyPI's sha256; not yet a dry run on the Pi). Each a bench tool, not
+  deployed, as above. Read 2026-11-27 by the S7 builder: onnxruntime 1.29.0 — MIT (its own `LICENSE`, "MIT License,
+  Copyright (c) Microsoft Corporation", read from the same version installed in the conversion environment, the
+  macOS wheel; PyPI's metadata says "MIT License"). Its `ThirdPartyNotices.txt` there (6,343 lines) lists the code it
+  bundles, among them protobuf, zlib, pybind11, onnx, Eigen (MPL-2.0), abseil, re2, flatbuffers and Mbed TLS (Apache-2.0
+  OR GPL-2.0-or-later, taken under Apache-2.0); no component is under the GPL alone. packaging 26.4 — Apache-2.0 OR
+  BSD-2-Clause (its `LICENSE` and `License-Expression`, same version in the conversion environment). numpy 2.5.5,
+  flatbuffers 25.12.19 and protobuf 7.36.2: the same wheels as the LiteRT environment above. Not read yet: the
+  aarch64 onnxruntime wheel's own notice file, which may list more; the rig session reads it after the install, as
+  QE 9 did for numpy.

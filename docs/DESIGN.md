@@ -885,6 +885,16 @@ line every 5 s while pip is silent, and writes `installed.json` (each package's 
 LiteRT card runs 1), shown on its page; the worker passes it to a real Pi's board (`board_settings`), and the agent
 opens the model with it and returns it with every window.
 
+**As built, bite 3c (ONNX Runtime on the Pi, D85):** the agent's `OnnxRuntime` (`--runtime onnxruntime`) opens an ONNX
+file on the CPU provider with the card's threads as intra-op threads and one inter-op thread; the input is seeded as for
+LiteRT (a free dimension is 1). A Pi card's runtime follows its model files: all `.tflite` is LiteRT, all `.onnx` is ONNX
+Runtime, a mix or another suffix is refused; the card shows it, and the worker passes it to `open_board`, which starts
+the agent with it and installs `~/urchin_bench/venv-onnxruntime-1.29.0` from
+`requirements-onnxruntime-1.29.0.txt` the same way as LiteRT's (D89: hash-pinned, PyPI only, its own rig change). The
+pins are onnxruntime 1.29.0's required dependencies resolved on the laptop from PyPI (numpy, flatbuffers and protobuf as
+the LiteRT environment runs them, packaging 26.4), not a dry run on the Pi: a missing one stops pip and leaves nothing
+half-made. Licences in `THIRD_PARTY_LICENSES`.
+
 **As built, bite 4a** (`app/bench/romfs.py`, laptop only, D82a): `decode` reads an image's file records (name, data,
 alignment: 32 for a model, 4 for the rest), stopping at the image's own length (a read-back runs to the partition's end);
 `encode` writes them as `mkromfs.py`'s `encode_vint` / `encode_record` / `encode_file` do (a test compares it with

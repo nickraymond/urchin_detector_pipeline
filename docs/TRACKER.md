@@ -564,7 +564,8 @@ against the fake board only; the rig test session runs each board's first card a
       then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
       *(3a: the agent's LiteRT runtime is built and self-tested on the laptop (convert-venv, ai-edge-litert 2.2.0,
       Apache 2.0 by its metadata). 3b-ii: the install into its own environment in the agent's folder, a logged rig
-      change, from PyPI's cp313 aarch64 wheel (D89). Open: the first card on the Pi; ONNX Runtime; ncnn)*
+      change, from PyPI's cp313 aarch64 wheel (D89). 3c: ONNX Runtime 1.29.0 in the agent, its pinned environment, a
+      Pi card's runtime from its files' kind; the 8-bit QDQ file: see the PR. Open: the Pi cards; ncnn)*
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
 - [x] 3b, before the Pi's first card (QE PR 108 nits; D89): `PiBoard` wired into `open_board`, an `SshTransport` built
       only from a unit `Bench.unit` returned (a test that an unlisted alias never reaches ssh); a non-JSON line on
