@@ -721,8 +721,9 @@ and `-` replaced by `_` (`file_name`, one rule on both sides); `load` checks the
 The input is seeded (seed 0): random integers over the input's 8-bit range, or uniform 0-1 for a float input.
 `app/bench/transport.py`: `LocalTransport` runs the agent as a child process on the laptop (the fake transport);
 `SshTransport` runs `ssh -o BatchMode=yes <alias> python3 urchin_bench/bench_agent.py urchin_bench` and copies with
-`scp`, after `ssh -G <alias>`'s hostname has passed the field-unit check (no connection is opened for that). No
-answer in 60 s is `no_answer` (D84). The agent's folder on the Pi is `~/urchin_bench/` (Builder call). `PiBoard`
+`scp`, after `ssh -G <alias>`'s hostname has passed the field-unit check (no connection is opened for that). Sixty
+seconds of silence is `no_answer` (D84); during a window the agent writes an "alive" line every 5 s, which
+restarts the wait (QE PR 108). `time` returns `Board.time`'s fields (free memory as `mem_*`) plus `vm_hwm`. The agent's folder on the Pi is `~/urchin_bench/` (Builder call). `PiBoard`
 (`app/bench/pi_board.py`) is a `Board`: `load` copies through the transport inside the rig-log entry;
 `install_agent()` is its own rig change, undone by deleting `~/urchin_bench`.
 

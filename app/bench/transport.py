@@ -10,7 +10,8 @@ Before an SshTransport starts, the host that `ssh -G <alias>` resolves the alias
 too (QE PR 98 nit 5): an alias that names a bench unit but points at a field unit is refused. `ssh -G` only prints
 ssh's configuration; it opens no connection.
 
-A request that gets no answer in `timeout_s` (60 s, D84) is the "no_answer" stop rule.
+A request after which the agent is silent for `timeout_s` (60 s, D84) is the "no_answer" stop rule. A long timing
+window is not silence: the agent writes an "alive" line every few seconds, and each one restarts the 60 s.
 """
 
 from __future__ import annotations
@@ -57,12 +58,15 @@ class Transport:
         rid = next(self._ids)
         self.proc.stdin.write(json.dumps({"id": rid, "op": op, **body}) + "\n")
         self.proc.stdin.flush()
-        line = self._readline()
-        if not line:
-            err = self.proc.stderr.read() if self.proc.poll() is not None else ""
-            raise BoardError(NO_ANSWER, f"no answer from the bench agent to {op!r} within {self.timeout_s:g} s "
-                                        f"({self.where()}){': ' + err.strip()[-300:] if err.strip() else ''}")
-        answer = json.loads(line)
+        while True:
+            line = self._readline()
+            if not line:
+                err = self.proc.stderr.read() if self.proc.poll() is not None else ""
+                raise BoardError(NO_ANSWER, f"no answer from the bench agent to {op!r} within {self.timeout_s:g} s "
+                                            f"({self.where()}){': ' + err.strip()[-300:] if err.strip() else ''}")
+            answer = json.loads(line)
+            if not (answer.get("alive") and answer.get("id") == rid):
+                break                                 # an "alive" line restarts the wait; anything else is the answer
         if answer.get("id") != rid:
             raise BoardError(NO_ANSWER, f"the bench agent answered request {answer.get('id')}, not {rid}")
         if not answer.get("ok"):
@@ -95,11 +99,13 @@ class Transport:
 class LocalTransport(Transport):
     """The agent on the laptop, in `folder`, with `python` (any Python 3; the app's own by default)."""
 
-    def __init__(self, folder: Path, runtime: str = "fake", python: str = sys.executable, timeout_s: float = TIMEOUT_S):
+    def __init__(self, folder: Path, runtime: str = "fake", python: str = sys.executable, timeout_s: float = TIMEOUT_S,
+                 extra: tuple[str, ...] = ()):
         self.folder, self.runtime, self.python, self.timeout_s = Path(folder), runtime, python, timeout_s
+        self.extra = tuple(extra)                     # tests: --alive-s, --fake-ms
 
     def argv(self) -> list[str]:
-        return [self.python, str(AGENT), str(self.folder), "--runtime", self.runtime]
+        return [self.python, str(AGENT), str(self.folder), "--runtime", self.runtime, *self.extra]
 
     def put(self, local: Path, name: str) -> None:
         (self.folder / "models").mkdir(parents=True, exist_ok=True)

@@ -559,6 +559,11 @@ against the fake board only; the rig test session runs each board's first card a
       the Pi as a logged rig change (whether ai-edge-litert has a wheel for the Pi's Python is not checked yet);
       ONNX Runtime; ncnn)*
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
+- [ ] 3b, before the Pi's first card (QE PR 108 nits): `PiBoard` wired into `open_board`, an `SshTransport` built
+      only from a unit `Bench.unit` returned (a test that an unlisted alias never reaches ssh); a non-JSON line on
+      the agent's stdout is a stop rule that quotes it; the agent's stderr goes to `agent.log` in the run folder, not
+      a pipe; the threads per run and the agent's folder `~/urchin_bench/` confirmed as Lead calls; the runtime
+      installed on the Pi as a logged rig change, its version's licence read then
 
 **Bite 4 — The N6 route** (D82, D83)
 - [ ] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back

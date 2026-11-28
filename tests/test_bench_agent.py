@@ -151,3 +151,40 @@ def test_installing_the_agent_on_a_unit_is_a_logged_rig_change(tmp_path):
     log = riglog.read(tmp_path)
     assert [r["state"] for r in log] == ["done"] and log[0]["undo"] == AGENT_UNDO and log[0]["fake"] is False
     assert riglog.undo_steps(log)[0]["what"] == "copy the bench agent"        # listed under "To put the rig back"
+
+
+def test_a_window_longer_than_the_answer_limit_is_kept_alive(tmp_path):
+    """QE PR 108 finding 1: 60 s is for silence, not for a long window (300 × 200 ms on the Pi Zero is 60 s)."""
+    data = tmp_path / "data"
+    slow = LocalTransport(tmp_path / "agent", timeout_s=1.0, extra=("--alive-s", "0.2", "--fake-ms", "50"))
+    board = PiBoard(fake_unit(), data, slow)
+    try:
+        src, _ = model_file(tmp_path)
+        board.load(Model("slow", src))
+        w = board.time("slow", 60)                    # about 3 s of window against a 1 s answer limit
+        assert w["n"] == 60 and w["ms_mean"] >= 50
+    finally:
+        board.close()
+    silent = LocalTransport(tmp_path / "agent2", timeout_s=1.0, extra=("--alive-s", "30", "--fake-ms", "50"))
+    board = PiBoard(fake_unit(), data, silent)
+    try:
+        board.load(Model("slow", src))
+        with pytest.raises(BoardError) as e:          # no alive line within the limit: no_answer, as before
+            board.time("slow", 60)
+        assert e.value.stop == NO_ANSWER
+    finally:
+        board.close()
+
+
+def test_the_pi_board_returns_every_field_the_bench_job_reads(tmp_path):
+    """QE PR 108 finding 2: the same fields as FakeBoard.time (the bench job reads mem_after_load)."""
+    from app.bench.board import FakeBoard
+    src, _ = model_file(tmp_path)
+    fake = FakeBoard(fake_unit(), "pi", tmp_path / "f")
+    fake.load(Model("m", src))
+    board = PiBoard(fake_unit(), tmp_path / "p", LocalTransport(tmp_path / "agent"))
+    try:
+        board.load(Model("m", src))
+        assert set(fake.time("m", 3)) <= set(board.time("m", 3))
+    finally:
+        board.close()

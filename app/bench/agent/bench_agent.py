@@ -8,7 +8,11 @@ Ops: hello, info, load, time, reset, bye. Model files are copied into <folder>/m
 "load"; the agent only checks their sha256 (a mismatch is the "readback_differs" stop rule, D84).
 
 Timing (D83): one seeded synthetic input at the model's input size; 2 warm-ups; time.perf_counter_ns() around
-each invoke of the window; peak memory is the process's VmHWM. Threads are fixed per load and recorded.
+each invoke of the window; peak memory is the process's VmHWM. Threads are fixed per load and recorded. While a
+window runs the agent writes {"id": n, "alive": true, "done": k} every ALIVE_S seconds, so a slow model (300
+inferences at a second each) is not taken for a board that stopped answering. `time` returns the fields every
+Board.time returns (n, warmups, ms_mean, ms_min, ms_max, mem_before_load, mem_after_load, mem_after: free memory,
+MemAvailable) plus vm_hwm.
 The cameras (n6, ae3) are bites 4 and 5: asked for one, the agent says so.
 """
 
@@ -22,6 +26,7 @@ import time
 
 VERSION = "1"
 WARMUPS = 2
+ALIVE_S = 5.0          # during a long window, an "alive" line this often (the laptop's 60 s is for silence)
 SEED = 0
 NO_ANSWER, READBACK, LOAD_FAILED, NOT_LOADED, NOT_BUILT = (
     "no_answer", "readback_differs", "load_failed", "not_loaded", "not_built")
@@ -60,14 +65,16 @@ def sha256(path):
 
 
 class FakeRuntime:
-    """No runtime and no numpy: invoke does nothing. For the laptop's tests of the protocol and the transport."""
+    """No runtime and no numpy: invoke does nothing (or sleeps `ms`). For the laptop's tests of the protocol."""
     name = "fake"
+    ms = 0.0
 
     def open(self, path, threads):
         return {"path": path}
 
     def invoke(self, model):
-        pass
+        if self.ms:
+            time.sleep(self.ms / 1000)
 
     def describe(self, model):
         return {"input": None, "outputs": []}
@@ -115,6 +122,8 @@ class Agent:
         self.models_dir = os.path.join(self.folder, "models")
         self.runtime = RUNTIMES[runtime]()
         self.loaded = {}          # name -> (runtime model, threads)
+        self.mem_before_load = self.mem_after_load = None
+        self.alive = lambda done: None
 
     def handle(self, req):
         op = req.get("op")
@@ -138,6 +147,7 @@ class Agent:
     def op_load(self, req):
         threads = int(req.get("threads", 1))
         self.loaded = {}
+        self.mem_before_load = proc_kib("/proc/meminfo", "MemAvailable")
         for name, want in sorted(req["files"].items()):
             path = os.path.join(self.models_dir, file_name(name))
             if not os.path.isfile(path):
@@ -149,6 +159,7 @@ class Agent:
                 self.loaded[name] = (self.runtime.open(path, threads), threads)
             except Exception as e:                     # the runtime's own words go back to the laptop
                 raise Stop(LOAD_FAILED, f"{self.runtime.name} could not load {name}: {type(e).__name__}: {e}")
+        self.mem_after_load = proc_kib("/proc/meminfo", "MemAvailable")
         return {"loaded": sorted(self.loaded), "route": "agent folder", "threads": threads,
                 "io": {n: self.runtime.describe(m) for n, (m, _) in self.loaded.items()},
                 "mem_free": proc_kib("/proc/meminfo", "MemAvailable"), "vm_hwm": proc_kib("/proc/self/status", "VmHWM")}
@@ -162,14 +173,17 @@ class Agent:
         model, threads = self.loaded[name]
         for _ in range(WARMUPS):
             self.runtime.invoke(model)
-        each = []
+        each, last = [], time.monotonic()
         for _ in range(n):
             t = time.perf_counter_ns()
             self.runtime.invoke(model)
             each.append((time.perf_counter_ns() - t) / 1e6)
+            if time.monotonic() - last >= ALIVE_S:
+                self.alive(len(each))
+                last = time.monotonic()
         return {"n": n, "warmups": WARMUPS, "threads": threads, "ms_mean": sum(each) / n, "ms_min": min(each),
-                "ms_max": max(each), "vm_hwm": proc_kib("/proc/self/status", "VmHWM"),
-                "mem_free": proc_kib("/proc/meminfo", "MemAvailable")}
+                "ms_max": max(each), "mem_before_load": self.mem_before_load, "mem_after_load": self.mem_after_load,
+                "mem_after": proc_kib("/proc/meminfo", "MemAvailable"), "vm_hwm": proc_kib("/proc/self/status", "VmHWM")}
 
     def op_reset(self, req):
         self.loaded = {}
@@ -192,6 +206,7 @@ def serve(agent, lines, write):
         except ValueError:
             write({"id": None, "ok": False, "stop": LOAD_FAILED, "error": "the request is not a JSON object"})
             continue
+        agent.alive = lambda done, rid=rid: write({"id": rid, "alive": True, "done": done})
         try:
             write({"id": rid, "ok": True, **agent.handle(req)})
         except Stop as e:
@@ -203,8 +218,12 @@ def serve(agent, lines, write):
 
 
 def main(argv):
+    global ALIVE_S
     folder = argv[1]
-    runtime = argv[argv.index("--runtime") + 1] if "--runtime" in argv else "litert"
+    opt = lambda name, default: argv[argv.index(name) + 1] if name in argv else default
+    runtime = opt("--runtime", "litert")
+    ALIVE_S = float(opt("--alive-s", ALIVE_S))
+    FakeRuntime.ms = float(opt("--fake-ms", 0))          # tests only: how long one fake inference takes
     os.makedirs(os.path.join(folder, "models"), exist_ok=True)
 
     def write(obj):
