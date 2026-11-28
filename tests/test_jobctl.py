@@ -212,8 +212,9 @@ def test_app_killed_mid_job_shows_interrupted_and_resumes(tmp_path):
     time.sleep(0.8)
     assert len(writes(tmp_path)) == left and left < 10   # it did stop
 
-    jc = JobControl(root)
+    jc = JobControl(root, start=False)       # a reopened folder: kinds first, then start
     jc.register(fake_kind())
+    jc.start()
     try:
         assert jc.interrupted == [jid]
         job = jc.status(jid)
@@ -265,8 +266,9 @@ def test_quick_restart_and_resume_waits_for_the_old_worker(tmp_path):
     time.sleep(0.5)                                   # well inside item 2
     app.send_signal(signal.SIGKILL)
     app.wait()
-    jc = JobControl(root)
+    jc = JobControl(root, start=False)       # a reopened folder: kinds first, then start
     jc.register(fake_kind())
+    jc.start()
     try:
         jc.resume(jid)
         assert wait_for(lambda: "waiting for the worker" in (jc.status(jid)["message"] or ""), 5)
@@ -340,8 +342,9 @@ def test_a_left_over_worker_that_never_exits_is_ended_after_the_timeout(tmp_path
     wait_for(lambda: (tmp_path / "out" / ".hung").exists())
     app.send_signal(signal.SIGKILL)                   # the worker is stuck in item 2
     app.wait()
-    jc = JobControl(root)
+    jc = JobControl(root, start=False)       # a reopened folder: kinds first, then start
     jc.register(fake_kind())
+    jc.start()
     jc.runner.pause_timeout_s = 1.0
     try:
         jc.resume(jid)

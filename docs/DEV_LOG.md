@@ -17,6 +17,14 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S8 — Fix: the job runner starts after the job kinds are registered (S8 builder 2)
+**Branch:** sprint/8-runner-start (PR 103)
+**Done:** `JobControl.start()`; the app creates the job module without starting it, registers every kind, then
+starts it. Before, a job that was queued or due when the app started could be picked up in between and end "no job
+kind … is registered" (QE 8). The tests that reopen a job folder use the same order.
+**Broke/surprised us:** the fault showed as one schedule test failing now and then in other PRs' suites.
+**Next:** TRACKER S8 "Fixes", item 2 (validation at the evaluation scale with tiles, D90).
+
 ## 2026-11-27 — Sprint S6 — Bite 2f: ST Edge AI Core 4.1.0 on the RF-DETR family (S6 builder 2)
 **Branch:** sprint/6-st-4-1
 **Done:** read-only check of Nick's install (v4.1.0-20732, Neural-ART module 12.1.0, macOS build only); the
