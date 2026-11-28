@@ -256,7 +256,7 @@ def test_the_boards_timing_script_makes_the_laptops_image(monkeypatch, capsys):
         fill = {"path": "/rom/x.tflite", "n": 3, "seed": 0, "a": bench_agent.LCG_A, "c": bench_agent.LCG_C,
                 "m": bench_agent.LCG_M}
         board, out = {}, {}                                # one namespace: stages 2-6 run with `resume`
-        stages = bench_agent.STAGES[:1] + [bench_agent.CSI_STAGE] + bench_agent.STAGES[1:]     # with D83c's stage
+        stages = bench_agent.STAGES[:1] + bench_agent.CSI_STAGES + bench_agent.STAGES[1:]     # with D83c's stages
         for k, (name, code) in enumerate(stages, 1):
             exec(compile(code % {**fill, "k": k}, f"stage {k} ({name})", "exec"), board)
             marker = bench_agent.board_json(capsys.readouterr().out)
@@ -513,8 +513,9 @@ def test_csi_first_takes_one_snapshot_between_the_imports_and_ml_model(rig):
     b.use_rom(["vendor_det.tflite"])
     t = b.time("vendor_det.tflite", 5)
     b.close()
-    assert t["stages"] == ["import", "csi snapshot", "ml.Model", "input_shape", "seeded image", "one predict", "N windows"]
-    assert (state / "kinds").read_text().split() == ["import", "csi", "model", "shape", "image", "predict", "windows"]
+    assert t["stages"] == ["import", "csi start", "csi snapshot", "ml.Model", "input_shape", "seeded image",
+                           "one predict", "N windows"]
+    assert (state / "kinds").read_text().split() == ["import", "csi", "snap", "model", "shape", "image", "predict", "windows"]
     assert t["input_check"].startswith("sha256")                        # D83a: still the laptop's seeded image
 
 
@@ -527,4 +528,4 @@ def test_a_reset_in_the_csi_stage_names_it(rig):
         b.time("vendor_det.tflite", 5)
     b.close()
     assert e.value.stop == "board_reset"
-    assert "stage 2 (csi snapshot) did not answer; the last stage that answered: stage 1 (import)" in str(e.value)
+    assert "stage 2 (csi start) did not answer; the last stage that answered: stage 1 (import)" in str(e.value)

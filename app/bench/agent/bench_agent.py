@@ -259,16 +259,18 @@ print('NB:' + json.dumps({'stage': %(k)d, 'us_total': total, 'us_min': lo, 'us_m
 ]
 # Lead call D83c (lead 2): an N6 card's "csi first" adds this stage between the imports and ml.Model, as the earlier
 # work's ml/deploy_probe.py did (its csi0 lines). The snapshot is only taken; the input stays the seeded image (D83a).
-CSI_STAGE = ("csi snapshot", """
+CSI_STAGES = [("csi start", """
 import csi
 csi0 = csi.CSI()
 csi0.reset()
 csi0.pixformat(csi.RGB565)
 csi0.framesize(csi.QVGA)
 time.sleep_ms(400)
+print('NB:' + json.dumps({'stage': %(k)d}))
+"""), ("csi snapshot", """
 csi0.snapshot()
 print('NB:' + json.dumps({'stage': %(k)d}))
-""")
+""")]                  # two stages, so a reset while the camera starts is told apart from one at the snapshot (QE 11)
 BOARD_RESET, SCRIPT_FAILED = "board_reset", "script_failed"
 
 
@@ -590,7 +592,7 @@ class Agent:
         if n < 1:
             raise Stop(LOAD_FAILED, "a window needs at least one inference")
         fill = {"path": "/rom/" + req["rom_name"], "n": n, "seed": SEED, "a": LCG_A, "c": LCG_C, "m": LCG_M}
-        stages = STAGES[:1] + ([CSI_STAGE] if req.get("csi_first") else []) + STAGES[1:]      # D83c
+        stages = STAGES[:1] + (CSI_STAGES if req.get("csi_first") else []) + STAGES[1:]      # D83c
         got, port = {}, self.n6.find()               # asked once, before stage 1 (which starts fresh anyway)
         for k, (name, code) in enumerate(stages, 1):
             limit = TOOL_S + (2.0 * (n + 1) if k == len(stages) else 0)

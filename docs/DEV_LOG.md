@@ -20,11 +20,12 @@ what broke, what's next.*
 ## 2026-11-28 — Sprint S7 — "CSI first" on an N6 card (D83c); a board_reset's text follows what was written (S7 builder)
 **Branch:** sprint/7-n6-csi
 **Done:** the card option "CSI first" (N6, a card that times something): a stage between the imports and `ml.Model`
-with `ml/deploy_probe.py`'s camera set-up and one snapshot; the input stays the seeded image. Stage markers are now
+with `ml/deploy_probe.py`'s camera set-up ("csi start") and one snapshot ("csi snapshot"), two stages; the input stays
+the seeded image. Stage markers are now
 numbered per window, and the fake N6 tells stages apart by what they do. A no-write card's `board_reset` no longer says
 "the job put ROMFS0 back" (lead 2, card 7).
 **Self-test:** fake N6: with CSI first a window runs import, csi snapshot, ml.Model, … in that order, the input's sha256
-still the laptop's; a reset in the CSI stage names it ("stage 2 (csi snapshot) … last stage that answered: stage 1
+still the laptop's; a reset in the CSI stage names it ("stage 2 (csi start) … last stage that answered: stage 1
 (import)"); the six-plus-one stages in CPython (a stand-in `csi`) give the laptop's sha256. Card page: see the PR.
 **Broke/surprised us:** nothing.
 **Next:** QE; the next card (the lead's): `fomo_face_detection.tflite` from /rom with CSI first, no write; then the ORT PR.

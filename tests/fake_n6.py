@@ -84,7 +84,7 @@ def mpremote(s, args):
             s.put("mode", "dfu")
             print("Traceback (most recent call last):\nOSError: [Errno 5] Input/output error")
             return 1
-        kind = ("csi" if "csi.CSI()" in code else "model" if "ml.Model(" in code else "shape" if "m.input_shape" in code
+        kind = ("csi" if "csi.CSI()" in code else "snap" if "csi0.snapshot()" in code else "model" if "ml.Model(" in code else "shape" if "m.input_shape" in code
                 else "image" if "img.bytearray()" in code else "windows" if "ticks_us" in code
                 else "predict" if "m.predict" in code else "import")
         if kind == "csi" and s.faults.get("csi_resets"):   # a camera stage that takes the board down
@@ -98,7 +98,7 @@ def mpremote(s, args):
                 print("Traceback (most recent call last):\nOSError: Failed to load network")
                 return 1
         answers = {"import": {"mem_before_load": 25_000_000}, "model": {"mem_after_load": 24_000_000},
-                   "shape": {"input_shape": [1, 8, 8, 3]}, "predict": {}, "csi": {}}
+                   "shape": {"input_shape": [1, 8, 8, 3]}, "predict": {}, "csi": {}, "snap": {}}
         if kind == "image":
             image = synthetic_bytes(8, 8, 3) + (b"!" if s.faults.get("input_differs") else b"")
             answers["image"] = {"input_sha256": hashlib.sha256(image).hexdigest(), "input_bytes": len(image)}
