@@ -15,6 +15,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from app import sidecars
 from app.fit import reports
 
 VELA_ENV = "vela-5.0.0-venv"
@@ -41,7 +42,7 @@ def compile(tflite: Path, out: Path, job: dict) -> dict:
     base = {"tool": f"Arm Vela {version}", "tool_args": " ".join(ARGS), "limit_bytes": MODEL_AREA_BYTES,
             "limit_source": LIMIT_SOURCE, "memory_reference": MEMORY_REFERENCE}
     made = out / f"{tflite.stem}_vela.tflite"
-    summaries = sorted(out.glob(f"{tflite.stem}_summary_*.csv"))
+    summaries = sorted(sidecars.real(out.glob(f"{tflite.stem}_summary_*.csv")))
     if done.returncode != 0 or not made.is_file() or not summaries:
         return {**base, "converts": False, "error": reports.error_lines(log),
                 "failing_layers": reports.vela_log(log)["failing_layers"]}

@@ -27,6 +27,7 @@ from pathlib import Path
 import numpy as np
 from pycocotools import mask as mask_utils
 
+from app import sidecars
 from app.sam.classes import USED_FILE
 
 FORMAT = 1
@@ -210,8 +211,8 @@ def follow_renames(folder: Path, class_list: list[dict]) -> int:
     d = raw_dir(folder)
     if not d.is_dir():
         return 0
-    for p in sorted(d.glob("*.json")):
-        if p.name == USED_FILE or p.name.startswith("._"):
+    for p in sorted(sidecars.real(d.glob("*.json"))):
+        if p.name == USED_FILE:
             continue
         try:
             data = json.loads(p.read_text())

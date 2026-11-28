@@ -30,9 +30,15 @@ import time
 from importlib import metadata
 from pathlib import Path
 
+from app import sidecars
 from app.fit.to_int8 import CALIB_IMAGES, SEED, code_version, repo_version, sha256, write_licence
 
 ROUTE = "rfdetr-own"
+
+
+def tf_files(tf_dir: Path, pattern: str) -> list[Path]:
+    """Files in RF-DETR's export folder, without macOS "._" sidecars (exFAT data disk)."""
+    return sorted(sidecars.real(tf_dir.glob(pattern)))
 
 
 def refuse_network() -> list[str]:
@@ -81,7 +87,7 @@ def main(argv: list[str]) -> None:
           flush=True)
     family.build_model(arch).export(output_dir=str(tf_dir), format="tflite", quantization="int8", verbose=False,
                                     shape=(h, w))
-    made = sorted(p.name for p in tf_dir.glob("*.tflite"))
+    made = [p.name for p in tf_files(tf_dir, "*.tflite")]
     if not (tf_dir / "saved_model.pb").is_file():
         raise SystemExit(f"RF-DETR's export left no SavedModel to make the 8-bit file from (it wrote: {made}).")
 
@@ -95,7 +101,7 @@ def main(argv: list[str]) -> None:
     part = out / "model_int8.tflite.part"            # the final name appears last and whole (D33; QE PR 76)
     part.write_bytes(conv.convert())
 
-    onnx_files = sorted(tf_dir.glob("*.onnx"), key=lambda p: p.stat().st_size)
+    onnx_files = sorted(tf_files(tf_dir, "*.onnx"), key=lambda p: p.stat().st_size)
     if onnx_files:
         shutil.copyfile(onnx_files[-1], out / "model.onnx")
     (out / "int8.json").write_text(json.dumps({
@@ -105,7 +111,7 @@ def main(argv: list[str]) -> None:
         "export": modeldefs.export_settings(arch), "code": version, "repo": repo_version(),
         "route": "RF-DETR's own export (ONNX, GridSample rewrite, onnx2tf) to a SavedModel; then TensorFlow's "
                  "converter in full-integer mode (our step: RF-DETR's exporter refuses full-integer)",
-        "exporter_files": {p.name: p.stat().st_size for p in sorted(tf_dir.glob("*.tflite"))},
+        "exporter_files": {p.name: p.stat().st_size for p in tf_files(tf_dir, "*.tflite")},
         "onnx_bytes": (out / "model.onnx").stat().st_size if onnx_files else None,
         "tflite_bytes": part.stat().st_size, "tflite_sha256": sha256(part),
         "network_attempts": len(attempts),
