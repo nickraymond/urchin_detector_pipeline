@@ -230,6 +230,10 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   urchin, sea star and sunflower sea star; the other classes stay labeled and wait. Nick can reverse it.
 - Q32 (2026-11-27). Nick approved the plan; the spec lead merges the spec PR for him at the QE-passed head. Yes
   to ST's licence terms for ST Edge AI Core 4.1.0. No to DUO-trained weights as a starting point for a camera model.
+- Q33 (2026-11-27, about 2:46 PM, spec lead's chat). The rig backup needs no media from the Pi's card, "only
+  runtime software" ("I have archived the media content I need"); the media were then deleted on his typed go.
+  So constraint 9's "SD card image" was met as a software-only backup (partition table, boot partition, root file
+  system without the media; RESTORE.md in the rig backup folder). The constraint's wording is Nick's to change.
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 
@@ -246,7 +250,7 @@ Waiting for Nick (Build 2 lead, 2026-11-27; each with a recommendation; none blo
 - "Fully checked" is not ticked on any frame of the S5 test project, so a class is skipped everywhere
   (DESIGN D64; D66, in a PR under review on 2026-11-27, uses such frames for their labeled boxes only). REC: accepting a frame on the Review page marks the urchin and sea star classes fully
   checked unless he unticks one; the Build 1 lead would build it.
-- - His Roboflow plan: whether it covers the PML sizes, and what usage reporting it asks for (PML 1.0
+- His Roboflow plan: whether it covers the PML sizes, and what usage reporting it asks for (PML 1.0
   section 4). Until then: no trained PML weights, no frame through that package (DESIGN D59).
 - A LICENSE file for this public repo (it has none). REC: decide before others are pointed at the repo.
 - opencv-python-headless (pulled in by YOLOX's training imports) bundles LGPL parts; laptop training only, never on a
