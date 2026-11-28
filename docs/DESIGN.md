@@ -744,6 +744,14 @@ per frame (`run.trim`), and before `eval.json` it checks that every test frame i
 ends as an error (QE PR 121). The weights' sha256 is recorded at the first start (`weights.sha256`); a Resume after
 `best.pt` changed is refused. Boxes are clipped to the frame.
 
+**As built, bite 2a** (`app/evaluate/metrics.py`): the worker writes `metrics.json` (per class id: every D91 figure as
+`{"value", "frames", "objects"}`) before `eval.json`. Matching is one function for every figure: predictions in score
+order each take the unmatched true box of the same class with the highest IoU ≥ 0.5 (as COCOeval does); small-object
+recall uses the same matches, on true boxes whose shorter side × the eval factor is under 32 px; a frame with true
+objects and no prediction counts its largest-box error as minus the true share. AP50 is COCO's 101-point interpolated
+AP over every saved score, equal to pycocotools' COCOeval (IoU 0.5, one area range, 100 detections) to 1e-6 on a
+hand-made case. Intervals and the rank floor (D92) are bite 2b.
+
 Status in the model list comes from the files, not a stored field: trained (`checkpoints/best.pt`) →
 evaluated (an `eval/`) → converted (`int8/` and a `targets/*/fit.json`) → bench tested (a bench run that
 names the model) → picked (S11).

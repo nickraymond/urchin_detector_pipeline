@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from app.datasets import versions
+from app.evaluate import metrics
 from app.evaluate import run as runs
 from app.jobctl import worker as jw
 from app.train import models, samples, tiles
@@ -111,7 +112,11 @@ def main() -> None:
         with open(out / "predictions.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(line) + "\n")
         jw.emit("item", i=i, n=n, name=s["file"], seconds=line["seconds"])
-    runs.read_predictions(out, [f["file"] for f in frames])     # every test frame once, or no eval.json
+    preds = runs.read_predictions(out, [f["file"] for f in frames])    # every test frame once, or no eval.json
+    figs = metrics.figures(frames, preds, ids, factor, runs.THRESHOLD)      # bite 2a (D91)
+    tmp = out / ".metrics.json.tmp"
+    tmp.write_text(json.dumps(figs, indent=1, sort_keys=True))
+    os.replace(tmp, out / "metrics.json")
     body = {"model": mid, "weights": str(best.relative_to(mdir)), "weights_sha256": sha,
             "version": version, "test_set": job["key"], "class_ids": ids, "frames": n,
             "eval_scale": job["eval_scale"], "eval_scale_source": job["source"], "eval_overlap": job["eval_overlap"],
