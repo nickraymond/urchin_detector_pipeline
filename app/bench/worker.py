@@ -66,6 +66,8 @@ def _end_restore(board, run: dict):
     left as found. Returns the BoardError of either step, or None."""
     if board is None or getattr(board, "kind", "") != "n6":
         return None
+    if not getattr(board, "reached", True) and not getattr(board, "image_on_board", False):
+        return None                       # the board never answered: nothing to restore or reset (QE PR 126 nit 2)
     try:
         if getattr(board, "image_on_board", False):
             board.restore()

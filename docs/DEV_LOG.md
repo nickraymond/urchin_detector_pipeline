@@ -17,6 +17,18 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — QE PR 126's nits: no board serial in agent.log; no reset for a board that never answered (S7 builder)
+**Branch:** sprint/7-n6-nits
+**Done:** the agent writes the N6's serial as `<n6_dfu_serial>` (another board's: its last 4 digits) in `agent.log`
+and in every error it returns; `info` from the bootloader no longer returns it. `N6Board.reached` (and the fake
+board's): a card whose board never answered ends without the hard reset and without a second error.
+**Self-test:** tests only (no page changed): the log after a load and a wrong-serial refusal holds neither serial;
+a card failing at `info` has no `finish` in `run.json` and no "hard reset" in its message.
+**Broke/surprised us:** nothing.
+**Next:** bite 3's ONNX Runtime on the Pi (TRACKER S7's next open builder item).
+
+---
+
 ## 2026-11-27 — Sprint S7 — The N6 card ends with a hard reset (D82d); QE PR 123's nit (S7 builder, bite 4b)
 **Branch:** sprint/7-n6-reset
 **Done:** `N6Board.finish()` and the agent's `hard_reset`: `mpremote reset` on the N6's own port after the end-of-card
