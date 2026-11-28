@@ -22,3 +22,12 @@ data_dir = "/Volumes/Nick_R_SSD/NereusData/urchin_detector_pipeline"
 # docker_image = "firmware-builder:latest"
 # stedgeai41 = "/Applications/ST/STEdgeAI/4.1/Utilities/macarm/stedgeai"   # ST Edge AI Core 4.1.0 (Nick's install):
 #                                                     # a second N6 compiler, placement only (DESIGN D71)
+
+# Build 2 only, optional (S7; DESIGN D81): the bench units. Leave it out and only the fake board exists.
+# Names and addresses stay in config.local.toml, never in git. Any unit not listed is refused, and so is
+# every name in field_units. Only the team's rig test session sets this; builders and QE never do.
+# [bench]
+# field_units = ["<field unit name>"]
+# [bench.units.<bench unit name>]
+# ssh_host = "<alias from ~/.ssh/config>"
+# cameras = ["n6", "ae3"]

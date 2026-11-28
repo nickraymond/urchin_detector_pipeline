@@ -39,6 +39,7 @@ from app.datasets import worker as datasets_worker
 from app.export import worker as export_worker
 from app.fit import convert as fit_convert
 from app.fit import pages as fit_pages
+from app.bench import pages as bench_pages
 from app.fit import setup as fit_setup
 from app.sam import add, classes
 from app.review import state as review_state
@@ -293,6 +294,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                                 status_code=303)
 
     fit_pages.register(app, templates, config_path, jobctl, dashboard)   # Build 2: "What runs where"
+    bench_pages.register(app, templates, config_path, dashboard)          # Build 2 (S7): the rig log
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
