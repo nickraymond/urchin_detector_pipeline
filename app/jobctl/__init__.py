@@ -240,6 +240,24 @@ class JobControl:
         self.runner.wake()
         return self.status(job_id)
 
+    def set_stop_by(self, job_id: int, stop_by: datetime | None) -> dict:
+        """Set, change or clear (None) the Stop by of a job that has not ended (S8 Demo fixes:
+        before, it could be given only when the job was made). A running job's worker is
+        watched against the store, so the new time holds from the next second."""
+        job = self.status(job_id)
+        if job["state"] not in ("scheduled", "queued", "running", "paused", "interrupted"):
+            raise JobError(f"Job {job_id} is {job['state']}: Stop by applies only to a job "
+                           "that is scheduled, waiting, running or paused.")
+        start = schedule.parse(job.get("start_at"))
+        if stop_by is not None and job["state"] == "scheduled" and start and stop_by <= start:
+            raise JobError("Stop by must come after Start at.")
+        if stop_by is not None and stop_by <= datetime.now():
+            raise JobError("Stop by must be a time still to come.")
+        self.store.update(job_id, stop_by=schedule.iso(stop_by))
+        self.runner.log(job_id, f"stop by set to {schedule.iso(stop_by)}" if stop_by
+                        else "stop by cleared")
+        return self.status(job_id)
+
     def cancel(self, job_id: int) -> dict:
         """Ends the job for good; finished items stay on disk. A running or pausing job's
         worker is ended at once (D34a): the item in progress is dropped, never half-written,

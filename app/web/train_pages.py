@@ -176,6 +176,27 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                 "job": job_view(jobctl(cfg).latest("train", str(folder)))})
         return with_project(request, name, work)
 
+    # S8 Demo rehearsal (2026-11-27): the model's line and the model list were drawn once, when
+    # the page opened, so a running model showed "0 / 120" and "next: after epoch 5" until a
+    # reload. live.js polls these two fragments like the job panel and swaps them when changed.
+    @app.get("/p/{name}/train/live/model", response_class=HTMLResponse)
+    def train_live_model(request: Request, name: str, model: str = ""):
+        def work(cfg, info, conn):
+            shown = next((r for r in model_rows(cfg, info["folder"]) if r["id"] == model), None)
+            if not shown or shown.get("error"):
+                return HTMLResponse("", headers={"Cache-Control": "no-store"})
+            return templates.TemplateResponse(request, "_train_model.html", {"shown": shown},
+                                              headers={"Cache-Control": "no-store"})
+        return with_project(request, name, work)
+
+    @app.get("/p/{name}/train/live/models", response_class=HTMLResponse)
+    def train_live_models(request: Request, name: str):
+        def work(cfg, info, conn):
+            return templates.TemplateResponse(request, "_model_list.html", {
+                "info": info, "models": model_rows(cfg, info["folder"])},
+                headers={"Cache-Control": "no-store"})
+        return with_project(request, name, work)
+
     @app.post("/p/{name}/train/run")
     async def train_run(request: Request, name: str, version: int = Form(0),
                         model_type: str = Form(""), start_kind: str = Form("scratch"),

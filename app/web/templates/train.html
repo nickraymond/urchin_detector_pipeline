@@ -62,13 +62,8 @@
 <div data-live="/p/{{ info.name }}/live/train?back={{ ('/p/' ~ info.name ~ '/train') | urlencode }}" data-reload-on="done error cancelled">{{ job_panel(job, "/p/" ~ info.name ~ "/train") }}</div>
 
 {% if shown and not shown.error %}
-<h2>Model {{ shown.id }}</h2>
-<p class="hint">{{ shown.arch.classes | join(", ") }} · dataset version {{ shown.train.dataset.version }} ({{ shown.train.dataset.hash[:8] }})
-  · {{ shown.train.epochs }} epochs{% set ve = shown.train.val_every or 1 %} · validated every {{ ve }} epoch{{ "s" if ve != 1 }} and at the last{% if shown.done < shown.epochs %} (next: after epoch {{ [((shown.done // ve) + 1) * ve, shown.epochs] | min }}){% endif %} · augmentation {{ shown.train.augment }} · seed {{ shown.train.seed }} · start: {{ shown.train.start.kind }}{% if shown.train.start.model %} ({{ shown.train.start.model }}){% endif %}{% if shown.train.data == "outside" %} · <b>pre-training on outside data</b>{% endif %}</p>
-{% set last_rec = (shown.train.recorded or [{}]) | last %}{% if last_rec.valid_frames == 0 %}<p class="problem no-validation">No validation frames in this run: there is no validation curve, and the weights kept as best are the last epoch's.</p>{% endif %}
+<div data-live="/p/{{ info.name }}/train/live/model?model={{ shown.id | urlencode }}">{% include "_train_model.html" %}</div>
 {% if no_background %}<p class="problem no-background">{{ no_background }}</p>{% endif %}
-{% if not shown.has_best and last_rec.valid_frames != 0 %}<p class="problem no-best">No weights kept as best yet: <code>best.pt</code> is taken only from validated epochs{% if shown.done < shown.epochs %}, and the first validation runs after epoch {{ [shown.train.val_every or 1, shown.epochs] | min }}{% endif %}. Until then there is no model to evaluate: a paused run gets one when it is resumed past that epoch; a cancelled one never does.</p>{% endif %}
-{% if shown.train.eval_overlap_capped %}<p class="hint overlap-capped">The validation tiles' overlap is capped at half a {{ shown.train.tile }} px tile ({{ shown.train.eval_overlap }} px): an object longer than {{ shown.train.eval_overlap - 5 }} px at the evaluation scale may be counted from a copy cut by a tile edge, so its box can be scored as a miss.</p>{% endif %}
 <div id="curves" data-src="/p/{{ info.name }}/train/metrics/{{ shown.id }}" data-val="/p/{{ info.name }}/train/val/{{ shown.id }}/"><div class="charts"></div>
   <p class="hint curve-note"></p>
   <div class="val-frames"></div>
@@ -77,14 +72,7 @@
 {% endif %}
 
 <h2>Models</h2>
-{% if not models %}<p>No model yet.</p>{% else %}
-<table class="stages" id="model-list"><thead><tr><th>Model</th><th>Classes</th><th>Dataset</th><th>Epochs</th><th>Last epoch</th><th>Job</th></tr></thead><tbody>
-  {% for m in models %}<tr>{% if m.error %}<td>{{ m.id }}</td><td colspan="5" class="problem">{{ m.error }}</td>{% else %}
-    <td><a href="/p/{{ info.name }}/train?model={{ m.id }}">{{ m.id }}</a></td><td>{{ m.arch.classes | join(", ") }}</td>
-    <td>version {{ m.train.dataset.version }}</td><td>{{ m.done }} / {{ m.epochs }}</td>
-    <td>{% if m.last %}{% for k, v in m.last.items() if k not in ("epoch", "seconds") and v is number %}{{ k }} {{ v | round(4) }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %}</td>
-    <td>{{ m.job.state or "—" }}</td>{% endif %}</tr>{% endfor %}
-</tbody></table>{% endif %}
+<div data-live="/p/{{ info.name }}/train/live/models">{% include "_model_list.html" %}</div>
 <script src="{{ static('live.js') }}"></script>
 <script src="{{ static('train.js') }}"></script>
 {% endblock %}
