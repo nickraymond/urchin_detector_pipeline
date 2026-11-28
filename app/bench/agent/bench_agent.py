@@ -252,6 +252,7 @@ class Agent:
         """Build the runtime's environment (D89). Every write stays inside the agent's folder: the venv, pip's
         temporary files (TMPDIR) and no cache; pip reads no config file (the Pi's points at piwheels too)."""
         spec, venv, req_file, record = self._install(req)
+        check_memory("an install")                    # pip on a 512 MB Pi (QE PR 113 nit 4)
         if os.path.isdir(venv):
             shutil.rmtree(venv)                       # a half-made environment from an earlier try
         tmp = os.path.join(self.folder, "tmp")
