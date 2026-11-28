@@ -11,6 +11,7 @@
   <tr><th>Models</th><td><ul>{% for m in c.models %}<li>{{ m.name }}: <code>{{ m.path }}</code>, {{ m.bytes }} bytes, sha256 <code>{{ m.sha256[:16] }}…</code></li>{% endfor %}</ul></td></tr>
   <tr><th>Frames</th><td>{{ c.frames }}</td></tr>
   <tr><th>Windows × N</th><td>{{ c.windows }} windows of {{ c.n }} inferences, after 2 warm-ups</td></tr>
+  {% if c.threads %}<tr><th>Threads</th><td>{{ c.threads }} <span class="hint">(fixed for the run, D88)</span></td></tr>{% endif %}
   <tr><th>Metric</th><td>{{ c.metric }}</td></tr>
   <tr><th>Pass bar</th><td>{{ c.pass_bar }}</td></tr>
   <tr><th>Stop rules</th><td><ul>{% for r in c.stop_rules %}<li>{{ r }}</li>{% endfor %}</ul></td></tr>

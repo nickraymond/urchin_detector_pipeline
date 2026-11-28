@@ -71,7 +71,8 @@ def main() -> None:
         "fake": unit.fake, "models": c["models"], "windows": c["windows"], "n": c["n"], "started": _now()}
     run["job_id"] = job.get("job_id")             # the page reads the job's state (a Cancel ends the worker at once)
     try:
-        board = open_board(unit, c["board"], data_dir, bench=cfg.bench, log_dir=folder, **job.get("fake", {}))
+        board = open_board(unit, c["board"], data_dir, bench=cfg.bench, log_dir=folder,
+                           **({"threads": c.get("threads", 1)} if not unit.fake else {}), **job.get("fake", {}))
         run["board_info"] = board.info()
         loaded = board.load_several([Model(m["name"], m["path"]) for m in c["models"]])
         run["route"] = loaded.get("route", "")

@@ -560,17 +560,17 @@ against the fake board only; the rig test session runs each board's first card a
 - [~] Pi runs with LiteRT first (same 8-bit file as S6): N windows, `perf_counter_ns` around invoke, `VmHWM`;
       then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
       *(3a: the agent's LiteRT runtime is built and self-tested on the laptop (convert-venv, ai-edge-litert 2.2.0,
-      Apache 2.0 by its metadata). Open: installing a runtime into its own environment in the agent's folder on
-      the Pi as a logged rig change (whether ai-edge-litert has a wheel for the Pi's Python is not checked yet);
-      ONNX Runtime; ncnn)*
+      Apache 2.0 by its metadata). 3b-ii: the install into its own environment in the agent's folder, a logged rig
+      change, from PyPI's cp313 aarch64 wheel (D89). Open: the first card on the Pi; ONNX Runtime; ncnn)*
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
-- [~] 3b, before the Pi's first card (QE PR 108 nits; D89): `PiBoard` wired into `open_board`, an `SshTransport` built
+- [x] 3b, before the Pi's first card (QE PR 108 nits; D89): `PiBoard` wired into `open_board`, an `SshTransport` built
       only from a unit `Bench.unit` returned (a test that an unlisted alias never reaches ssh); a non-JSON line on
       the agent's stdout is a stop rule that quotes it; the agent's stderr goes to `agent.log` in the run folder, not
       a pipe; the card states 1 thread for the first LiteRT card (D88); the runtime
       installed on the Pi as a logged rig change, its version's licence read then
       *(3b-i, S6 builder 3: wiring, the Unit-only ssh link, `bad_answer`, `agent.log`, the 50 MB floor, D84's wording.
-      Open for 3b-ii: the `install` op (D89) and the card's thread count (D88))*
+      3b-ii: the `install` op from the hash-pinned file (D89), the agent copied only when it changed, the card's
+      thread count (D88). The Pi's first card is the rig test session's, after QE)*
 
 **Bite 4 — The N6 route** (D82, D83)
 - [ ] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back

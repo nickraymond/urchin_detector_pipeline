@@ -1,0 +1,13 @@
+# The bench Pi's LiteRT environment (D85, D89): <agent folder>/venv-litert-2.2.0, built by the agent's `install` op with
+#   pip install --no-cache-dir --index-url https://pypi.org/simple --only-binary=:all: --require-hashes -r <this file>
+# Versions: what pip 25.1.1 resolved for ai-edge-litert==2.2.0 on the bench Pi (Python 3.13.5, aarch64; the rig
+# session's dry run, 2026-11-27). Hashes: PyPI's own, for the wheel that Pi takes (read from pypi.org's JSON,
+# 2026-11-27). Licences: THIRD_PARTY_LICENSES, "bench tool, not deployed" (D89).
+ai-edge-litert==2.2.0 --hash=sha256:37da7ff26c5c9a3312f1a19d9190cd7d2270aeb65b3ee55a05e1047c5244bdae
+backports-strenum==1.2.8 --hash=sha256:fc297cb26971f7d5e15a478a06a78575197f81daea47975771b1aae996dcccf4
+flatbuffers==25.12.19 --hash=sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4
+ml-dtypes==0.7.0 --hash=sha256:9e0f30247d011782286f9f5b8b0a3fad3f4f945d2a92cb9964c68d566ed17878
+numpy==2.5.5 --hash=sha256:ae2b8285d0b4eed24739c3ca9ec0fa424a0247489c01e1d5fe2815a599e11d33
+protobuf==7.36.2 --hash=sha256:e11e1f0180583a2af89db6a2ecd9e8dc40aa6d2988ca175bfd0e6d12ea72d74e
+tqdm==4.70.1 --hash=sha256:c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73
+typing-extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8

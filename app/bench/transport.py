@@ -16,6 +16,7 @@ window is not silence: the agent writes an "alive" line every few seconds, and e
 
 from __future__ import annotations
 
+import copy
 import itertools
 import json
 import selectors
@@ -24,11 +25,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from app.bench.agent.bench_agent import file_name
+from app.bench.agent.bench_agent import INSTALLS, file_name, sha256
 from app.bench.board import BAD_ANSWER, NO_ANSWER, BoardError
 from app.bench.units import Refused, Unit, _is_field
 
 AGENT = Path(__file__).resolve().parent / "agent" / "bench_agent.py"
+AGENT_FILES = [AGENT, *(AGENT.parent / s["requirements"] for s in INSTALLS.values())]   # what goes in the agent's folder
 REMOTE_FOLDER = "urchin_bench"            # the agent's folder in the bench Pi's home directory
 TIMEOUT_S = 60.0
 
@@ -45,6 +47,21 @@ class Transport:
 
     def put(self, local: Path, name: str) -> None:
         """Copy a file into the agent's models/ folder."""
+        raise NotImplementedError
+
+    system_python = "python3"
+
+    def with_python(self, python: str) -> "Transport":
+        """The same link, starting the agent with another Python (the system's for an install, a runtime's venv)."""
+        other = copy.copy(self)
+        other.python, other.proc = python, None
+        return other
+
+    def venv_python(self, venv: str) -> str:
+        raise NotImplementedError
+
+    def agent_current(self) -> bool:
+        """True when the agent's folder already holds this laptop's agent and pin files."""
         raise NotImplementedError
 
     def start(self) -> dict:
@@ -128,6 +145,22 @@ class LocalTransport(Transport):
         (self.folder / "models").mkdir(parents=True, exist_ok=True)
         shutil.copyfile(local, self.folder / "models" / file_name(name))
 
+    @property
+    def system_python(self) -> str:
+        return sys.executable
+
+    def install(self) -> None:
+        """The pin files into the local folder (the agent itself runs from the repository)."""
+        (self.folder / "models").mkdir(parents=True, exist_ok=True)
+        for f in AGENT_FILES[1:]:
+            shutil.copyfile(f, self.folder / f.name)
+
+    def agent_current(self) -> bool:
+        return all((self.folder / f.name).is_file() and sha256(self.folder / f.name) == sha256(f) for f in AGENT_FILES[1:])
+
+    def venv_python(self, venv: str) -> str:
+        return str(self.folder / venv / "bin" / "python")
+
     def where(self) -> str:
         return f"local agent in {self.folder}"
 
@@ -150,12 +183,13 @@ class SshTransport(Transport):
     `check()` must pass before anything runs; start(), install() and put() call it."""
 
     def __init__(self, unit: Unit, field_units: frozenset[str], runtime: str = "litert", run=subprocess.run,
-                 timeout_s: float = TIMEOUT_S, log: Path | None = None):
+                 timeout_s: float = TIMEOUT_S, log: Path | None = None, python: str = "python3"):
         if not isinstance(unit, Unit) or unit.fake or not unit.ssh_host:
             raise Refused("an ssh link is made only for a bench unit listed under [bench]")
         self.unit, self.alias, self.field_units, self.runtime, self.run, self.timeout_s = (
             unit, unit.ssh_host, field_units, runtime, run, timeout_s)
         self.log = Path(log) if log else None
+        self.python = python
 
     def check(self) -> str:
         host = resolved_host(self.alias, self.run)
@@ -169,7 +203,7 @@ class SshTransport(Transport):
         return ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", self.alias, *command]
 
     def argv(self) -> list[str]:
-        return self.ssh("python3", f"{REMOTE_FOLDER}/bench_agent.py", REMOTE_FOLDER, "--runtime", self.runtime)
+        return self.ssh(self.python, f"{REMOTE_FOLDER}/bench_agent.py", REMOTE_FOLDER, "--runtime", self.runtime)
 
     def start(self) -> dict:
         self.check()
@@ -179,8 +213,20 @@ class SshTransport(Transport):
         """Copy the agent into its folder on the Pi (a rig change: PiBoard logs it)."""
         self.check()
         self._run(self.ssh("mkdir", "-p", f"{REMOTE_FOLDER}/models"), "make the agent's folder")
-        self._run(["scp", "-q", "-o", "BatchMode=yes", str(AGENT), f"{self.alias}:{REMOTE_FOLDER}/bench_agent.py"],
-                  "copy the agent")
+        for f in AGENT_FILES:
+            self._run(["scp", "-q", "-o", "BatchMode=yes", str(f), f"{self.alias}:{REMOTE_FOLDER}/{f.name}"],
+                      f"copy {f.name}")
+
+    def agent_current(self) -> bool:
+        """`sha256sum` of the agent's files on the Pi against this laptop's (reads only)."""
+        self.check()
+        done = self.run(self.ssh("sha256sum", *(f"{REMOTE_FOLDER}/{f.name}" for f in AGENT_FILES)),
+                        capture_output=True, text=True, timeout=self.timeout_s)
+        have = {Path(line.split()[-1]).name: line.split()[0] for line in done.stdout.splitlines() if line.strip()}
+        return all(have.get(f.name) == sha256(f) for f in AGENT_FILES)
+
+    def venv_python(self, venv: str) -> str:
+        return f"{REMOTE_FOLDER}/{venv}/bin/python"
 
     def put(self, local: Path, name: str) -> None:
         self.check()
