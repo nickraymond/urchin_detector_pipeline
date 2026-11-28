@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 from app import config
 from app.bench import card as cards
 from app.bench import run as runs
-from app.bench.board import NO_ANSWER, NOT_LOADED, LOAD_FAILED, READBACK, BoardError, Model, open_board
+from app.bench.board import (BAD_ANSWER, LOAD_FAILED, LOW_MEMORY, NO_ANSWER, NOT_BUILT, NOT_LOADED, READBACK,
+                             BoardError, Model, open_board)
 from app.jobctl import worker as jw
 
 HINTS = {   # D84: what to do after each stop rule
@@ -24,6 +25,10 @@ HINTS = {   # D84: what to do after each stop rule
               "anything else, and note it in the rig log",
     LOAD_FAILED: "the load failed: check the rig log for this change and undo it before the next run",
     NOT_LOADED: "the model was not on the board when it was timed: run the card again; if it repeats, report it",
+    BAD_ANSWER: "the bench agent printed something that is not its answer: read agent.log in the run folder and "
+                "report it; nothing more runs until it is understood",
+    LOW_MEMORY: "the Pi had under 50 MB free (D89): find what uses its memory (another process?) before running again",
+    NOT_BUILT: "this board's route is not built yet: use the fake board or wait for its bite",
 }
 
 
@@ -35,6 +40,13 @@ def _write(path, body: dict) -> None:
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(body, indent=1, sort_keys=True))
     os.replace(tmp, path)
+
+
+def _close(board) -> None:
+    """End the agent's process on the Pi (a PiBoard); the fake board has nothing to close."""
+    close = getattr(board, "close", None)
+    if close:
+        close()
 
 
 def main() -> None:
@@ -59,7 +71,7 @@ def main() -> None:
         "fake": unit.fake, "models": c["models"], "windows": c["windows"], "n": c["n"], "started": _now()}
     run["job_id"] = job.get("job_id")             # the page reads the job's state (a Cancel ends the worker at once)
     try:
-        board = open_board(unit, c["board"], data_dir, **job.get("fake", {}))
+        board = open_board(unit, c["board"], data_dir, bench=cfg.bench, log_dir=folder, **job.get("fake", {}))
         run["board_info"] = board.info()
         loaded = board.load_several([Model(m["name"], m["path"]) for m in c["models"]])
         run["route"] = loaded.get("route", "")
@@ -71,6 +83,7 @@ def main() -> None:
             if ctl.pause_requested():                     # Pause after a window (D84)
                 run["outcome"] = "paused"
                 _write(folder / "run.json", run)
+                _close(board)
                 jw.emit("paused")
                 return
             for m in c["models"]:
@@ -83,10 +96,12 @@ def main() -> None:
                 jw.emit("item", i=i, n=total, name=f"window {window}, {m['name']}",
                         seconds=round(t["ms_mean"] * t["n"] / 1000, 3))
     except BoardError as e:
+        _close(locals().get("board"))
         run.update(outcome=f"stopped: {e.stop}", ended=_now(), error=str(e))
         _write(folder / "run.json", run)
         raise RuntimeError(f"stop rule {e.stop}: {e}. Next: {HINTS.get(e.stop, 'see the job log')}. "
                            "The windows already timed are kept.") from None
+    _close(board)
     run.update(outcome="done", ended=_now())
     _write(folder / "run.json", run)
     s = runs.summary(folder)["models"]

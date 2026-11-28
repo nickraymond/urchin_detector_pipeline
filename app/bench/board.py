@@ -28,6 +28,8 @@ from app.bench.units import Refused, Unit
 KINDS = ("pi", "n6", "ae3")
 WARMUPS = 2                               # D83
 NO_ANSWER, READBACK, LOAD_FAILED, NOT_LOADED = "no_answer", "readback_differs", "load_failed", "not_loaded"
+# from the bench agent (S7 bite 3b): a line that is not JSON, free memory under the floor, a route not built yet
+BAD_ANSWER, LOW_MEMORY, NOT_BUILT = "bad_answer", "low_memory", "not_built"
 
 
 class BoardError(Exception):
@@ -141,10 +143,19 @@ class FakeBoard(Board):
         self.loaded = {}
 
 
-def open_board(unit: Unit, kind: str, data_dir, **fake) -> Board:
-    """The board to run on. Only the fake unit has a board in this bite; real units are refused."""
+def open_board(unit: Unit, kind: str, data_dir, bench=None, log_dir=None, **fake) -> Board:
+    """The board to run on. The fake unit gets a FakeBoard. A real unit's Pi gets a PiBoard over ssh (S7 bite 3b),
+    built only from a unit `bench.unit()` returns again here; its cameras are refused until bites 4-5."""
     if kind not in KINDS:
         raise ValueError(f"unknown board kind {kind!r}; kinds are {', '.join(KINDS)}")
     if unit.fake:
         return FakeBoard(unit, kind, data_dir, **fake)
-    raise Refused(f"the {kind} route on real units is not built yet (S7 bites 3-5); use the fake board")
+    if fake:
+        raise Refused("fake settings are for the fake unit only")
+    if kind == "pi":
+        if bench is None or bench.unit(unit.name) != unit:
+            raise Refused(f"{unit.name} was not given by [bench]; a real unit is only used as [bench] lists it")
+        from app.bench.pi_board import PiBoard
+        from app.bench.transport import SshTransport
+        return PiBoard(unit, data_dir, SshTransport(unit, bench.field_units, log=Path(log_dir or data_dir) / "agent.log"))
+    raise Refused(f"the {kind} route on real units is not built yet (S7 bites 4-5); use the fake board")

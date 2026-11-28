@@ -14,7 +14,7 @@ from app.bench.agent import bench_agent as ag
 from app.bench.board import NO_ANSWER, NOT_LOADED, READBACK, BoardError, Model
 from app.bench.pi_board import AGENT_UNDO, PiBoard
 from app.bench.transport import LocalTransport, SshTransport, resolved_host
-from app.bench.units import Bench, Refused, parse
+from app.bench.units import Bench, Refused, Unit, parse
 
 
 def talk(agent, *reqs):
@@ -120,7 +120,7 @@ class FakeRun:
 def test_ssh_alias_resolving_to_a_field_unit_is_refused_before_any_connection():
     bench = parse({"field_units": ["field-pi"], "units": {"benchpi": {"ssh_host": "benchpi", "cameras": ["n6"]}}})
     run = FakeRun(hostname="Field-Pi.local")
-    t = SshTransport("benchpi", bench.field_units, run=run)
+    t = SshTransport(bench.unit("benchpi"), bench.field_units, run=run)
     with pytest.raises(Refused, match="field unit"):
         t.start()
     with pytest.raises(Refused, match="field unit"):
@@ -132,7 +132,7 @@ def test_ssh_alias_resolving_to_a_field_unit_is_refused_before_any_connection():
 
 def test_ssh_commands_for_a_bench_unit(tmp_path):
     run = FakeRun()
-    t = SshTransport("benchpi", frozenset({"field-pi"}), run=run)
+    t = SshTransport(Unit("benchpi", "benchpi"), frozenset({"field-pi"}), run=run)
     assert t.check() == "bench-pi.local"
     assert t.argv()[:6] == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "benchpi"]
     assert t.argv()[6:] == ["python3", "urchin_bench/bench_agent.py", "urchin_bench", "--runtime", "litert"]
@@ -144,9 +144,8 @@ def test_ssh_commands_for_a_bench_unit(tmp_path):
 
 
 def test_installing_the_agent_on_a_unit_is_a_logged_rig_change(tmp_path):
-    from app.bench.units import Unit
     run = FakeRun()
-    board = PiBoard(Unit("benchpi", "benchpi"), tmp_path, SshTransport("benchpi", frozenset(), run=run))
+    board = PiBoard(Unit("benchpi", "benchpi"), tmp_path, SshTransport(Unit("benchpi", "benchpi"), frozenset(), run=run))
     board.install_agent()
     log = riglog.read(tmp_path)
     assert [r["state"] for r in log] == ["done"] and log[0]["undo"] == AGENT_UNDO and log[0]["fake"] is False
@@ -188,3 +187,74 @@ def test_the_pi_board_returns_every_field_the_bench_job_reads(tmp_path):
         assert set(fake.time("m", 3)) <= set(board.time("m", 3))
     finally:
         board.close()
+
+
+# --- S7 bite 3b-i (QE PR 108 nits, D89's memory floor) ---------------------------------------------------------
+
+from app.bench.board import BAD_ANSWER, LOW_MEMORY, open_board  # noqa: E402
+
+BENCH = {"field_units": ["field-pi"], "units": {"benchpi": {"ssh_host": "benchpi-alias", "cameras": ["n6"]}}}
+
+
+def test_open_board_gives_a_real_unit_its_pi_board_only_through_bench(tmp_path):
+    bench = parse(BENCH)
+    board = open_board(bench.unit("benchpi"), "pi", tmp_path, bench=bench, log_dir=tmp_path / "run")
+    assert isinstance(board, PiBoard) and board.transport.alias == "benchpi-alias"
+    assert board.transport.log == tmp_path / "run" / "agent.log" and board.transport.proc is None   # nothing started
+    stranger = Unit("benchpi", "somewhere-else")                    # same name, not what [bench] says
+    for unit, kw in ((stranger, {"bench": bench}), (bench.unit("benchpi"), {})):
+        with pytest.raises(Refused, match="not given by"):
+            open_board(unit, "pi", tmp_path, **kw)
+    with pytest.raises(Refused, match="fake settings"):
+        open_board(bench.unit("benchpi"), "pi", tmp_path, bench=bench, ms={"m": 1.0})
+    with pytest.raises(Refused, match="bites 4-5"):
+        open_board(bench.unit("benchpi"), "n6", tmp_path, bench=bench)
+
+
+def test_an_ssh_link_is_never_made_from_a_bare_alias_or_the_fake_unit():
+    for unit in ("benchpi-alias", Bench().unit("fake"), Unit("x")):
+        with pytest.raises(Refused, match="listed under"):
+            SshTransport(unit, frozenset())
+    run = FakeRun(hostname="bench-pi.local")                     # a unit whose own name is a field unit
+    with pytest.raises(Refused, match="field unit"):
+        SshTransport(Unit("field-pi", "innocent"), frozenset({"field-pi"}), run=run).check()
+
+
+def test_a_line_that_is_not_json_is_the_bad_answer_stop(tmp_path):
+    class Chatty(LocalTransport):
+        def argv(self):
+            return [sys.executable, "-c", "import sys; sys.stdin.readline(); print('WARNING: delegate'); sys.stdout.flush();"
+                    " import time; time.sleep(5)"]
+    t = Chatty(tmp_path, timeout_s=5)
+    with pytest.raises(BoardError) as e:
+        t.start()
+    assert e.value.stop == BAD_ANSWER and "WARNING: delegate" in str(e.value)
+    t.proc.kill()
+
+
+def test_the_agents_stderr_goes_to_agent_log_not_a_pipe(tmp_path):
+    """200 kB on stderr would fill a pipe nobody reads and block the agent (QE PR 108 nit 4)."""
+    class Noisy(LocalTransport):
+        def argv(self):
+            return [sys.executable, "-c", "import sys, json; sys.stderr.write('w' * 200000); sys.stderr.flush();"
+                    " req = json.loads(sys.stdin.readline()); print(json.dumps({'id': req['id'], 'ok': True}));"
+                    " sys.stdout.flush()"]
+    t = Noisy(tmp_path, timeout_s=10, log=tmp_path / "run" / "agent.log")
+    assert t.start() == {}
+    assert (tmp_path / "run" / "agent.log").stat().st_size >= 200000
+    t.proc.kill()
+
+
+def test_the_agent_refuses_a_load_and_a_window_under_50_mb_free(tmp_path, monkeypatch):
+    folder = tmp_path / "agent"
+    agent = ag.Agent(folder, "fake")
+    src, sha = model_file(tmp_path)
+    (folder / "models").mkdir(parents=True)
+    (folder / "models" / "m").write_bytes(src.read_bytes())
+    free = {"v": 400 * 1024 * 1024}
+    monkeypatch.setattr(ag, "proc_kib", lambda path, key: free["v"] if key == "MemAvailable" else None)
+    ok, = talk(agent, {"id": 1, "op": "load", "files": {"m": sha}})
+    assert ok["ok"] and ok["loaded"] == ["m"]
+    free["v"] = 30 * 1024 * 1024
+    window, load = talk(agent, {"id": 2, "op": "time", "name": "m", "n": 3}, {"id": 3, "op": "load", "files": {"m": sha}})
+    assert window["stop"] == LOW_MEMORY == load["stop"] and "30.0 MB free" in window["error"]
