@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from app.datasets import loaders
@@ -91,17 +92,56 @@ def params(folder: Path, model_id: str, predictor: str | None = None) -> dict:
             "frames": len(frames), "predictor": predictor or PREDICTORS[train["trainer"]], **scale_for(folder, train)}
 
 
-def done_files(folder: Path) -> list[str]:
+def _lines(folder: Path) -> list[tuple[str, dict]]:
+    """predictions.jsonl's whole, readable lines (text, parsed): a line cut by a crash is not one."""
     p = Path(folder) / "predictions.jsonl"
     if not p.is_file():
         return []
     out = []
-    for text in p.read_text(encoding="utf-8").splitlines():
+    for text in p.read_text(encoding="utf-8").splitlines(keepends=True):
         try:
-            out.append(json.loads(text)["file"])
-        except (ValueError, KeyError):
+            line = json.loads(text)
+            if text.endswith("\n") and isinstance(line, dict) and "file" in line:
+                out.append((text, line))
+        except ValueError:
             continue            # a line cut by a crash: that frame is scored again
     return out
+
+
+def done_files(folder: Path) -> list[str]:
+    return [line["file"] for _, line in _lines(folder)]
+
+
+def trim(folder: Path) -> int:
+    """QE PR 121: on every start, cut predictions.jsonl back to its whole lines, one per frame (the first), so a
+    new line never lands on a cut one. Returns how many lines were dropped."""
+    p = Path(folder) / "predictions.jsonl"
+    if not p.is_file():
+        return 0
+    kept, seen = [], set()
+    for text, line in _lines(folder):
+        if line["file"] not in seen:
+            seen.add(line["file"])
+            kept.append(text)
+    dropped = len(p.read_text(encoding="utf-8").splitlines()) - len(kept)
+    if dropped:
+        tmp = p.with_name(".predictions.jsonl.tmp")
+        tmp.write_text("".join(kept), encoding="utf-8")
+        os.replace(tmp, p)
+    return dropped
+
+
+def read_predictions(folder: Path, files: list[str]) -> dict[str, list]:
+    """file -> boxes, refused unless every test frame is in the file exactly once (QE PR 121)."""
+    lines = [line for _, line in _lines(folder)]
+    got = [line["file"] for line in lines]
+    missing, extra = set(files) - set(got), set(got) - set(files)
+    twice = {f for f in got if got.count(f) > 1}
+    if missing or extra or twice:
+        raise RuntimeError(f"predictions.jsonl does not hold every test frame once ({len(missing)} missing, "
+                           f"{len(twice)} twice, {len(extra)} not in the test set, e.g. "
+                           f"{sorted(missing | twice | extra)[:3]}): no eval.json written. Start the evaluation again.")
+    return {line["file"]: line["boxes"] for line in lines}
 
 
 def progress(p: dict) -> tuple[int, int]:

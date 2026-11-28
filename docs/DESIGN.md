@@ -712,7 +712,7 @@ numpy decode (`decode_np.py`) is S11's, for the 8-bit files; S2's large viewer (
 
 ```
 app/evaluate/run.py        the `evaluate` job kind: one model × one test set → eval/<key>/ (D90)
-app/evaluate/tiles.py      the recipe's tiling at native pixels, tiles merged, NMS across seams (D90)
+app/train/tiles.py         the recipe's tiling (shared with the trainer's validation), NMS across seams (D90)
 app/evaluate/metrics.py    counts, precision / recall, mAP50, small objects, largest object, intervals (D91, D92)
 app/evaluate/compare.py    which evals can be compared, the rank rule, the leak check (D93)
 app/web/models_pages.py    /models (list, notes, archive) and /compare; templates models.html, compare.html
@@ -733,7 +733,10 @@ version's training split the same way (`scale_for`, recorded as the source). The
 frame by frame (Pause between frames, Resume skips frames on disk), keeps every box down to score 0.01 for mAP50
 (D91), and writes `eval.json` last (weights' sha256, scale and its source, overlap and whether capped, threshold 0.3,
 floor, NMS IoU, device, code). The YOLOX predictor loads best.pt's EMA weights into S6's model and uses the
-trainer's `decode`. No page yet: bite 3's model list starts the job.
+trainer's `decode`. No page yet: bite 3's model list starts the job. On every start the worker cuts `predictions.jsonl` back to its whole lines, one
+per frame (`run.trim`), and before `eval.json` it checks that every test frame is there exactly once, else the job
+ends as an error (QE PR 121). The weights' sha256 is recorded at the first start (`weights.sha256`); a Resume after
+`best.pt` changed is refused. Boxes are clipped to the frame.
 
 Status in the model list comes from the files, not a stored field: trained (`checkpoints/best.pt`) →
 evaluated (an `eval/`) → converted (`int8/` and a `targets/*/fit.json`) → bench tested (a bench run that
