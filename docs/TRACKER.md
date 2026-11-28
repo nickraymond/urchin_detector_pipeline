@@ -575,7 +575,10 @@ against the fake board only; the rig test session runs each board's first card a
       3b-ii: the `install` op from the hash-pinned file (D89), the agent copied only when it changed, the card's
       thread count (D88). The Pi's first card is the rig test session's, after QE)*
 
-**Bite 4 — The N6 route** (D82, D83)
+**Bite 4 — The N6 route** (D82, D82a, D83)
+- [x] 4a: ROMFS images read and written on the laptop (`app/bench/romfs.py`); the backup's image re-encoded byte for byte
+- [!] D82a's second gate: our models' ST marker (`STAI-3.0.0`, SDK 1.6.0) differs from the board's vendor models' (`atonn-v1.1.0`,
+      firmware v5.0.1): no write route until the lead decides (DESIGN, As built, bite 4a)
 - [ ] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back
       verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
       tested with the fake board and on a ROMFS image file on the laptop
