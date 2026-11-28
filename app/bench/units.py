@@ -101,7 +101,8 @@ def parse(raw) -> Bench:
         # Without a trustworthy refusal list no real unit is safe to use.
         bench.problems.append("[bench] field_units must be a list of names; no bench unit is used until it is fixed.")
         return bench
-    bench.field_units = frozenset(_key(f) for f in fields if f.strip())
+    # Each entry counts by its full form and by its first label, so "field-pi.local" also refuses "field-pi".
+    bench.field_units = frozenset(k for f in fields if f.strip() for k in (_key(f), _key(f).split(".", 1)[0]))
     units = raw.get("units", {})
     if not isinstance(units, dict):
         bench.problems.append("[bench.units] must be a table of units; none is used.")

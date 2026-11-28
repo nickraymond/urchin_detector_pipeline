@@ -81,6 +81,16 @@ def test_bench_without_a_trustworthy_refusal_list_uses_no_unit(tmp_path, bench, 
     assert cfg.bench.units == {} and any(why in w for w in cfg.warnings), cfg.warnings
 
 
+def test_field_unit_listed_by_its_full_host_name(tmp_path):
+    # QE PR 98, 74826b0: "field-pi.local" in field_units also refuses a unit reached as "field-pi".
+    cfg = config.load(write_cfg(tmp_path, '[bench]\nfield_units = ["Field-Pi.local"]\n'
+                                          '[bench.units.x]\nssh_host = "field-pi"\n'
+                                          '[bench.units.y]\nssh_host = "pi@FIELD-PI.local"\n')[0])
+    assert cfg.bench.units == {}
+    with pytest.raises(units.Refused, match="field unit"):
+        cfg.bench.unit("field-pi")
+
+
 def test_refusal_by_name_is_case_blind(tmp_path):
     cfg = config.load(write_cfg(tmp_path, BENCH)[0])
     for name in ("FIELD-CAM-1", "Field-Pi"):
