@@ -50,7 +50,7 @@ def rig(tmp_path):
     model_file.parent.mkdir(parents=True)
     model_file.write_bytes(b"NBIN" + bytes(3000))
     extra = ("--mpremote", tool(tmp_path, state, "mpremote"), "--dfu-util", tool(tmp_path, state, "dfu-util"),
-             "--ports", str(ports / "*"), "--partition", str(P), "--back-s", "2")
+             "--ports", str(ports / "*"), "--partition", str(P), "--back-s", "2", "--settle-s", "1")
     unit = parse({}).unit("fake")
     board = N6Board(unit, data, LocalTransport(tmp_path / "agent", extra=extra, timeout_s=30), work_dir=tmp_path / "run",
                     backup=backup, backup_sha256=hashlib.sha256(backup.read_bytes()).hexdigest(), partition=P,
@@ -504,6 +504,22 @@ def test_a_no_write_card_whose_board_reset_is_booted_at_the_end(rig):
     assert (state / "mode").read_text() == "app" and not any("-D" in c for c in calls(state) if c[0] == "dfu-util")
     assert any(c[0] == "dfu-util" and "-R" in c and c[c.index("-a") + 1] == "2" for c in calls(state))
 
+
+def test_a_board_that_comes_back_by_itself_is_hard_reset_not_called_a_hang(rig):
+    """QE 11, card 8: the port dropped, the bootloader showed 0.5 s later and the board came back as its port 2.7 s
+    after the drop on its own; the end step looked too early and said no_answer. It now waits SETTLE_S first."""
+    b, state = rig["board"], rig["state"]
+    t = b.transport
+    t.extra = tuple(("3" if prev == "--settle-s" else x) for prev, x in zip(("",) + t.extra[:-1], t.extra))
+    b.use_rom(["vendor_det.tflite"])
+    fault(state, reset_at_stage=2, self_recovers=[0.3, 1.5])
+    with pytest.raises(BoardError) as e:
+        b.time("vendor_det.tflite", 5)
+    assert e.value.stop == "board_reset" and "its port dropped" in str(e.value)
+    assert b.finish()["hard_reset"] is True
+    b.close()
+    assert (state / "mode").read_text() == "app"
+    assert not any(c[0] == "dfu-util" and "-R" in c for c in calls(state))      # it came back by itself: no boot
 
 
 def test_csi_first_takes_one_snapshot_between_the_imports_and_ml_model(rig):

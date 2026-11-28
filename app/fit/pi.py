@@ -32,6 +32,13 @@ REPO = Path(__file__).resolve().parents[2]
 QDQ_NAME = "model_qdq.onnx"
 
 
+QDQ_TIMEOUT_S = 600                 # YOLOX Nano's QDQ step takes seconds on the laptop; longer is a fault
+
+
+def _text(b) -> str:
+    return b.decode(errors="replace") if isinstance(b, bytes) else (b or "")
+
+
 def qdq(python: Path, onnx_file: Path, out: Path) -> dict:
     """The Pi's second file (S7 bite 3c; Lead call, lead 2): the 8-bit QDQ ONNX file for ONNX Runtime, from the
     candidate's own `model.onnx`. Its failure is recorded here and never changes the LiteRT result."""
@@ -39,14 +46,22 @@ def qdq(python: Path, onnx_file: Path, out: Path) -> dict:
         return {"file": None, "runtime": "ONNX Runtime", "error": f"no {onnx_file.name} beside the 8-bit file to make it from"}
     made = out / QDQ_NAME
     made.unlink(missing_ok=True)
-    done = subprocess.run([str(python), "-m", "app.fit.to_qdq", str(onnx_file), str(made)], capture_output=True,
-                          text=True, cwd=REPO, env={**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1", **ORT_OFF})
+    try:
+        done = subprocess.run([str(python), "-m", "app.fit.to_qdq", str(onnx_file), str(made)], capture_output=True,
+                              text=True, cwd=REPO, timeout=QDQ_TIMEOUT_S,
+                              env={**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1", **ORT_OFF})
+    except subprocess.TimeoutExpired as e:        # QE PR 132 nit 3: a hang must not hold the fit job
+        (out / "qdq.log").write_text(f"{_text(e.stdout)}{_text(e.stderr)}\nstopped after {QDQ_TIMEOUT_S} s\n")
+        made.unlink(missing_ok=True)
+        return {"file": None, "runtime": "ONNX Runtime",
+                "error": f"the QDQ step did not finish within {QDQ_TIMEOUT_S} s and was stopped (qdq.log)"}
     (out / "qdq.log").write_text(done.stdout + done.stderr)
     try:
         ran = json.loads(done.stdout.strip().splitlines()[-1]) if done.returncode == 0 and made.is_file() else None
     except (ValueError, IndexError):
         ran = None
     if ran is None:
+        made.unlink(missing_ok=True)              # QE PR 132 nit 4: no half-made file beside the TFLite
         return {"file": None, "runtime": "ONNX Runtime",
                 "error": (f"the QDQ step ended with exit code {done.returncode}.\n"
                           + reports.error_lines(done.stdout + done.stderr)).strip()}
