@@ -51,6 +51,15 @@ behind it and says so.
 **Self-test:** the real `pi_run` on `plainseg-s-256-c6` in `convert-venv`: still 30 operators, exit 0; with the
 app's own Python (no LiteRT): exit 3, "tool fault: ModuleNotFoundError".
 **Next:** PRs 80–83, bite 2e, 2c-ii.
+## 2026-11-27 — Build 2 — S9 design (Build 2 lead 2)
+**Branch:** sprint/9-design (docs only)
+**Done:** DESIGN §Planned for S9 and Lead calls D90–D94 (evaluate job with the recipe's tiling, the figures and
+the small-count rule, intervals and the paired rank rule, comparing on one test set with the leak flag, RF-DETR
+Nano as a time-boxed laptop reference); TRACKER S9 split into 6 bites. Also today: PRs 92, 94, 96 merged on QE
+PASS at their heads; Nick's answer 16 recorded (own instance segmenters for the N6).
+**Broke/surprised us:** the lead's status log carried guessed clock times (QE caught it; corrected, `date` before
+every time from now on).
+**Next:** QE on this PR; S6's close and its Demo checklist; S7 bite 1 (S8 builder 3).
 ## 2026-11-27 — Build 2 — S7 design; lead hand-over (Build 2 lead 2)
 **Branch:** sprint/7-design (docs only)
 **Done:** took over as Build 2 lead at 3:46 PM (handoff `build2_lead_handoff_1.md` in the notes folder); merged PR 90
