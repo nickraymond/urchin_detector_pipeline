@@ -115,6 +115,18 @@ def run_frames(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], l
     return full, [s for s in samples if sorted(s["checked"]) != want]
 
 
+def need_background(full: list[dict], boxes_only: list[dict]) -> None:
+    """Refuse a run whose training frames are all boxes-only (QE PR 93): no frame would ever
+    teach "nothing here", and the detector would never have been shown background."""
+    if boxes_only and not full:
+        raise DatasetError(
+            f"None of the {len(boxes_only)} training frames has every picked class fully "
+            "checked, so this run would never be shown what \"nothing here\" looks like. Pick "
+            "only the classes that are fully checked on the reviewed frames, or tick \"fully "
+            "checked\" for the others on the Review page, then export and freeze again (the "
+            "Datasets page shows the frame counts for a class choice).")
+
+
 def usable(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], int]:
     """(fully checked frames, how many boxes-only frames): the frames a run validates on."""
     full, boxes_only = run_frames(samples, class_ids)
