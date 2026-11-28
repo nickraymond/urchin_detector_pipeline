@@ -748,6 +748,7 @@ permissive**: S8 offers "from scratch" and "pre-trained on the allowed sources" 
 | D64 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): the "fully checked" rule stays as the spec has it. When a version would train on 0 objects of a chosen class because no frame is fully checked for it, the Datasets page says so in one line with what to tick on the Review page; Freeze still works. Nothing under `app/review/` changes. | Found on the real S5 project: no class was marked fully checked on any detector frame, so training would have seen nothing without a word of warning. Fewer clicks for marking is a Build 1 question the lead takes to Nick. Nick can reverse it. |
 | D65 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27): training may run in its own Python environment under `tools_dir` (the D51 pattern) with a torch version other than the app's 2.10.0 pin, and the CPU trainer stays the default until CPU and Apple GPU gradients are shown to agree. **Outcome (S8 builder 2, same day): no second environment is needed.** The wrong gradients of PR 72 were not a fault of the YOLOX loss or of one torch version: the trainer's image batch was channels-last in memory (`from_numpy(NHWC).permute(0, 3, 1, 2).float()` keeps that layout), and in YOLOX's training graph the Apple GPU then returns wrong weight gradients (seen already with YOLOX's first layer alone: conv, BatchNorm, SiLU; a plain stack of conv, SiLU, conv is right in both layouts, QE PR 84; the operation at fault is not isolated, so a contiguous batch is not a promise for other model types: the check below is). `app/train/yolox.py` now builds a contiguous NCHW batch and trains on the Apple GPU. Before every start `load()` runs one batch of up to 8 frames through a copy of the model on both devices; if any parameter's gradient differs by more than 5 % of its largest CPU value, the run uses the CPU and the job shows a warning. The check's result and the frames it used are in the run record (`gpu_check`). | Measured 2026-11-27 (§Bench results, "S8 bite 4b"): same model and batch, 312 of 330 parameters differ by more than 1 % between CPU and Apple GPU with the channels-last batch, on torch 2.10.0 and on 2.13.0 (so another torch version alone would not have fixed it); 0 of 330 with a contiguous batch (worst 0.2 %). The fault shows with a loss as plain as the sum of the first layer's output, and not with a fresh `torch.rand` batch, which is why the first probes on random images agreed. The check stays because a wrong gradient gives no error, only a run that does not learn. Cost: about 2 s per start. |
 | D66 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27, written in its hand-over `build2_lead_handoff_1.md`: "D66 (partly checked frames = labeled boxes only)"; confirmed by lead 2 to QE the same day; proposed by S8 builder 2; a gap in the spec; Nick can reverse it): which frames a detector run uses (`loaders.run_frames`). A frame with **every** class of the run fully checked trains in full, also as "nothing here" where nothing is labeled, and only such frames are used for validation (and for S9's test scores). A frame with only **some** of the run's classes fully checked trains on its labeled boxes only: box, class and "object here" losses count; the "nothing here" part of the objectness loss is switched off on the whole frame (`app/train/yolox.py` `BoxesOnlyBCE`). A frame with none of them checked, or with split check "no", is left out. Built in PR 93; from PR 72 until then such frames were left out altogether. | The spec says a class that is not fully checked is "skipped for that frame" and "never treated as background". YOLOX's "is there an object" output has no class: on a frame where sea stars are checked and urchins are not, an unlabeled urchin would be taught as "nothing here" whatever is done to the class scores, so skipping the class's own loss does not keep the promise (QE's FAIL of PR 72). Leaving such frames out keeps it but wastes their labels: on a project where few frames have every class checked, most frames would be unused. Boxes-only keeps both. What it costs: such a frame gives no negative examples, so a run made mostly of them may find more false objects; the Datasets page shows how many frames of each kind a class choice gives. Self-test numbers: PR 93. |
+| D70 | 2026-11-27 | **Lead call** (spec lead, 2026-11-27; proposed by S6 builder 2, bite 2e): the RF-DETR family's 8-bit route in the convert job is RF-DETR's own export followed by a full-integer step of ours. A recipe's `arch.export` gains `route`: `"onnx2tf"` (the default, `app/fit/to_int8.py`, every other candidate) or `"rfdetr-own"` (`app/fit/to_int8_rfdetr.py`): `model.export(format="tflite")` of `rfdetr` 1.12.1 (its ONNX stage, GridSample rewrite and onnx2tf 2.4.3), then TensorFlow's converter in full-integer mode on the SavedModel that export leaves, with D55's noise calibration. It runs in two new Python 3.12 tool environments, `rfdetr-tflite-venv` and `rfdetr-plus-tflite-venv` (RF-DETR's `tflite` extra installs only on 3.12); `convert-venv` and every other candidate's route are untouched. RF-DETR Nano's pin moves from `rfdetr` 1.9.4 to 1.12.1. Unchanged for Atto / Femto / Pico (D59): no weights, every network connection refused inside the step (counted in `int8.json`), no frame through the package, the "Roboflow licence" mark; and the licence's full text is written next to every result made from them. The results of the route before stay in §Bench results as the "before" table. | With the route before (our ONNX file, onnxsim, onnx2tf 1.28.8) Atto, Femto and Pico did not convert and Nano's file needed operators plain LiteRT does not have; with RF-DETR's own export all six convert (Bench results, bite 2e), so the page would otherwise say "does not convert" for models that do. RF-DETR's exporter makes float and dynamic-range files only and refuses full-integer ("Static (full-integer) INT8 is not supported and raises ValueError", `rfdetr/export/_tflite/exporter.py`); both NPU compilers need full-integer, so that last step is ours and its cost in accuracy is not measured (S11). For Nano two things changed at once, the package version and the route; the "before" table keeps the 1.9.4 results. Nick can reverse it. |
 
 ## Bench / test results
 
@@ -968,6 +969,58 @@ sees them, so this says nothing yet about how they would place. One thing not tr
 exporter asks for onnx2tf 2.4.0 or newer (its package metadata); that is one change against the known-good
 1.28.8, tried once as bite 2e and recorded in its own table, compared against these rows. Vela's memory figure for the 256 px Nano (91.7 MiB) is larger than for the
 384 px one (16.6 MiB); it is recorded as reported and not explained.
+
+### S6 bite 2e: the RF-DETR family with RF-DETR's own export (2026-11-27)
+
+One retry with one thing changed (Lead call; D70): the 8-bit file is made by RF-DETR's own export plus a
+full-integer step, instead of our ONNX export, onnxsim and onnx2tf 1.28.8. Untrained, no weights, through the real
+`convert` job: 18 jobs (six candidates × AE3, N6, Pi), all ended "done"; every 8-bit step counted 0 network
+attempts. Files and logs: `~/NereusData/urchin_detector_pipeline/s6/selftest_2e/` (`run_all.jsonl`, `fit/`); the
+same by hand first: `s6/probe_rfdetr_tflite/`. Compiler results; nothing ran on a board; times are Vela's
+estimates; the Pi column is LiteRT 2.2.0 on the laptop. For Nano and Seg Nano the package also moved from
+`rfdetr` 1.9.4 to 1.12.1 (the "before" table above is 1.9.4).
+
+| Candidate | 8-bit file (full-integer) | N6: ST Edge AI Core 4.0.0 | AE3: Vela 5.0.0 | Pi (LiteRT on the laptop) |
+|---|---|---|---|---|
+| `rfdetr-nano-384-c5` (Apache-2.0) | 27.5 MiB, made in 11 min | does not compile: `TOOL ERROR: Error in computation of shapes` | compiles: 4,010 NPU + 358 CPU operators; file 30.7 MiB against the 24 MiB model area; memory 91.8 MiB; estimate 5,528 ms | runs: 1,595 operators, all built in |
+| `rfdetr-nano-256-c5` (Apache-2.0) | 27.2 MiB, 7 min | does not compile: the same `TOOL ERROR` | compiles: 3,691 NPU + 360 CPU; file 29.9 MiB; memory 91.8 MiB; estimate 1,739 ms | does not run: LiteRT aborts while preparing the model (exit code 134, no message) |
+| `rfdetr-seg-nano-312-c5` (Apache-2.0) | 30.4 MiB, 11 min | does not compile: `TOOL ERROR: tuple index out of range` | compiles: 5,872 NPU + 454 CPU; file 37.7 MiB; memory 23.9 MiB; estimate 14,444 ms | runs: 2,123 operators, all built in |
+| `rfdetrplus-atto-380-c5` (Roboflow licence, evaluation only) | 6.9 MiB, 3 min | does not compile: `TOOL ERROR: list index out of range` | compiles: 2,076 NPU + 355 CPU; file 8.6 MiB (fits the model area); memory 4.2 MiB against the 3.9 MiB free in the earlier work (a reference, not re-measured); estimate 1,694 ms | runs: 1,423 operators, all built in |
+| `rfdetrplus-femto-384-c5` (Roboflow licence) | 7.6 MiB, 5 min | does not compile: `INTERNAL ERROR: Transpose on more than 5 dimensions is not supported` | does not compile: Vela stops, "Unsupported dataType Int64 … 64-bit feature-maps are not supported" | runs: 1,901 operators, all built in |
+| `rfdetrplus-pico-560-c5` (Roboflow licence) | 8.2 MiB, 7 min | does not compile: the same `INTERNAL ERROR` | does not compile: the same Vela stop | runs: 2,075 operators, all built in |
+
+Read from the table, against the "before" table:
+- **All six now convert** to an 8-bit file. Atto, Femto and Pico did not before. Why RF-DETR's own ONNX stage
+  works where ours failed at the backbone's attention: it freezes the backbone's position embeddings to the
+  export size before tracing (`rfdetr/export/prepare.py`); not looked into further.
+- **N6: still none.** ST Edge AI Core 4.0.0 stops on every one, now with different errors. 4.1.0 is bite 2f.
+- **AE3: still none runs.** Nano and Seg Nano are too big for the model area as before. Atto is the first RF-DETR
+  size that compiles and fits the area; by the page's memory rule it reads "does not run" (4.2 MiB needed against
+  the 3.9 MiB reference), and 355 of its operators stay on the CPU with an estimate of 1.7 s. Only S7 on the
+  board settles the memory; nothing here suggests it would be fast.
+- **Pi: the files now run under plain LiteRT** (no select-TF operators), except the 256 px Nano's full-integer
+  file, which makes LiteRT abort; RF-DETR's dynamic-range file of the same model runs (by hand, probe folder).
+  Laptop times, one thread, for scale only and never a Pi figure: 126 ms (Atto) to 850 ms (Seg Nano); YOLOX
+  Nano's was 2.0 ms (bite 1). How fast a Pi Zero 2W runs them is S7's.
+- **What RF-DETR's exporter makes by itself** (by hand, probe folder): float32, float16 and a dynamic-range
+  "int8" file (8-bit weights, float activations). Its docstring: "Static (full-integer) INT8 is not supported and
+  raises ValueError: TFLite's full-integer mode gives every activation a per-tensor 8-bit scale, which RF-DETR's
+  transformer activations are not expected to survive (no TFLite full-integer measurement exists in this repo
+  yet…)". A dynamic-range file places nothing on an NPU (Vela on Nano's: 0 NPU, 1,479 CPU operators). So the
+  full-integer step is ours, and what it does to accuracy is unknown until a trained model is measured (S11).
+- For the question behind this bite (is the Roboflow licence worth having for the cameras): on the compilers'
+  evidence the licensed sizes gain nothing on the N6, and on the AE3 only Atto compiles, partly on the CPU and
+  slow by Vela's estimate; the conv models remain the ones with no software step on the N6 and no CPU operator on
+  the AE3.
+
+Also on record for D59 (QE, PR 78): the base package was read again at `rfdetr` 1.12.1, the version these runs
+use (169 Python files): network code only in prediction from a user-given URL (`_prediction/core.py:1067`,
+`requests.get`), a COCO download for development (`datasets/_develop.py`), a file-download helper
+(`utilities/files.py:170`) and an export benchmark (`export/_benchmark.py:622`); no telemetry or upload code.
+None of these is on the path of an untrained build and export, and every 8-bit step ran with connections
+refused. For S11: `predict()` given a URL fetches it, so frames must always go in as local files or arrays.
+PML section 7 and section 4: see `THIRD_PARTY_LICENSES` (the licence text is written into each result folder; the
+usage record is the jobs database and the result folders).
 
 ### S8 bite 4b: YOLOX gradients on the Apple GPU against the CPU (2026-11-27)
 

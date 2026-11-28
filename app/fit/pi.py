@@ -49,8 +49,11 @@ def compile(tflite: Path, out: Path, job: dict) -> dict:
     except (ValueError, IndexError):
         ran = None
     if ran is None:
-        return {**base, "converts": False, "error": reports.error_lines(done.stdout + done.stderr),
-                "failing_layers": []}
+        # LiteRT can end the process without a Python error (an abort while it prepares the model): say so
+        how = (f"LiteRT ended the run with exit code {done.returncode} and no result"
+               + (" (the process was aborted while preparing or running the model)" if done.returncode in (-6, 134) else ""))
+        return {**base, "converts": False, "failing_layers": [],
+                "error": (how + ".\n" + reports.error_lines(done.stdout + done.stderr)).strip()}
     shutil.copyfile(tflite, out / tflite.name)
     return {**base, "converts": True, "tool": ran["runtime"] + " on the laptop (the Pi runs the 8-bit file on its CPU)",
             "file": tflite.name, "file_bytes": tflite.stat().st_size, "memory_bytes": None,
