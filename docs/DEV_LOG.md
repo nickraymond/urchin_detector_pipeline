@@ -56,7 +56,9 @@ the YOLOX predictor on best.pt's EMA weights. Tests with a fake predictor (job, 
 recipe's scale and cap carried) and a stand-in detector on painted squares (native boxes back in place).
 **Self-test:** builder 2's m4 copy through `JobControl` on the Apple GPU: 6 test frames, factor 0.7586 worked out,
 recall 26 / 27 and precision 26 / 26 at 0.3 (DESIGN §Bench results). No page: bite 3 adds the model list.
-**Broke/surprised us:** nothing.
+**Broke/surprised us:** QE 10 found a crash's cut last line in `predictions.jsonl` swallowed the next frame's line,
+so a "done" eval could miss a frame silently. Fixed: whole lines on every start, every frame once before
+`eval.json`; also one set of weights per eval and boxes clipped to the frame (QE nits 1, 2).
 **Next:** S9 bite 2 (the figures, D91, D92).
 
 ---
