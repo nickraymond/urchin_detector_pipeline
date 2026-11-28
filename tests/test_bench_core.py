@@ -54,6 +54,11 @@ def test_listed_unit_and_refusals(tmp_path):
     ('[bench.units.x]\nssh_host = "h"\ncameras = ["n6", "imx708"]\n', "cameras must be"),
     ('[bench.units.x]\nssh_host = "h"\ncameras = ["n6", "n6"]\n', "cameras must be"),
     ('[bench.units.fake]\nssh_host = "h"\n', "fake board"),
+    ('[bench.units.Field-PI]\nssh_host = "h"\n', "field_units"),        # QE PR 98: case-blind
+    ('[bench.units.x]\nssh_host = "FIELD-pi"\n', "field_units"),
+    ('[bench.units.x]\nssh_host = "pi@field-pi"\n', "field_units"),     # user@host
+    ('[bench.units.x]\nssh_host = "field-pi.local:22"\n', "field_units"),
+    ('[bench.units.x]\nssh_host = "h"\ncamera = ["n6"]\n', "unknown key(s) camera"),   # mistyped key in a unit
 ])
 def test_bad_unit_is_left_out_with_a_warning(tmp_path, body, why):
     cfg = config.load(write_cfg(tmp_path, '[bench]\nfield_units = ["field-pi"]\n' + body)[0])
@@ -65,6 +70,27 @@ def test_bad_field_units_list_uses_no_unit(tmp_path):
     cfg = config.load(write_cfg(tmp_path, '[bench]\nfield_units = "field-pi"\n'
                                           '[bench.units.x]\nssh_host = "h"\n')[0])
     assert cfg.bench.units == {} and any("field_units must be a list" in w for w in cfg.warnings)
+
+
+@pytest.mark.parametrize("bench, why", [
+    ('[bench]\nfield_unit = ["field-pi"]\n', "unknown key(s) field_unit"),      # QE PR 98: mistyped key
+    ('[bench]\n', "no field_units list"),                                     # QE PR 98: none at all
+])
+def test_bench_without_a_trustworthy_refusal_list_uses_no_unit(tmp_path, bench, why):
+    cfg = config.load(write_cfg(tmp_path, bench + '[bench.units.x]\nssh_host = "h"\n')[0])
+    assert cfg.bench.units == {} and any(why in w for w in cfg.warnings), cfg.warnings
+
+
+def test_refusal_by_name_is_case_blind(tmp_path):
+    cfg = config.load(write_cfg(tmp_path, BENCH)[0])
+    for name in ("FIELD-CAM-1", "Field-Pi"):
+        with pytest.raises(units.Refused, match="field unit"):
+            cfg.bench.unit(name)
+
+
+def test_empty_field_units_is_allowed_when_written(tmp_path):
+    cfg = config.load(write_cfg(tmp_path, '[bench]\nfield_units = []\n[bench.units.x]\nssh_host = "h"\n')[0])
+    assert list(cfg.bench.units) == ["x"]
 
 
 def test_real_unit_has_no_board_yet(tmp_path):

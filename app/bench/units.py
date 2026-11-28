@@ -7,7 +7,8 @@
     cameras = ["n6", "ae3"]                     # which camera kinds hang on that Pi's USB
 
 With no [bench] table only the fake board exists. A unit that is not listed, or whose name or ssh host
-is a field unit, is refused with a reason; nothing here ever opens a connection."""
+is a field unit (compared case-blind, without user@ or :port), is refused with a reason. A [bench] table with
+no field_units or a mistyped key uses no unit at all. Nothing here ever opens a connection."""
 
 from __future__ import annotations
 
@@ -49,7 +50,7 @@ class Bench:
         """The unit to run on, or Refused. The fake unit always exists and touches nothing."""
         if name == FAKE:
             return Unit(FAKE, cameras=CAMERA_KINDS)
-        if name in self.field_units:
+        if _is_field(name, self.field_units):
             raise Refused(f"{name} is a field unit: the app never touches field units (SPEC constraint 9).")
         if name not in self.units:
             listed = ", ".join(sorted(self.units)) or "none"
@@ -61,20 +62,46 @@ class Bench:
         return [FAKE, *sorted(self.units)]
 
 
+BENCH_KEYS = {"field_units", "units"}
+UNIT_KEYS = {"ssh_host", "cameras"}
+
+
+def _key(name: str) -> str:
+    """How names are compared with field_units: case-blind, no user@, no :port, and the first label of a
+    dotted host name also counts ("pi@Field-Pi.local:22" is checked as "field-pi.local" and "field-pi")."""
+    host = name.strip().rsplit("@", 1)[-1].split(":", 1)[0].strip().lower()
+    return host
+
+
+def _is_field(name: str, field_units: frozenset[str]) -> bool:
+    k = _key(name)
+    return k in field_units or k.split(".", 1)[0] in field_units
+
+
 def parse(raw) -> Bench:
-    """The [bench] table as read from config.local.toml (None when absent)."""
+    """The [bench] table as read from config.local.toml (None when absent). When it is present, anything
+    that could weaken the field-unit refusal (no field_units, a mistyped key) leaves every unit out."""
     bench = Bench()
     if raw is None:
         return bench
     if not isinstance(raw, dict):
         bench.problems.append("[bench] in config.local.toml must be a table; no bench unit is used.")
         return bench
-    fields = raw.get("field_units", [])
+    unknown = sorted(set(raw) - BENCH_KEYS)
+    if unknown:
+        bench.problems.append(f"[bench] has unknown key(s) {', '.join(unknown)} (known: field_units, units); "
+                              "no bench unit is used until it is fixed.")
+        return bench
+    if "field_units" not in raw:
+        bench.problems.append('[bench] has no field_units list; no bench unit is used until it has one '
+                              '(write field_units = [] only if there is no field unit at all).')
+        return bench
+    fields = raw["field_units"]
     if not isinstance(fields, list) or not all(isinstance(f, str) for f in fields):
         # Without a trustworthy refusal list no real unit is safe to use.
         bench.problems.append("[bench] field_units must be a list of names; no bench unit is used until it is fixed.")
         return bench
-    bench.field_units = frozenset(f.strip() for f in fields if f.strip())
+    bench.field_units = frozenset(_key(f) for f in fields if f.strip())
     units = raw.get("units", {})
     if not isinstance(units, dict):
         bench.problems.append("[bench.units] must be a table of units; none is used.")
@@ -89,16 +116,19 @@ def parse(raw) -> Bench:
 
 
 def _problem(name, body, field_units) -> str:
-    if name == FAKE:
+    if name.lower() == FAKE:
         return f'"{FAKE}" is the fake board\'s name; pick another.'
     if not NAME.match(name):
         return "a name is letters, digits, '.', '_' or '-'."
     if not isinstance(body, dict):
         return "it must be a table with ssh_host and cameras."
+    unknown = sorted(set(body) - UNIT_KEYS)
+    if unknown:
+        return f"unknown key(s) {', '.join(unknown)} (known: ssh_host, cameras)."
     host = body.get("ssh_host")
     if not isinstance(host, str) or not host.strip():
         return "it has no ssh_host (an alias from ~/.ssh/config)."
-    if name in field_units or host.strip() in field_units:
+    if _is_field(name, field_units) or _is_field(host, field_units):
         return "it is listed in field_units; the app never touches field units."
     cams = body.get("cameras", [])
     if not isinstance(cams, list) or any(c not in CAMERA_KINDS for c in cams) or len(set(cams)) != len(cams):
