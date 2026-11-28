@@ -298,6 +298,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     fit_pages.register(app, templates, config_path, jobctl, dashboard)   # Build 2: "What runs where"
     bench_pages.register(app, templates, config_path, dashboard)          # Build 2 (S7): the rig log
+    bench_pages.register_cards(app, templates, config_path, dashboard)    # Build 2 (S7): test cards
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):

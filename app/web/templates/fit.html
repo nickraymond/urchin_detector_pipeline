@@ -71,6 +71,8 @@
 
 {% for row in rows %}{% for c, label in cameras %}{% set cell = row.cells[c] %}
 <h2 id="{{ row.kind }}-{{ c }}">{{ row.label }} on the {{ label }}: {{ cell.headline }}</h2>
+{% if c == "n6" %}<p class="hint">Rows marked ↳ ST Edge AI Core 4.1.0 are a second N6 compiler beside the known-good 4.0.0:
+  placement only (no loadable file on this laptop), never the cell's result, not queued by "Run all" (DESIGN D71).</p>{% endif %}
 <table class="fit-detail">
   <tr><th>Candidate</th><th>Result</th><th>Layers</th><th>File / limit</th><th>Memory</th><th>Time</th><th>Tool</th><th></th></tr>
   {% for cand in cell.candidates %}{% set f = cand.fit %}
@@ -88,6 +90,19 @@
     <td class="hint">{% if f %}{{ f.tool }}{% endif %}</td>
     <td><form method="post" action="/fit/run"><input type="hidden" name="key" value="{{ cand.key }}"><input type="hidden" name="camera" value="{{ c }}"><button {% if cand.active %}disabled{% endif %}>{{ "Run again" if f else "Run" }}</button></form></td>
   </tr>
+  {% if cand.second %}{% set s = cand.second %}{% set g = s.fit %}
+  <tr class="fit-{{ s.code }} fit-second">
+    <td class="hint">↳ {{ s.words }}</td>
+    <td><b>{{ s.headline }}</b>{% if s.active %} <span class="hint">(waiting or running)</span>{% endif %}{% if s.why %}<br><span class="hint">{{ s.why }}</span>{% endif %}{% if s.older %}<br><b>made with an older recipe: Run again</b>{% endif %}
+      {% if g and not g.converts and g.error %}<details><summary>the error text</summary><pre class="fit-error">{{ g.error }}</pre></details>{% endif %}
+      {% if g and g.note %}<details class="hint"><summary>what this compiler can say</summary>{{ g.note }}</details>{% endif %}</td>
+    <td>{% if g and g.placement %}{% set p = g.placement %}{{ p.npu }} NPU + {{ p.hybrid }} hybrid + {{ p.cpu }} CPU of {{ p.total }} steps{% endif %}
+      {% if g and g.failing_layers %}<details><summary>{{ g.failing_layers | length }} not fully on the NPU</summary><ul>{% for l in g.failing_layers[:40] %}<li>{{ l.type }} <span class="hint">{{ l.name }}: {{ l.why }}</span></li>{% endfor %}</ul></details>{% endif %}</td>
+    <td class="hint">{% if g and g.converts %}no file (placement only){% endif %}</td><td></td><td></td>
+    <td class="hint">{% if g %}{{ g.tool }}{% endif %}</td>
+    <td><form method="post" action="/fit/run"><input type="hidden" name="key" value="{{ cand.key }}"><input type="hidden" name="camera" value="{{ s.step }}"><button {% if s.active %}disabled{% endif %}>{{ "Run again" if g else "Run" }}</button></form></td>
+  </tr>
+  {% endif %}
   {% endfor %}
 </table>
 {% endfor %}{% endfor %}

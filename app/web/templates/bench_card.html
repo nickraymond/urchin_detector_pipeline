@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Test card {{ c.number }}{% endblock %}
+{% block content %}
+<p><a href="/bench/cards">&larr; Test cards</a> · <a href="/bench/rig-log">Rig log</a></p>
+<h1>Test card {{ c.number }}</h1>
+{% if note %}<p class="totals">{{ note }}</p>{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<table>
+  <tr><th>Question</th><td>{{ c.question }}</td></tr>
+  <tr><th>Unit / board</th><td>{{ c.unit }} / {{ c.board }}{% if c.unit == "fake" %} <span class="hint">(the fake board: no hardware)</span>{% endif %}</td></tr>
+  <tr><th>Models</th><td><ul>{% for m in c.models %}<li>{{ m.name }}: <code>{{ m.path }}</code>, {{ m.bytes }} bytes, sha256 <code>{{ m.sha256[:16] }}…</code></li>{% endfor %}</ul></td></tr>
+  <tr><th>Frames</th><td>{{ c.frames }}</td></tr>
+  <tr><th>Windows × N</th><td>{{ c.windows }} windows of {{ c.n }} inferences, after 2 warm-ups</td></tr>
+  <tr><th>Metric</th><td>{{ c.metric }}</td></tr>
+  <tr><th>Pass bar</th><td>{{ c.pass_bar }}</td></tr>
+  <tr><th>Stop rules</th><td><ul>{% for r in c.stop_rules %}<li>{{ r }}</li>{% endfor %}</ul></td></tr>
+  <tr><th>Cost</th><td>{{ c.cost_minutes }} minutes on the rig</td></tr>
+  <tr><th>Written by</th><td>{{ c.written_by }}, {{ c.written_at | replace("T", " ") }}</td></tr>
+  <tr><th>Reviewed by</th><td>
+    {% if c.reviewed %}{{ c.review.reviewed_by }}, {{ c.review.reviewed_at | replace("T", " ") }}
+    {% elif c.review %}<span class="error">the card file changed after {{ c.review.reviewed_by }} reviewed it: it cannot be run; write a new card</span>
+    {% else %}not reviewed yet
+    <form method="post" action="/bench/cards/{{ c.number }}/review">
+      <label>Reviewed by <input name="reviewed_by" required></label> <button>Record the review</button>
+    </form>{% endif %}</td></tr>
+  <tr><th>Card file</th><td><code>bench/cards/{{ c.number }}.json</code>, sha256 <code>{{ c.sha256[:16] }}…</code></td></tr>
+</table>
+<p class="hint">Running a card comes with the next bite (the <code>bench</code> job).</p>
+{% endblock %}

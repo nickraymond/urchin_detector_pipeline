@@ -24,6 +24,38 @@ starts it. Before, a job that was queued or due when the app started could be pi
 kind … is registered" (QE 8). The tests that reopen a job folder use the same order.
 **Broke/surprised us:** the fault showed as one schedule test failing now and then in other PRs' suites.
 **Next:** TRACKER S8 "Fixes", item 2 (validation at the evaluation scale with tiles, D90).
+## 2026-11-27 — Sprint S6 — Close: sidecar fix, PR 92's nits, the 4.1.0 line, as-built docs (S6 builder 3)
+**Branches:** sprint/6-exfat-sidecars (PR 100), sprint/6-recipe-stale (PR 102), sprint/6-st41-page (PR 106),
+sprint/6-close (this entry)
+**Done:** Nick's data disk is exFAT, where macOS writes a `._<name>` file beside every file: the 8-bit step's
+glob matched two files and every 8-bit step said "does not convert" (the Run all of 4:26 PM); `app/sidecars.py`
+filters every wildcard glob on data_dir, with a guard test. PR 97 restacked twice onto main, with QE 8's two nits
+(a changed `~/.stmai` is a job error). PR 92's nits: results record `made_with` and an older one says "Run
+again". The N6's 4.1.0 result as its own line with a button. TRACKER: S6's generic boxes ticked, bite 1 reworded;
+DESIGN §S6 as built; the Demo checklist under S6.
+**Broke/surprised us:** the exFAT sidecars (any new glob in `app/` that starts with `*` must use
+`sidecars.real`; the test fails otherwise). The 7 `tests/test_yolox_trainer.py` failures in this worktree's
+venv are a missing `tabulate`, not code (QE ran them green).
+**Not done:** 2d stays `[~]` (Nick's Roboflow plan check, PML section 4). QE PR 102 nit 2: at 5:24 PM PST Nick's
+data folder held 21 results, all with an `int8.json` export record, so none is beyond the older-recipe check;
+the lead's re-run was still writing results then.
+**Next:** the lead hands Nick the S6 test build (Demo checklist above).
+
+## 2026-11-27 — Sprint S7 — Bite 2a: test cards as data and a page (S7 builder 1)
+**Branch:** sprint/7-bench-job
+**Done:** bite 2 split in two by the builder: 2a the card (D84), 2b the `bench` job. `app/bench/card.py`: build with
+every problem at once, save once under the next number, review in its own file against the card's sha256 (not by
+its writer), list; `/bench/cards` (list + new card, D84/D87 stop rules prefilled) and `/bench/cards/<n>` (the card,
+"Record the review"); links from the dashboard and the Rig log page. QE PR 98 nits: 1 (field units counted as
+written), 2 (an "after" with no "before" is its own row), 3 (tests and self-test in their own data folders), 4 and 5
+placed in TRACKER bites 3-5.
+**Self-test:** scratch data folder, fake unit. The browser itself blocked windows = 2; card 1 saved with windows 3;
+"S7 builder" as reviewer refused ("someone other than its writer"); "QE 8" recorded; the list shows the review.
+**Broke/surprised us:** the page showed the model as "model_int8": every S6 candidate's file has that name, so a
+model is now named by its candidate folder (tested with two candidates).
+**Next:** S7 bite 2b (the `bench` job on the fake board).
+
+---
 
 ## 2026-11-27 — Sprint S6 — Bite 2f: ST Edge AI Core 4.1.0 on the RF-DETR family (S6 builder 2)
 **Branch:** sprint/6-st-4-1
@@ -41,6 +73,8 @@ Docker), and natively the relocatable step has no `arm-none-eabi-gcc`: placement
 `~/.stmai` unchanged by checksum both times (`s6/probe_st41/step_selftest/`).
 **Not done:** the page part (a 4.1.0 line and button in the N6 rows): an open TRACKER box.
 **Next:** S6's close: TRACKER ticks, DESIGN as-built, the Demo checklist, "Run all" on Nick's data folder.
+
+---
 
 ## 2026-11-27 — Sprint S7 — Bite 1: bench units, the Board interface, FakeBoard, the rig log (S7 builder 1)
 **Branch:** sprint/7-bench-core
