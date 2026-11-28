@@ -31,6 +31,19 @@ test covers a version where they do.)
 
 ---
 
+## 2026-11-27 — Sprint S8 — QE PR 111's nits: no best.pt yet, a capped overlap (S7 builder 1, on S8)
+**Branch:** sprint/8-val-nits
+**Done:** the Train page says when a model has no `best.pt` (taken from validated epochs only) and after which epoch
+the first validation runs, and that a cancelled run never gets one; a run with `train.eval_overlap_capped` says
+objects longer than the overlap − 5 px may be scored from a cut copy. S9's two halves of the nits are in TRACKER S9
+bite 1.
+**Self-test:** s8_squares copy: a 40-epoch run with "Validate every 20" cancelled after 2 epochs: the page shows the
+note with "the first validation runs after epoch 20"; m5 (12 epochs, has best.pt, overlap 61 not capped) shows
+neither note. First wording said "Resume it", which a cancelled run cannot: fixed.
+**Next:** PR for the live frame counts (sprint/8-live-counts, done locally), then shrunk outside images.
+
+---
+
 ## 2026-11-27 — Sprint S8 — Fixes 2: validation at D90's eval scale, in tiles (S7 builder 1, on S8)
 **Branch:** sprint/8-val-tiles
 **Done:** `app/train/tiles.py`: the eval factor (44 px over the training split's median shorter box side, clamped to
