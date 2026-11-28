@@ -12,14 +12,22 @@ import time
 from importlib import metadata
 
 RUNS = 20
+TOOL_FAULT = 3      # exit code: the runtime itself could not be used; says nothing about the model (QE PR 79)
 
 
 def main(argv: list[str]) -> None:
-    import numpy as np
-    from ai_edge_litert.interpreter import Interpreter
+    try:
+        import numpy as np
+        from ai_edge_litert.interpreter import Interpreter
+        # A private LiteRT method: there, and checked, in the pinned ai-edge-litert 2.2.0 of convert-venv.
+        # An upgrade of the pin must check it again.
+        ops_details = Interpreter._get_ops_details
+    except (ImportError, AttributeError) as e:
+        print(f"tool fault: {type(e).__name__}: {e}", file=sys.stderr)
+        raise SystemExit(TOOL_FAULT) from None
 
     it = Interpreter(model_path=argv[1], num_threads=1)
-    ops = collections.Counter(o["op_name"] for o in it._get_ops_details())
+    ops = collections.Counter(o["op_name"] for o in ops_details(it))
     it.allocate_tensors()
     inp = it.get_input_details()[0]
     it.set_tensor(inp["index"], np.zeros(inp["shape"], inp["dtype"]))

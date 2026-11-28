@@ -411,8 +411,10 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       own in two sizes; 256 px, the five classes plus "other"; built untrained in the app's own tests
 - [x] 2c-i: instance segmenters (D58): RF-DETR-Seg Nano (312 px) and YOLOX Nano / Tiny with prototype masks (our
       own small conv one, 256 px)
-- [ ] 2c-ii: RTMDet-Ins-tiny (Apache-2.0) as a published small conv instance segmenter: needs the mmdetection
-      stack in its own tool environment; time-boxed, and recorded with its reason if it does not install
+- [x] 2c-ii: RTMDet-Ins-tiny (Apache-2.0) as a published small conv instance segmenter
+      (`app/modeldefs/rtmdetins.py`, D72): mmdetection's pure-Python packages in `mmdet-venv`; built untrained with
+      no network; through the real job: runs, partly on the CPU, on the N6 (2 software steps) and the AE3 (1 CPU
+      operator), runs on the Pi side (DESIGN §Bench results). SparseInst not tried (time box)
 - [ ] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
       each as a model definition the app can build untrained at a given input size; anything not permissive
       stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
@@ -423,6 +425,12 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       *2026-11-27 (D59): what it sends out is shown (static read; built with the network refused: 0 attempts) and
       the three sizes are candidates, marked. Open, with Nick through the spec lead: whether his plan covers
       `rfdetr[plus]` (a builder cannot see his account) and the usage reporting of PML section 4.*
+- [x] 2e (Lead call D70; the question Nick asked): one retry of the RF-DETR family with one thing changed,
+      RF-DETR's own export (onnx2tf 2.4.3) plus a full-integer step, in two new Python 3.12 tool environments;
+      `convert-venv` untouched. Result (DESIGN §Bench results, bite 2e): all six convert; none compiles for the N6;
+      on the AE3 only Atto compiles and fits, partly on the CPU; on the Pi side the files run under plain LiteRT.
+      The route is now the family's 8-bit step in the convert job; the licence text goes with every
+      Roboflow-licensed result (PML section 7)
 
 **Bites 3a, 3b, 3c — Convert job (3a the job and the 8-bit step with a fake compiler; 3b the N6 and AE3
 compilers; 3c the Pi)**
@@ -451,9 +459,11 @@ compilers; 3c the Pi)**
 - [x] 4b: "stored together" on the page: for each pair and all three of the best candidates per camera, their
       files against the model area beside the vendor's models (N6, AE3) or against the Pi's memory, and the room
       left; the AE3 time-box note
-- [ ] "Run again" on one camera clears the candidate's shared 8-bit file, so the other cameras' cells keep
-      results from the old file (QE PR 80 nit 4; each `fit.json` records the file's sha256): redo only that
-      camera's compile, or show when a cell's 8-bit file is no longer the current one; before S6's close
+- [x] "Run again" on one camera cleared the candidate's shared 8-bit file while the other cameras' cells kept
+      results from the old file (QE PR 80 nit 4): it now clears every camera's result of that candidate and
+      queues the other cells that had a result again behind it (PR 85)
+- [x] a LiteRT fault on the Pi step (runtime missing or changed) is a job error with a fix, not "does not run on
+      the Pi" (QE PR 79 nit 1; PR 85)
 - [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
       (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
       YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's

@@ -9,9 +9,9 @@ environment. Two steps, each skipped when its file is on disk:
 
 A failed conversion or compile is a result (fit.json, `converts: false`); the job still ends "done".
 
-"redo" makes this camera's cell again from scratch, 8-bit model included. The 8-bit model is shared by the
-cameras, so the other cameras' fit.json files then describe the file before it was made again. With seeded
-weights and calibration the new file is the same bytes; if it ever is not, it shows: every fit.json keeps
+"redo" makes this candidate again from scratch: the 8-bit model and, because the cameras share that file,
+every camera's result made from the old one are cleared (QE PR 80 nit 4), so no cell can describe a file that
+is gone. The page queues the other cameras' cells again in the same press. Every fit.json also keeps
 `int8.tflite_sha256` of the file it was made from (QE PR 76).
 """
 
@@ -101,7 +101,7 @@ def main() -> None:
     fit_file = convert.fit_path(folder, camera)
     n = len(convert.STEPS)
     if job.get("redo"):
-        shutil.rmtree(fit_file.parent, ignore_errors=True)
+        shutil.rmtree(folder / "targets", ignore_errors=True)     # every camera: they share the 8-bit file
         shutil.rmtree(folder / "int8", ignore_errors=True)
     write_json(folder / "recipe.json", {"arch": job["arch"]})
     worker.emit("loaded", seconds=0.0)

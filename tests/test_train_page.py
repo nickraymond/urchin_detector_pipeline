@@ -109,3 +109,80 @@ def test_one_training_job_per_project_at_a_time(page, monkeypatch):
         folder.parents[2] / "config.local.toml")).latest("train", str(folder))["id"]
     client.post(f"/jobs/{jid}/cancel", data={"back": "/p/p/train"})
     assert wait_for(lambda: "model=m2-" in run(client), 30)
+
+
+def test_estimate_times_a_few_steps_as_a_job_and_makes_no_model(page):
+    """Bite 5 part 2 (spec stage 8, the D35 pattern): Estimate runs the form's settings for a
+    few steps, shows what the whole run would take, and leaves no model behind."""
+    client, folder = page
+    frozen(folder)
+    html = client.get("/p/p/train").text
+    assert 'formaction="/p/p/train/estimate"' in html and 'id="estimate"' not in html
+    form = {"version": 1, "model_type": "fake-tiny", "classes": ["1"], "epochs": "40",
+            "input": "96", "augment": "none", "seed": "3"}
+    r = client.post("/p/p/train/estimate", data=form, follow_redirects=False)
+    assert r.headers["location"] == "/p/p/train?version=1"
+    assert wait_for(lambda: train_job.read_estimate(folder) is not None, 60)
+    est = train_job.read_estimate(folder)
+    # the fake trainer: 3 steps per epoch at 0.25 s + 0.5 s validation = 1.25 s per epoch
+    assert (est["steps_per_epoch"], est["seconds_per_step"], est["validation_seconds"]) == (3, 0.25, 0.5)
+    assert est["seconds_per_epoch"] == 1.25 and est["total_seconds"] == 50 and est["epochs"] == 40
+    assert est["steps_timed"] == train_job.ESTIMATE_STEPS and est["recipe"]["train"]["tile"] == 96
+    assert models.list_ids(folder) == []                       # no model, no number used
+    edir = folder / "models" / ".estimate"
+    assert not (edir / "train.jsonl").exists() and not list(edir.glob("checkpoints/*"))
+    assert wait_for(lambda: "estimate: 1.25 s per epoch" in client.get("/p/p/train").text, 60)
+    html = client.get("/p/p/train").text
+    assert "Estimate: about <b>1 min</b> for 40 epochs" in html and "(1.25 s per epoch)" in html and "Training (estimate)" in html
+    # the form now holds what was estimated, so Run runs the same settings
+    assert 'name="epochs" type="number" min="1" max="1000" value="40"' in html
+    assert "<option selected>96</option>" in html and "<option selected>none</option>" in html
+    # a refused estimate says why and keeps nothing new
+    r = client.post("/p/p/train/estimate", data={**form, "input": "128"}, follow_redirects=False)
+    assert "Input+size+must+be+one+of" in r.headers["location"]
+    # Run after Estimate makes model 1 as usual
+    assert run(client, epochs="2") == "/p/p/train?model=m1-fake-tiny-64-c1"
+
+
+def test_validation_frames_are_served_and_listed_with_their_epoch(page):
+    from PIL import Image
+    client, folder = page
+    frozen(folder)
+    where = run(client)
+    mdir = folder / "models" / "m1-fake-tiny-64-c1"
+    assert wait_for(lambda: len(models.read_metrics(mdir)) == 3, 60)
+    got = client.get("/p/p/train/metrics/m1-fake-tiny-64-c1").json()
+    assert got["val_frames"] == [] and got["val_epoch"] is None      # this trainer draws none
+    (mdir / "val_frames").mkdir()
+    for i in (0, 1):
+        Image.new("RGB", (8, 8), (i, 0, 0)).save(mdir / "val_frames" / f"val_{i}.png")
+    (mdir / "val_frames" / "epoch.txt").write_text("3\n")
+    got = client.get("/p/p/train/metrics/m1-fake-tiny-64-c1").json()
+    assert got["val_frames"] == [0, 1] and got["val_epoch"] == 3
+    r = client.get("/p/p/train/val/m1-fake-tiny-64-c1/1")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert r.headers["cache-control"] == "no-store" and r.content[:4] == b"\x89PNG"
+    assert client.get("/p/p/train/val/m1-fake-tiny-64-c1/7").status_code == 404
+    assert client.get("/p/p/train/val/..%2F..%2Fx/0").status_code == 404
+    html = client.get(where).text
+    assert 'data-val="/p/p/train/val/m1-fake-tiny-64-c1/"' in html and "val-frames" in html
+    assert "White</b> boxes are the labels" in html
+
+
+def test_the_form_carries_every_model_types_defaults_and_whys(page, monkeypatch):
+    """The size, epochs, preset and "why" of the form follow the model type picked (train.js
+    reads them from the page); the server uses the picked type's defaults for empty fields."""
+    client, folder = page
+    other = {**FAKE_TYPE, "name": "Fake-Big", "size": "big", "inputs": [128],
+             "defaults": {"epochs": 9, "input": 128, "augment": "none", "seed": 1},
+             "why": {**FAKE_TYPE["why"], "epochs": "nine for the big one."}}
+    monkeypatch.setattr(train_job, "MODEL_TYPES", {"fake-tiny": FAKE_TYPE, "fake-big": other})
+    frozen(folder)
+    html = client.get("/p/p/train").text
+    data = json.loads(html.split('<script type="application/json" id="model-types">')[1].split("</script>")[0])
+    assert data["fake-big"]["defaults"]["epochs"] == 9 and data["fake-big"]["inputs"] == [128]
+    assert 'data-why="epochs">three is enough here.' in html and 'id="model-type"' in html
+    where = client.post("/p/p/train/run", data={"version": 1, "model_type": "fake-big",
+                                                "classes": ["1"]}, follow_redirects=False).headers["location"]
+    assert where == "/p/p/train?model=m1-fake-big-128-c1"
+    assert models.read_recipe(folder / "models" / "m1-fake-big-128-c1")["train"]["epochs"] == 9

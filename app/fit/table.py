@@ -51,6 +51,8 @@ def headline(fit: dict | None, camera: str) -> tuple[str, str]:
     if not fit.get("converts"):
         if fit.get("stage") == "8-bit model":
             return "no", "the 8-bit step failed before any compiler ran: not a compiler verdict"
+        if camera == "pi":                          # no compiler there: the runtime itself refused the file
+            return "no", "LiteRT could not load or run its 8-bit file"
         kind = "an internal error" if "INTERNAL ERROR" in (fit.get("error") or "") else "an error"
         return "no", f"the compiler stopped with {kind} ({fit.get('tool') or 'compile step'})"
     p = fit.get("placement") or {}
@@ -81,7 +83,7 @@ def memory_figure(fit: dict) -> dict | None:
     (the N6 today). The AE3's is a reference from the earlier work, not a hard limit."""
     ref = fit.get("memory_reference")
     if ref and ref.get("bytes"):
-        return {"bytes": ref["bytes"], "what": "free on the board in the earlier work, not re-measured"}
+        return {"bytes": ref["bytes"], "what": "free on the board in the earlier work, not re-measured; S7 measures it on the board"}
     if fit.get("memory_limit_bytes"):
         return {"bytes": fit["memory_limit_bytes"], "what": "the board's memory"}
     return None

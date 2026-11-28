@@ -55,6 +55,8 @@ def test_headlines():
     st = {"converts": False, "stage": "compile", "tool": "ST Edge AI Core v4.0.0", "error": "INTERNAL ERROR: x"}
     assert table.headline(st, "n6") == ("no", "the compiler stopped with an internal error (ST Edge AI Core v4.0.0)")
     assert table.label("no", st) == "does not run"
+    assert table.headline({"converts": False, "stage": "compile", "tool": "LiteRT", "error": "x"}, "pi") == (
+        "no", "LiteRT could not load or run its 8-bit file")
     assert "with an error (Arm Vela 5.0.0)" in table.headline({**st, "tool": "Arm Vela 5.0.0", "error": "bad"}, "ae3")[1]
     pi = {"converts": True, "file_bytes": 10, "limit_bytes": None, "placement": placed(0, 0, 30, "operators"),
           "failing_layers": []}
@@ -148,6 +150,60 @@ def test_run_all_queues_every_missing_cell_once_and_the_table_fills(site, monkey
             if j["kind"] == "convert"]
     assert len(jobs) == 6                                        # the second press queued nothing twice
     assert "Nothing+to+run" in client.post("/fit/run-all", follow_redirects=False).headers["location"]
+
+
+def convert_jobs(client, data):
+    return [j for j in client.app.state.jobctl(server.config.load(data.parent / "config.local.toml")).list()
+            if j["kind"] == "convert"]
+
+
+def wait_all_done(client, data, timeout=60.0):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        jobs = convert_jobs(client, data)
+        if all(j["state"] == "done" for j in jobs):
+            return jobs
+        time.sleep(0.1)
+    raise AssertionError("convert jobs still not done: " + str([j["state"] for j in convert_jobs(client, data)]))
+
+
+def test_run_again_redoes_every_cell_made_from_the_shared_8_bit_file(site):
+    """QE PR 80 nit 4: no camera's cell may keep a result from an 8-bit file that was made again."""
+    client, data = site
+    folder, key = data / "fit" / "plainseg-s-256-c6", "plainseg-s-256-c6"
+    for camera in ("n6", "ae3"):
+        client.post("/fit/run", data={"key": key, "camera": camera}, follow_redirects=False)
+    assert len(wait_all_done(client, data)) == 2                    # both jobs "done" before Run again is pressed
+    first = {c: convert.read_fit(folder, c) for c in ("n6", "ae3")}
+    assert all(first.values()) and convert.read_fit(folder, "pi") is None
+    r = client.post("/fit/run", data={"key": key, "camera": "n6"}, follow_redirects=False)
+    assert "queued+again" in r.headers["location"] and "OpenMV+AE3+with+it" in r.headers["location"]
+    assert len(wait_all_done(client, data)) == 4                    # 2 first runs, the redo, the AE3 again
+    second = {c: convert.read_fit(folder, c) for c in ("n6", "ae3")}
+    assert all(second[c]["when"] >= first[c]["when"] and second[c]["converts"] for c in ("n6", "ae3"))
+    assert second["ae3"]["int8"] == second["n6"]["int8"]
+    assert (folder / "int8" / "calls.log").read_text() == "int8\n"   # cleared, then made once for both cameras
+    assert convert.read_fit(folder, "pi") is None                  # a cell never tried is not queued by this
+
+
+def test_run_again_keeps_a_cell_whose_job_is_still_under_way(site):
+    """QE PR 85: a camera whose job is waiting or running when Run again is pressed has no result yet, or is
+    about to write one; the redo wipes it, so that cell must be queued again behind the redo."""
+    client, data = site
+    folder, key = data / "fit" / "plainseg-s-256-c6", "plainseg-s-256-c6"
+    client.post("/fit/run", data={"key": key, "camera": "n6"}, follow_redirects=False)
+    wait_all_done(client, data)
+    slow = next(a for a in modeldefs.candidates() if modeldefs.arch_key(a) == "plainseg-m-256-c6")
+    jc = client.app.state.jobctl(server.config.load(data.parent / "config.local.toml"))
+    jc.submit("convert", convert.params({**slow, "fake": {"int8_seconds": 2}}, "n6", data, data / "tools"))
+    r = client.post("/fit/run", data={"key": key, "camera": "ae3"}, follow_redirects=False)   # waits behind it
+    assert r.headers["location"].endswith("queued.") and convert.read_fit(folder, "ae3") is None
+    r = client.post("/fit/run", data={"key": key, "camera": "n6"}, follow_redirects=False)
+    assert "queued+again" in r.headers["location"] and "OpenMV+AE3+with+it" in r.headers["location"]
+    assert len(wait_all_done(client, data)) == 5       # first n6, the slow one, AE3, the redo, AE3 once more
+    n6, ae3 = convert.read_fit(folder, "n6"), convert.read_fit(folder, "ae3")
+    assert n6 and ae3 and ae3["converts"] and ae3["int8"] == n6["int8"]      # the AE3 cell is there at the end
+    assert (folder / "int8" / "calls.log").read_text() == "int8\n"
 
 
 def test_run_one_cell_again_and_unknown_cells_are_refused(site, monkeypatch):
