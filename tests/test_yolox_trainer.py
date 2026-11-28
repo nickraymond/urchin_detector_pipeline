@@ -126,7 +126,7 @@ def test_a_box_of_a_class_not_fully_checked_is_painted_over(run):
     mdir, recipe = run("a")
     t = trainer(mdir, recipe)
     sample = {**t.train[0], "boxes": [], "ignore": [[100, 60, 120, 120]]}
-    img, boxes = t._example(sample, 0, 0, train=False)
+    img, boxes, _ = t._example(sample, 0, 0, train=False)
     from app.train import samples
     got = samples.make(sample, 96, 4, 0, 0, "crop only")
     (cx, cy, w, h), = got["ignore"]
@@ -218,9 +218,10 @@ def test_validation_keeps_at_most_100_boxes_per_canvas():
     assert det.shape == (yolox.MAX_DETECTIONS, 6) and (det[:, 4] >= yolox.VAL_SCORE).all()
 
 
-def test_only_frames_with_every_run_class_fully_checked_are_used(run, monkeypatch):
-    """QE PR 72: a frame where one of the run's classes is not fully checked would teach its
-    unlabeled animals as background, so it is left out (training and validation) and counted."""
+def test_partly_checked_frames_train_on_their_boxes_only(run, monkeypatch):
+    """D66: a training frame where only some of the run's classes are fully checked is used for
+    its labeled boxes and never as "nothing here"; validation uses fully checked frames only."""
+    import torch
     from app.datasets import loaders
     from app.train import job as train_job
     mdir, recipe = run("a")
@@ -229,11 +230,95 @@ def test_only_frames_with_every_run_class_fully_checked_are_used(run, monkeypatc
     data["train"][1]["checked"] = [3]
     data["valid"][0]["checked"] = [1]
     t = trainer(mdir, recipe)
-    assert len(t.train) == 6 and len(t.valid) == 3
-    assert t.describe()["frames_left_out_not_fully_checked"] == {"train": 2, "valid": 1}
-    assert all(s["checked"] == [1, 3] for s in t.train + t.valid)
+    assert len(t.train) == 8 and [bool(s.get("boxes_only")) for s in t.train] == [False] * 6 + [True] * 2
+    assert len(t.valid) == 3 and all(s["checked"] == [1, 3] for s in t.valid)
+    d = t.describe()
+    assert d["train_frames"] == 8 and d["train_frames_boxes_only"] == 2
+    assert d["frames_left_out_not_fully_checked"] == {"train": 0, "valid": 1}
     one = [dict(s, checked=[c for c in s["checked"] if c == 1]) for s in data["train"]]
     assert train_job.usable(one, [1]) == ([s for s in one if s["checked"] == [1]], 1)
+    # the loss: images without any target. Fully checked: every anchor is taught "nothing here".
+    # Boxes-only: no lesson at all. A mixed batch: only the fully checked images count.
+    t.load()
+    bce = t.model.head.bcewithlog_loss
+    imgs, none = torch.rand(4, 3, 96, 96) * 255, torch.zeros(4, 120, 5)
+
+    anchors = 12 * 12 + 6 * 6 + 3 * 3                   # 96 px at strides 8, 16, 32
+
+    def conf(flags):
+        bce.begin(None if flags is None else torch.tensor(flags), anchors)
+        return float(t.model(imgs, none)["conf_loss"])
+    plain = conf(None)
+    assert plain > 0 and conf([True] * 4) == pytest.approx(plain)
+    assert conf([False] * 4) == 0.0
+    assert 0 < conf([True, False, True, False]) < plain
+    # a boxes-only image with a labeled box still learns "object here" on it (and box + class)
+    boxed = none.clone()
+    boxed[:, 0] = torch.tensor([1.0, 48.0, 48.0, 30.0, 30.0])
+    bce.begin(torch.tensor([False] * 4), anchors)
+    out = t.model(imgs, boxed)
+    assert float(out["conf_loss"]) > 0 and float(out["iou_loss"]) > 0 and float(out["cls_loss"]) > 0
+    # one real step with the two boxes-only frames in the batch
+    assert t.run_epoch(0, 0, lambda: False)["done"]
+
+
+def test_runs_without_background_warn_and_runs_without_validation_frames_are_refused(run, monkeypatch):
+    """QE PR 93 and the lead's calls on it: every training frame boxes-only = a detector never
+    shown "no object": allowed, with a warning on the job and in the run record. No fully
+    checked validation frame = a run that cannot be checked: refused with what to do. A
+    pre-training source without validation images is not refused: the run says so and keeps the
+    last epoch as best.pt."""
+    import torch
+    from app.datasets import loaders
+    mdir, recipe = run("a")
+    data = {s: loaders.detector_samples(None, 1, s)["samples"] for s in ("train", "valid")}
+    for f in data["valid"]:
+        f["checked"] = [1]
+    with pytest.raises(RuntimeError, match="No validation frame has every picked class fully checked"):
+        trainer(mdir, recipe)
+    for f in data["valid"]:
+        f["checked"] = [1, 3]
+    for f in data["train"]:
+        f["checked"] = [3]
+    warned = trainer(mdir, recipe)
+    assert warned.describe()["train_frames_boxes_only"] == 8 == len(warned.train)
+    assert 'No frame teaches "no object" here: none of the 8 training frames' in warned.describe()["warning"]
+    warned.load()
+    assert warned.run_epoch(0, 0, lambda: False)["done"]         # it trains, on labeled boxes only
+    for f in data["train"]:
+        f["checked"] = [1, 3]
+    assert trainer(mdir, recipe).describe()["warning"] == ""
+    # no validation at all (the outside-data case, made here by emptying the list after the checks)
+    t = trainer(mdir, recipe)
+    t.valid, t.no_valid = [], "No validation images in this version's outside data: ..."
+    assert "No validation images" in t.describe()["warning"]
+    t.load()
+    rows = finish(t, mdir, 0, 0)
+    assert "val_recall" not in rows[-1] and "loss" in rows[-1]
+    best = torch.load(mdir / "checkpoints" / "best.pt", weights_only=True)
+    assert best["epoch"] == 2 and best["score"] is None and "last epoch" in best["kept_as"]
+
+
+def test_the_boxes_only_loss_knows_which_call_is_objectness():
+    import torch
+    from app.train.yolox import BoxesOnlyBCE
+    bce, anchors = BoxesOnlyBCE(), 5
+    pred = torch.zeros(2 * anchors, 1)                 # 2 images; loss of a 0 logit = ln 2
+    target = torch.zeros(2 * anchors, 1)
+    target[7] = 1.0                                    # one object, on the second image
+    bce.begin(torch.tensor([True, False]), anchors)
+    first = bce(pred, target)
+    assert (first[:anchors] > 0).all()                 # fully checked image: all anchors count
+    assert [i for i in range(anchors, 2 * anchors) if first[i] > 0] == [7]   # boxes-only: its object only
+    cls = bce(torch.zeros(3, 2), torch.zeros(3, 2))    # the second call (class scores): untouched
+    assert (cls > 0).all()
+    bce.begin(torch.tensor([True, False]), anchors)
+    with pytest.raises(RuntimeError, match="no longer computes the objectness loss first"):
+        bce(torch.zeros(3, 2), torch.zeros(3, 2))
+    # a one-class model's class call also has one column: only images x anchors rows is objectness
+    bce.begin(torch.tensor([True, False]), anchors)
+    with pytest.raises(RuntimeError, match="2 images of 5 anchors"):
+        bce(torch.zeros(4, 1), torch.zeros(4, 1))
 
 
 def test_recipes_for_outside_data_and_pretrained_starts():

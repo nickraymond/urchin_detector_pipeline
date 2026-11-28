@@ -600,42 +600,67 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [x] decide and log in DESIGN: the layout of `datasets/` and what training adds to S6 bite 1's decisions
       (package location, `models/` layout, recipe) (D60, D61)
 
-**Bite 2a — Dataset versions**
-- [ ] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
+**Bite 2a — Dataset versions** (PRs 63, 64)
+- [x] a Datasets page per project: "Freeze a version" from the current export (a job): manifest with frames by
       reference, splits, class list, counts per class and split, a hash; versions are numbered and never changed
-- [ ] a new version keeps every site-and-date group in the split it had in the version before; new groups are
+- [x] a new version keeps every site-and-date group in the split it had in the version before; new groups are
       dealt to keep about 70 / 20 / 10 (the export's own `splits/` may re-deal on each run, D43)
 
-**Bite 2b — What training will see**
-- [ ] the page shows what training will see: objects and frames per class and split, classes under the 150–200
+**Bite 2b — What training will see** (PRs 65, 86, 93)
+- [x] the page shows what training will see: objects and frames per class and split, classes under the 150–200
       target, frames left out by the split check, classes not fully checked per frame
-- [ ] loaders for training: a class not fully checked on a frame is skipped for that frame; split check "no"
+- [x] loaders for training: a class not fully checked on a frame is skipped for that frame; split check "no"
       frames are left out of detector data; synthetic tests
+      *As built (Lead call D66): a frame with every class of the run fully checked trains in full; one with only
+      some of them checked trains on its labeled boxes only, never as "nothing here"; the page counts both by
+      the trainer's own function.*
 
-**Bite 3 — Outside data and starting weights**
-- [ ] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
+**Bite 3 — Outside data and starting weights** (PRs 66, 90)
+- [x] a version may add a public source from `~/nereus_ml/datasets/` whose recorded verdict allows commercial
       use (not the DUO set: Nick, 2026-11-27); the page lists each source with its licence and counts; its
       boxes are one class, "urchin", used for pre-training the detector only, never in the test split; the
       folder is a setting in `config.local.toml`
-- [ ] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or
+- [x] starting weights are a recorded choice per run: from scratch, pre-trained on the allowed sources, or
       published weights with a recorded licence
+      *The choice, its checks and its record are `app/train/starting.py`; no published weights are offered
+      (D62). Pre-training is a run with "Train on: the version's outside data" (one class, "urchin"); when it
+      has finished, a run of the same model type can start from it (PR 90).*
 
-**Bite 4a — Train job**
-- [ ] job kind `train` on `app/jobctl/`: a worker process that writes a checkpoint and a metrics line per epoch;
+**Bite 4a — Train job** (PR 67)
+- [x] job kind `train` on `app/jobctl/`: a worker process that writes a checkpoint and a metrics line per epoch;
       Pause finishes the step, saves and unloads; Resume continues from the last checkpoint; Cancel keeps
       checkpoints; tested end to end with a tiny fake trainer (no torch)
 
-**Bite 4b — YOLOX trainer**
-- [ ] classes: sea stars and urchins only (Nick, 2026-11-27): purple, red and black urchin, sea star, sunflower
+**Bite 4b — YOLOX trainer** (PRs 71, 72, 84)
+- [x] classes: sea stars and urchins only (Nick, 2026-11-27): purple, red and black urchin, sea star, sunflower
       sea star by default; still a setting per run
-- [ ] YOLOX-Nano with the plain first layer, tiles as part of the recipe, an augmentation preset that
+- [x] YOLOX-Nano with the plain first layer, tiles as part of the recipe, an augmentation preset that
       includes blur and haze; every run records dataset version,
       recipe, code version, seed, library versions and device
+      *Also Tiny. Trains on the Apple GPU, with a check against the CPU before every start (D65). Not in: mosaic.*
+- [x] pre-training on a version's outside data, and starting a run from such a model (bite 3's open half; PR 90)
+- [ ] pre-training is slow to feed: about 3 s per step of 32 on Urchinbot's 12-megapixel photos against 0.9 s
+      on small frames (decoding, not the GPU); keep shrunk copies of outside images in the data folder
+- [x] frames where only some of the run's classes are fully checked are used for their labeled boxes only
+      (Lead call D66; PR 93)
+- [ ] mosaic (four frames quilted into one canvas; in the earlier v2 recipe, not built here)
+- [ ] measure the warm-up rule (at least 300 steps, at most a third of the run: a guess for small datasets)
+- [ ] a full pre-training run on Urchinbot (hours; so far one epoch as a path check)
+- [ ] the first run on Nick's real frames (needs frames with classes marked fully checked, D64)
+- [ ] the Train page's frame counts (in full / boxes only / validation) follow the class checkboxes; today they
+      are for the classes ticked when the page opened (QE PR 93)
+- [ ] carried from QE: a box cut by the canvas edge and left under 8 px is dropped, not made an ignore region
+      (`samples._clip`, PR 71); the preset is recorded by its display name "standard + blur + haze" (PR 71);
+      the Datasets page builds "what training will see" for every version on each load (PR 65)
+- [ ] measure the haze preset against "standard" on real frames (the earlier work found haze hurt Nano)
+- [ ] a model trained on, or started from, outside data carries each source's attribution text, not only its
+      key and licence (`THIRD_PARTY_LICENSES` "Outside data" asks for it; needed by S9's model list and S11's
+      pick report; QE PR 90)
 
-**Bite 5 — Train page**
-- [ ] pick a dataset version, model type and size, classes and recipe (defaults with a short "why"); Estimate
+**Bite 5 — Train page** (PRs 69, 87)
+- [x] pick a dataset version, model type and size, classes and recipe (defaults with a short "why"); Estimate
       (time a few steps), Run, Start at / Stop by, Keep laptop awake, limits
-- [ ] live: loss and validation curves, a few validation frames with boxes drawn, time left; the finished
+- [x] live: loss and validation curves, a few validation frames with boxes drawn, time left; the finished
       model appears in a plain model list
 
 **Fixes found 2026-11-27**

@@ -62,21 +62,29 @@
   {% endfor %}<button class="small">Show</button>
   <span class="hint">Default: sea stars and urchins. The choice is made again for each training run.</span></form>
 {% if w.unseen %}<section class="problem zero-objects"><p><b>Training would see 0 objects of {{ w.unseen | join(", ") }}</b>:
-  they are labeled, but no training frame is marked "fully checked" for every class picked above. On the
+  they are labeled, but no training frame is marked "fully checked" for them. On the
   <a href="/p/{{ info.name }}/labels">Review page</a>, tick "fully checked" for these classes on the frames you
   reviewed, then Export and freeze a new version.</p></section>{% endif %}
+{% if not w.frames.train.used and w.frames.train.boxes_only %}<section class="problem no-full-frames"><p><b>No training frame has every class picked above fully checked</b>
+  ({{ w.frames.train.boxes_only }} have only some of them). A run of these classes trains on labeled boxes only: no frame teaches it
+  "no object", so the detector may fire everywhere. Tick "fully checked" for the classes you reviewed on the
+  <a href="/p/{{ info.name }}/labels">Review page</a>, then Export and freeze a new version.</p></section>{% endif %}
+{% if w.frames.train.used and not w.frames.valid.used %}<section class="problem no-valid-frames"><p><b>No validation frame has every class picked above fully checked.</b>
+  A run of these classes is refused: it could not be checked while it trains. Pick only the classes that are fully checked, or tick
+  "fully checked" for the others on the <a href="/p/{{ info.name }}/labels">Review page</a>, then Export and freeze a new version.</p></section>{% endif %}
 <table class="stages counts training-view">
-  <thead><tr><th>Class</th>{% for s in splits %}<th>{{ s }}: objects (frames)</th>{% endfor %}<th>Total</th><th>Target {{ w.target[0] }}–{{ w.target[1] }}</th><th>Skipped: on frames left out</th></tr></thead>
+  <thead><tr><th>Class</th>{% for s in splits %}<th>{{ s }}: objects (frames)</th>{% endfor %}<th>Total</th><th>Target {{ w.target[0] }}–{{ w.target[1] }}</th><th>Skipped: not fully checked</th></tr></thead>
   <tbody>
   {% for c in w.classes %}<tr class="{{ 'state-failed' if c.under_target else 'state-done' }}"><td>{{ c.name }}</td>{% for s in splits %}<td>{{ c.seen[s].objects }} ({{ c.seen[s].frames }})</td>{% endfor %}<td>{{ c.total }}</td><td>{% if c.under_target %}<b>under</b>: {{ w.target[0] - c.total }} more{% else %}ok{% endif %}</td><td>{% if c.skipped_total or c.skipped.values() | sum(attribute="frames") %}{{ c.skipped_total }} objects on {{ c.skipped.values() | sum(attribute="frames") }} frames{% else %}—{% endif %}</td></tr>{% endfor %}
-  <tr><td><b>Frames used</b></td>{% for s in splits %}<td><b>{{ w.frames[s].used }}</b>{% if w.frames[s].left_out %} ({{ w.frames[s].left_out }} left out){% endif %}</td>{% endfor %}<td colspan="3"></td></tr>
+  <tr><td><b>Frames used</b></td>{% for s in splits %}<td><b>{{ w.frames[s].used }}</b>{% if w.frames[s].boxes_only %} + {{ w.frames[s].boxes_only }} for their boxes only{% endif %}{% if w.frames[s].left_out %} ({{ w.frames[s].left_out }} left out){% endif %}</td>{% endfor %}<td colspan="3"></td></tr>
   </tbody>
 </table>
-<p class="hint">A run uses a frame only when <b>every class picked above</b> is marked "fully checked" on it on
-  the Review page: a class that is not fully checked may have unlabeled animals, and those must never be taught as
-  "none here". So the counts change with the classes picked together{% set partly = w.frames.values() | sum(attribute="partly_checked") %}{% if partly %}; with this choice
-  <b class="partly-checked">{{ partly }} frame(s) are left out although some of the classes are fully checked on them</b>{% endif %}.
-  Frames with split check "no" are left out of detector data (they still count for cover).</p>
+<p class="hint">A class counts on a frame only where it is marked "fully checked" on the Review page. A frame
+  with <b>every class picked above</b> fully checked trains in full, also as "none here" where nothing is labeled,
+  and only such frames are used for validation. A frame with only some of them checked may hold unlabeled animals
+  of the others, so it is used <b>for its labeled boxes only</b> and never as "none here"{% set partly = w.frames.values() | sum(attribute="boxes_only") %}{% if partly %}
+  (<b class="partly-checked">{{ partly }} frame(s) with this choice</b>){% endif %}. A frame with none of them
+  checked, or with split check "no", is left out of detector data (it still counts for cover).</p>
 {% if w.split_no %}<details><summary>{{ w.split_no | length }} frame(s) left out by the split check</summary>
   <ul class="plain">{% for f in w.split_no %}<li>{{ f }}</li>{% endfor %}</ul></details>{% endif %}
 {% if w.unchecked %}<details><summary>{{ w.unchecked | length }} frame(s) with a class not fully checked</summary>
