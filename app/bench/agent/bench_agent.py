@@ -26,7 +26,7 @@ import time
 
 VERSION = "1"
 WARMUPS = 2
-ALIVE_S = 5.0          # during a long window, an "alive" line this often (the laptop's 60 s is for silence)
+ALIVE_S = 5.0          # an "alive" line this often during a window: D84 asks at least every 10 s; 60 s is for silence
 SEED = 0
 NO_ANSWER, READBACK, LOAD_FAILED, NOT_LOADED, NOT_BUILT = (
     "no_answer", "readback_differs", "load_failed", "not_loaded", "not_built")
