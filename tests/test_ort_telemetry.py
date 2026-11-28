@@ -79,7 +79,8 @@ def test_every_child_env_the_app_builds_names_the_switch():
             continue
         for n, line in enumerate(path.read_text().splitlines(), 1):
             if re.search(r"\{\*\*os\.environ|dict\(os\.environ", line):
-                assert "ORT_OFF" in line, f"{path.relative_to(REPO)}:{n} builds a child env without ORT_OFF"
+                assert "ORT_OFF" in line or '"ORT_DISABLE_TELEMETRY": "1"' in line, \
+                    f"{path.relative_to(REPO)}:{n} builds a child env without the switch"
 
 
 def test_this_test_run_has_the_switch():
