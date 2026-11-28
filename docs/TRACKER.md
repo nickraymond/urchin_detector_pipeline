@@ -669,8 +669,9 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       recipe, code version, seed, library versions and device
       *Also Tiny. Trains on the Apple GPU, with a check against the CPU before every start (D65). Not in: mosaic.*
 - [x] pre-training on a version's outside data, and starting a run from such a model (bite 3's open half; PR 90)
-- [ ] pre-training is slow to feed: about 3 s per step of 32 on Urchinbot's 12-megapixel photos against 0.9 s
+- [x] pre-training is slow to feed: about 3 s per step of 32 on Urchinbot's 12-megapixel photos against 0.9 s
       on small frames (decoding, not the GPU); keep shrunk copies of outside images in the data folder
+      *(`<data_dir>/cache/outside_images/`; 0.093 → 0.023-0.030 s per image once made, DESIGN §Bench results)*
 - [x] frames where only some of the run's classes are fully checked are used for their labeled boxes only
       (Lead call D66; PR 93)
 - [ ] mosaic (four frames quilted into one canvas; in the earlier v2 recipe, not built here)
