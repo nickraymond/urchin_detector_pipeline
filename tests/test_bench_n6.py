@@ -356,3 +356,22 @@ def test_a_long_wait_for_the_bootloader_keeps_the_link_alive(rig):
         b.restore()
     b.close()
     assert "did not appear within 5 s" in str(e.value) and "no answer from the bench agent" not in str(e.value)
+
+
+def test_dfu_utils_words_are_in_agent_log_and_the_images_are_stored_once(rig):
+    """QE 10's card 5 check: agent.log kept dfu-util's output (it was 0 bytes); Lead call: the 24 MiB images are not
+    copied into every run folder, but stored once by sha256, and the load names the path."""
+    b = rig["board"]
+    done = b.load(rig["model"])
+    b.close()
+    b2 = N6Board(b.unit, rig["data"], b.transport.__class__(rig["tmp"] / "agent", extra=b.transport.extra, timeout_s=30),
+                 work_dir=rig["tmp"] / "run2", backup=b.backup_path, backup_sha256=b.backup_sha256, partition=P,
+                 dfu_serial="FAKE0N6SERIAL")
+    b2.load(rig["model"])
+    b2.close()
+    log = (rig["tmp"] / "agent" / "agent.log").read_text()
+    assert "-a 3 -D" in log and "Download done." in log and "exit 0" in log
+    stored = sorted((rig["data"] / "bench" / "n6_images").glob("*.img"))
+    assert len(stored) == 2 and done["image_path"] in map(str, stored)            # backup + ours, once for both runs
+    assert hashlib.sha256(Path(done["image_path"]).read_bytes()).hexdigest() == done["image_sha256"]
+    assert not list(rig["tmp"].glob("run*/*.img"))

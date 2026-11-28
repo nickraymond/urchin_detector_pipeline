@@ -27,7 +27,9 @@ gets out. The end-of-card messages name the step that failed.
 connect <Pyboard port> reset`, the AE3 untouched; a reset in DFU is refused; a failed reset ends the job after the
 restore; a restore-only card ends with the reset. QE 10 (after PR 123): an scp to the Pi may take 60 s plus the file
 at 100 kB/s (the 24 MiB backup: about 5 min) and its timeout is `no_answer`, not a crash; the agent sends alive lines
-while it waits up to 60 s for the bootloader or the boot (a test with a 2 s laptop limit; it fails with them removed).
+while it waits up to 60 s for the bootloader or the boot (a test with a 2 s laptop limit; it fails with them removed). QE 10's card 5 check: every mpremote and dfu-util call
+is in `agent.log` (it was 0 bytes); Lead call D82e: the N6 images are stored once by sha256 in `bench/n6_images/`,
+not in each run folder, and the backup is copied to the Pi only when it is not there yet.
 **Broke/surprised us:** nothing.
 **Next:** the next open S7 item.
 

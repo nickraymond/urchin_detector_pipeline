@@ -16,6 +16,7 @@ Builders and QE run this against the fake N6 (tests/fake_n6.py): fake mpremote a
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 from app.bench import riglog, romfs
@@ -110,12 +111,9 @@ class N6Board(PiBoard):
             image = romfs.with_ours(backup.entries, ours, self.partition)
         except romfs.RomfsError as e:
             raise BoardError(LOAD_FAILED, f"our ROMFS0 image cannot be built: {e}. Nothing was sent") from None
-        self.work_dir.mkdir(parents=True, exist_ok=True)
-        local_image, local_backup = self.work_dir / IMAGE_NAME, self.work_dir / BACKUP_NAME
-        local_image.write_bytes(image)
-        local_backup.write_bytes(backup.partition)
+        local_image = self._stored(image)
         self.connect()
-        self.transport.put(local_backup, BACKUP_NAME)          # the way back is on the Pi before the first write
+        self._backup_on_pi(backup)                             # the way back is on the Pi before the first write
         self.transport.put(local_image, IMAGE_NAME)
         rom = {**backup.rom, **{e.name: len(e.data) for e in ours}}
         self.rom_names = {m.name: rom_name(m.name) for m in models}
@@ -132,7 +130,7 @@ class N6Board(PiBoard):
             raise
         self.image_on_board = True
         return {**done, "image_sha256": hashlib.sha256(image).hexdigest(), "image_bytes": len(image),
-                "rom_names": self.rom_names}
+                "image_path": str(local_image), "rom_names": self.rom_names}
 
     def time(self, name: str, n: int) -> dict:
         self.connect()
@@ -179,10 +177,19 @@ class N6Board(PiBoard):
         """The backup's partition into the agent's models/ unless the same bytes are there already."""
         if self.transport.request("file_sha256", name=BACKUP_NAME)["sha256"] == backup.sha256:
             return
-        self.work_dir.mkdir(parents=True, exist_ok=True)
-        local = self.work_dir / BACKUP_NAME
-        local.write_bytes(backup.partition)
-        self.transport.put(local, BACKUP_NAME)
+        self.transport.put(self._stored(backup.partition), BACKUP_NAME)
+
+    def _stored(self, data: bytes) -> Path:
+        """One copy of each image in <data_dir>/bench/n6_images/<sha256>.img, written once and named by its sha256
+        (Lead call, lead 2: not 24 MiB more in every run folder; run.json records the path and sha256)."""
+        d = Path(self.data_dir) / "bench" / "n6_images"
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / f"{hashlib.sha256(data).hexdigest()}.img"
+        if not p.is_file() or p.stat().st_size != len(data):
+            tmp = p.with_suffix(".tmp")
+            tmp.write_bytes(data)
+            os.replace(tmp, p)
+        return p
 
     def restore(self) -> dict:
         """The backup's ROMFS0 back on the board, verified by read-back and the /rom listing (a rig change)."""

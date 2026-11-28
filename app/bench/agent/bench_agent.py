@@ -278,7 +278,13 @@ class N6:
         return last
 
     def run(self, argv, limit_s, tail=1500):
-        return run_steps(argv, None, self.alive, self.folder, limit_s, tail)
+        """One tool call; its command line, exit code and output go to stderr, which is the run's agent.log (QE 10:
+        dfu-util's own words must be kept)."""
+        rc, out = run_steps(argv, None, self.alive, self.folder, limit_s, tail)
+        shown = [a if len(a) < 200 else a[:60] + f"… ({len(a)} chars)" for a in argv]     # scripts are long
+        sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] $ {' '.join(shown)}\nexit {rc}\n{out.rstrip()}\n")
+        sys.stderr.flush()
+        return rc, out
 
     def exec(self, port, code, limit_s=TOOL_S):
         return self.run([self.mpremote, "connect", port, "exec", code], limit_s)
