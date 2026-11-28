@@ -1,6 +1,6 @@
 """PyTorch -> ONNX -> 8-bit TFLite for one recipe. Runs INSIDE a tool environment (D51), started by the
 convert worker as `<tools_dir>/<env>/bin/python -m app.fit.to_int8 <recipe.json> <int8 dir>` with the repo
-on PYTHONPATH. Imports only `app.modeldefs` from this repo.
+on PYTHONPATH. Imports only `app.modeldefs` and `app.sidecars` from this repo.
 
 The route is the earlier work's (`ADIN_SPI_OpenMV/ml/yolox_urchin/export.py`): classic ONNX exporter,
 then `onnx2tf -oiqt` with a calibration file. Changes: seeded weights and seeded noise calibration for
@@ -25,8 +25,15 @@ import time
 from importlib import metadata
 from pathlib import Path
 
+from app import sidecars
+
 CALIB_IMAGES = 20
 SEED = 0
+
+
+def quantised_files(tf_dir: Path) -> list[Path]:
+    """onnx2tf's full-integer files in `tf_dir`, without macOS "._" sidecars (exFAT data disk)."""
+    return sorted(sidecars.real(tf_dir.glob("*_full_integer_quant.tflite")))
 
 
 def sha256(path: Path) -> str:
@@ -138,7 +145,7 @@ def main(argv: list[str]) -> None:
            "[[[[0.0,0.0,0.0]]]]", "[[[[1.0,1.0,1.0]]]]"]
     print("[to_int8] " + " ".join(cmd), flush=True)
     done = subprocess.run(cmd, cwd=out, stdout=sys.stdout, stderr=subprocess.STDOUT)
-    quant = sorted(tf_dir.glob("*_full_integer_quant.tflite"))
+    quant = quantised_files(tf_dir)
     if done.returncode != 0 or len(quant) != 1:
         raise SystemExit(f"onnx2tf did not produce an 8-bit model (exit code {done.returncode}, "
                          f"{len(quant)} file(s)); its last lines are above.")

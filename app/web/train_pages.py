@@ -79,6 +79,9 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             return key, recipe
         full, boxes_only = loaders.run_frames(
             loaders.detector_samples(folder, version, "train", ids)["samples"], ids)
+        loaders.need_background(full, boxes_only)
+        loaders.need_validation(loaders.usable(
+            loaders.detector_samples(folder, version, "valid", ids)["samples"], ids)[0])
         if not any(s["boxes"] for s in full + boxes_only):
             raise ValueError(
                 f"Version {version} gives training no object of these classes: a class "
@@ -119,7 +122,18 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                     "seed": last["seed"] if same else d.get("seed"),
                     "class_ids": last["class_ids"] if same and last["class_ids"]
                     else loaders.default_class_ids(picked) if picked else []}
+            counts = None      # frames the classes ticked now would give (D66), before Run
+            if picked and form["class_ids"]:
+                try:
+                    kinds = {s: loaders.run_frames(loaders.detector_samples(
+                        folder, picked["number"], s, form["class_ids"])["samples"],
+                        form["class_ids"]) for s in ("train", "valid")}
+                    counts = {"full": len(kinds["train"][0]), "boxes_only": len(kinds["train"][1]),
+                              "valid": len(kinds["valid"][0])}
+                except loaders.DatasetError:
+                    counts = None
             return templates.TemplateResponse(request, "train.html", {
+                "frame_counts": counts,
                 "cfg": cfg, "info": info, "error": error, "versions": found, "picked": picked,
                 "classes": loaders.object_classes(picked) if picked else [],
                 "form": form, "estimate": est, "estimate_steps": train_job.ESTIMATE_STEPS,

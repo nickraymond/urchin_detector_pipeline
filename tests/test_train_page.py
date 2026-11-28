@@ -231,3 +231,32 @@ def test_pretraining_on_outside_data_then_a_run_that_starts_from_it(page, monkey
     assert wait_for(lambda: client.get("/p/p/train").text.count("<td>done</td>") == 2, 60)
     assert "different+model+type+or+size" in run(
         client, version=2, model_type="fake-big", start_kind="pretrained", start_model="m1-fake-tiny-64-c1")
+
+
+def test_a_run_without_any_fully_checked_training_frame_is_refused(page):
+    """D66, QE PR 93: urchins fully checked everywhere, sea stars nowhere: a run of both would
+    never be shown background. The pages say so before Run; urchins alone train."""
+    from app.datasets import versions
+    from tests.dataset_fixtures import dive, fake_export
+    client, folder = page
+    fake_export(folder, dive("reef", 1, 6, checked=[1], stars=1) + dive("cove", 2, 2, checked=[1])
+                + dive("wall", 3, 1, checked=[1]))
+    assert versions.freeze(folder)["new"]
+    html = client.get("/p/p/train").text
+    assert 'id="frame-counts" class="problem"' in html
+    assert "<b>0</b> training frames in full" in html and "A run needs at least one training frame in full" in html
+    where = run(client, classes=["1", "3"])
+    assert "None+of+the" in where and "never+be+shown" in where and not (folder / "models").exists()
+    ds = client.get("/p/p/datasets").text
+    assert "No training frame has every class picked above fully checked" in ds
+    assert "No training frame has every class" not in client.get("/p/p/datasets?classes=1").text
+    assert run(client, classes=["1"]) == "/p/p/train?model=m1-fake-tiny-64-c1"
+    assert wait_for(lambda: client.get("/p/p/train").text.count("<td>done</td>") == 1, 60)
+    # the lead's call on QE's FAIL of PR 93: no fully checked validation frame = refused as well
+    fake_export(folder, dive("reef", 1, 6, stars=1) + dive("cove", 2, 2, checked=[1]) + dive("wall", 3, 1))
+    assert versions.freeze(folder)["number"] == 2
+    where = run(client, version=2, classes=["1", "3"])
+    assert "No+validation+frame+has+every+picked+class" in where
+    assert "A run needs at least one validation frame" in client.get("/p/p/train?version=2").text
+    assert "No validation frame has every class picked above fully checked" in client.get("/p/p/datasets").text
+    assert models.list_ids(folder) == ["m1-fake-tiny-64-c1"]

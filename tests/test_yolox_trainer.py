@@ -243,8 +243,10 @@ def test_partly_checked_frames_train_on_their_boxes_only(run, monkeypatch):
     bce = t.model.head.bcewithlog_loss
     imgs, none = torch.rand(4, 3, 96, 96) * 255, torch.zeros(4, 120, 5)
 
+    anchors = 12 * 12 + 6 * 6 + 3 * 3                   # 96 px at strides 8, 16, 32
+
     def conf(flags):
-        bce.begin(None if flags is None else torch.tensor(flags))
+        bce.begin(None if flags is None else torch.tensor(flags), anchors)
         return float(t.model(imgs, none)["conf_loss"])
     plain = conf(None)
     assert plain > 0 and conf([True] * 4) == pytest.approx(plain)
@@ -253,11 +255,43 @@ def test_partly_checked_frames_train_on_their_boxes_only(run, monkeypatch):
     # a boxes-only image with a labeled box still learns "object here" on it (and box + class)
     boxed = none.clone()
     boxed[:, 0] = torch.tensor([1.0, 48.0, 48.0, 30.0, 30.0])
-    bce.begin(torch.tensor([False] * 4))
+    bce.begin(torch.tensor([False] * 4), anchors)
     out = t.model(imgs, boxed)
     assert float(out["conf_loss"]) > 0 and float(out["iou_loss"]) > 0 and float(out["cls_loss"]) > 0
     # one real step with the two boxes-only frames in the batch
     assert t.run_epoch(0, 0, lambda: False)["done"]
+
+
+def test_runs_without_background_or_without_validation_frames_are_refused(run, monkeypatch):
+    """QE PR 93 and the lead's call on it: every training frame boxes-only = a detector never
+    shown background; no fully checked validation frame = a run that cannot be checked. Both are
+    refused with what to do. A pre-training source without validation images is not refused:
+    the run says so and keeps the last epoch as best.pt."""
+    import torch
+    from app.datasets import loaders
+    mdir, recipe = run("a")
+    data = {s: loaders.detector_samples(None, 1, s)["samples"] for s in ("train", "valid")}
+    for f in data["valid"]:
+        f["checked"] = [1]
+    with pytest.raises(RuntimeError, match="No validation frame has every picked class fully checked"):
+        trainer(mdir, recipe)
+    for f in data["valid"]:
+        f["checked"] = [1, 3]
+    for f in data["train"]:
+        f["checked"] = [3]
+    with pytest.raises(RuntimeError, match="None of the 8 training frames has every picked class"):
+        trainer(mdir, recipe)
+    for f in data["train"]:
+        f["checked"] = [1, 3]
+    # no validation at all (the outside-data case, made here by emptying the list after the checks)
+    t = trainer(mdir, recipe)
+    t.valid, t.no_valid = [], "No validation images in this version's outside data: ..."
+    assert "No validation images" in t.describe()["warning"]
+    t.load()
+    rows = finish(t, mdir, 0, 0)
+    assert "val_recall" not in rows[-1] and "loss" in rows[-1]
+    best = torch.load(mdir / "checkpoints" / "best.pt", weights_only=True)
+    assert best["epoch"] == 2 and best["score"] is None and "last epoch" in best["kept_as"]
 
 
 def test_the_boxes_only_loss_knows_which_call_is_objectness():
@@ -267,15 +301,19 @@ def test_the_boxes_only_loss_knows_which_call_is_objectness():
     pred = torch.zeros(2 * anchors, 1)                 # 2 images; loss of a 0 logit = ln 2
     target = torch.zeros(2 * anchors, 1)
     target[7] = 1.0                                    # one object, on the second image
-    bce.begin(torch.tensor([True, False]))
+    bce.begin(torch.tensor([True, False]), anchors)
     first = bce(pred, target)
     assert (first[:anchors] > 0).all()                 # fully checked image: all anchors count
     assert [i for i in range(anchors, 2 * anchors) if first[i] > 0] == [7]   # boxes-only: its object only
     cls = bce(torch.zeros(3, 2), torch.zeros(3, 2))    # the second call (class scores): untouched
     assert (cls > 0).all()
-    bce.begin(torch.tensor([True, False]))
+    bce.begin(torch.tensor([True, False]), anchors)
     with pytest.raises(RuntimeError, match="no longer computes the objectness loss first"):
         bce(torch.zeros(3, 2), torch.zeros(3, 2))
+    # a one-class model's class call also has one column: only images x anchors rows is objectness
+    bce.begin(torch.tensor([True, False]), anchors)
+    with pytest.raises(RuntimeError, match="2 images of 5 anchors"):
+        bce(torch.zeros(4, 1), torch.zeros(4, 1))
 
 
 def test_recipes_for_outside_data_and_pretrained_starts():

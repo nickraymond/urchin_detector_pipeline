@@ -75,25 +75,29 @@ class BoxesOnlyBCE(torch.nn.Module):
     object" on every anchor of every image, shape (images x anchors, 1), then for the class
     scores of the matched anchors. For an image flagged boxes-only, the first call's loss is
     zeroed on every anchor that has no object, so the image teaches "object here" on its labeled
-    boxes and never "nothing here". `begin()` is called before each forward pass."""
+    boxes and never "nothing here" (it has no objectness loss term there; the image still takes
+    part in the batch's BatchNorm statistics). `begin()` is called before each forward pass."""
 
     def __init__(self):
         super().__init__()
-        self.neg_ok, self.calls = None, 0
+        self.neg_ok, self.anchors, self.calls = None, 0, 0
 
-    def begin(self, neg_ok) -> None:
-        """neg_ok: one bool per image of the coming batch (True = fully checked), or None."""
-        self.neg_ok, self.calls = neg_ok, 0
+    def begin(self, neg_ok, anchors: int = 0) -> None:
+        """neg_ok: one bool per image of the coming batch (True = fully checked), or None.
+        anchors: the model's anchors per image, so the objectness call can be told for sure
+        (a one-class model's class call has one column too)."""
+        self.neg_ok, self.anchors, self.calls = neg_ok, anchors, 0
 
     def forward(self, pred, target):
         loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, target, reduction="none")
         self.calls += 1
         if self.calls == 1 and self.neg_ok is not None and not bool(self.neg_ok.all()):
             n = self.neg_ok.numel()
-            if pred.dim() != 2 or pred.shape[1] != 1 or pred.shape[0] % n:
+            if pred.dim() != 2 or pred.shape[1] != 1 or pred.shape[0] != n * self.anchors:
                 raise RuntimeError("YOLOX's loss no longer computes the objectness loss first, "
                                    f"over every anchor (got shape {tuple(pred.shape)} for {n} "
-                                   "images): BoxesOnlyBCE must be adapted to this YOLOX commit.")
+                                   f"images of {self.anchors} anchors): BoxesOnlyBCE must be "
+                                   "adapted to this YOLOX commit.")
             keep = self.neg_ok.repeat_interleave(pred.shape[0] // n).view(-1, 1) | (target > 0)
             loss = loss * keep.to(loss.dtype)
         return loss
@@ -145,7 +149,7 @@ class Trainer:
         self.dir, self.arch, self.t = Path(model_dir), recipe["arch"], recipe["train"]
         limits = job.get("limits") or {}
         self.device = pick_device(limits.get("device"))
-        self.warning, self.gpu_check = "", None
+        self.warning, self.gpu_check, self.no_valid = "", None, ""
         self.threads = int(limits.get("threads") or 4)
         torch.set_num_threads(self.threads)
         self.seed, self.canvas = int(self.t["seed"]), int(self.t["tile"])
@@ -165,10 +169,12 @@ class Trainer:
         else:
             full, boxes_only = loaders.run_frames(
                 loaders.detector_samples(folder, version, "train", self.ids)["samples"], self.ids)
+            loaders.need_background(full, boxes_only)
             self.train = full + [{**s, "boxes_only": True} for s in boxes_only]
             self.valid, out_valid = loaders.usable(
                 loaders.detector_samples(folder, version, "valid", self.ids)["samples"], self.ids)
             self.boxes_only, self.left_out = len(boxes_only), {"train": 0, "valid": out_valid}
+            loaders.need_validation(self.valid)
             if not self.train:
                 raise RuntimeError(f"Dataset version {version} has no training frame for these "
                                    "classes (see the Datasets page: what training will see).")
@@ -209,6 +215,10 @@ class Trainer:
         self.boxes_only, self.left_out = 0, {"train": 0, "valid": 0}
         if not self.train:
             raise RuntimeError(f"The outside data of version {version} has no training image.")
+        if not self.valid:               # a source without a validation list: said, not refused
+            self.no_valid = ("No validation images in this version's outside data: the run has "
+                             "no validation curve, and the weights kept as best.pt are the last "
+                             "epoch's.")
         for s in self.train[:1] + self.valid[:1]:     # frozen by size in bytes (DESIGN, bite 3)
             p = Path(s["image"])
             if not p.is_file() or p.stat().st_size != s["bytes"]:
@@ -237,7 +247,8 @@ class Trainer:
 
     def describe(self) -> dict:
         import torchvision
-        return {"device": self.device, "warning": self.warning, "threads": self.threads,
+        return {"device": self.device, "threads": self.threads,
+                "warning": " ".join(w for w in (self.warning, self.no_valid) if w),
                 "batch": self.batch, "gpu_check": self.gpu_check,
                 "steps_per_epoch": self.steps, "train_frames": len(self.train),
                 "valid_frames": len(self.valid),
@@ -373,7 +384,8 @@ class Trainer:
         for g in self.opt.param_groups:
             g["lr"] = self._lr(it)
         self.model.head.bcewithlog_loss.begin(         # which images may teach "nothing here"
-            torch.tensor([m[2] for m in made], device=self.device))
+            torch.tensor([m[2] for m in made], device=self.device),
+            sum((self.canvas // s) ** 2 for s in ydef.STRIDES))
         out = self.model(imgs, targets)
         self.opt.zero_grad(set_to_none=True)
         out["total_loss"].backward()
@@ -496,11 +508,15 @@ class Trainer:
         os.replace(tmp, last)
         if step == 0 and epoch > 0:                   # an epoch just ended: keep the best EMA
             rows = [r for r in _metrics(self.dir) if r["epoch"] == epoch - 1]
-            score = (rows[0].get("val_recall", 0) + rows[0].get("val_precision", 0)) if rows else 0
-            if score > self.best or not (self.dir / "checkpoints" / "best.pt").is_file():
-                self.best = max(self.best, score)
+            scored = bool(rows) and "val_recall" in rows[0]
+            score = rows[0]["val_recall"] + rows[0].get("val_precision", 0) if scored else None
+            # without validation frames there is no "best": keep the newest epoch (QE PR 93)
+            if not scored or score > self.best or not (self.dir / "checkpoints" / "best.pt").is_file():
+                self.best = max(self.best, score) if scored else self.best
                 tmp = last.with_name(".best.pt.tmp")
-                torch.save({"model": self.ema, "epoch": epoch, "score": score}, tmp)
+                torch.save({"model": self.ema, "epoch": epoch, "score": score,
+                            "kept_as": "best validation score" if scored
+                            else "last epoch (no validation frames)"}, tmp)
                 os.replace(tmp, self.dir / "checkpoints" / "best.pt")
 
     def unload(self) -> None:

@@ -7,6 +7,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app.bench import units as bench_units
+
 DEFAULT_PATH = Path("config.local.toml")
 DEFAULT_TOOLS_DIR = Path.home() / "NereusData" / "urchin_detector_pipeline" / "tools"
 
@@ -20,6 +22,7 @@ class Config:
     # Build 2's tool environments (D51): on the laptop's own disk, never the exFAT SSD
     tools_dir: Path = DEFAULT_TOOLS_DIR
     fit: dict = field(default_factory=dict)   # the [fit] table as written (app/fit/convert.py reads it)
+    bench: bench_units.Bench = field(default_factory=bench_units.Bench)   # S7: [bench] units (D81)
     problems: list[str] = field(default_factory=list)   # the app cannot work until these are fixed
     warnings: list[str] = field(default_factory=list)   # the app works; some folders are missing
 
@@ -66,6 +69,8 @@ def load(path: Path = DEFAULT_PATH) -> Config:
 
     if isinstance(raw.get("fit"), dict):
         cfg.fit = raw["fit"]
+    cfg.bench = bench_units.parse(raw.get("bench"))
+    cfg.warnings.extend(cfg.bench.problems)
 
     roots = raw.get("video_roots", [])
     if isinstance(roots, str):

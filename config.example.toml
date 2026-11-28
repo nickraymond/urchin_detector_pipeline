@@ -20,3 +20,12 @@ data_dir = "/Volumes/Nick_R_SSD/NereusData/urchin_detector_pipeline"
 # openmv_dir = "~/openmv-dev/openmv"                  # OpenMV firmware tree (tools/modelc.py, tools/vela.ini)
 # sdk_dir = "~/openmv-sdk-1.6.0-linux-x86_64"         # OpenMV SDK with ST Edge AI Core 4.0.0
 # docker_image = "firmware-builder:latest"
+
+# Build 2 only, optional (S7; DESIGN D81): the bench units. Leave it out and only the fake board exists.
+# Names and addresses stay in config.local.toml, never in git. Any unit not listed is refused, and so is
+# every name in field_units. Only the team's rig test session sets this; builders and QE never do.
+# [bench]
+# field_units = ["<field unit name>"]
+# [bench.units.<bench unit name>]
+# ssh_host = "<alias from ~/.ssh/config>"
+# cameras = ["n6", "ae3"]
