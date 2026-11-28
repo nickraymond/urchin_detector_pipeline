@@ -563,12 +563,21 @@ The bench Pi's LiteRT environment (S7 bite 3b, D85, D89): `~/urchin_bench/venv-l
 The bench Pi's ONNX Runtime environment (S7 bite 3, D85, D89's install): `~/urchin_bench/venv-onnxruntime-1.29.0` on the
   bench Pi only, from `app/bench/agent/requirements-onnxruntime-1.29.0.txt` (onnxruntime 1.29.0's required dependencies
   resolved on the laptop from PyPI, pinned by PyPI's sha256; not yet a dry run on the Pi). Each a bench tool, not
-  deployed, as above. Read 2026-11-27 by the S7 builder: onnxruntime 1.29.0 — MIT (its own `LICENSE`, "MIT License,
-  Copyright (c) Microsoft Corporation", read from the same version installed in the conversion environment, the
-  macOS wheel; PyPI's metadata says "MIT License"). Its `ThirdPartyNotices.txt` there (6,343 lines) lists the code it
-  bundles, among them protobuf, zlib, pybind11, onnx, Eigen (MPL-2.0), abseil, re2, flatbuffers and Mbed TLS (Apache-2.0
-  OR GPL-2.0-or-later, taken under Apache-2.0); no component is under the GPL alone. packaging 26.4 — Apache-2.0 OR
-  BSD-2-Clause (its `LICENSE` and `License-Expression`, same version in the conversion environment). numpy 2.5.5,
-  flatbuffers 25.12.19 and protobuf 7.36.2: the same wheels as the LiteRT environment above. Not read yet: the
-  aarch64 onnxruntime wheel's own notice file, which may list more; the rig session reads it after the install, as
-  QE 9 did for numpy.
+  deployed, as above. Read 2026-11-27 by the S7 builder from the five pinned wheels' own files (fetched from PyPI into
+  a scratch folder, each wheel's sha256 equal to its pin; read, never installed or run):
+  onnxruntime 1.29.0 (cp313 manylinux_2_28 aarch64) — MIT (`onnxruntime/LICENSE`: "MIT License, Copyright (c)
+  Microsoft Corporation"). Its `onnxruntime/ThirdPartyNotices.txt` (the same text as the macOS wheel's) lists what
+  its builds may bundle; in the aarch64 library `libonnxruntime.so.1.29.0` itself: Eigen — MPL-2.0 (weak copyleft,
+  per file; used unmodified), Mbed TLS — Apache-2.0 OR GPL-2.0-or-later (taken under Apache-2.0), protobuf, onnx,
+  abseil, re2, flatbuffers and others under permissive licences. The notice also lists Intel MKL under the "Intel
+  Simplified Software License" (not an OSI licence); the aarch64 library holds no MKL symbol or string (`strings`:
+  0 for `mkl_`, `MKL_`, "Intel(R) Math Kernel"), so this build does not carry it.
+  packaging 26.4 — Apache-2.0 OR BSD-2-Clause (its `LICENSE`, `LICENSE.APACHE`, `LICENSE.BSD`, `License-Expression`).
+  protobuf 7.36.2 (cp310 abi3 manylinux2014 aarch64) — BSD-3-Clause ("Copyright 2008 Google Inc.", its `LICENSE`).
+  flatbuffers 25.12.19 — Apache 2.0 (its METADATA; the wheel has no licence file).
+  numpy 2.5.5 (cp313 manylinux aarch64) — the same wheel as the LiteRT environment's; its `LICENSE.txt` names
+  OpenBLAS (BSD-3-Clause), LAPACK (BSD-3-Clause-Open-MPI) and libgfortran (GPL-3.0-or-later WITH GCC-exception-3.1),
+  as QE 9 read it.
+  Not plainly permissive, so for Nick (stopped and reported to the lead, 2026-11-27): Eigen's MPL-2.0 inside
+  onnxruntime's library, and the Intel licence named in its notice (not in this build). Nothing is installed on the
+  Pi before Nick's word.

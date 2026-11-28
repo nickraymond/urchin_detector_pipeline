@@ -86,3 +86,30 @@ def test_the_agent_times_an_onnx_file_under_onnx_runtime(tmp_path):
         assert board.info()["runtime"] == "onnxruntime 1.29.0"
     finally:
         board.close()
+
+
+def test_without_a_float_onnx_file_the_pi_step_says_why_and_keeps_its_litert_result(tmp_path):
+    from app.fit.pi import qdq
+    r = qdq(tmp_path / "python", tmp_path / "model.onnx", tmp_path)
+    assert r["file"] is None and "no model.onnx" in r["error"]
+
+
+@pytest.mark.skipif(not CONVERT_PY.is_file(), reason="no conversion environment (onnxruntime 1.29.0) on this machine")
+def test_the_pi_step_makes_the_qdq_file_and_the_agent_runs_it(tmp_path):
+    """Lead call (a), lead 2: S6's Pi step writes targets/pi/model_qdq.onnx with D55's seeded calibration."""
+    from app.fit.pi import QDQ_NAME, qdq
+    src = tmp_path / "model.onnx"
+    subprocess.run([str(CONVERT_PY), "-c", TINY, str(src)], check=True)
+    out = tmp_path / "pi"
+    out.mkdir()
+    r = qdq(CONVERT_PY, src, out)
+    assert r["file"] == QDQ_NAME and r["file_bytes"] == (out / QDQ_NAME).stat().st_size, r
+    assert r["runtime"] == "onnxruntime 1.29.0" and r["operator_types"].get("QuantizeLinear", 0) >= 1
+    assert "seeded noise" in r["calibration"] and not list(out.glob("*.prep.onnx"))
+    board = PiBoard(units.Bench().unit("fake"), tmp_path,
+                    LocalTransport(tmp_path / "agent", runtime="onnxruntime", python=str(CONVERT_PY)), threads=1)
+    try:
+        board.load(Model("tiny", out / QDQ_NAME))
+        assert board.time("tiny", 10)["n"] == 10
+    finally:
+        board.close()
