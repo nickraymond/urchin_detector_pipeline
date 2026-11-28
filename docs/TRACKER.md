@@ -490,7 +490,7 @@ compilers; 3c the Pi)**
 - [x] the AE3 column is under the one-day time box: what is not converted in that time is recorded with its reason
 
 **Demo (Nick):** open "What runs where" and press "Run all": the table fills, cell by cell, for the three kinds
-on the N6, the Pi and the AE3. Click a cell: per candidate, the layers on the NPU and on the CPU, sizes against
+on the Pi, the N6 and the AE3. Click a cell: per candidate, the layers on the NPU and on the CPU, sizes against
 the limits, and for a failure the layers that stopped it.
 **Needs:** the Build 2 spec on main.
 **Demo checklist** (S6 builder 3 at the close; the lead hands it over with the Lead calls D51–D59, D70, D71, D72
