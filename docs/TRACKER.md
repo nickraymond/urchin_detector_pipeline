@@ -725,19 +725,22 @@ it can run beside S6–S7.
 per bite, about 300 lines each. Bites 1–2 need only a trained model folder (a fake one in tests).
 
 **Bite 1 — Evaluate job and tiled inference** (D90)
-- [ ] the trainer stores `train.eval_scale` (44 px over the training split's median shorter box side) in
+- [x] the trainer stores `train.eval_scale` (44 px over the training split's median shorter box side) in
       `recipe.json` at the start of a run; models trained before it get it worked out from their dataset version
-- [ ] job kind `evaluate`: one model × one test set → `eval/<version>-<test hash>/` (`eval.json`,
+      *(the trainer part: PR 111; the worked-out part: `app/evaluate/run.py` `scale_for`)*
+- [x] job kind `evaluate`: one model × one test set → `eval/<version>-<test hash>/` (`eval.json`,
       `predictions.jsonl`); frames as items; the eval scale, then tiles of the trained canvas with NMS across
-      seams; tests with a fake model
-- [ ] (QE PR 111) refuse a model without `best.pt`, with the reason the Train page gives; carry
+      seams; tests with a fake model *(`app/evaluate/`; no page yet: bite 3's model list starts it)*
+- [x] (QE PR 111) refuse a model without `best.pt`, with the reason the Train page gives; carry
       `train.eval_overlap_capped` into `eval.json`
 
 **Bite 2 — The figures and how far they can be trusted** (D91, D92)
-- [ ] count error per class and frame (share within ±20 %, the strict share beside it), empty frames with a
+- [~] count error per class and frame (share within ±20 %, the strict share beside it), empty frames with a
       prediction, precision / recall / mAP50 per class, small-object recall, largest object % error; frames and
       objects behind each figure; Wilson for frame shares, frame (or group) bootstrap for the rest; the rank floor;
       synthetic tests, mAP50 checked against pycocotools on a hand-made case
+      *(split by the builder: 2a the figures with the frames and objects behind each, `metrics.json`, AP50 against
+      pycocotools: `app/evaluate/metrics.py`; 2b open: the intervals (Wilson, bootstrap, groups) and the rank floor)*
 
 **Bite 3 — Per-frame view**
 - [ ] ground truth and predictions drawn, sorted by worst error, in the app's large viewer

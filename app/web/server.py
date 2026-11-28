@@ -41,6 +41,7 @@ from app.fit import convert as fit_convert
 from app.fit import pages as fit_pages
 from app.bench import pages as bench_pages
 from app.bench import run as bench_run
+from app.evaluate import run as evaluate_run
 from app.fit import setup as fit_setup
 from app.sam import add, classes
 from app.review import state as review_state
@@ -117,6 +118,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             jc.register(clips.playback_kind())
             jc.register(fit_convert.convert_kind())   # Build 2 (S6): one model x one camera
             jc.register(bench_run.bench_kind())       # Build 2 (S7): one test card on one board
+            jc.register(evaluate_run.evaluate_kind())  # Build 2 (S9): one model x one test set
             jc.register(fit_setup.setup_kind())       # Build 2 (S6): the tool environments
             jc.start()
             controls[key] = jc

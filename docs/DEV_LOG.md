@@ -40,6 +40,37 @@ error after a load ends restored too. QE 10's two probes pass on the fix.
 
 ---
 
+## 2026-11-27 — Sprint S9 — Bite 2a: the figures of an eval (S7 builder 1, on S9)
+**Branch:** sprint/9-figures (stacked on sprint/9-evaluate, PR 121)
+**Done:** `app/evaluate/metrics.py` (D91): count error (mean, mean absolute), within ±20 % and the strict share with
+the frames passed by the one-object rule, empty frames with a prediction, precision, recall, AP50, small-object recall,
+largest-box % error; each with its frames and objects; written as `metrics.json` by the evaluate worker. Bite 2
+split: 2b is the intervals and the rank floor (D92).
+**Self-test:** builder 2's m4 copy re-evaluated: class 1 recall 16 / 17, AP50 0.941, within ±20 % 1.0 (strict 0.833,
+1 frame by the one-object rule); class 3 recall 10 / 10, AP50 1.0; together the 26 / 27 of bite 1's probe.
+**Broke/surprised us:** the pycocotools check first disagreed (0.33 against 0.14): my test gave the boxes of one frame
+the same annotation id, so COCO read one box several times; with one id per box they agree to 1e-6.
+**Next:** S9 bite 2b (intervals, rank floor).
+
+---
+
+## 2026-11-27 — Sprint S9 — Bite 1: the evaluate job (S7 builder 1, on S9)
+**Branch:** sprint/9-evaluate
+**Done:** `app/evaluate/` (D90): job kind `evaluate`, one model × one test set → `eval/v<version>-<test hash>/`
+(`predictions.jsonl` frame by frame, `eval.json` last); refusals (no best.pt with the Train page's reason, a
+pre-training model, no predictor, no fully checked test frame, already evaluated); the eval scale from the recipe or
+worked out for older models; tiles from `app/train/tiles.py` with a numpy NMS across seams; scores kept down to 0.01;
+the YOLOX predictor on best.pt's EMA weights. Tests with a fake predictor (job, Pause / Resume, refusals, the
+recipe's scale and cap carried) and a stand-in detector on painted squares (native boxes back in place).
+**Self-test:** builder 2's m4 copy through `JobControl` on the Apple GPU: 6 test frames, factor 0.7586 worked out,
+recall 26 / 27 and precision 26 / 26 at 0.3 (DESIGN §Bench results). No page: bite 3 adds the model list.
+**Broke/surprised us:** QE 10 found a crash's cut last line in `predictions.jsonl` swallowed the next frame's line,
+so a "done" eval could miss a frame silently. Fixed: whole lines on every start, every frame once before
+`eval.json`; also one set of weights per eval and boxes clipped to the frame (QE nits 1, 2).
+**Next:** S9 bite 2 (the figures, D91, D92).
+
+---
+
 ## 2026-11-27 — Sprint S8 — Shrunk copies of outside images (S7 builder 1, on S8)
 **Branch:** sprint/8-outside-cache
 **Done:** `samples._load` with a cache folder: the smallest stored copy at least the size asked for, else decode
