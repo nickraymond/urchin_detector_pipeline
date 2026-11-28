@@ -51,6 +51,17 @@ behind it and says so.
 **Self-test:** the real `pi_run` on `plainseg-s-256-c6` in `convert-venv`: still 30 operators, exit 0; with the
 app's own Python (no LiteRT): exit 3, "tool fault: ModuleNotFoundError".
 **Next:** PRs 80–83, bite 2e, 2c-ii.
+## 2026-11-27 — Build 2 — S7 design; lead hand-over (Build 2 lead 2)
+**Branch:** sprint/7-design (docs only)
+**Done:** took over as Build 2 lead at 3:46 PM (handoff `build2_lead_handoff_1.md` in the notes folder); merged PR 90
+on QE PASS at `982e128`; Lead call D66 confirmed (partly checked frames train on their labeled boxes only). Wrote S7's
+design: DESIGN §Planned for S7 and Lead calls D80–D86 (bench runner and agent on the Pi, load routes per board,
+timing method, test card, Pi runtime order, power as an add-on), from the earlier work's load and timing methods
+(read by a helper with file and line); TRACKER S7 split into 8 bites. SPEC "Waiting for Nick": three items added
+from the handoff, the ST 4.1 installer item removed (Nick installed it).
+**Broke/surprised us:** the two cameras hang on the Pi's USB, not the laptop, so the board side has to run on the
+Pi; the earlier repo has no AE3 ROMFS build script and no Pi inference code.
+**Next:** QE on this PR; then S7 bite 1 to a builder; S6's close and its Demo checklist.
 ## 2026-11-27 — Sprint S8 — Bite 4b (part 3): YOLOX trains on the Apple GPU (S8 builder 2)
 **Branch:** sprint/8-apple-gpu
 **Done:** found why YOLOX's gradients were wrong on the Apple GPU (PR 72's open fault): the trainer's batch was
