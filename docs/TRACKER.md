@@ -470,6 +470,10 @@ compilers; 3c the Pi)**
       queues the other cells that had a result again behind it (PR 85)
 - [x] a LiteRT fault on the Pi step (runtime missing or changed) is a job error with a fix, not "does not run on
       the Pi" (QE PR 79 nit 1; PR 85)
+- [x] a stored result knows what made its 8-bit file (`int8/made_with.json`: export settings and code pin,
+      copied into every `fit.json`); a result from an older recipe says "made with an older recipe: Run again"
+      (QE PR 92 nit 1). Also: RF-DETR's route no longer records the opset and onnxsim settings it does not use
+      (nit 2); `THIRD_PARTY_LICENSES` names namex and sng4onnx and opencv-python 4.11's LGPL binaries (nit 4)
 - [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
       (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
       YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's
@@ -680,6 +684,9 @@ and the same frames with each model's masks.
       model is evaluated on the laptop like any model; the compare page shows what converting cost
 - [ ] accuracy run on S7's bench runner: send the test frames, read back raw outputs, score as in S9 / S10; the
       gap to the laptop's 8-bit result is shown (a gap means a runtime bug)
+- [ ] before any frame or trained weight goes through RF-DETR's own export (`app/fit/to_int8_rfdetr.py`), its
+      network refusal covers the step's child processes too (today it is in-process; onnx2tf starts onnxsim as a
+      child), so "0 attempts" counts all of them (QE PR 92 nit 3)
 - [ ] pick: one detector and one segmenter per camera marked "picked for the bake-off"; a one-page report
 **Demo (Nick):** press "Fit to cameras" on a trained detector and a segmenter; the test session runs the
 card on the rig: on-camera scores next to the laptop's. When the card's repeats are done, mark a pick and open the report (the
