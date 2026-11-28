@@ -17,6 +17,28 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2c-ii: RTMDet-Ins-tiny candidate (S6 builder 2)
+**Branch:** sprint/6-rtmdet-ins
+**Done:** licences read at the source first (mmdetection, mmcv, mmengine: Apache-2.0; `THIRD_PARTY_LICENSES`).
+`app/modeldefs/rtmdetins.py`: RTMDet-Ins-tiny at 256 px, built untrained from `mmdet` 3.3.0 with the config's
+pretrained backbone removed, raw output maps, its own tool environment `mmdet-venv` (in "Set up the tools").
+Builder call D72: `mmcv-lite` plus a stand-in for `mmcv.ops` instead of compiling full mmcv.
+**Self-test:** built through the app's code with every connection refused: 5,616,362 parameters, 0 network
+attempts. Through the real convert job on the three cameras, 3 of 3 "done": N6 130 + 2 + 2 of 134, AE3 323 NPU +
+1 CPU, Pi side runs; table in DESIGN §Bench results.
+**Broke/surprised us:** `mmcv-lite` does ship `mmcv/ops/*.py`, only not what they load, so the first check for
+"full mmcv is installed" was wrong; it now looks for `mmcv._ext`.
+**Changed before merge (QE FAIL on 8481b10, two records):** D72 is a Lead call (made by the lead the same day).
+The licence record was wrong to say nothing restricted is installed: `mmcv-lite` installs mmcv's operator folder as
+source, with 13 NVIDIA-licensed files. Lead call: the set-up step removes `mmcv/ops` after the install and the
+environment is "not ready" while it is there; done on the real tools folder, and the model builds the same
+afterwards (5,616,362 parameters, 0 network attempts). Also: OpenCV's bundled LGPL libraries are named; the
+"0 network attempts" is the by-hand build check's, not the job's; the build test is skipped by the suite and
+`mmdet-venv` has no pytest, so that build is checked by hand (the PR says how).
+**Not done:** SparseInst (time box). The page was not opened for this bite: it adds one candidate row and no page
+code.
+**Next:** 2f (the guarded ST Edge AI Core 4.1.0 step), S6's close.
+
 ## 2026-11-27 — Sprint S6 — Bite 2e: the RF-DETR family with RF-DETR's own export (S6 builder 2)
 **Branch:** sprint/6-rfdetr-retry
 **Done:** one retry with one thing changed (Lead call D70). By hand first (`s6/probe_rfdetr_tflite/`), then as the
@@ -51,6 +73,26 @@ behind it and says so.
 **Self-test:** the real `pi_run` on `plainseg-s-256-c6` in `convert-venv`: still 30 operators, exit 0; with the
 app's own Python (no LiteRT): exit 3, "tool fault: ModuleNotFoundError".
 **Next:** PRs 80–83, bite 2e, 2c-ii.
+## 2026-11-27 — Build 2 — S9 design (Build 2 lead 2)
+**Branch:** sprint/9-design (docs only)
+**Done:** DESIGN §Planned for S9 and Lead calls D90–D94 (evaluate job with the recipe's tiling, the figures and
+the small-count rule, intervals and the paired rank rule, comparing on one test set with the leak flag, RF-DETR
+Nano as a time-boxed laptop reference); TRACKER S9 split into 6 bites. Also today: PRs 92, 94, 96 merged on QE
+PASS at their heads; Nick's answer 16 recorded (own instance segmenters for the N6).
+**Broke/surprised us:** the lead's status log carried guessed clock times (QE caught it; corrected, `date` before
+every time from now on).
+**Next:** QE on this PR; S6's close and its Demo checklist; S7 bite 1 (S8 builder 3).
+## 2026-11-27 — Build 2 — S7 design; lead hand-over (Build 2 lead 2)
+**Branch:** sprint/7-design (docs only)
+**Done:** took over as Build 2 lead at 3:46 PM (handoff `build2_lead_handoff_1.md` in the notes folder); merged PR 90
+on QE PASS at `982e128`; Lead call D66 confirmed (partly checked frames train on their labeled boxes only). Wrote S7's
+design: DESIGN §Planned for S7 and Lead calls D80–D86 (bench runner and agent on the Pi, load routes per board,
+timing method, test card, Pi runtime order, power as an add-on), from the earlier work's load and timing methods
+(read by a helper with file and line); TRACKER S7 split into 8 bites. SPEC "Waiting for Nick": three items added
+from the handoff, the ST 4.1 installer item removed (Nick installed it).
+**Broke/surprised us:** the two cameras hang on the Pi's USB, not the laptop, so the board side has to run on the
+Pi; the earlier repo has no AE3 ROMFS build script and no Pi inference code.
+**Next:** QE on this PR; then S7 bite 1 to a builder; S6's close and its Demo checklist.
 ## 2026-11-27 — Sprint S8 — Bite 4b (part 3): YOLOX trains on the Apple GPU (S8 builder 2)
 **Branch:** sprint/8-apple-gpu
 **Done:** found why YOLOX's gradients were wrong on the Apple GPU (PR 72's open fault): the trainer's batch was
