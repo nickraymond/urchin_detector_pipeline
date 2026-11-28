@@ -702,6 +702,8 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       a different mode from training and from S9's eval scale (D90): validate at the eval scale with tiles
       *(`app/train/tiles.py`: the factor (clamped to 0.03-1.5, Lead call in D90) and the tile plan, kept in
       `recipe.json` at the first start; validation scores whole frames in tiles with NMS across seams)*
+- [x] QE PR 111 nits: a model with no `best.pt` (stopped before its first validated epoch) says so on the Train page,
+      with the epoch of its first validation; a run whose tile overlap was capped says what that means for big objects
 
 **Demo (Nick):** on a project with an export, open Datasets and press "Freeze a version": the page shows counts
 per class and split. Open Train, pick YOLOX-Nano, press Estimate, then Run: the loss curve moves and validation
@@ -720,6 +722,8 @@ per bite, about 300 lines each. Bites 1–2 need only a trained model folder (a 
 - [ ] job kind `evaluate`: one model × one test set → `eval/<version>-<test hash>/` (`eval.json`,
       `predictions.jsonl`); frames as items; the eval scale, then tiles of the trained canvas with NMS across
       seams; tests with a fake model
+- [ ] (QE PR 111) refuse a model without `best.pt`, with the reason the Train page gives; carry
+      `train.eval_overlap_capped` into `eval.json`
 
 **Bite 2 — The figures and how far they can be trusted** (D91, D92)
 - [ ] count error per class and frame (share within ±20 %, the strict share beside it), empty frames with a
