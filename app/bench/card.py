@@ -42,7 +42,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
-def _sha(path: Path) -> str:
+def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):
@@ -110,7 +110,7 @@ def _models(data_dir, lines: str, problems: list) -> list[dict]:
             problems.append(f"two model files are named {_name(root, p)}")
         else:
             names.add(_name(root, p))
-            out.append({"name": _name(root, p), "path": str(p), "bytes": p.stat().st_size, "sha256": _sha(p)})
+            out.append({"name": _name(root, p), "path": str(p), "bytes": p.stat().st_size, "sha256": sha256_file(p)})
     if not out and not any("model file" in x or "data folder" in x for x in problems):
         problems.append("list at least one model file, one path per line")
     return out
@@ -145,7 +145,7 @@ def load(data_dir, number: int) -> dict:
     if not p.is_file():
         raise CardError(f"No test card {number}.")
     card = json.loads(p.read_text(encoding="utf-8"))
-    card["sha256"] = _sha(p)
+    card["sha256"] = sha256_file(p)
     r = folder(data_dir) / f"{int(number)}.review.json"
     card["review"] = json.loads(r.read_text(encoding="utf-8")) if r.is_file() else None
     card["reviewed"] = bool(card["review"] and card["review"].get("card_sha256") == card["sha256"])

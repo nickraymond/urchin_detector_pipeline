@@ -25,5 +25,30 @@
     </form>{% endif %}</td></tr>
   <tr><th>Card file</th><td><code>bench/cards/{{ c.number }}.json</code>, sha256 <code>{{ c.sha256[:16] }}…</code></td></tr>
 </table>
-<p class="hint">Running a card comes with the next bite (the <code>bench</code> job).</p>
+<h2>Runs</h2>
+{% if c.reviewed %}
+<form method="post" action="/bench/cards/{{ c.number }}/run"><button>Run this card</button>
+  <span class="hint">{{ c.windows }} windows of {{ c.n }} on {{ c.unit }} / {{ c.board }}; Pause takes effect after a window, Cancel keeps the windows already timed.</span></form>
+{% else %}
+<p class="hint">Run is refused until the card is reviewed by someone other than its writer.</p>
+{% endif %}
+{% if runs %}
+<table>
+  <tr><th>Run</th><th>State</th><th>Model</th><th>Windows</th><th>Median ms</th><th>Spread (window means)</th><th>Free after load</th></tr>
+  {% for r in runs %}{% set ms = r.models.items() | list %}
+  {% for name, m in (ms or [("—", None)]) %}
+  <tr>
+    {% if loop.first %}<td rowspan="{{ ms | length or 1 }}"><code>bench/{{ r.run_id }}</code></td>
+    <td rowspan="{{ ms | length or 1 }}">{% if r.job %}<a href="/jobs/{{ r.job.id }}/log">{{ r.job.state }}</a>{% else %}{{ r.run.outcome or "?" }}{% endif %}
+      {% if r.run.error %}<br><span class="error">{{ r.run.error }}</span>{% endif %}</td>{% endif %}
+    {% if m %}<td>{{ name }}</td><td>{{ m.windows }} of {{ r.run.windows }}</td>
+    <td>{% if m.median_ms is not none %}{{ "%.2f" | format(m.median_ms) }}{% else %}<span class="hint">fewer than 3 windows</span>{% endif %}</td>
+    <td>{{ "%.2f" | format(m.low_ms) }} – {{ "%.2f" | format(m.high_ms) }}</td><td>{{ m.mem_after_load }} B</td>
+    {% else %}<td colspan="5" class="hint">no window timed yet</td>{% endif %}
+  </tr>
+  {% endfor %}{% endfor %}
+</table>
+{% else %}
+<p>No runs of this card yet.</p>
+{% endif %}
 {% endblock %}

@@ -10,6 +10,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import config
 from app.bench import card, riglog
+from app.bench import run as runs
+from app.jobctl import JobError
 from app.bench.board import KINDS
 
 
@@ -31,7 +33,7 @@ def register(app, templates, config_path, dashboard) -> None:
             "undo": riglog.undo_steps(rows)})
 
 
-def register_cards(app, templates, config_path, dashboard) -> None:
+def register_cards(app, templates, config_path, dashboard, jobctl) -> None:
     """Test cards (S7 bite 2a, D84): GET /bench/cards lists them and has the form for a new one;
     GET /bench/cards/<n> shows one; POST saves a new card or records its review. A saved card never changes."""
 
@@ -70,8 +72,26 @@ def register_cards(app, templates, config_path, dashboard) -> None:
             c = card.load(cfg.data_dir, number)
         except card.CardError as e:
             return HTMLResponse(str(e), status_code=404)
+        jc, found = jobctl(cfg), runs.runs_for_card(cfg.data_dir, number)
+        for r in found:
+            jid = r["run"].get("job_id")
+            try:
+                r["job"] = jc.status(jid) if jid else None
+            except JobError:
+                r["job"] = None
         return templates.TemplateResponse(request, "bench_card.html", {
-            "cfg": cfg, "c": c, "note": note, "error": error})
+            "cfg": cfg, "c": c, "note": note, "error": error, "runs": found})
+
+    @app.post("/bench/cards/{number}/run")
+    def card_run(request: Request, number: int):
+        cfg = config.load(config_path)
+        if not cfg.ok:
+            return dashboard(request, status=503)
+        try:
+            jobctl(cfg).submit("bench", runs.params(cfg, number))
+        except JobError as e:
+            return back(f"/bench/cards/{number}", error=str(e))
+        return back(f"/bench/cards/{number}", note="Run queued: progress and the log are on the Jobs page.")
 
     @app.post("/bench/cards/{number}/review")
     def card_review(request: Request, number: int, reviewed_by: str = Form("")):

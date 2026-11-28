@@ -40,6 +40,7 @@ from app.export import worker as export_worker
 from app.fit import convert as fit_convert
 from app.fit import pages as fit_pages
 from app.bench import pages as bench_pages
+from app.bench import run as bench_run
 from app.fit import setup as fit_setup
 from app.sam import add, classes
 from app.review import state as review_state
@@ -113,6 +114,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             jc.register(extract.extract_kind())
             jc.register(clips.playback_kind())
             jc.register(fit_convert.convert_kind())   # Build 2 (S6): one model x one camera
+            jc.register(bench_run.bench_kind())       # Build 2 (S7): one test card on one board
             jc.register(fit_setup.setup_kind())       # Build 2 (S6): the tool environments
             controls[key] = jc
         return controls[key]
@@ -295,7 +297,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     fit_pages.register(app, templates, config_path, jobctl, dashboard)   # Build 2: "What runs where"
     bench_pages.register(app, templates, config_path, dashboard)          # Build 2 (S7): the rig log
-    bench_pages.register_cards(app, templates, config_path, dashboard)    # Build 2 (S7): test cards
+    bench_pages.register_cards(app, templates, config_path, dashboard, jobctl)   # Build 2 (S7): test cards, runs
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):

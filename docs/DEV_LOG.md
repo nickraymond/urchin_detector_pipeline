@@ -17,6 +17,21 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — Bite 2b: the `bench` job on the fake board (S7 builder 1)
+**Branch:** sprint/7-bench-run (on top of 2a, PR 101)
+**Done:** job kind `bench` (`app/bench/run.py`, `worker.py`): a reviewed card → `bench/<run id>/` with `card.json`,
+`run.json`, `timing.jsonl`; Pause between windows, Resume skips what is on disk, Cancel keeps it; stop rules as job
+errors with a hint; model files and the card re-checked by sha256 in the worker; "Run this card" and the runs table
+on the card page. `FakeBoard` gained `fail_at` and `delay_s` for the Pause, Cancel and stop-rule tests.
+**Self-test:** scratch data folder, card 1 (fake / n6, 3 × 300): "Run this card" → "Run queued"; after a few seconds
+the card page shows the run "done", 3 of 3 windows, median 10.00 ms, spread 9.97–10.01, 3,090,000 B free after load;
+the folder holds card.json, run.json (outcome done, route fake, job 1) and 3 timing lines; Jobs shows the job done
+"model_int8: median 10.00 ms over 3 windows"; the rig log has the fake load, before and after.
+**Broke/surprised us:** nothing.
+**Next:** S7 bite 3 (the bench agent and the Pi).
+
+---
+
 ## 2026-11-27 — Sprint S7 — Bite 2a: test cards as data and a page (S7 builder 1)
 **Branch:** sprint/7-bench-job
 **Done:** bite 2 split in two by the builder: 2a the card (D84), 2b the `bench` job. `app/bench/card.py`: build with
