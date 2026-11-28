@@ -45,7 +45,9 @@ def test_build_save_load_review(data):
     assert card.review(data, 1, "qe")["reviewed"]
     with pytest.raises(card.CardError, match="already reviewed"):
         card.review(data, 1, "someone")
+    (card.folder(data) / "._3.json").write_bytes(b"\0\x05AppleDouble")       # macOS sidecar on the exFAT disk
     assert [x["number"] for x in card.list_cards(data)] == [2, 1]
+    assert card.save(data, c) == 3
 
 
 def test_card_changed_after_review_is_not_reviewed(data):

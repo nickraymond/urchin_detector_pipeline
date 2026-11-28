@@ -16,6 +16,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app import sidecars
 from app.bench import units
 
 MIN_WINDOWS, DEFAULT_WINDOWS, DEFAULT_N = 3, 3, 300           # D83: never a cell from one window
@@ -126,7 +127,7 @@ def save(data_dir, card: dict) -> int:
     """Write the card under the next number; never overwrites (O_EXCL)."""
     d = folder(data_dir)
     d.mkdir(parents=True, exist_ok=True)
-    n = max([int(p.stem) for p in d.glob("*.json") if p.stem.isdigit()] + [0]) + 1
+    n = max([int(p.stem) for p in sidecars.real(d.glob("*.json")) if p.stem.isdigit()] + [0]) + 1
     while True:
         try:
             fd = os.open(d / f"{n}.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
@@ -153,7 +154,8 @@ def load(data_dir, number: int) -> dict:
 
 def list_cards(data_dir) -> list[dict]:
     d = folder(data_dir)
-    nums = sorted((int(p.stem) for p in d.glob("*.json") if p.stem.isdigit()), reverse=True) if d.is_dir() else []
+    nums = sorted((int(p.stem) for p in sidecars.real(d.glob("*.json")) if p.stem.isdigit()),
+                  reverse=True) if d.is_dir() else []
     return [load(data_dir, n) for n in nums]
 
 
