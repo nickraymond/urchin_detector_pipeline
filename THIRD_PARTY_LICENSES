@@ -126,9 +126,20 @@ laptop, outside the app's own environment. Read on 2026-11-27 by the S6 builder 
 ST Edge AI Core (the N6 compiler, `stedgeai`) — STMicroelectronics, not open source.
   In use: 4.0.0 (v4.0.0-20500), inside OpenMV's SDK 1.6.0. Its terms are SLA0104 Rev1 / June 2024 (the SDK's
   `stedgeai/Package_license.html`; the same text is written as LICENSE.txt next to every model it generates).
-  Read but not installed: 4.1.0, under SLA0044 Rev 7 / February 2026 ("Ultimate Liberty"; ST's docs,
+  Also on the laptop since 2026-11-27, installed by Nick himself with ST's installer into
+  `/Applications/ST/STEdgeAI/4.1/`: 4.1.0 (v4.1.0-20732), under SLA0044 Rev 7 / February 2026 ("Ultimate
+  Liberty"; the install's own `LICENSE.txt` and ST's docs,
   stm32ai-cs.st.com/assets/embedded-docs/Package_license.html). Nick said yes to ST's terms on 2026-11-27
-  (docs/source/build2_spec.md, answer 15).
+  (docs/source/build2_spec.md, answer 15). It is a second N6 compiler beside 4.0.0 (`app/fit/n6_st41.py`, D71).
+  USAGE STATISTICS (4.1.0): the tool asks "Do you allow statistics to improve the command line? (y)es / (n)o"
+  and keeps a uuid and a queue of records in `~/.stmai`. A queued record, as read there: command ("generate"),
+  target ("stm32n6npu"), model type ("tflite"), layer count, platform ("darwin"), and size fields that were
+  empty; no frames, no weights, no file names. Two runs of 2026-11-27 (YOLOX Nano, untrained) happened with the
+  network open before this was seen, and whether they sent anything is not known. Nick's ruling the same day:
+  the two are accepted; no more ST data leaves; the queue was cleared (by the lead). Since then the tool runs
+  only inside `app/fit/n6_st41.py`: it answers "n", and a macOS sandbox denies the process the network and any
+  write to `~/.stmai` (with the network closed the tool otherwise queues a record even after "n"). Evidence:
+  `~/NereusData/urchin_detector_pipeline/s6/probe_st41/` (`stmai_after_first_two_runs.txt`, the run logs).
   What both say that matters here: the software and anything derived from it "must be used and execute solely
   and exclusively on or in combination with a processing unit device manufactured by or for
   STMicroelectronics" (SLA0044's words; SLA0104 says the same with "a device or a processing unit device
