@@ -773,11 +773,24 @@ no "after" shows as "not finished" in red. The page lists unit names and their b
 **As built, bite 2a** (`app/bench/card.py`, `/bench/cards`): a card is `<data_dir>/bench/cards/<n>.json`, numbered,
 written once (`O_EXCL`), never changed; a review is a separate `<n>.review.json` holding the reviewer and the card
 file's sha256, so a card edited on disk after its review shows "changed after review" and cannot be run. The writer
-cannot review their own card. Checks at save: unit and board through `Bench.unit` (field units and unlisted units
+cannot review their own card; that compares the typed names only, so it is a guard against slips, not an identity check (QE PR 101 nit 5). Checks at save: unit and board through `Bench.unit` (field units and unlisted units
 refused), at least 3 windows, N and cost at least 1, at least one stop rule (D84's defaults and D87's "RESTORE.md
-matches the rig log" are prefilled), model files only under the data folder, each with its size and sha256. A model's
+matches the rig log" are prefilled, and that last rule is required on a card for a real unit, at save and again at Run; QE PR 101 nit 1), model files only under the data folder, each with its size and sha256. A model's
 name is its candidate folder for S6's files (`fit/<arch key>/int8/model_int8.tflite`), else its path under the data
 folder. Frames are fixed by D83 (one seeded synthetic image per model), so the card states them and has no field.
+
+**As built, bite 2b** (`app/bench/run.py`, `worker.py`): job kind `bench`, item "window". Run (`POST
+/bench/cards/<n>/run`) is refused unless the card is reviewed and unchanged since its review and its unit is allowed;
+the params carry the card's sha256 and a run id `<YYYYmmdd-HHMMSS>-card<n>`. The worker checks all of that again,
+and each model file's sha256 against the card, then writes `card.json` (card + review), opens the board, logs
+`board.info()` in `run.json`, loads the models together (`load_several`: one rig-log change), and times window by
+window, each model in turn, appending one `timing.jsonl` line per window and model. Pause is taken between windows; a
+resumed worker loads the models again (a new rig-log change) and skips the (window, model) pairs on disk. Cancel
+ends the worker at once; the lines on disk stay. A `BoardError` ends the job as an error naming the stop rule, what
+to do next (`HINTS`) and that finished windows are kept; `run.json` gets `stopped: <rule>`. The card page shows each
+run with its job state, and per model the windows timed, the median of the window means (only from 3 windows, D83),
+the spread (lowest to highest window mean) and the lowest free memory after load. Fake settings (timings,
+failures, delay) are a test-only param, refused for a real unit.
 
 **As built, bite 3a** (the agent, the transports, the Pi board): `app/bench/agent/bench_agent.py` is one file,
 standard library only (numpy and the runtime are imported when a model loads), started as `python3

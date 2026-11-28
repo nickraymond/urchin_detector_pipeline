@@ -489,8 +489,11 @@ compilers; 3c the Pi)**
       much room is left
 - [x] the AE3 column is under the one-day time box: what is not converted in that time is recorded with its reason
 
+- [x] camera columns in the order Pi, N6, AE3 in every table on "What runs where" (Nick, lead chat 2026-11-27:
+      "tables always show: Pi, N6, AE3 in the ordered columns"; PR 109)
+
 **Demo (Nick):** open "What runs where" and press "Run all": the table fills, cell by cell, for the three kinds
-on the N6, the Pi and the AE3. Click a cell: per candidate, the layers on the NPU and on the CPU, sizes against
+on the Pi, the N6 and the AE3. Click a cell: per candidate, the layers on the NPU and on the CPU, sizes against
 the limits, and for a failure the layers that stopped it.
 **Needs:** the Build 2 spec on main.
 **Demo checklist** (S6 builder 3 at the close; the lead hands it over with the Lead calls D51–D59, D70, D71, D72
@@ -542,9 +545,11 @@ against the fake board only; the rig test session runs each board's first card a
 - [x] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
       stop rules, cost, written by, reviewed by); Run is refused without a saved card; the card is saved with the run
       *(2a, split by the builder: `app/bench/card.py`, `/bench/cards`; Run and "saved with the run" land with 2b)*
-- [ ] job kind `bench` on `app/jobctl/`: one card → windows → `bench/<run id>/` (`run.json`, `timing.jsonl`); Pause
+- [x] job kind `bench` on `app/jobctl/`: one card → windows → `bench/<run id>/` (`run.json`, `timing.jsonl`); Pause
       after a window, Cancel keeps finished windows; stop rules as job errors with a recovery hint; tested end to end
       with the fake board
+      *(2b: `app/bench/run.py`, `worker.py`; "Run this card" and the runs on `/bench/cards/<n>`; the card is saved
+      with the run as `card.json`)*
 
 **Bite 3 — The bench agent and the Pi** (D81, D85)
 - [x] the agent (`app/bench/agent/`, plain Python 3): copied to its folder on the Pi over ssh, speaks JSON lines;
@@ -587,7 +592,8 @@ against the fake board only; the rig test session runs each board's first card a
       energy per inference and a power-over-time chart; "not validated" until a saved known-load check; fake meter
 
 **Bite 8 — Measured numbers on the page, and the report**
-- [ ] each cell shows the median ms and spread, memory, and energy (or "not measured") next to the compiler's
+- [ ] columns in the order Pi, N6, AE3, as on S6's page (Nick, 2026-11-27); each cell shows the median ms and
+      spread, memory, and energy (or "not measured") next to the compiler's
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 

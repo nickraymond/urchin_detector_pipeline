@@ -17,6 +17,24 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — Bite 2b: the `bench` job on the fake board (S7 builder 1)
+**Branch:** sprint/7-bench-run (on top of 2a, PR 101)
+**Done:** job kind `bench` (`app/bench/run.py`, `worker.py`): a reviewed card → `bench/<run id>/` with `card.json`,
+`run.json`, `timing.jsonl`; Pause between windows, Resume skips what is on disk, Cancel keeps it; stop rules as job
+errors with a hint; model files and the card re-checked by sha256 in the worker; "Run this card" and the runs table
+on the card page. `FakeBoard` gained `fail_at` and `delay_s` for the Pause, Cancel and stop-rule tests. QE PR 101 nits: (1) a card for a
+real unit must keep D87's "RESTORE.md matches the rig log", at save and at Run; (2) Run re-checks unit and model
+files (the worker); (3) a refused card comes back with the form filled in; (4) an unreadable card file is a row,
+not a 500; (5) DESIGN says the writer / reviewer check compares typed names only.
+**Self-test:** scratch data folder, card 1 (fake / n6, 3 × 300): "Run this card" → "Run queued"; after a few seconds
+the card page shows the run "done", 3 of 3 windows, median 10.00 ms, spread 9.97–10.01, 3,090,000 B free after load;
+the folder holds card.json, run.json (outcome done, route fake, job 1) and 3 timing lines; Jobs shows the job done
+"model_int8: median 10.00 ms over 3 windows"; the rig log has the fake load, before and after.
+**Broke/surprised us:** nothing.
+**Next:** S7 bite 3 (the bench agent and the Pi).
+
+---
+
 ## 2026-11-27 — Sprint S8 — Bites 2a–5 as built; Estimate and validation frames; docs (S8 builders 1 and 2)
 **Branch:** sprint/8-docs (docs), sprint/8-train-estimate (PR 87), sprint/8-view-rule (PR 86), sprint/8-pretrain (PR 90), sprint/8-boxes-only (PR 93)
 **Done (first S8 builder, merged earlier today, logged here because its docs were held back):** bite 2a dataset
@@ -43,6 +61,9 @@ PR 103 makes the job runner start after the job kinds are registered (TRACKER S8
 rule are not measured; a full pre-training run (hours); no run on Nick's real frames yet (no class is fully checked
 on them, D64); the attribution text travelling with a model; three small carried QE nits.
 **Next:** shrunk copies of outside images; then a full pre-training run on Urchinbot.
+
+---
+
 ## 2026-11-27 — Sprint S8 — Fix: the job runner starts after the job kinds are registered (S8 builder 2)
 **Branch:** sprint/8-runner-start (PR 103)
 **Done:** `JobControl.start()`; the app creates the job module without starting it, registers every kind, then
@@ -66,6 +87,8 @@ venv are a missing `tabulate`, not code (QE ran them green).
 data folder held 21 results, all with an `int8.json` export record, so none is beyond the older-recipe check;
 the lead's re-run was still writing results then.
 **Next:** the lead hands Nick the S6 test build (Demo checklist above).
+
+---
 
 ## 2026-11-27 — Sprint S7 — Bite 2a: test cards as data and a page (S7 builder 1)
 **Branch:** sprint/7-bench-job

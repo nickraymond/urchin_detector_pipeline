@@ -88,6 +88,22 @@ def test_field_unit_card_is_refused(data):
     assert card.build(data, bench, form(unit="bench-a"))["unit"] == "bench-a"
 
 
+def test_real_unit_card_keeps_the_restore_rule(data):                       # QE PR 101 nit 1, D87
+    bench = units.parse({"field_units": [], "units": {"bench-a": {"ssh_host": "h", "cameras": ["n6"]}}})
+    with pytest.raises(card.CardError, match="RESTORE.md matches the rig log"):
+        card.build(data, bench, form(unit="bench-a", stop_rules="a board that does not answer in 60 s stops the run"))
+    assert card.build(data, units.Bench(), form(stop_rules="one rule"))["stop_rules"] == ["one rule"]   # fake: optional
+
+
+def test_unreadable_card_is_listed_not_a_500(data, client):                  # QE PR 101 nit 4
+    card.save(data, card.build(data, units.Bench(), form()))
+    (card.folder(data) / "2.json").write_text("{cut off")
+    rows = card.list_cards(data)
+    assert rows[0]["number"] == 2 and "unreadable" in rows[0] and rows[1]["number"] == 1
+    page = client.get("/bench/cards")
+    assert page.status_code == 200 and "2.json cannot be read" in page.text
+
+
 def test_field_count_counts_entries_as_written():                            # QE PR 98 nit 1
     b = units.parse({"field_units": ["field-pi.local", "Field-Pi.local", "cam-2"]})
     assert b.field_count == 2 and "field-pi" in b.field_units
@@ -118,8 +134,9 @@ def client(tmp_path, data):
 def test_cards_pages(client, data):
     page = client.get("/bench/cards").text
     assert "No test cards yet" in page and "RESTORE.md matches the rig log" in page
-    r = client.post("/bench/cards", data=form(windows="2"), follow_redirects=True)
-    assert "at least 3" in r.text and not card.folder(data).exists()
+    r = client.post("/bench/cards", data=form(windows="2", question="Typed question"), follow_redirects=True)
+    assert r.status_code == 400 and "at least 3" in r.text and not card.folder(data).exists()
+    assert ">Typed question</textarea>" in r.text and 'value="2"' in r.text     # QE PR 101 nit 3: nothing typed is lost
     r = client.post("/bench/cards", data=form(), follow_redirects=True)
     assert r.url.path == "/bench/cards/1" and "Card 1 saved" in r.text and "not reviewed yet" in r.text
     r = client.post("/bench/cards/1/review", data={"reviewed_by": "lead"}, follow_redirects=True)
