@@ -49,10 +49,11 @@ def test_detector_candidates_are_complete_recipes():
         else:
             assert a["licence"] in PERMISSIVE and a["licence_mark"] is None
         assert len(a["code"]["commit"]) == 40 or a["code"]["commit"].startswith("pip:")
-        assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-tflite-venv", "rfdetr-plus-tflite-venv")
+        assert modeldefs.export_settings(a)["env"] in ("convert-venv", "rfdetr-tflite-venv", "rfdetr-plus-tflite-venv", "mmdet-venv")
     assert {"rfdetr-nano-384-c5", "rfdetr-nano-256-c5"} <= set(keys)
     keys = [modeldefs.arch_key(a) for a in modeldefs.candidates("instance")]
-    assert keys == ["rfdetr-seg-nano-312-c5", "yoloxproto-nano-conv-256-c5", "yoloxproto-tiny-conv-256-c5"]
+    assert keys == ["rfdetr-seg-nano-312-c5", "yoloxproto-nano-conv-256-c5", "yoloxproto-tiny-conv-256-c5",
+                    "rtmdetins-tiny-256-c5"]
     for a in modeldefs.candidates("instance"):
         assert modeldefs.check(a) == [] and a["licence"] in PERMISSIVE and a["licence_mark"] is None
 
@@ -145,6 +146,35 @@ def test_check_says_what_is_wrong(change, word):
     assert problems and any(word in p for p in problems), problems
     with pytest.raises(modeldefs.ModelDefError):
         modeldefs.build(a)
+
+
+def test_rtmdet_ins_recipe_and_checks():
+    """Bite 2c-ii: a published conv instance segmenter; Apache-2.0, its own tool environment, the known-good route."""
+    from app.modeldefs import rtmdetins
+    a = rtmdetins.arch(256, modeldefs.BUILD2_CLASSES)
+    assert modeldefs.check(a) == [] and modeldefs.arch_key(a) == "rtmdetins-tiny-256-c5"
+    assert (a["kind"], a["licence"], a["licence_mark"], a.get("note")) == ("instance", "Apache-2.0", None, None)
+    assert modeldefs.export_settings(a) == {"env": "mmdet-venv", "opset": 13, "simplify": False, "route": "onnx2tf"}
+    assert a["code"]["commit"] == "pip:mmdet==3.3.0" and len(a["outputs"]["names"]) == 10
+    assert any("multiple of 32" in p for p in modeldefs.check({**a, "input": [250, 250]}))
+    assert any("only RTMDet-Ins-tiny" in p for p in modeldefs.check({**a, "size": "s"}))
+
+
+@pytest.mark.skipif(importlib.util.find_spec("mmdet") is None, reason="mmdetection is only in its tool environment")
+def test_rtmdet_ins_builds_untrained_with_raw_maps():
+    import torch
+    from app.modeldefs import rtmdetins
+    outs = modeldefs.build(rtmdetins.arch(256, modeldefs.BUILD2_CLASSES))(torch.zeros(1, 3, 256, 256))
+    assert [tuple(o.shape)[1] for o in outs] == [5, 5, 5, 4, 4, 4, 169, 169, 169, 8]
+    assert tuple(outs[-1].shape) == (1, 8, 32, 32)
+
+
+def test_rtmdet_ins_missing_package_says_how_to_fix():
+    if importlib.util.find_spec("mmdet") is not None:
+        pytest.skip("mmdetection is installed here")
+    from app.modeldefs import rtmdetins
+    with pytest.raises(modeldefs.ModelDefError, match="mmdet-venv"):
+        modeldefs.build(rtmdetins.arch(256, ["x"]))
 
 
 def test_rfdetr_checks_and_export_settings():

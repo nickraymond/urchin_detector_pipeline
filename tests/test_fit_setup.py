@@ -51,19 +51,19 @@ def calls(bin_dir) -> list[str]:
 def test_nothing_is_ready_in_an_empty_folder(tmp_path):
     items = setup.items(tmp_path)
     assert [i["name"] for i in items] == ["convert-venv", "vela-5.0.0-venv", "rfdetr-tflite-venv", "rfdetr-plus-tflite-venv",
-                                          "third_party/YOLOX"]
+                                          "mmdet-venv", "third_party/YOLOX"]
     assert not any(i["ok"] for i in items) and all(i["why"] == "not there" for i in items)
     assert "Roboflow licence" in items[3]["what"]
-    assert setup.progress({"tools_dir": str(tmp_path)}) == (0, 5)
+    assert setup.progress({"tools_dir": str(tmp_path)}) == (0, 6)
 
 
 def test_set_up_makes_every_tool_once_and_a_second_run_does_nothing(box):
     jc, tools, bin_dir = box
     s = run(jc, tools, bin_dir)
-    assert s["state"] == "done" and (s["done"], s["total"]) == (5, 5)
+    assert s["state"] == "done" and (s["done"], s["total"]) == (6, 6)
     assert all(i["ok"] for i in setup.items(tools))
     log = calls(bin_dir)
-    assert sum(l.startswith("fake uv venv") for l in log) == 4 and sum("pip install" in l for l in log) == 4
+    assert sum(l.startswith("fake uv venv") for l in log) == 5 and sum("pip install" in l for l in log) == 5
     assert any("venv --python 3.11" in l and l.endswith("convert-venv") for l in log)
     assert any("pip install" in l and l.endswith("ethos-u-vela==5.0.0") for l in log)
     assert any(l.endswith("requirements-rfdetr-plus-tflite.txt") for l in log)
@@ -153,3 +153,17 @@ def test_docker_is_asked_at_most_once_a_minute(monkeypatch, tmp_path):
     setup._docker_seen["an-image:1"] = (setup.time.monotonic() - setup.DOCKER_CHECK_SECONDS - 1, True)
     setup.outside(fit)
     assert len(calls) == 2
+
+
+def test_files_that_must_not_stay_are_removed_and_block_ready(box):
+    """Lead call with D72: mmcv-lite's operator folder holds NVIDIA-licensed files; the app never loads it."""
+    jc, tools, bin_dir = box
+    assert setup.REMOVE == {"mmdet-venv": ["mmcv/ops"]}
+    run(jc, tools, bin_dir)
+    ops = tools / "mmdet-venv" / "lib" / "python3.11" / "site-packages" / "mmcv" / "ops"
+    ops.mkdir(parents=True)
+    (ops / "conv2d_gradfix.py").write_text("# NVIDIA\n")
+    why = {i["name"]: i["why"] for i in setup.items(tools) if not i["ok"]}
+    assert list(why) == ["mmdet-venv"] and "must not stay installed (mmcv/ops)" in why["mmdet-venv"]
+    assert run(jc, tools, bin_dir)["state"] == "done"
+    assert not ops.exists() and all(i["ok"] for i in setup.items(tools))

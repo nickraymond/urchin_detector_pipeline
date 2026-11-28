@@ -41,7 +41,7 @@ SEGMENTER_CLASSES = BUILD2_CLASSES + ["other"]
 
 FAMILIES = {"yolox": "app.modeldefs.yolox", "rfdetr": "app.modeldefs.rfdetr",
             "tvseg": "app.modeldefs.tvseg", "plainseg": "app.modeldefs.plainseg",
-            "yoloxproto": "app.modeldefs.yoloxproto",
+            "yoloxproto": "app.modeldefs.yoloxproto", "rtmdetins": "app.modeldefs.rtmdetins",
             "rfdetrplus": "app.modeldefs.rfdetrplus"}   # Roboflow licence: evaluation only (D59)
 
 

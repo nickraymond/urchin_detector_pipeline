@@ -17,6 +17,28 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S6 — Bite 2c-ii: RTMDet-Ins-tiny candidate (S6 builder 2)
+**Branch:** sprint/6-rtmdet-ins
+**Done:** licences read at the source first (mmdetection, mmcv, mmengine: Apache-2.0; `THIRD_PARTY_LICENSES`).
+`app/modeldefs/rtmdetins.py`: RTMDet-Ins-tiny at 256 px, built untrained from `mmdet` 3.3.0 with the config's
+pretrained backbone removed, raw output maps, its own tool environment `mmdet-venv` (in "Set up the tools").
+Builder call D72: `mmcv-lite` plus a stand-in for `mmcv.ops` instead of compiling full mmcv.
+**Self-test:** built through the app's code with every connection refused: 5,616,362 parameters, 0 network
+attempts. Through the real convert job on the three cameras, 3 of 3 "done": N6 130 + 2 + 2 of 134, AE3 323 NPU +
+1 CPU, Pi side runs; table in DESIGN §Bench results.
+**Broke/surprised us:** `mmcv-lite` does ship `mmcv/ops/*.py`, only not what they load, so the first check for
+"full mmcv is installed" was wrong; it now looks for `mmcv._ext`.
+**Changed before merge (QE FAIL on 8481b10, two records):** D72 is a Lead call (made by the lead the same day).
+The licence record was wrong to say nothing restricted is installed: `mmcv-lite` installs mmcv's operator folder as
+source, with 13 NVIDIA-licensed files. Lead call: the set-up step removes `mmcv/ops` after the install and the
+environment is "not ready" while it is there; done on the real tools folder, and the model builds the same
+afterwards (5,616,362 parameters, 0 network attempts). Also: OpenCV's bundled LGPL libraries are named; the
+"0 network attempts" is the by-hand build check's, not the job's; the build test is skipped by the suite and
+`mmdet-venv` has no pytest, so that build is checked by hand (the PR says how).
+**Not done:** SparseInst (time box). The page was not opened for this bite: it adds one candidate row and no page
+code.
+**Next:** 2f (the guarded ST Edge AI Core 4.1.0 step), S6's close.
+
 ## 2026-11-27 — Sprint S6 — Bite 2e: the RF-DETR family with RF-DETR's own export (S6 builder 2)
 **Branch:** sprint/6-rfdetr-retry
 **Done:** one retry with one thing changed (Lead call D70). By hand first (`s6/probe_rfdetr_tflite/`), then as the
