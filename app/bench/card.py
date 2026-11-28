@@ -28,6 +28,8 @@ DEFAULT_STOP_RULES = [                                          # D84, D87
     "on the AE3: one operation per call, no retries",
     "RESTORE.md matches the rig log",
 ]
+FRAMES_N6 = ("one pseudo-random image at each model's input size, made on the N6 from seed 0; the run stops unless "
+             "the board's sha256 of it equals the laptop's (D83a)")
 RESTORE_RULE = DEFAULT_STOP_RULES[-1]                         # D87: required on every card for a real unit
 TEXT_MAX = 2000
 
@@ -79,7 +81,14 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
     cost = _int(form.get("cost_minutes"), None)
     if cost is None or cost < 1:
         problems.append("the cost (minutes on the rig) must be a whole number of at least 1")
-    models = _models(data_dir, form.get("models", ""), problems)
+    # Lead call (lead 2, PR 123): an N6 card may be restore-only: it writes the backup's ROMFS0, reads it back, boots
+    # and lists /rom, and times nothing (the rehearsal before card 4)
+    restore_only = str(form.get("restore_only", "")).strip().lower() in ("on", "1", "true", "yes")
+    if restore_only and board != "n6":
+        problems.append("only an N6 card can be restore-only (it puts the backup's ROMFS0 back)")
+    if restore_only and str(form.get("models", "")).strip():
+        problems.append("a restore-only card lists no model files")
+    models = [] if restore_only else _models(data_dir, form.get("models", ""), problems)
     rules = [" ".join(r.split()) for r in str(form.get("stop_rules", "")).splitlines() if r.strip()]
     if not rules:
         problems.append("a card needs at least one stop rule")
@@ -88,10 +97,12 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
     if problems:
         raise CardError("; ".join(problems) + ".")
     return {"question": text["question"], "unit": unit_name, "board": board, "models": models,
-            "frames": "one seeded synthetic image at each model's input size, sent as a file (D83)",
+            "frames": ("none: a restore-only card times nothing" if restore_only else FRAMES_N6 if board == "n6"
+                       else "one seeded synthetic image at each model's input size, sent as a file (D83)"),
             "windows": windows, "n": n, "metric": text["metric"] or DEFAULT_METRIC, "pass_bar": text["pass_bar"],
             "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now(),
-            **({"threads": threads} if board == "pi" else {})}    # fixed for the run and recorded (D83, D88)
+            **({"threads": threads} if board == "pi" else {}),    # fixed for the run and recorded (D83, D88)
+            **({"restore_only": True} if restore_only else {})}
 
 
 def has_restore_rule(rules) -> bool:

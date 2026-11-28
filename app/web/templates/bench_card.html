@@ -10,7 +10,8 @@
   <tr><th>Unit / board</th><td>{{ c.unit }} / {{ c.board }}{% if c.unit == "fake" %} <span class="hint">(the fake board: no hardware)</span>{% endif %}</td></tr>
   <tr><th>Models</th><td><ul>{% for m in c.models %}<li>{{ m.name }}: <code>{{ m.path }}</code>, {{ m.bytes }} bytes, sha256 <code>{{ m.sha256[:16] }}…</code></li>{% endfor %}</ul></td></tr>
   <tr><th>Frames</th><td>{{ c.frames }}</td></tr>
-  <tr><th>Windows × N</th><td>{{ c.windows }} windows of {{ c.n }} inferences, after 2 warm-ups</td></tr>
+  {% if c.restore_only %}<tr><th>Restore only</th><td>yes: the backup's ROMFS0 is written, read back, booted and /rom listed; nothing is timed</td></tr>{% endif %}
+  <tr><th>Windows × N</th><td>{% if c.restore_only %}none (restore only){% else %}{{ c.windows }} windows of {{ c.n }} inferences, after 2 warm-ups{% endif %}</td></tr>
   {% if c.threads %}<tr><th>Threads</th><td>{{ c.threads }} <span class="hint">(fixed for the run, D88)</span></td></tr>{% endif %}
   <tr><th>Metric</th><td>{{ c.metric }}</td></tr>
   <tr><th>Pass bar</th><td>{{ c.pass_bar }}</td></tr>
@@ -29,7 +30,7 @@
 <h2>Runs</h2>
 {% if c.reviewed %}
 <form method="post" action="/bench/cards/{{ c.number }}/run"><button>Run this card</button>
-  <span class="hint">{{ c.windows }} windows of {{ c.n }} on {{ c.unit }} / {{ c.board }}; Pause takes effect after a window (Resume loads the models again: on a real board that is a second write, its own rig-log change), Cancel keeps the windows already timed; on a real board the agent finishes the window it is in first, so the board stays busy up to one window after Cancel. On a Pi whose runtime is not set up yet, the run first installs it (D89); that install runs to its end even after Cancel.</span></form>
+  <span class="hint">{% if c.restore_only %}The backup's ROMFS0 written to {{ c.unit }} / {{ c.board }}, read back, booted and /rom listed; nothing is timed (D82b).{% else %}{{ c.windows }} windows of {{ c.n }} on {{ c.unit }} / {{ c.board }}{% if c.board == "n6" %}, then ROMFS0 put back from the backup and read back, pass or fail (D82c). Cancel stops at once, without that restore: the N6 may then hold our image or sit in its bootloader, so run a restore-only card next{% endif %}; Pause takes effect after a window (Resume loads the models again: on a real board that is a second write, its own rig-log change), Cancel keeps the windows already timed; on a real board the agent finishes the window it is in first, so the board stays busy up to one window after Cancel. On a Pi whose runtime is not set up yet, the run first installs it (D89); that install runs to its end even after Cancel.{% endif %}</span></form>
 {% else %}
 <p class="hint">Run is refused until the card is reviewed by someone other than its writer.</p>
 {% endif %}
@@ -45,6 +46,7 @@
     {% if m %}<td>{{ name }}</td><td>{{ m.windows }} of {{ r.run.windows }}</td>
     <td>{% if m.median_ms is not none %}{{ "%.2f" | format(m.median_ms) }}{% else %}<span class="hint">fewer than 3 windows</span>{% endif %}</td>
     <td>{{ "%.2f" | format(m.low_ms) }} – {{ "%.2f" | format(m.high_ms) }}</td><td>{% if m.mem_after_load is not none %}{{ m.mem_after_load }} B{% else %}<span class="hint">no figure</span>{% endif %}</td>
+    {% elif r.run.restores %}<td colspan="5">ROMFS0 restored {{ r.run.restores | length }}×: read back identical ({{ r.run.restores[-1].readback_sha256[:16] }}…), /rom lists {{ r.run.restores[-1].rom | length }} entries</td>
     {% else %}<td colspan="5" class="hint">no window timed yet</td>{% endif %}
   </tr>
   {% endfor %}{% endfor %}

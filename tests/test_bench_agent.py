@@ -33,12 +33,12 @@ def test_agent_answers_every_line_with_its_id_and_a_stop_rule_on_refusal(tmp_pat
     agent = ag.Agent(tmp_path / "agent", "fake")
     (tmp_path / "agent" / "models").mkdir(parents=True)
     out = talk(agent, {"id": 1, "op": "hello"}, "not json", "[1, 2]", {"id": 2, "op": "fly"},
-               {"id": 3, "op": "info", "kind": "n6"}, {"id": 4, "op": "time", "name": "x", "n": 3},
+               {"id": 3, "op": "info", "kind": "ae3"}, {"id": 4, "op": "time", "name": "x", "n": 3},
                {"id": 5, "op": "load", "files": {"x": "0" * 64}})
     assert out[0]["ok"] and out[0]["agent"] == ag.VERSION and out[0]["runtime"] == "fake"
     assert [o["ok"] for o in out] == [True, False, False, False, False, False, False]
     assert out[1]["id"] is None and "JSON object" in out[2]["error"] and "unknown op" in out[3]["error"]
-    assert out[4]["stop"] == ag.NOT_BUILT and "bites 4-5" in out[4]["error"]
+    assert out[4]["stop"] == ag.NOT_BUILT and "bite 5" in out[4]["error"]
     assert out[5]["stop"] == NOT_LOADED and out[6]["stop"] == "load_failed" and "did not arrive" in out[6]["error"]
     assert [o["id"] for o in out] == [1, None, None, 2, 3, 4, 5]
 
@@ -212,8 +212,8 @@ def test_open_board_gives_a_real_unit_its_pi_board_only_through_bench(tmp_path):
             open_board(unit, "pi", tmp_path, **kw)
     with pytest.raises(Refused, match="fake settings"):
         open_board(bench.unit("benchpi"), "pi", tmp_path, bench=bench, ms={"m": 1.0})
-    with pytest.raises(Refused, match="bites 4-5"):
-        open_board(bench.unit("benchpi"), "n6", tmp_path, bench=bench)
+    with pytest.raises(Refused, match="not built yet"):          # the N6 has its board since bite 4b (test_bench_n6)
+        open_board(bench.unit("benchpi"), "ae3", tmp_path, bench=bench)
 
 
 def test_an_ssh_link_is_never_made_from_a_bare_alias_or_the_fake_unit():

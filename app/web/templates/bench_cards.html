@@ -37,12 +37,15 @@
   <p><label>Unit <select name="unit">{% for u in units %}<option{% if f.unit == u %} selected{% endif %}>{{ u }}</option>{% endfor %}</select></label>
      <label>Board <select name="board">{% for k in kinds %}<option{% if f.board == k %} selected{% endif %}>{{ k }}</option>{% endfor %}</select></label></p>
   <p><label>Model files, one path per line (under the data folder; relative paths start there)<br>
-     <textarea name="models" rows="3" cols="80" required>{{ f.models }}</textarea></label></p>
+     <textarea name="models" rows="3" cols="80">{{ f.models }}</textarea></label></p>
+  <p><label><input type="checkbox" name="restore_only"{% if f.restore_only %} checked{% endif %}> Restore only (N6): put the
+     backup's ROMFS0 back, read it back, boot and list /rom; no models, nothing timed</label></p>
   <p><label>Windows (at least {{ min_windows }}) <input name="windows" type="number" min="{{ min_windows }}" value="{{ f.windows }}"></label>
      <label>N per window <input name="n" type="number" min="1" value="{{ f.n }}"></label>
      <label>Threads (Pi board only) <input name="threads" type="number" min="1" max="4" value="{{ f.threads }}"></label>
      <label>Cost, minutes on the rig <input name="cost_minutes" type="number" min="1" value="{{ f.cost_minutes }}" required></label></p>
-  <p class="hint">Frames: one seeded synthetic image at each model's input size, sent as a file (D83).</p>
+  <p class="hint">Frames: one seeded synthetic image at each model's input size, sent as a file (D83); on the N6, made
+     on the board from seed 0 and checked by its sha256 (D83a). Every N6 card ends with ROMFS0 put back from the backup.</p>
   <p><label>Metric<br><textarea name="metric" rows="2" cols="80">{{ f.metric }}</textarea></label></p>
   <p><label>Pass bar<br><textarea name="pass_bar" rows="2" cols="80" required>{{ f.pass_bar }}</textarea></label></p>
   <p><label>Stop rules, one per line (a card for a real unit keeps "RESTORE.md matches the rig log", D87)<br><textarea name="stop_rules" rows="5" cols="80">{{ f.stop_rules }}</textarea></label></p>
