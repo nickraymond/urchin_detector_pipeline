@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-28 — Sprint S7 — The N6 on stock OpenMV ROMFS0: whole-image cards (D82f, bite 4c) (S7 builder 4)
+**Branch:** sprint/7-n6-stock-romfs
+**Done:** an N6 card may name a whole ROMFS0 image (OpenMV v5.0.1's `romfs0.img`), checked on save and before the
+write; `N6Board.load_image` writes it by the alt 3 route, times its /rom models, and the card ends with the backup
+restored. Card form and card page show it. Found, from the rig eval of 2026-10-23: the board's firmware is our own
+October build (stock v5.0.1 plus the tag25h9 `#define`). Its ROMFS0 is not v5.0.1's, so the stock model area goes first.
+**Self-test:** fake N6 (the stand-in image written, timed, backup put back; four checks send nothing), fake-unit runs
+(an image card runs and restores; one with nothing timed; a changed image refused at run), card page in the browser.
+**Broke/surprised us:** D93 was already taken (S9), so this is D82f. TRACKER's "bite 5" is the AE3 route, so the
+lead's bite 5 is 4c here.
+**Next:** QE; the lead writes card c1 and then card 8 on stock.
+
+---
+
 ## 2026-11-28 — Sprint S7 — ONNX Runtime telemetry off everywhere (D85c) (S7 builder 4)
 **Branch:** sprint/7-ort-telemetry-off
 **Done:** `ORT_DISABLE_TELEMETRY=1` in `app/__init__.py` (`ORT_OFF`), in every child env the app builds (fit's Pi and

@@ -310,3 +310,73 @@ def test_a_board_reset_says_whether_romfs0_was_put_back():
     assert "put ROMFS0 back" in hint("board_reset", {"restores": [{"restored": True}]})
     no_write = hint("board_reset", {"restores": []})
     assert "nothing was restored" in no_write and "put ROMFS0 back" not in no_write
+
+
+def stock_image(data, names=("fomo_face_detection.tflite", "fomo_face_detection.txt")):
+    """A small stand-in for OpenMV's stock romfs0.img under the data folder (D82f)."""
+    from app.bench import romfs
+    p = data / "bench" / "firmware" / "v0" / "romfs0.img"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(romfs.encode([romfs.Entry(n, n.encode() * 40, romfs.default_align(n)) for n in names]))
+    return p
+
+
+def test_a_card_writes_a_whole_given_romfs0_image_and_times_its_rom_model(site, jc):
+    """D82f (Lead call, lead 2): card c1 then card 8 on stock: the given image is written whole, its /rom model timed,
+    and the card ends with the backup restored."""
+    cfg, data = site
+    img = stock_image(data)
+    n = new_card(data, cfg.bench, models="", rom_models="fomo_face_detection.tflite", romfs_image=str(img))
+    c = card.load(data, n)
+    assert c["romfs_image"]["sha256"] == card.sha256_file(img) and c["romfs_image"]["rom"]["fomo_face_detection.txt"] == 23 * 40
+    assert c["models"] == [] and c["frames"] == card.FRAMES_N6
+    p = runs.params(cfg, n)
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "done", job
+    run = json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
+    assert run["image"]["sha256"] == c["romfs_image"]["sha256"] and len(run["restores"]) == 1 and run["finish"]["hard_reset"]
+    assert len(runs.windows_done(runs.run_dir(data, p["run_id"]))) == 3
+    assert [r["what"] for r in riglog.read(data)] == ["restore ROMFS0 from the backup (DFU alt 3)", "write the ROMFS0 image romfs0.img"]   # newest first
+
+
+def test_an_image_card_with_nothing_timed_writes_lists_and_restores(site, jc):
+    cfg, data = site
+    n = new_card(data, cfg.bench, models="", romfs_image=str(stock_image(data)))
+    assert card.load(data, n)["frames"].startswith("none: the card writes the image")
+    p = runs.params(cfg, n)
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "done", job
+    run = json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
+    assert len(run["restores"]) == 1 and runs.windows_done(runs.run_dir(data, p["run_id"])) == []
+
+
+@pytest.mark.parametrize("over, why", [({"board": "pi", "models": ""}, "only an N6 card"),
+                                       ({"restore_only": "on", "models": ""}, "only an N6 card"),
+                                       ({}, "not both"),
+                                       ({"models": "", "rom_models": "yolov8n_192.tflite"}, "is not in the ROMFS0 image"),
+                                       ({"models": "", "romfs_image": "/etc/hosts"}, "not under the data folder"),
+                                       ({"models": "", "romfs_image": "fit/yolox_nano/int8/model_int8.tflite"}, "not a ROMFS image")])
+def test_a_romfs0_image_card_is_checked_when_saved(site, over, why):
+    cfg, data = site
+    with pytest.raises(card.CardError, match=why):
+        new_card(data, cfg.bench, **{"romfs_image": str(stock_image(data)), **over})
+
+
+def test_an_image_changed_after_the_card_is_refused_at_run(site, jc):
+    cfg, data = site
+    img = stock_image(data)
+    n = new_card(data, cfg.bench, models="", rom_models="fomo_face_detection.tflite", romfs_image=str(img))
+    img.write_bytes(img.read_bytes() + b"x")
+    job = wait(jc, jc.submit("bench", runs.params(cfg, n)), "done", "error")
+    assert job["state"] == "error" and "changed or went missing" in job["message"]
+    assert riglog.read(data) == []
+
+
+def test_the_card_page_says_an_image_cards_rom_models_are_in_its_image(site, tmp_path):
+    cfg, data = site
+    n = new_card(data, cfg.bench, models="", rom_models="fomo_face_detection.tflite", romfs_image=str(stock_image(data)))
+    c = TestClient(server.create_app(tmp_path / "config.local.toml"), base_url="http://127.0.0.1:8000",
+                   headers={"origin": "http://127.0.0.1:8000"})
+    page = c.get(f"/bench/cards/{n}").text
+    assert "in the ROMFS0 image below: timed once it is written" in page and "timed with no write" not in page
+    assert "written whole in place of our built image" in page and "12,577,076" not in page    # the stand-in's size

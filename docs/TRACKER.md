@@ -600,6 +600,15 @@ against the fake board only; the rig test session runs each board's first card a
       test reached `ssh -G h` once the N6 had a board)
 - [x] the N6's undo text in the rig log set from what the route really does (QE PR 98 nit 4; bite 1's is a placeholder)
       *(4b: write the backup's ROMFS0 back (the job's own restore, or RESTORE.md), then delete n6_*.img from the agent's models/)*
+- [ ] N6: cards 6-8 reset at ml.Model on the Oct build; moving to stock firmware (bite 5 in the lead's brief; here 4c,
+      since TRACKER's bite 5 is the AE3 route). The Oct build is stock v5.0.1 plus the tag25h9 #define (rig eval
+      2026-10-23), so the stock ROMFS0 goes first (D82f)
+- [x] 4c code: an N6 card may write a whole given ROMFS0 image (OpenMV v5.0.1's own `romfs0.img`, under the data folder,
+      sha256 on the card), time its /rom models, and end with the backup restored (D82c); checked on save and before
+      the write (fits, re-encodes to itself, holds the card's models) *(S7 builder 4, D82f)*
+- [ ] 4c cards (lead writes, QE pre-reviews): c1 = stock romfs0.img written, /rom listed, restored; then card 8
+      (vendor fomo, CSI first) on it; then our model. Stock firmware.bin only if card 8 still resets (needs a firmware
+      route: alt 1, read-back, its undo the FIRMWARE backup, sha 9681e245…)
 
 **Bite 5 — The AE3 route** (D82; under the one-day AE3 time box, S6's compile time counted)
 - [ ] `/flash` route with a heap check and an on-board size and sha256 check; ROMFS0 route for larger files with

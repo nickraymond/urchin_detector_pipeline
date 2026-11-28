@@ -101,7 +101,18 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
         problems.append(f"{', '.join(bad)}: a /rom model is a file name ending in .tflite, as /rom lists it")
     if len(set(rom_models)) != len(rom_models):
         problems.append("a /rom model is listed twice")
-    models = [] if restore_only or rom_models else _models(data_dir, form.get("models", ""), problems)
+    # D82f (Lead call, lead 2): an N6 card may write a whole given ROMFS0 image (OpenMV's stock romfs0.img) in place
+    # of building one; its /rom models are then timed in that image, and the card ends with the backup restored
+    romfs_image = None
+    if str(form.get("romfs_image", "")).strip():
+        if board != "n6" or restore_only:
+            problems.append("only an N6 card that is not restore-only can write a whole ROMFS0 image")
+        elif str(form.get("models", "")).strip():
+            problems.append("a card writes either model files (in our built image) or a whole ROMFS0 image, not both")
+        else:
+            romfs_image = _romfs_image(data_dir, form["romfs_image"], rom_models, problems)
+    given = bool(str(form.get("romfs_image", "")).strip())
+    models = [] if restore_only or rom_models or given else _models(data_dir, form.get("models", ""), problems)
     runtime = None
     if board == "pi" and models:                        # D85: the Pi's runtime follows the model files' kind
         kinds = {SUFFIX_RUNTIME.get(Path(m["path"]).suffix) for m in models}
@@ -123,7 +134,9 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
     if problems:
         raise CardError("; ".join(problems) + ".")
     return {"question": text["question"], "unit": unit_name, "board": board, "models": models,
-            "frames": ("none: a restore-only card times nothing" if restore_only else FRAMES_N6 if board == "n6"
+            "frames": ("none: a restore-only card times nothing" if restore_only
+                       else "none: the card writes the image, lists /rom and restores" if given and not rom_models
+                       else FRAMES_N6 if board == "n6"
                        else "one seeded synthetic image at each model's input size, sent as a file (D83)"),
             "windows": windows, "n": n, "metric": text["metric"] or DEFAULT_METRIC, "pass_bar": text["pass_bar"],
             "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now(),
@@ -131,7 +144,8 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             **({"runtime": runtime} if runtime else {}),
             **({"restore_only": True} if restore_only else {}),
             **({"rom_models": rom_models} if rom_models else {}),
-            **({"csi_first": True} if csi_first else {})}
+            **({"csi_first": True} if csi_first else {}),
+            **({"romfs_image": romfs_image} if romfs_image else {})}
 
 
 def has_restore_rule(rules) -> bool:
@@ -166,6 +180,30 @@ def _models(data_dir, lines: str, problems: list) -> list[dict]:
     if not out and not any("model file" in x or "data folder" in x for x in problems):
         problems.append("list at least one model file, one path per line")
     return out
+
+
+def _romfs_image(data_dir, line: str, rom_models: list, problems: list) -> dict | None:
+    """A whole ROMFS0 image under the data folder, checked as the N6 board checks it before a write (D82f)."""
+    from app.bench.board import BoardError
+    from app.bench.n6_board import image_entries
+    root = Path(data_dir).resolve()
+    p = Path(str(line).strip()).expanduser()
+    p = (p if p.is_absolute() else root / p).resolve()
+    if not p.is_relative_to(root):
+        problems.append(f"the ROMFS0 image {line.strip()} is not under the data folder {root}")
+        return None
+    if not p.is_file():
+        problems.append(f"ROMFS0 image not found: {p}")
+        return None
+    try:
+        rom = {e.name: len(e.data) for e in image_entries(p.read_bytes())}
+    except BoardError as e:
+        problems.append(f"the ROMFS0 image {p.name}: {e}")
+        return None
+    missing = [n for n in rom_models if n not in rom]
+    if missing:
+        problems.append(f"{', '.join(missing)} is not in the ROMFS0 image {p.name} (it holds {', '.join(rom)})")
+    return {"path": str(p), "bytes": p.stat().st_size, "sha256": sha256_file(p), "rom": rom}
 
 
 def _name(root: Path, p: Path) -> str:
