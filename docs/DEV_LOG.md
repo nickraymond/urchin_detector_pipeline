@@ -17,6 +17,23 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S9 — Bite 1: the evaluate job (S7 builder 1, on S9)
+**Branch:** sprint/9-evaluate
+**Done:** `app/evaluate/` (D90): job kind `evaluate`, one model × one test set → `eval/v<version>-<test hash>/`
+(`predictions.jsonl` frame by frame, `eval.json` last); refusals (no best.pt with the Train page's reason, a
+pre-training model, no predictor, no fully checked test frame, already evaluated); the eval scale from the recipe or
+worked out for older models; tiles from `app/train/tiles.py` with a numpy NMS across seams; scores kept down to 0.01;
+the YOLOX predictor on best.pt's EMA weights. Tests with a fake predictor (job, Pause / Resume, refusals, the
+recipe's scale and cap carried) and a stand-in detector on painted squares (native boxes back in place).
+**Self-test:** builder 2's m4 copy through `JobControl` on the Apple GPU: 6 test frames, factor 0.7586 worked out,
+recall 26 / 27 and precision 26 / 26 at 0.3 (DESIGN §Bench results). No page: bite 3 adds the model list.
+**Broke/surprised us:** QE 10 found a crash's cut last line in `predictions.jsonl` swallowed the next frame's line,
+so a "done" eval could miss a frame silently. Fixed: whole lines on every start, every frame once before
+`eval.json`; also one set of weights per eval and boxes clipped to the frame (QE nits 1, 2).
+**Next:** S9 bite 2 (the figures, D91, D92).
+
+---
+
 ## 2026-11-27 — Sprint S8 — Shrunk copies of outside images (S7 builder 1, on S8)
 **Branch:** sprint/8-outside-cache
 **Done:** `samples._load` with a cache folder: the smallest stored copy at least the size asked for, else decode

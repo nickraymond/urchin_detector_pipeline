@@ -83,3 +83,26 @@ def cut_by_inner_edge(det: np.ndarray, ox: int, oy: int, canvas: int, width: int
     touches = (((x1 <= EDGE_PX) & (ox > 0)) | ((y1 <= EDGE_PX) & (oy > 0))
                | ((x2 >= canvas - EDGE_PX) & (ox + canvas < width)) | ((y2 >= canvas - EDGE_PX) & (oy + canvas < height)))
     return touches & (np.maximum(det[:, 2], det[:, 3]) <= guaranteed(overlap_px))
+
+
+def nms(det: np.ndarray, iou: float) -> np.ndarray:
+    """Non-maximum suppression per class on [cx, cy, w, h, score, class, ...] rows (numpy, no torch): the rows
+    kept, best score first. The seam merge of the evaluate job (D90); the trainer uses torchvision's."""
+    if not len(det):
+        return det
+    det = det[np.argsort(-det[:, 4], kind="stable")]
+    x1, y1 = det[:, 0] - det[:, 2] / 2, det[:, 1] - det[:, 3] / 2
+    x2, y2 = det[:, 0] + det[:, 2] / 2, det[:, 1] + det[:, 3] / 2
+    area = np.clip(x2 - x1, 0, None) * np.clip(y2 - y1, 0, None)
+    keep, gone = [], np.zeros(len(det), bool)
+    for i in range(len(det)):
+        if gone[i]:
+            continue
+        keep.append(i)
+        same = (det[:, 5] == det[i, 5]) & ~gone
+        iw = np.clip(np.minimum(x2[i], x2) - np.maximum(x1[i], x1), 0, None)
+        ih = np.clip(np.minimum(y2[i], y2) - np.maximum(y1[i], y1), 0, None)
+        inter = iw * ih
+        over = inter / (area[i] + area - inter + 1e-9) > iou
+        gone |= same & over
+    return det[keep]

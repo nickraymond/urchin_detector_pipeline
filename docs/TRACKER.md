@@ -719,12 +719,13 @@ it can run beside S6–S7.
 per bite, about 300 lines each. Bites 1–2 need only a trained model folder (a fake one in tests).
 
 **Bite 1 — Evaluate job and tiled inference** (D90)
-- [ ] the trainer stores `train.eval_scale` (44 px over the training split's median shorter box side) in
+- [x] the trainer stores `train.eval_scale` (44 px over the training split's median shorter box side) in
       `recipe.json` at the start of a run; models trained before it get it worked out from their dataset version
-- [ ] job kind `evaluate`: one model × one test set → `eval/<version>-<test hash>/` (`eval.json`,
+      *(the trainer part: PR 111; the worked-out part: `app/evaluate/run.py` `scale_for`)*
+- [x] job kind `evaluate`: one model × one test set → `eval/<version>-<test hash>/` (`eval.json`,
       `predictions.jsonl`); frames as items; the eval scale, then tiles of the trained canvas with NMS across
-      seams; tests with a fake model
-- [ ] (QE PR 111) refuse a model without `best.pt`, with the reason the Train page gives; carry
+      seams; tests with a fake model *(`app/evaluate/`; no page yet: bite 3's model list starts it)*
+- [x] (QE PR 111) refuse a model without `best.pt`, with the reason the Train page gives; carry
       `train.eval_overlap_capped` into `eval.json`
 
 **Bite 2 — The figures and how far they can be trusted** (D91, D92)
