@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Rig log{% endblock %}
+{% block content %}
+<p><a href="/">&larr; Projects</a> · <a href="/fit">What runs where</a> · <a href="/jobs">Jobs</a></p>
+<h1>Rig log</h1>
+<p class="hint">Every change the app made on the bench rig (a file copied, a model area written, a package installed),
+  written before the change starts and again when it ends, with what undoes it. The rig is put back from the backup
+  at the end of the bench work. The log is <code>{{ log_path }}</code>; it is only ever added to.</p>
+
+<h2>Bench units</h2>
+{% if units %}
+<table>
+  <tr><th>Unit</th><th>Boards</th></tr>
+  {% for u in units %}<tr><td>{{ u.name }}</td><td>{{ u.kinds | join(", ") }}</td></tr>{% endfor %}
+</table>
+{% else %}
+<p>No bench unit is listed under <code>[bench]</code> in the settings file, so only the fake board can be used.</p>
+{% endif %}
+<p class="hint">{% if field_units %}{{ field_units }} field unit{{ "s" if field_units != 1 }} listed: the app refuses to touch {{ "them" if field_units != 1 else "it" }}.
+  {% endif %}Any unit that is not listed under <code>[bench]</code> is refused.</p>
+
+<h2>Changes</h2>
+{% if unfinished %}<p class="error">{{ unfinished }} change{{ "s" if unfinished != 1 }} did not finish: check the rig
+  against the undo before the next run.</p>{% endif %}
+{% if rows %}
+<table>
+  <tr><th>Started</th><th>Unit</th><th>Board</th><th>What</th><th>Undo</th><th>State</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ (r.at or "") | replace("T", " ") }}</td>
+    <td>{{ r.unit or "" }}{% if r.fake %} <span class="hint">(fake board)</span>{% endif %}</td>
+    <td>{{ r.board or "" }}</td>
+    <td>{{ r.what }}</td>
+    <td>{{ r.undo or "" }}</td>
+    <td>{% if r.state == "done" %}done{% elif r.state == "failed" %}<span class="error">failed: {{ r.error }}</span>{% else %}<span class="error">{{ r.state }}</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No changes{% if not show_fake %} on a real unit{% endif %} yet.</p>
+{% endif %}
+<h2>To put the rig back</h2>
+{% if undo %}
+<p class="hint">Undo these in this order (newest first), then check the rig against the backup. The backup's
+  restore steps must cover every one of them before the next card runs.</p>
+<ol>{% for r in undo %}<li>{{ r.unit }} / {{ r.board }}: {{ r.undo }} <span class="hint">(undoes "{{ r.what }}", {{ r.state }})</span></li>{% endfor %}</ol>
+{% else %}
+<p>Nothing to undo: the app has made no change on a real unit, so the rig is as the backup left it.</p>
+{% endif %}
+{% if fake %}
+<p class="hint">{{ fake }} change{{ "s" if fake != 1 }} on the fake board (tests and self-tests) {{ "are" if fake != 1 else "is" }}
+  {% if show_fake %}listed above. <a href="/bench/rig-log">Hide them</a>{% else %}hidden. <a href="/bench/rig-log?show_fake=1">Show them</a>{% endif %}.</p>
+{% endif %}
+{% endblock %}
