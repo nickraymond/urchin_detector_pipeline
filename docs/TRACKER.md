@@ -719,6 +719,14 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       `recipe.json` at the first start; validation scores whole frames in tiles with NMS across seams)*
 - [x] QE PR 111 nits: a model with no `best.pt` (stopped before its first validated epoch) says so on the Train page,
       with the epoch of its first validation; a run whose tile overlap was capped says what that means for big objects
+- [x] S8 Demo rehearsal (builder 4, 2026-11-27, lead's list): Cancel asks to confirm and stands apart from Pause
+      in the live block (a click meant for Pause landed on Cancel); the model's line and the model list on the Train
+      page follow the run (they said "next: after epoch 5" and "0 / 120" at epoch 28 until a reload); Stop by can be
+      set, changed or cleared on a job that is waiting, running or paused (before: only when the job was made)
+- [ ] flaky: `tests/test_limits.py::test_a_job_runs_with_and_records_its_limits` (lead, 2026-11-27)
+- [x] race (QE 10, main): an item event the runner read after Pause wrote "item 1 of 3" over "finishing item 2 of 3…"
+      (`runner._on_event`), failing `test_cancel_while_pausing_ends_the_worker_at_once` under load; it now keeps the
+      finishing message while the job pauses, and the test waits for the runner to have read item 1
 
 **Demo (Nick):** on a project with an export, open Datasets and press "Freeze a version": the page shows counts
 per class and split. Open Train, pick YOLOX-Nano, press Estimate, then Run: the loss curve moves and validation

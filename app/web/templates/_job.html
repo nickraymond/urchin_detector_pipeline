@@ -6,7 +6,7 @@
   {%- if j.state in ("queued", "running") %}<form method="post" action="/jobs/{{ j.id }}/pause" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Pause</button></form>{% endif %}
   {%- if j.state in ("paused", "interrupted") %}<form method="post" action="/jobs/{{ j.id }}/resume" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small primary">Resume</button></form>{% endif %}
   {%- if j.state == "scheduled" %}<form method="post" action="/jobs/{{ j.id }}/start-now" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small">Start now</button></form>{% endif %}
-  {%- if j.state not in ("done", "cancelled", "error", "missed") %}<form method="post" action="/jobs/{{ j.id }}/cancel" class="inline"><input type="hidden" name="back" value="{{ back }}"><button class="small" title="Stops at once; the item in progress is dropped, finished items are kept">Cancel</button></form>{% endif %}
+  {%- if j.state not in ("done", "cancelled", "error", "missed") %}<form method="post" action="/jobs/{{ j.id }}/cancel" class="inline job-cancel" data-confirm="Cancel job {{ j.id }} ({{ j.what }})? It stops at once and cannot be resumed; finished items are kept."><input type="hidden" name="back" value="{{ back }}"><button class="small" title="Stops at once; the item in progress is dropped, finished items are kept">Cancel</button></form>{% endif %}
 </span>
 {%- endmacro %}
 
@@ -25,7 +25,10 @@
     Close other apps, or lower the limit on the <a href="/jobs">Jobs page</a>.
     It resumes by itself once {{ j.guard_resume_gb }} GB has stayed free for 1 min.{% endif %}</span>
   {% elif j.line and j.line != j.state %}<span class="job-line">{{ j.line }}</span>{% endif %}
-  {% if not compact %}{% if j.stop_show and j.state != "scheduled" %}<span class="hint">stop by {{ j.stop_show }}</span>{% endif %}
+  {% if not compact %}{% if j.state in ("scheduled", "queued", "running", "paused", "interrupted") %}<form method="post" action="/jobs/{{ j.id }}/stop-by" class="inline stop-by"><input type="hidden" name="back" value="{{ back }}">
+    <label class="hint">Stop by <input type="time" name="stop" value="{{ (j.stop_by or '')[11:16] }}"></label> <button class="small">Set</button>
+    <span class="hint">{% if j.stop_passed %}passed at {{ j.stop_show }}; Resume clears it{% elif j.stop_show %}pauses at {{ j.stop_show }}; Set with the field empty clears it{% else %}none set; at that time the job pauses, to carry on later{% endif %}</span></form>
+  {%- elif j.stop_show and j.state != "scheduled" %}<span class="hint">stop by {{ j.stop_show }}</span>{% endif %}
   {% for w in j.warnings or [] %}<div class="warn-text">⚠ {{ w }}</div>{% endfor %}{% endif %}
 </div>
 {% endif %}

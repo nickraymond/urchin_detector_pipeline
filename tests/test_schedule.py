@@ -134,3 +134,72 @@ def test_run_at_a_clock_time_through_the_page(tmp_path, monkeypatch):
     assert "Start now" in client.get("/jobs").text
     client.post(f"/jobs/{st['id']}/start-now", data={"back": "/p/p/labeling"})
     assert wait_for(lambda: status(client)["state"] == "done", 60)
+
+
+# S8 Demo fixes (2026-11-27): Stop by can be set, changed or cleared on a job that has started.
+def test_a_stop_by_set_on_a_running_job_pauses_it(jc, tmp_path):
+    jid = jc.submit("fake", params(tmp_path, n=60, delay=0.2))
+    wait_for(lambda: len(writes(tmp_path)) >= 2)
+    assert jc.status(jid)["state"] == "running"
+    jc.set_stop_by(jid, datetime.now().replace(microsecond=0) + timedelta(seconds=2))
+    job = wait_state(jc, jid, "paused", timeout=30)
+    assert job["stop_reason"].startswith("stop by ") and len(writes(tmp_path)) < 60
+
+
+def test_a_stop_by_cleared_on_a_running_job_no_longer_pauses_it(jc, tmp_path):
+    stop = datetime.now().replace(microsecond=0) + timedelta(seconds=3)
+    jid = jc.submit("fake", params(tmp_path, n=25, delay=0.2), stop_by=stop)
+    wait_for(lambda: len(writes(tmp_path)) >= 1)
+    jc.set_stop_by(jid, None)
+    assert jc.status(jid)["stop_by"] is None
+    wait_state(jc, jid, "done", timeout=30)
+    assert_each_once(tmp_path, 25)
+
+
+def test_stop_by_must_come_later_and_only_on_a_job_not_ended(jc, tmp_path):
+    jid = jc.submit("fake", params(tmp_path, n=1))
+    wait_state(jc, jid, "done", timeout=30)
+    with pytest.raises(JobError, match="only to a job"):
+        jc.set_stop_by(jid, datetime.now() + timedelta(hours=1))
+    later = datetime.now() + timedelta(hours=2)
+    sched = jc.submit("fake", params(tmp_path / "s", n=1), start_at=later)
+    with pytest.raises(JobError, match="after Start at"):
+        jc.set_stop_by(sched, later - timedelta(minutes=5))
+    jc.cancel(sched)
+    busy = jc.submit("fake", params(tmp_path / "b", n=60, delay=0.2))
+    wait_for(lambda: len(writes(tmp_path / "b")) >= 1)
+    with pytest.raises(JobError, match="still to come"):
+        jc.set_stop_by(busy, datetime.now() - timedelta(seconds=1))
+    jc.cancel(busy)
+
+
+def test_stop_by_through_the_page_on_a_running_job(tmp_path, monkeypatch):
+    monkeypatch.setattr(label, "PREDICTOR", FAKE)
+    client, folder = make_project(tmp_path, n=3)
+    later = (datetime.now() + timedelta(hours=3)).strftime("%H:%M")
+    client.post("/p/p/labeling/run", data={"start": later})       # scheduled: it has a panel
+    st = status(client)
+    page = client.get("/p/p/labeling").text
+    assert f'action="/jobs/{st["id"]}/stop-by"' in page and "none set; at that time" in page
+    r = client.post(f"/jobs/{st['id']}/stop-by", data={"stop": "7:7x", "back": "/p/p/labeling"})
+    assert "is not a clock time" in r.text
+    stop = (datetime.now() + timedelta(hours=5)).strftime("%H:%M")
+    client.post(f"/jobs/{st['id']}/stop-by", data={"stop": stop, "back": "/p/p/labeling"})
+    assert status(client)["stop_by"][11:16] == stop
+    assert f'value="{stop}"' in client.get("/p/p/labeling").text
+    client.post(f"/jobs/{st['id']}/stop-by", data={"stop": "", "back": "/p/p/labeling"})
+    assert status(client)["stop_by"] is None
+    client.post(f"/jobs/{st['id']}/cancel", data={"back": "/p/p/labeling"})
+
+
+def test_cancel_asks_first_and_stands_apart_from_pause(tmp_path, monkeypatch):
+    monkeypatch.setattr(label, "PREDICTOR", FAKE)
+    client, folder = make_project(tmp_path, n=3)
+    later = (datetime.now() + timedelta(hours=3)).strftime("%H:%M")
+    client.post("/p/p/labeling/run", data={"start": later})
+    page = client.get("/p/p/labeling").text
+    assert 'class="inline job-cancel" data-confirm="Cancel job' in page
+    js = client.get("/static/live.js").text
+    assert "form[data-confirm]" in js and "window.confirm" in js
+    assert ".job-actions .job-cancel { margin-left" in client.get("/static/style.css").text
+    client.post(f"/jobs/{status(client)['id']}/cancel", data={"back": "/p/p/labeling"})

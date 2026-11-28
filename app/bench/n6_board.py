@@ -31,8 +31,8 @@ DFU_PAD = 4                       # dfu-util 0.11's read appends 4 bytes past th
 # (cameras/n6/dfu/n6_dfu_run.log: 25,165,828 bytes, sha256 dbffa6d2…).
 BACKUP = Path("~/NereusData/urchin_detector_pipeline/rig_backup/2026-11-27/cameras/n6/dfu/n6_ROMFS0.bin").expanduser()
 BACKUP_SHA256 = "dbffa6d2ee0474c7229c6e65e0af0339dd9da5d756abda995805b5551f7268d3"
-# The bench N6's bootloader, recorded with the backup (cameras/n6/dfu_list.txt): every dfu-util call is pinned to it
-DFU_SERIAL = "0030344D3643500200350010"
+# The bench N6's bootloader serial pins every dfu-util call. It is a unit's serial, so it lives only in
+# config.local.toml ([bench] n6_dfu_serial, from the backup's cameras/n6/dfu_list.txt), never in git (SPEC).
 IMAGE_NAME, BACKUP_NAME = "n6_romfs0_ours.img", "n6_romfs0_backup.img"     # in the agent's models/ folder
 RESTORE_UNDO = "none needed: this writes the backup's own ROMFS0 back (the state before the bench work)"
 
@@ -83,7 +83,7 @@ class N6Board(PiBoard):
     kind = "n6"
 
     def __init__(self, unit: Unit, data_dir, transport: Transport, work_dir=None, backup: Path = BACKUP,
-                 backup_sha256: str = BACKUP_SHA256, partition: int = PARTITION, dfu_serial: str = DFU_SERIAL):
+                 backup_sha256: str = BACKUP_SHA256, partition: int = PARTITION, dfu_serial: str = ""):
         super().__init__(unit, data_dir, transport, install=None)
         self.dfu_serial = dfu_serial
         self.work_dir = Path(work_dir or data_dir)
@@ -103,7 +103,13 @@ class N6Board(PiBoard):
         self.connect()
         return {**self.transport.request("info", kind="n6", dfu_serial=self.dfu_serial), "agent": self.hello}
 
+    def _pinned(self, stop: str) -> None:
+        if not self.dfu_serial:
+            raise BoardError(stop, "no DFU serial for the bench N6: set [bench] n6_dfu_serial in config.local.toml "
+                                   "(the rig backup's cameras/n6/dfu_list.txt). Nothing was sent or written")
+
     def _load(self, models: list[Model], files: dict) -> dict:
+        self._pinned(LOAD_FAILED)
         backup = Backup(self.backup_path, self.backup_sha256, self.partition)
         ours = [romfs.Entry(rom_name(m.name), Path(m.path).read_bytes(), 32) for m in models]
         try:
@@ -178,6 +184,7 @@ class N6Board(PiBoard):
 
     def restore(self) -> dict:
         """The backup's ROMFS0 back on the board, verified by read-back and the /rom listing (a rig change)."""
+        self._pinned(RESTORE_FAILED)
         backup = getattr(self, "_backup", None) or Backup(self.backup_path, self.backup_sha256, self.partition)
         with riglog.change(self.data_dir, self.unit.name, self.kind, "restore ROMFS0 from the backup (DFU alt 3)",
                            RESTORE_UNDO, fake=self.unit.fake, sha256={BACKUP_NAME: backup.sha256}):

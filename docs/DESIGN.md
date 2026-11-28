@@ -303,6 +303,12 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   it waits becomes paused; Resume clears a Stop by that has passed and keeps one still to come (QE PR 37). `start_now` and Cancel work on a scheduled job; a project
   with a scheduled extraction or SAM job refuses another until it is started or cancelled. The Labeling page's
   finish time counts from the scheduled start.
+  *S8 Demo fixes (2026-11-27):* Stop by can be set, changed or cleared on a job that is scheduled, waiting,
+  running, paused or interrupted (`JobControl.set_stop_by`, `POST /jobs/<id>/stop-by`, a field on every full job
+  panel); the watcher reads the time from the store every second, so a new time holds at once. It must be still to
+  come and, on a scheduled job, after its start. Cancel asks to confirm (`data-confirm`, `live.js`) and stands apart
+  from Pause; a live box is never swapped while a field in it has focus. The Train page's model line and model
+  list are live fragments (`/p/<name>/train/live/model`, `/p/<name>/train/live/models`).
 - **As built, bite 5b (PR 39).** `app/jobctl/awake.py`: one keep-awake process (D38's command, with `-w` the app's
   PID) held by an `Awake` object; a JobControl thread checks every 2 s whether any keep-awake job is scheduled,
   queued, running or pausing, starts the process if so and ends it (its own Popen only) if not; submitting a
@@ -911,7 +917,8 @@ the AE3 stays refused. **Load:** the backup file must be 25,165,828 bytes with t
 alt 2 and `-R` (`ml/README.md`), waits for the N6 to answer, and checks that `/rom` lists exactly the image's names and
 sizes. The N6 is found by asking (`omv.board_type()`), and only ports whose name holds `Pyboard` (RESTORE.md) are ever
 asked: the AE3's port is never touched on this route (QE PR 123). Every dfu-util call names the bench N6's bootloader by
-its serial (`-S`, the one recorded with the backup in `cameras/n6/dfu_list.txt`, sent by the laptop), and nothing is
+its serial (`-S`; `[bench] n6_dfu_serial` in `config.local.toml`, taken from the backup's `cameras/n6/dfu_list.txt`,
+sent by the laptop; never in git: without it `open_board` refuses the N6 and nothing is written), and nothing is
 written unless `dfu-util -l` shows exactly one `37c5:9206` device with that serial. An N6 found in its bootloader is a
 normal start: `info` says so, and the restore writes from there. **Restore** (built in):
 any stop rule from a load whose write may have started (the agent answers `written`; unknown counts as written), from a

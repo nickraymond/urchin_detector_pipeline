@@ -29,6 +29,19 @@ nits on PR 120 (the cache) and its note for bite 3 (an eval goes stale when best
 
 ---
 
+## 2026-11-27 — Sprint S7 — The N6's DFU serial out of git (S7 builder, lead 2's ask)
+**Branch:** sprint/7-n6-serial-config
+**Done:** PR 123 had put the bench N6's real DFU serial in `app/bench/n6_board.py`, against SPEC's hard constraint (no
+unit serials in git). It is now `[bench] n6_dfu_serial` in `config.local.toml` (placeholder in `config.example.toml`);
+without it `open_board` refuses the N6, and `N6Board` refuses any load or restore before anything is sent. A test fails on
+any run of exactly 24 hex digits in app/, tests/, docs/ or the example config. The history keeps the old line (rewriting
+it is Nick's call).
+**Self-test:** tests only (no page changed); the guard finds the old line's pattern and ignores sha256 values.
+**Broke/surprised us:** my own slip in PR 123: I read the serial from the backup and wrote it as a constant.
+**Next:** the N6 hard-reset PR (126) on top of this.
+
+---
+
 ## 2026-11-27 — Sprint S9 — Bite 2b: how far a figure can be trusted (S7 builder 1, on S9)
 **Branch:** sprint/9-intervals (PR 124)
 **Done:** D92 in `app/evaluate/metrics.py`: a 95 % interval on every figure (Wilson for frame shares; a seeded

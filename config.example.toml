@@ -28,6 +28,8 @@ data_dir = "/Volumes/Nick_R_SSD/NereusData/urchin_detector_pipeline"
 # every name in field_units. Only the team's rig test session sets this; builders and QE never do.
 # [bench]
 # field_units = ["<field unit name>"]
+# n6_dfu_serial = "<the bench N6's DFU serial, from the rig backup's cameras/n6/dfu_list.txt>"
+#                                   # without it the N6 route writes nothing (every dfu-util call is pinned to it)
 # [bench.units.<bench unit name>]
 # ssh_host = "<alias from ~/.ssh/config>"
 # cameras = ["n6", "ae3"]
