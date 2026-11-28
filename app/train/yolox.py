@@ -19,9 +19,15 @@ still in the picture. So a frame is used, for training and for validation, only 
 of the run is fully checked on it (app/train/job.py `usable`; QE PR 72); the frames left out are
 counted in the run record. (Finer, and keeping those frames: masking that class's loss. Not done.)
 
-Not done yet, and refused or recorded as such: starting weights other than scratch (the run
-stops if the recipe asks for them), and outside data (never read; `outside_used` is recorded
-empty whatever the dataset version holds).
+Pre-training (spec stage 7; TRACKER S8 bite 3): a run whose recipe says `data: "outside"`
+trains on the version's public sources only (app/datasets/outside.py `samples`; their train and
+valid splits, one class, "urchin") and records them in `outside_used`. Another run may start from
+such a model (`start.kind: "pretrained"`): at its first start the EMA weights of that model's
+`checkpoints/best.pt` are loaded into every tensor of the same name and shape, except the
+class-score layers (`head.cls_preds.*`) when the two models' class lists differ: those keep
+their fresh values, also when only the number of classes is the same. What was loaded is in the
+run record.
+Published weights are never loaded (none is offered, D62).
 
 Each epoch ends with a check on fixed validation canvases (same crops every epoch, no colour,
 blur or haze): recall and precision at IoU 0.5, score 0.3, all classes together, from the EMA
@@ -116,21 +122,27 @@ class Trainer:
         self.preset = self.t["augment"]
         folder, version = self.dir.parents[1], self.t["dataset"]["version"]
         self.ids = list(self.t["class_ids"])
-        start = (self.t.get("start") or {}).get("kind", "scratch")
-        if start != "scratch":
-            raise RuntimeError(f"This trainer cannot start from {start} weights yet; the recipe "
-                               "asks for them. Start a new run from scratch.")
-        from app.train.job import usable
-        self.train, out_train = usable(
-            loaders.detector_samples(folder, version, "train", self.ids)["samples"], self.ids)
-        self.valid, out_valid = usable(
-            loaders.detector_samples(folder, version, "valid", self.ids)["samples"], self.ids)
-        self.left_out = {"train": out_train, "valid": out_valid}
-        if not self.train:
-            raise RuntimeError(f"Dataset version {version} has no training frame for these "
-                               "classes (see the Datasets page: what training will see).")
-        for s in self.train[:1] + self.valid[:1]:
-            loaders.verify_image(s)
+        self.start = self.t.get("start") or {"kind": "scratch"}
+        if self.start.get("kind") not in ("scratch", "pretrained"):
+            raise RuntimeError(f"This trainer cannot start from {self.start.get('kind')} weights; "
+                               "the recipe asks for them. Start from scratch or from a model "
+                               "pre-trained here.")
+        self.start_used = {"kind": "scratch"}
+        self.outside_used = []
+        if self.t.get("data") == "outside":
+            self._outside_samples(folder, version, job.get("outside_dir"))
+        else:
+            from app.train.job import usable
+            self.train, out_train = usable(
+                loaders.detector_samples(folder, version, "train", self.ids)["samples"], self.ids)
+            self.valid, out_valid = usable(
+                loaders.detector_samples(folder, version, "valid", self.ids)["samples"], self.ids)
+            self.left_out = {"train": out_train, "valid": out_valid}
+            if not self.train:
+                raise RuntimeError(f"Dataset version {version} has no training frame for these "
+                                   "classes (see the Datasets page: what training will see).")
+            for s in self.train[:1] + self.valid[:1]:
+                loaders.verify_image(s)
         self.steps = max(1, len(self.train) // self.batch) if len(self.train) >= self.batch \
             else 1                                    # a tiny dataset: one short batch per epoch
         self.epochs = int(self.t["epochs"])
@@ -139,6 +151,59 @@ class Trainer:
         self.best = -1.0
         self.partial = None      # loss sums of an epoch paused part-way (kept in the checkpoint)
 
+    def _outside_samples(self, folder: Path, version: int, outside_dir) -> None:
+        """A pre-training run: every outside source of the version, as one class (index 0)."""
+        from app.datasets import outside, versions
+        manifest, _ = loaders.load(folder, version)
+        entries = manifest.get("outside") or []
+        if not entries or not outside_dir:
+            raise RuntimeError(
+                f"Dataset version {version} holds no outside data, or outside_data_dir is not set "
+                "in config.local.toml: a run on outside data needs both.")
+        vdir = versions.root(folder) / f"v{int(version)}"
+        self.ids, got = [0], {"train": [], "valid": []}
+        for e in entries:
+            if not outside.BY_KEY.get(e["key"], {}).get("allowed"):
+                raise RuntimeError(f"{e['key']} is not an allowed outside source.")
+            rows = vdir / "outside" / e["rows"]       # the frozen list of images and boxes
+            if not rows.is_file() or versions.sha256_file(rows) != e["sha256"]:
+                raise RuntimeError(f"{rows} is missing or no longer matches the hash in the "
+                                   "version's manifest: the dataset version was changed by hand.")
+            for split in got:
+                for r in outside.samples(Path(outside_dir), vdir, e, split):
+                    got[split].append({**r, "boxes": [[0, *b] for b in r["boxes"]],
+                                       "checked": [0], "ignore": []})
+            self.outside_used.append({"key": e["key"], "licence": e["licence"]})
+        self.train, self.valid = got["train"], got["valid"]
+        self.left_out = {"train": 0, "valid": 0}
+        if not self.train:
+            raise RuntimeError(f"The outside data of version {version} has no training image.")
+        for s in self.train[:1] + self.valid[:1]:     # frozen by size in bytes (DESIGN, bite 3)
+            p = Path(s["image"])
+            if not p.is_file() or p.stat().st_size != s["bytes"]:
+                raise RuntimeError(f"{p} is missing or no longer the size the version froze: "
+                                   "the outside data folder was changed.")
+
+    def _load_start(self) -> None:
+        """A fresh run that starts from a model pre-trained here: its best EMA weights go into
+        every tensor of the same name and shape."""
+        src = self.dir.parent / str(self.start.get("model")) / "checkpoints" / "best.pt"
+        if not src.is_file():
+            raise RuntimeError(f"The starting model's weights are missing: {src}.")
+        have = torch.load(src, map_location="cpu", weights_only=True)["model"]
+        from app.train import models
+        theirs = models.read_recipe(src.parents[1])["arch"].get("classes")
+        same_classes = theirs == self.arch["classes"]   # "urchin" is not "sea star" (QE PR 90)
+        mine = self.model.state_dict()
+        take = {k: v.to(mine[k].dtype) for k, v in have.items()
+                if k in mine and mine[k].shape == v.shape
+                and (same_classes or not k.startswith("head.cls_preds."))}
+        self.model.load_state_dict(take, strict=False)
+        fresh = sorted(k for k in mine if k not in take)
+        self.start_used = {"kind": "pretrained", "model": self.start["model"],
+                           "tensors_loaded": len(take), "tensors_fresh": len(fresh),
+                           "fresh": fresh[:12], "its_classes": theirs}
+
     def describe(self) -> dict:
         import torchvision
         return {"device": self.device, "warning": self.warning, "threads": self.threads,
@@ -146,7 +211,9 @@ class Trainer:
                 "steps_per_epoch": self.steps, "train_frames": len(self.train),
                 "valid_frames": len(self.valid),
                 "frames_left_out_not_fully_checked": self.left_out,
-                "start_used": "scratch", "outside_used": [],
+                # start_used: the kind really used; start_loaded: what a pre-trained start put in
+                "start_used": self.start_used["kind"], "start_loaded": self.start_used,
+                "outside_used": self.outside_used,
                 "libraries": {"torch": torch.__version__, "torchvision": torchvision.__version__,
                               "numpy": np.__version__, "yolox": ydef.CODE["commit"]}}
 
@@ -180,8 +247,14 @@ class Trainer:
         self.opt = torch.optim.SGD([{"params": decay, "weight_decay": 5e-4},
                                     {"params": other, "weight_decay": 0.0}],
                                    lr=self.lr, momentum=0.9, nesterov=True)
-        self.ema = {k: v.detach().clone().float() for k, v in self.model.state_dict().items()}
         last = self.dir / "checkpoints" / "last.pt"
+        if self.start.get("kind") == "pretrained":
+            if last.is_file():        # a resume: the weights are in last.pt; keep the first record
+                self.start_used = {"kind": "pretrained", "model": self.start["model"],
+                                   "note": "loaded at the run's first start"}
+            else:
+                self._load_start()
+        self.ema = {k: v.detach().clone().float() for k, v in self.model.state_dict().items()}
         if not last.is_file():
             return 0, 0
         ck = torch.load(last, map_location=self.device, weights_only=True)

@@ -599,7 +599,9 @@ the same test frames, and which frames each one gets wrong.
       classes not fully checked on a frame (`seg_masks/` cannot show them; the flags are in `frame_metrics.csv`)
 - [ ] per-pixel segmenter from `seg_masks/`, classes as in S8 with every other pixel as "other";
       cover error in percentage points per class (share within 10 points), IoU per class, largest object % error
-- [ ] instance segmenter from the COCO outlines, laptop first; its counts and cover scored like the other two
+- [ ] instance segmenter from the COCO outlines: on the laptop, and for the N6 if `yoloxproto` or RTMDet-Ins-tiny
+      runs there in S7 (Nick, build2 spec answer 16: own permissive instance segmenters for the N6); its counts
+      and cover scored like the other two
 **Demo (Nick):** train a segmenter and an instance segmenter; the compare page shows % cover error per class
 and the same frames with each model's masks.
 **Needs:** S9; S6–S7's table.

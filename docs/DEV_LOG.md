@@ -45,6 +45,13 @@ attempts. Through the real convert job on the three cameras, 3 of 3 "done": N6 1
 1 CPU, Pi side runs; table in DESIGN §Bench results.
 **Broke/surprised us:** `mmcv-lite` does ship `mmcv/ops/*.py`, only not what they load, so the first check for
 "full mmcv is installed" was wrong; it now looks for `mmcv._ext`.
+**Changed before merge (QE FAIL on 8481b10, two records):** D72 is a Lead call (made by the lead the same day).
+The licence record was wrong to say nothing restricted is installed: `mmcv-lite` installs mmcv's operator folder as
+source, with 13 NVIDIA-licensed files. Lead call: the set-up step removes `mmcv/ops` after the install and the
+environment is "not ready" while it is there; done on the real tools folder, and the model builds the same
+afterwards (5,616,362 parameters, 0 network attempts). Also: OpenCV's bundled LGPL libraries are named; the
+"0 network attempts" is the by-hand build check's, not the job's; the build test is skipped by the suite and
+`mmdet-venv` has no pytest, so that build is checked by hand (the PR says how).
 **Not done:** SparseInst (time box). The page was not opened for this bite: it adds one candidate row and no page
 code.
 **Next:** 2f (the guarded ST Edge AI Core 4.1.0 step), S6's close.

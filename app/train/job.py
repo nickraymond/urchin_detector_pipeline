@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.datasets import loaders
+from app.datasets import loaders, outside
 from app.train import models
 
 # name -> "module:Class". Only names listed here can run: the job file never carries a module
@@ -77,6 +77,7 @@ for _size, _note in (("nano", "smallest; 10.6 ms on the N6 and 26.4 ms on the AE
         "variant": "conv", "inputs": [256, 320],
         "presets": ["standard + blur + haze", "standard", "none"],
         "defaults": {"epochs": 120, "input": 256, "augment": "standard + blur + haze", "seed": 0},
+        "starts": ("scratch", "pretrained"), "outside": True,
         "why": {"type": _note, **_YOLOX_WHY}, "licence": "Apache-2.0"}
 
 
@@ -99,6 +100,17 @@ def build_recipe(mtype_key: str, form: dict, manifest: dict, class_ids: list[int
     if start.get("kind") not in mtype.get("starts", ("scratch",)):
         raise ValueError(f"{mtype['name']} can only start from scratch for now: its trainer does "
                          "not load starting weights yet.")
+    data = form.get("data") or "project"
+    if data not in ("project", "outside"):
+        raise ValueError("Train on: this project's frames, or the version's outside data.")
+    if data == "outside":
+        # pre-training (spec stage 7): the version's public sources only, one class, "urchin"
+        if not mtype.get("outside"):
+            raise ValueError(f"{mtype['name']} cannot be trained on outside data yet.")
+        if not manifest.get("outside"):
+            raise ValueError(f"Version {manifest['number']} holds no outside data: add a source "
+                             "on the Datasets page and freeze a new version.")
+        class_ids = []
     d = mtype["defaults"]
     try:
         epochs = int(form.get("epochs") or d["epochs"])
@@ -114,19 +126,20 @@ def build_recipe(mtype_key: str, form: dict, manifest: dict, class_ids: list[int
     if augment not in mtype["presets"]:
         raise ValueError(f"Unknown augmentation preset {augment!r}.")
     names = {c["id"]: c["name"] for c in manifest["classes"]}
+    class_names = [outside.CLASS_NAME] if data == "outside" else [names[i] for i in class_ids]
     if mtype.get("modeldef"):                 # a real model type: S6's arch and arch key (D53, D54)
         import importlib
 
         from app import modeldefs
         arch = importlib.import_module(mtype["modeldef"]).arch(
-            mtype["size"], input_px, [names[i] for i in class_ids])
+            mtype["size"], input_px, class_names)
         key = modeldefs.arch_key(arch)
     else:
         arch = {"kind": mtype["kind"], "family": mtype["family"], "size": mtype["size"],
                 "variant": mtype.get("variant") or "", "input": [input_px, input_px],
-                "classes": [names[i] for i in class_ids], "licence": mtype.get("licence", "")}
-        key = arch_key(mtype, input_px, len(class_ids))
-    train = {"model_type": mtype_key, "trainer": mtype["trainer"],
+                "classes": class_names, "licence": mtype.get("licence", "")}
+        key = arch_key(mtype, input_px, len(class_names))
+    train = {"model_type": mtype_key, "trainer": mtype["trainer"], "data": data,
              # "outside" = what the version holds; what a run really trained on is in
              # recorded[].outside_used, written by the trainer
              "dataset": {"version": manifest["number"], "hash": manifest["hash"],

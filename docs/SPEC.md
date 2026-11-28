@@ -230,6 +230,9 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   urchin, sea star and sunflower sea star; the other classes stay labeled and wait. Nick can reverse it.
 - Q32 (2026-11-27). Nick approved the plan; the spec lead merges the spec PR for him at the QE-passed head. Yes
   to ST's licence terms for ST Edge AI Core 4.1.0. No to DUO-trained weights as a starting point for a camera model.
+- Q34 (2026-11-27). Keep trying instance segmenters: the project's own permissively licensed ones on the N6 are
+  worth having. `yoloxproto` and RTMDet-Ins-tiny are camera candidates; S7 times them, S10 trains one for the N6
+  if either runs there (build2 spec answer 16).
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 

@@ -34,6 +34,9 @@ def make_env(item: dict, uv: str) -> None:
     spec = setup.TOOLCHAIN / item["spec"]
     what = ["-r", str(spec)] if spec.is_file() else [item["spec"]]
     run([uv, "pip", "install", "--python", str(env / "bin" / "python"), *what])
+    for path in setup.leftovers(env, item["name"]):          # files the install brings that must not stay
+        print(f"removing {path} (setup.REMOVE)", flush=True)
+        shutil.rmtree(path) if path.is_dir() else path.unlink()
     (env / setup.MARK).write_text(setup.want(item["spec"]) + "\n")
 
 

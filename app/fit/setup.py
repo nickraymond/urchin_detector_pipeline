@@ -32,6 +32,12 @@ ENVS = [
      "RF-DETR Atto / Femto / Pico: Roboflow licence, evaluation only"),
     ("mmdet-venv", "3.11", "requirements-mmdet.txt", "RTMDet-Ins-tiny (mmdetection)"),
 ]
+# Files an environment must not hold after its install, relative to its site-packages (Lead call with D72):
+# `mmcv-lite` ships mmcv's operator folder as source, and 13 files in it (5 Python, 8 C++ / CUDA) carry NVIDIA
+# licence headers that forbid use without an agreement with NVIDIA. The app never loads `mmcv.ops` (rtmdetins.py
+# answers that import itself), so the whole folder is removed after the install and the environment is "not
+# ready" while it is there.
+REMOVE = {"mmdet-venv": ["mmcv/ops"]}
 CHECKOUTS = [(yolox.CHECKOUT, yolox.CODE["repo"], yolox.CODE["commit"], "YOLOX model code")]
 MARK = ".setup_ok"
 DOCKER_CHECK_SECONDS = 60     # /fit reloads every 10 s while cells wait; ask Docker at most once a minute (QE PR 82)
@@ -50,6 +56,11 @@ def want(spec: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def leftovers(env: Path, name: str) -> list[Path]:
+    """What REMOVE names for this environment and is still on disk."""
+    return [p for rel in REMOVE.get(name, []) for p in Path(env).glob(f"lib/python*/site-packages/{rel}")]
+
+
 def items(tools_dir: Path) -> list[dict]:
     """Every tool this job makes, with ok True / False and a reason when it is not."""
     tools_dir, out = Path(tools_dir), []
@@ -62,6 +73,8 @@ def items(tools_dir: Path) -> list[dict]:
             ok, why = False, "not finished, or made by hand: run the set-up once to record it"
         elif mark.read_text().strip() != want(spec):
             ok, why = False, "its requirements have changed since it was made"
+        elif leftovers(env, name):
+            ok, why = False, "it holds files that must not stay installed (" + ", ".join(REMOVE[name]) + ")"
         else:
             ok, why = True, ""
         out.append({"kind": "env", "name": name, "python": python, "spec": spec, "what": what,
