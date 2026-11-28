@@ -529,6 +529,9 @@ against the fake board only; the rig test session runs each board's first card a
 - [x] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
       like the rest: QE 9 PASS 2026-11-27 with declared gaps (unused blocks zero-filled; restore not rehearsed).
       The first rig change now waits only for QE's review of the first card
+- 2026-11-27 6:13 PM: a pip dry run in a temporary venv in /tmp on the Pi, asked by the lead before any card was reviewed,
+  against this sprint's rule; logged in the rig log and removed. Lead's mistake; from now on every write on the rig waits
+  for a reviewed card. *(Build 2 lead 2's call, its words)*
 
 **Bite 1 — Bench units, the `Board` interface, the fake board, the rig log** (D81)
 - [x] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
@@ -599,10 +602,9 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
-**Lead calls for the S7 test build's note:** D80–D89, among them D89 (3): runtime tools used unmodified on the bench Pi and
-never shipped may carry other OSI licences (tqdm MPL-2.0 AND MIT, typing_extensions PSF-2.0, numpy BSD-3-Clause AND
-0BSD AND MIT AND Zlib AND CC0-1.0), recorded as "bench tool, not deployed"; the Pi image with zero-filled unused blocks
-taken as meeting constraint 9 (SPEC Q33).
+**Lead calls for the S7 test build's note:** D80–D89; the Pi image with zero-filled unused blocks taken as meeting
+constraint 9 (SPEC Q33); bench tools under other OSI licences (D89 (3): tqdm MPL-2.0 AND MIT, typing_extensions PSF-2.0,
+numpy BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0, each "bench tool, not deployed").
 **Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
 measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.
