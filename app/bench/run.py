@@ -24,6 +24,20 @@ def run_dir(data_dir, run_id: str) -> Path:
     return Path(data_dir) / "bench" / run_id
 
 
+def reserve_run_id(data_dir, number: int, now=None) -> str:
+    """`<YYYYmmdd-HHMMSS>-card<n>`, with `-2`, `-3`, ... when that folder exists: the folder is made here, at once
+    (mkdir fails if it exists), so two Runs in one second never share a folder (QE PR 105 nit 1)."""
+    base = f"{(now or datetime.now()):%Y%m%d-%H%M%S}-card{number}"
+    for k in range(1, 1000):
+        run_id = base if k == 1 else f"{base}-{k}"
+        try:
+            run_dir(data_dir, run_id).mkdir(parents=True)
+            return run_id
+        except FileExistsError:
+            continue
+    raise JobError(f"no free run folder for card {number} at {base}")
+
+
 def params(cfg, number: int, fake: dict | None = None) -> dict:
     """What the page submits. Refused unless the card is reviewed and its unit may be used. `fake` (tests
     only) sets the fake board's timings and failures; it is refused for a real unit."""
@@ -44,7 +58,7 @@ def params(cfg, number: int, fake: dict | None = None) -> dict:
                        f'"{cards.RESTORE_RULE}" (D87); write a new card.')
     if fake and not unit.fake:
         raise JobError("fake board settings are for the fake unit only")
-    run_id = f"{datetime.now():%Y%m%d-%H%M%S}-card{number}"
+    run_id = reserve_run_id(cfg.data_dir, number)
     return {"config": str(cfg.path), "data_dir": str(cfg.data_dir), "card": number,
             "card_sha256": c["sha256"], "run_id": run_id, "fake": fake or {}}
 
@@ -90,7 +104,9 @@ def summary(folder: Path) -> dict:
         means = [w["ms_mean"] for w in ws]
         models[name] = {"windows": len(ws), "median_ms": statistics.median(means) if len(ws) >= cards.MIN_WINDOWS else None,
                         "low_ms": min(means), "high_ms": max(means),
-                        "mem_after_load": min(w["mem_after_load"] for w in ws)}
+                        # None where the board gives no figure (the laptop's agent has no /proc): QE PR 105 nit 4
+                        "mem_after_load": min((w["mem_after_load"] for w in ws if w.get("mem_after_load") is not None),
+                                              default=None)}
     return {"run_id": folder.name, "run": run, "models": models}
 
 

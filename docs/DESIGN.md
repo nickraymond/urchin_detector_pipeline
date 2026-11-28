@@ -781,7 +781,8 @@ folder. Frames are fixed by D83 (one seeded synthetic image per model), so the c
 
 **As built, bite 2b** (`app/bench/run.py`, `worker.py`): job kind `bench`, item "window". Run (`POST
 /bench/cards/<n>/run`) is refused unless the card is reviewed and unchanged since its review and its unit is allowed;
-the params carry the card's sha256 and a run id `<YYYYmmdd-HHMMSS>-card<n>`. The worker checks all of that again,
+the params carry the card's sha256 and a run id `<YYYYmmdd-HHMMSS>-card<n>` (with `-2`, `-3`, ... when that folder
+exists: the folder is made at Run, so two Runs in one second never share one; QE PR 105). The worker checks all of that again,
 and each model file's sha256 against the card, then writes `card.json` (card + review), opens the board, logs
 `board.info()` in `run.json`, loads the models together (`load_several`: one rig-log change), and times window by
 window, each model in turn, appending one `timing.jsonl` line per window and model. Pause is taken between windows; a
