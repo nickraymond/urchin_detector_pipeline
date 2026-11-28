@@ -19,11 +19,12 @@ from __future__ import annotations
 import copy
 import itertools
 import json
-import selectors
+import queue
 import tempfile
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from app.bench.agent.bench_agent import INSTALLS, file_name, sha256
@@ -72,7 +73,17 @@ class Transport:
             self.proc = subprocess.Popen(self.argv(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                          stderr=err, text=True, bufsize=1)
         self._ids = itertools.count(1)
+        # One reader thread owns stdout and hands over whole lines: waiting on the pipe and then reading a buffered
+        # stream lost an answer that arrived in the same chunk as an alive line (QE PR 119).
+        self._lines: queue.Queue = queue.Queue()
+        threading.Thread(target=self._read_lines, args=(self.proc.stdout, self._lines), daemon=True).start()
         return self.request("hello")
+
+    @staticmethod
+    def _read_lines(stream, lines: queue.Queue) -> None:
+        for line in stream:
+            lines.put(line)
+        lines.put(None)                                    # the agent's stdout closed
 
     def request(self, op: str, **body) -> dict:
         if self.proc is None or self.proc.poll() is not None:
@@ -102,11 +113,15 @@ class Transport:
         return {k: v for k, v in answer.items() if k not in ("id", "ok")}
 
     def _readline(self) -> str:
-        sel = selectors.DefaultSelector()
-        sel.register(self.proc.stdout, selectors.EVENT_READ)
-        ready = sel.select(self.timeout_s)
-        sel.close()
-        return self.proc.stdout.readline() if ready else ""
+        """The next whole line, or "" after timeout_s of silence or when the agent's stdout has closed."""
+        try:
+            line = self._lines.get(timeout=self.timeout_s)
+        except queue.Empty:
+            return ""
+        if line is None:
+            self._lines.put(None)                          # stays closed for any later read
+            return ""
+        return line
 
     def close(self) -> None:
         if self.proc and self.proc.poll() is None:

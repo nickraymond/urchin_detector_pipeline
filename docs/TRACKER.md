@@ -575,7 +575,15 @@ against the fake board only; the rig test session runs each board's first card a
       3b-ii: the `install` op from the hash-pinned file (D89), the agent copied only when it changed, the card's
       thread count (D88). The Pi's first card is the rig test session's, after QE)*
 
-**Bite 4 — The N6 route** (D82, D83)
+**Bite 4 — The N6 route** (D82, D82a, D83)
+- [x] 4a: ROMFS images read and written on the laptop (`app/bench/romfs.py`); the backup's image re-encoded byte for byte
+- [x] D82a's second gate: our models' ST marker (`STAI-3.0.0`, SDK 1.6.0) differs from the board's vendor models' (`atonn-v1.1.0`,
+      firmware v5.0.1); Lead call (a): card 4 answers it on the board (DESIGN, As built, bite 4a)
+- [ ] 4b: the N6 write route (DFU alt 3, read-back verify, `/rom` listing, the timing script), with "restore ROMFS0 from the
+      backup image, verified by read-back" (it writes the backup file's first 25,165,824 bytes, the partition; the 4 bytes
+      after them are dfu-util's read padding) as a built-in step the job runs on any failed load, fault or timeout; then card 4
+      (YOLOX Nano beside the vendor files, against the earlier 10.6 ms), written by the lead after 4b merges. If card 4 does
+      not load, OpenMV's SDK matching v5.0.1 goes to Nick (a new tool, licence not read)
 - [ ] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back
       verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
       tested with the fake board and on a ROMFS image file on the laptop
