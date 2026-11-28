@@ -913,7 +913,9 @@ the AE3 stays refused. **Load:** the backup file must be 25,165,828 bytes with t
 "<name>.tflite", align 32])`; it and the backup's partition are stored once each in `<data_dir>/bench/n6_images/<sha256>.img`
 (D82e; the load's answer and `run.json` name the path and sha256) and copied to the agent's `models/` (the backup first,
 and only when the Pi does not hold the same bytes already) inside the load's rig-log entry. Every mpremote and dfu-util
-call the agent makes goes to `agent.log` with its exit code and output (QE 10). The agent checks both sha256s, enters the bootloader
+call the agent makes goes to `agent.log` with its exit code and output (QE 10), with the N6's serial written as
+`<n6_dfu_serial>` and any other board's serial cut to its last 4 digits, there and in every error the agent sends back
+(QE PR 126 nit 1). A card whose N6 never answered ends without the hard reset (nit 2). The agent checks both sha256s, enters the bootloader
 (`machine.bootloader()`, then `dfu-util -d 37c5:9206 -l` must show alt 3 named ROMFS0, within 60 s), writes with `-a 3 -D`
 (the agent refuses any other alt), reads back with `-a 3 -U` (compare capped at the image length), boots with a read of
 alt 2 and `-R` (`ml/README.md`), waits for the N6 to answer, and checks that `/rom` lists exactly the image's names and

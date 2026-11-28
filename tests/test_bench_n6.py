@@ -291,7 +291,7 @@ def test_a_board_left_in_its_bootloader_is_a_normal_start_for_the_restore(rig):
 
 
 @pytest.mark.parametrize("setup, why", [({"faults.json": json.dumps({"two_devices": 1})}, "2 N6 bootloaders"),
-                                        ({"serial": "ANOTHER_N6"}, "not the backup's")])
+                                        ({"serial": "ANOTHER_N6"}, r"ending R_N6, not \[bench\] n6_dfu_serial")])
 def test_an_unpinned_or_doubtful_bootloader_gets_nothing_written(rig, setup, why):
     """QE PR 123 ask 4: exactly one 37c5:9206 device, with the recorded serial, before any -D."""
     b, state = rig["board"], rig["state"]
@@ -397,3 +397,20 @@ def test_the_serial_is_read_from_bench_config(value, ok):
     bench = parse({"field_units": [], "n6_dfu_serial": value, "units": {"b": {"ssh_host": "b", "cameras": ["n6"]}}})
     assert bench.n6_dfu_serial == (value if ok else "") and ("b" in bench.units)
     assert ok or any("n6_dfu_serial" in p for p in bench.problems)
+
+
+
+def test_no_board_serial_reaches_agent_log_or_an_answer(rig):
+    """QE PR 126 nit 1: ours reads <n6_dfu_serial>, another board's only by its last 4 digits."""
+    b, state = rig["board"], rig["state"]
+    b.load(rig["model"])
+    (state / "mode").write_text("dfu")
+    assert "dfu_serial" not in b.info()
+    b.close()
+    (state / "serial").write_text("ANOTHER_N6")
+    with pytest.raises(BoardError) as e:
+        b.load(rig["model"])
+    b.close()
+    log = (rig["tmp"] / "agent" / "agent.log").read_text()
+    assert "<n6_dfu_serial>" in log and "-a 3 -D" in log
+    assert "FAKE0N6SERIAL" not in log and "ANOTHER_N6" not in log and "ANOTHER_N6" not in str(e.value)

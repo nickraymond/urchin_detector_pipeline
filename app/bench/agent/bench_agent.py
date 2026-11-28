@@ -277,12 +277,19 @@ class N6:
             return time.monotonic()
         return last
 
+    def masked(self, text):
+        """No board serial in agent.log or in an answer (QE PR 126 nit 1: the run folder must not carry the unit's
+        serial either): ours reads <n6_dfu_serial>, any other only by its last 4 digits."""
+        if self.serial:
+            text = text.replace(self.serial, "<n6_dfu_serial>")
+        return re.sub(r'serial="([^"<]*)"', lambda m: f'serial="…{m.group(1)[-4:]}"', text)
+
     def run(self, argv, limit_s, tail=1500):
         """One tool call; its command line, exit code and output go to stderr, which is the run's agent.log (QE 10:
         dfu-util's own words must be kept)."""
         rc, out = run_steps(argv, None, self.alive, self.folder, limit_s, tail)
         shown = [a if len(a) < 200 else a[:60] + f"… ({len(a)} chars)" for a in argv]     # scripts are long
-        sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] $ {' '.join(shown)}\nexit {rc}\n{out.rstrip()}\n")
+        sys.stderr.write(self.masked(f"[{time.strftime('%H:%M:%S')}] $ {' '.join(shown)}\nexit {rc}\n{out.rstrip()}\n"))
         sys.stderr.flush()
         return rc, out
 
@@ -339,8 +346,8 @@ class N6:
                                     "until only the bench N6 is in its bootloader. If ours was sent there, it stays in "
                                     "it: a restore-only card boots it once the other device is gone")
         if serials != {self.serial}:
-            raise Stop(LOAD_FAILED, f"the N6 bootloader on the USB has serial {sorted(serials)[0]}, not the backup's "
-                                    f"{self.serial}: another board; nothing is written. If ours was sent to its "
+            raise Stop(LOAD_FAILED, f"the N6 bootloader on the USB has a serial ending {sorted(serials)[0][-4:]}, not "
+                                    "[bench] n6_dfu_serial: another board; nothing is written. If ours was sent to its "
                                     "bootloader, it stays there: a restore-only card boots it once the other is gone")
         return any(f'alt={ROMFS_ALT}, name="ROMFS0"' in l for l in lines)
 
@@ -469,7 +476,7 @@ class Agent:
     def n6_info(self, req):
         if self.n6.in_dfu():                       # left in its bootloader (a Cancel, a dropped link): a normal start
             return {"kind": "n6", "state": "bootloader", "board_type": "N6", "firmware": None, "mem_free": None,
-                    "rom": None, "dfu_serial": self.n6.serial, "model_area_bytes": PARTITION}
+                    "rom": None, "model_area_bytes": PARTITION}
         found = self.n6.script(INFO_SCRIPT)
         return {"kind": "n6", **found, "port": os.path.basename(self.n6.port or ""), "rom": self.n6.rom(),
                 "model_area_bytes": PARTITION}
@@ -678,7 +685,7 @@ def serve(agent, lines, write):
         try:
             write({"id": rid, "ok": True, **agent.handle(req)})
         except Stop as e:
-            write({**e.extra, "id": rid, "ok": False, "stop": e.stop, "error": str(e)})
+            write({**e.extra, "id": rid, "ok": False, "stop": e.stop, "error": agent.n6.masked(str(e))})
         except Exception as e:                         # a fault in the agent itself: reported, the agent keeps going
             write({"id": rid, "ok": False, "stop": LOAD_FAILED, "error": f"agent fault: {type(e).__name__}: {e}"})
         if req.get("op") == "bye":

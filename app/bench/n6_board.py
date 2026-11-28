@@ -91,6 +91,7 @@ class N6Board(PiBoard):
         self.backup_path, self.backup_sha256, self.partition = Path(backup), backup_sha256, partition
         self.rom_names: dict[str, str] = {}
         self.image_on_board = False      # True from the moment a write may have started until a restore verifies
+        self.reached = False             # the N6 answered (info, load or restore): only then the card ends with a reset
         self.restores: list[dict] = []
 
     def connect(self) -> dict:
@@ -102,7 +103,9 @@ class N6Board(PiBoard):
 
     def info(self) -> dict:
         self.connect()
-        return {**self.transport.request("info", kind="n6", dfu_serial=self.dfu_serial), "agent": self.hello}
+        info = self.transport.request("info", kind="n6", dfu_serial=self.dfu_serial)
+        self.reached = True
+        return {**info, "agent": self.hello}
 
     def _pinned(self, stop: str) -> None:
         if not self.dfu_serial:
@@ -134,7 +137,7 @@ class N6Board(PiBoard):
                 self.image_on_board = True
                 self._restore_after(e)
             raise
-        self.image_on_board = True
+        self.image_on_board = self.reached = True
         return {**done, "image_sha256": hashlib.sha256(image).hexdigest(), "image_bytes": len(image),
                 "image_path": str(local_image), "rom_names": self.rom_names}
 
@@ -212,6 +215,6 @@ class N6Board(PiBoard):
                                               backup_sha256=backup.sha256, rom=backup.rom)
             except BoardError as r:
                 raise BoardError(RESTORE_FAILED, str(r)) from None
-        self.image_on_board, self.rom_names = False, {}
+        self.image_on_board, self.rom_names, self.reached = False, {}, True
         self.restores.append(done)
         return done

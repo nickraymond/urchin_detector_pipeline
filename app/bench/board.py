@@ -111,6 +111,7 @@ class FakeBoard(Board):
         self.loaded: dict[str, str] = {}
         self.calls: list[str] = []
         self.image_on_board, self.restores = False, []    # the N6's model area (bite 4b), pretended
+        self.reached = False                               # the board answered once (as N6Board)
 
     def _maybe_fail(self, op: str) -> None:
         self.calls.append(op)
@@ -125,6 +126,7 @@ class FakeBoard(Board):
 
     def info(self) -> dict:
         self._maybe_fail("info")
+        self.reached = True
         return {"kind": self.kind, "firmware": "fake 1.0", "mem_free": self.mem_free,
                 "model_area_bytes": 0 if self.kind == "pi" else 0x01800000, "fake": True}
 

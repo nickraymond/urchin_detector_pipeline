@@ -247,3 +247,13 @@ def test_a_failed_hard_reset_at_the_end_is_a_stop_rule_and_restore_only_ends_wit
     p = runs.params(cfg, new_card(data, cfg.bench, models="", restore_only="on"))
     assert wait(jc, jc.submit("bench", p), "done", "error")["state"] == "done"
     assert json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())["finish"]["hard_reset"] is True
+
+
+
+def test_a_card_whose_board_never_answered_is_not_reset(site, jc):
+    """QE PR 126 nit 2: no hard reset, and no second error, when the board never answered."""
+    cfg, data = site
+    p = runs.params(cfg, new_card(data, cfg.bench), fake={"fail": {"info": "no_answer"}})
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "error" and "stop rule no_answer" in job["message"] and "hard reset" not in job["message"]
+    assert "finish" not in json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
