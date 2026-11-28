@@ -26,7 +26,7 @@ that factor in tiles of the canvas, drops copies cut by an inner tile edge, NMS 
 overlap are written to `recipe.json` at the first start and kept on resume (tested through the job); drawn validation
 frames are whole frames up to 1024 px; the Train page's note says so.
 **Self-test:** on a copy of S8 builder 2's synthetic `s8_squares` (scratch data folder): a 15-epoch run from the Train
-page (Apple GPU) recorded factor 0.7586 (median side 58 px over 183 boxes), overlap 56, 72 tiles over 12 validation
+page (Apple GPU) recorded factor 0.7586 (median side 58 px over 183 boxes), overlap 56 (run before the +5 px margin; 61 now), 72 tiles over 12 validation
 frames, 56 objects (the old validation counted 34); the page shows four whole 486 × 364 frames. Builder 2's m4 (400
 epochs, a copy) scored by the new validation: recall 0.98, precision 0.83 before the inner-edge drop, 0.95 after (old:
 0.94 / 0.97 on 34 objects). Probe scripts in the session scratchpad.
