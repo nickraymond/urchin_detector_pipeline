@@ -70,6 +70,11 @@ def test_a_model_is_evaluated_once_per_test_set(project, jc):
     assert ev["frames"] == n and ev["threshold"] == 0.3 and ev["score_floor"] == 0.01 and ev["test_set"] == p["key"]
     assert ev["weights_sha256"] == versions.sha256_file(mdir / "checkpoints" / "best.pt")
     assert ev["eval_overlap_capped"] is False and ev["eval_scale"]["factor"] and ev["code"]
+    m = json.loads((out / "metrics.json").read_text())        # bite 2 (D91, D92): every figure with its interval
+    groups = runs.test_groups(project, 1)
+    assert m["frames"] == n and m["intervals"]["groups"] == len({groups[l["file"]] for l in lines})
+    assert m["intervals"]["unit"] == "frames" and "dives only" in m["intervals"]["note"]   # under 5 dives in test
+    assert m["classes"]["1"]["recall"]["interval"] is not None and "rank_floor" in m["classes"]["1"]
     with pytest.raises(JobError, match="already evaluated"):
         runs.params(project, mdir.name, predictor=FAKE)
 
@@ -155,6 +160,14 @@ def test_numpy_nms_keeps_the_best_per_class():
                    np.float32)
     kept = tiles.nms(det, 0.45)
     assert kept[:, 4].tolist() == pytest.approx([.9, .7, .6])
+
+
+def test_a_version_split_by_video_has_no_dive_groups(project, monkeypatch):
+    groups = runs.test_groups(project, 1)
+    assert groups and len(set(groups.values())) == 3                     # reef, cove, wall: site + date
+    real = runs.loaders.load
+    monkeypatch.setattr(runs.loaders, "load", lambda f, v: ({**real(f, v)[0], "grouped_by": "video"}, {}))
+    assert runs.test_groups(project, 1) is None
 
 
 def test_a_line_cut_by_a_crash_is_cut_back_and_scored_again(project, jc):
