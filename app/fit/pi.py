@@ -22,6 +22,7 @@ from pathlib import Path
 
 from app.fit import reports
 from app.fit.pi_run import TOOL_FAULT
+from app import ORT_OFF
 
 MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
 RUNTIME_ENV = "convert-venv"
@@ -39,7 +40,7 @@ def qdq(python: Path, onnx_file: Path, out: Path) -> dict:
     made = out / QDQ_NAME
     made.unlink(missing_ok=True)
     done = subprocess.run([str(python), "-m", "app.fit.to_qdq", str(onnx_file), str(made)], capture_output=True,
-                          text=True, cwd=REPO, env={**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1"})
+                          text=True, cwd=REPO, env={**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1", **ORT_OFF})
     (out / "qdq.log").write_text(done.stdout + done.stderr)
     try:
         ran = json.loads(done.stdout.strip().splitlines()[-1]) if done.returncode == 0 and made.is_file() else None
@@ -61,7 +62,7 @@ def compile(tflite: Path, out: Path, job: dict) -> dict:
     if not python.is_file():
         raise ToolsMissing(f"Tool environment not found: {python}. Fix: set the tools up (DESIGN D51).")
     done = subprocess.run([str(python), "-m", "app.fit.pi_run", str(tflite)], capture_output=True, text=True,
-                          cwd=REPO, env={**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1"})
+                          cwd=REPO, env={**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1", **ORT_OFF})
     (out / "compile.log").write_text(done.stdout + done.stderr)
     if done.returncode == TOOL_FAULT:                # the runtime could not be used: a job error, not a result
         raise ToolsMissing("LiteRT could not be used in " + RUNTIME_ENV + ": "

@@ -25,6 +25,7 @@ from pathlib import Path
 from app.jobctl import limits as limits_mod
 from app.jobctl import schedule
 from app.jobctl.store import Store, now
+from app import ORT_OFF
 
 PAUSE_TIMEOUT_S = 600          # D34: a worker that has not paused within 10 min is ended
 GUARD_REASON = "Paused by the memory guard"   # D36c: the start of a guard pause's reason
@@ -265,7 +266,7 @@ class Runner:
             proc = subprocess.Popen(
                 cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True,
                 bufsize=1, cwd=kind.cwd or REPO,
-                env={**os.environ, "OMP_NUM_THREADS": threads, "MKL_NUM_THREADS": threads,
+                env={**os.environ, **ORT_OFF, "OMP_NUM_THREADS": threads, "MKL_NUM_THREADS": threads,
                      **kind.env},
                 start_new_session=True)   # Ctrl-C on the app must not cut an item in half
         try:

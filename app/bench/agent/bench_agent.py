@@ -24,6 +24,8 @@ import glob
 import hashlib
 import json
 import os
+
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"   # Lead call, lead 2: no ONNX Runtime telemetry to Microsoft (its Privacy.md)
 import platform
 import re
 import shutil
@@ -749,6 +751,7 @@ class Agent:
         tmp = os.path.join(self.folder, "tmp")
         os.makedirs(tmp, exist_ok=True)
         env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": self.folder, "TMPDIR": tmp,
+               "ORT_DISABLE_TELEMETRY": "1",
                "PIP_CONFIG_FILE": os.devnull, "PIP_NO_CACHE_DIR": "1", "PIP_DISABLE_PIP_VERSION_CHECK": "1",
                "PYTHONNOUSERSITE": "1"}
         py = os.path.join(venv, "bin", "python")

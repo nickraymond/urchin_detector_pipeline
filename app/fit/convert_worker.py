@@ -28,6 +28,7 @@ from pathlib import Path
 
 from app.fit import convert
 from app.jobctl import worker
+from app import ORT_OFF
 
 REPO = Path(__file__).resolve().parents[2]
 TAIL_LINES = 25
@@ -60,7 +61,7 @@ def run_int8(job: dict, folder: Path, ctl) -> str:
     out.mkdir(parents=True, exist_ok=True)
     write_json(convert.made_with_path(folder), convert.made_with(job["arch"]))   # before the file it describes
     (out / "model_int8.tflite.part").unlink(missing_ok=True)     # left by a step that was killed
-    env = {**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1",
+    env = {**os.environ, **ORT_OFF, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1",
            "URCHIN_TOOLS_DIR": job["tools_dir"], "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
     with open(out / "convert.log", "w") as log:
         child = subprocess.Popen([str(python), "-m", job["int8_module"], str(folder / "recipe.json"), str(out)],
