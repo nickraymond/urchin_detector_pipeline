@@ -34,6 +34,7 @@ BAD_ANSWER, LOW_MEMORY, NOT_BUILT = "bad_answer", "low_memory", "not_built"
 
 # the N6 (S7 bite 4b): the built-in restore of ROMFS0 from the backup did not verify
 RESTORE_FAILED = "restore_failed"
+INPUT_DIFFERS = "input_differs"           # D83a: the N6's input image is not the laptop's
 
 
 class BoardError(Exception):
@@ -109,6 +110,7 @@ class FakeBoard(Board):
         self.fail_at, self.delay_s, self.timed = fail_at, delay_s, 0
         self.loaded: dict[str, str] = {}
         self.calls: list[str] = []
+        self.image_on_board, self.restores = False, []    # the N6's model area (bite 4b), pretended
 
     def _maybe_fail(self, op: str) -> None:
         self.calls.append(op)
@@ -127,6 +129,7 @@ class FakeBoard(Board):
     def _load(self, models, files) -> dict:
         self._maybe_fail("load")
         self.loaded = dict(files)
+        self.image_on_board = self.kind == "n6"
         return {"loaded": sorted(files), "route": "fake", "mem_free": self.mem_free - self.model_bytes * len(files)}
 
     def time(self, name: str, n: int) -> dict:
@@ -146,6 +149,21 @@ class FakeBoard(Board):
     def reset(self) -> None:
         self._maybe_fail("reset")
         self.loaded = {}
+
+    def restore(self) -> dict:
+        """The fake N6's "ROMFS0 back from the backup" (fail={"restore": ...} to make it fail), logged as the real one."""
+        if self.kind != "n6":
+            raise ValueError("only the N6 has a model area to restore")
+        with riglog.change(self.data_dir, self.unit.name, self.kind, "restore ROMFS0 from the backup (DFU alt 3)",
+                           "none needed: this writes the backup's own ROMFS0 back", fake=True):
+            try:
+                self._maybe_fail("restore")
+            except BoardError as e:                    # as N6Board.restore: any failure is restore_failed
+                raise BoardError(RESTORE_FAILED, str(e)) from None
+        self.image_on_board, self.loaded = False, {}
+        done = {"restored": True, "readback_sha256": "f" * 64, "rom": {"fake.tflite": 1}, "fake": True}
+        self.restores.append(done)
+        return done
 
 
 def open_board(unit: Unit, kind: str, data_dir, bench=None, log_dir=None, threads: int = 1, **fake) -> Board:

@@ -12,7 +12,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import hashlib  # noqa: E402
+
 from app.bench import romfs  # noqa: E402
+from app.bench.agent.bench_agent import synthetic_bytes  # noqa: E402
 
 DFU_LIST = """Found DFU: [37c5:9206] ver=0102, devnum=13, cfg=1, intf=0, path="1-1.3", alt=3, name="ROMFS0", serial="X"
 Found DFU: [37c5:9206] ver=0102, devnum=13, cfg=1, intf=0, path="1-1.3", alt=2, name="FILESYSTEM", serial="X"
@@ -70,7 +73,9 @@ def mpremote(s, args):
         if name not in rom or s.faults.get("time_fails"):
             print("Traceback (most recent call last):\nOSError: Failed to load network")
             return 1
+        image = synthetic_bytes(8, 8, 3) + (b"!" if s.faults.get("input_differs") else b"")
         print("NB:" + json.dumps({"us_total": 10_600 * n, "us_min": 10_500, "us_max": 10_700, "input_shape": [1, 8, 8, 3],
+                                  "input_sha256": hashlib.sha256(image).hexdigest(), "input_bytes": len(image),
                                   "mem_before_load": 25_000_000, "mem_after_load": 24_000_000, "mem_after": 24_000_000}))
     elif "firmware" in code:
         print("NB:" + json.dumps({"board_type": "N6", "firmware": "fake N6 5.0.1", "machine": "fake N6",

@@ -22,14 +22,15 @@ what broke, what's next.*
 **Done:** `N6Board` (`app/bench/n6_board.py`) and the agent's `N6`: our ROMFS0 image built from the checked backup plus
 ours (D82a), written with DFU alt 3 only, read back, booted, `/rom` checked; the timing script over `mpremote exec`; any
 stop rule after a write may have started runs the restore from the backup itself (read back whole, `/rom` equal to the
-backup's), or ends as the new `restore_failed`. QE PR 119 nits 1-3. A fake N6 (`tests/fake_n6.py`: fake mpremote and
+backup's), or ends as the new `restore_failed`. QE PR 119 nits 1-3. Lead calls D82b (a restore-only card), D82c (every N6 card ends restored), D83a (the board's
+input sha256 checked against the laptop's). A fake N6 (`tests/fake_n6.py`: fake mpremote and
 dfu-util over a 64 KiB partition) for every test; nothing touched the rig.
 **Self-test:** no page changed. `tests/test_bench_n6.py` (12): load and time, three failed loads restored, a failed window
 restored, a board that never comes back is `restore_failed`, a wrong backup sends nothing, alt 0-2 refused. With the
 restore switched off 5 of them fail. On the laptop: the real backup passes the size, sha256 and re-encode checks, and our
 image with `yolox-nano-conv-256-c5` is 11,195,160 bytes with the 10 vendor entries unchanged.
 **Broke/surprised us:** nothing; open for card 4: whether an N6 that cannot boot our image comes back in DFU by itself.
-**Next:** card 4 (the lead writes it; the rig session runs it after QE's review).
+**Next:** the restore-only card, then card 4 (the lead writes both; the rig session runs each after QE's review).
 
 ---
 

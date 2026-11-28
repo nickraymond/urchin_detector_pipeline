@@ -19,8 +19,8 @@ import hashlib
 from pathlib import Path
 
 from app.bench import riglog, romfs
-from app.bench.agent.bench_agent import file_name
-from app.bench.board import LOAD_FAILED, NOT_LOADED, RESTORE_FAILED, BoardError, Model
+from app.bench.agent.bench_agent import SEED, file_name, synthetic_bytes
+from app.bench.board import INPUT_DIFFERS, LOAD_FAILED, NOT_LOADED, RESTORE_FAILED, BoardError, Model
 from app.bench.pi_board import PiBoard
 from app.bench.transport import Transport
 from app.bench.units import Unit
@@ -40,6 +40,17 @@ def rom_name(name: str) -> str:
     OpenMV's own models do, so `default_align` gives it 32)."""
     base = file_name(name)
     return base if base.endswith(".tflite") else base + ".tflite"
+
+
+def check_input(t: dict) -> None:
+    """D83a (Lead call, lead 2): the window counts only if the board's input image is the laptop's, byte for byte."""
+    h, w, c = t["input_shape"][-3:]
+    want = hashlib.sha256(synthetic_bytes(w, h, c, SEED)).hexdigest()
+    if t.get("input_sha256") != want:
+        raise BoardError(INPUT_DIFFERS, f"the N6's input image ({h}x{w}x{c}, {t.get('input_bytes')} bytes) has sha256 "
+                                        f"{str(t.get('input_sha256'))[:16]}…, the laptop's from seed {SEED} "
+                                        f"{want[:16]}…: the window is not counted")
+    t["input_check"] = f"sha256 {want[:16]}… equal to the laptop's (seed {SEED})"
 
 
 class Backup:
@@ -121,7 +132,9 @@ class N6Board(PiBoard):
         if name not in self.rom_names:
             raise BoardError(NOT_LOADED, f"{name} is not in the N6's model area: load it first")
         try:
-            return self.transport.request("time", kind="n6", rom_name=self.rom_names[name], n=n)
+            t = self.transport.request("time", kind="n6", rom_name=self.rom_names[name], n=n)
+            check_input(t)
+            return t
         except BoardError as e:
             self._restore_after(e)
             raise

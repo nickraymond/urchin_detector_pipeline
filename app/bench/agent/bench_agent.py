@@ -182,10 +182,23 @@ print('NB:' + json.dumps({'board_type': omv.board_type(), 'firmware': sys.versio
                           'mem_free': gc.mem_free()}))
 """
 # D83 on a camera: free memory before and after the load, 2 warm-ups, ticks_us around each of N predicts, free memory
-# after. The input is made on the board from seed 0 (a fixed pseudo-random image at the model's input size), so
-# nothing is written to the camera's /flash.
+# after. D83a (Lead call, lead 2): the input is made on the board from seed 0 (nothing is written to the camera's
+# /flash): every byte of the image's buffer from the LCG in `synthetic_bytes`, and the board sends the buffer's sha256,
+# which the laptop compares with its own from the same generator.
+LCG_A, LCG_C, LCG_M = 1103515245, 12345, 0x7FFFFFFF
+
+
+def synthetic_bytes(w, h, c, seed=SEED):
+    """The N6's input buffer (D83a): grayscale (1 byte a pixel) for one channel, else RGB565 (2 bytes a pixel)."""
+    out, x = bytearray(w * h * (1 if c == 1 else 2)), seed
+    for i in range(len(out)):
+        x = (LCG_A * x + LCG_C) & LCG_M
+        out[i] = (x >> 16) & 0xFF
+    return bytes(out)
+
+
 TIME_SCRIPT = """
-import gc, json, time, ml, image
+import gc, json, time, ml, image, hashlib, binascii
 gc.collect()
 before = gc.mem_free()
 m = ml.Model(%(path)r)
@@ -194,11 +207,12 @@ loaded = gc.mem_free()
 s = m.input_shape[0]
 h, w, c = s[-3], s[-2], s[-1]
 img = image.Image(w, h, image.GRAYSCALE if c == 1 else image.RGB565)
-x = 0
-for yy in range(h):
-    for xx in range(w):
-        x = (1103515245 * x + 12345) & 0x7fffffff
-        img.set_pixel(xx, yy, x & 0xff if c == 1 else (x & 0xff, (x >> 8) & 0xff, (x >> 16) & 0xff))
+b = img.bytearray()
+x = %(seed)d
+for i in range(len(b)):
+    x = (%(a)d * x + %(c)d) & %(m)d
+    b[i] = (x >> 16) & 0xff
+sha = binascii.hexlify(hashlib.sha256(b).digest()).decode()
 for _ in range(%(warmups)d):
     m.predict([img])
 total = 0
@@ -212,7 +226,8 @@ for _ in range(%(n)d):
     hi = d if hi is None or d > hi else hi
 gc.collect()
 print('NB:' + json.dumps({'us_total': total, 'us_min': lo, 'us_max': hi, 'mem_before_load': before,
-                          'mem_after_load': loaded, 'mem_after': gc.mem_free(), 'input_shape': list(s)}))
+                          'mem_after_load': loaded, 'mem_after': gc.mem_free(), 'input_shape': list(s),
+                          'input_sha256': sha, 'input_bytes': len(b)}))
 """
 
 
@@ -444,11 +459,13 @@ class Agent:
         n = int(req["n"])
         if n < 1:
             raise Stop(LOAD_FAILED, "a window needs at least one inference")
-        code = TIME_SCRIPT % {"path": "/rom/" + req["rom_name"], "warmups": WARMUPS, "n": n}
+        code = TIME_SCRIPT % {"path": "/rom/" + req["rom_name"], "warmups": WARMUPS, "n": n, "seed": SEED,
+                              "a": LCG_A, "c": LCG_C, "m": LCG_M}
         r = self.n6.script(code, TOOL_S + 2.0 * (n + WARMUPS))
         return {"n": n, "warmups": WARMUPS, "ms_mean": r["us_total"] / n / 1000, "ms_min": r["us_min"] / 1000,
                 "ms_max": r["us_max"] / 1000, "mem_before_load": r["mem_before_load"],
-                "mem_after_load": r["mem_after_load"], "mem_after": r["mem_after"], "input_shape": r["input_shape"]}
+                "mem_after_load": r["mem_after_load"], "mem_after": r["mem_after"], "input_shape": r["input_shape"],
+                "input_sha256": r.get("input_sha256"), "input_bytes": r.get("input_bytes")}
 
     def n6_reset(self, req):
         rc, out = self.n6.run([self.n6.mpremote, "connect", self.n6.find(), "soft-reset"], TOOL_S)

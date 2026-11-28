@@ -14,7 +14,7 @@ import pytest
 
 from app.bench import riglog, romfs
 from app.bench.agent import bench_agent
-from app.bench.board import LOAD_FAILED, READBACK, RESTORE_FAILED, BoardError, Model, open_board
+from app.bench.board import INPUT_DIFFERS, LOAD_FAILED, READBACK, RESTORE_FAILED, BoardError, Model, open_board
 from app.bench.n6_board import Backup, N6Board, rom_name
 from app.bench.transport import LocalTransport
 from app.bench.units import Refused, parse
@@ -203,3 +203,43 @@ def test_an_agent_that_ends_says_so(tmp_path):
         t.request("info")
     assert time.monotonic() - t0 < 1.5
     t.close()
+
+
+def test_a_window_on_another_input_is_not_counted_and_restores(rig):
+    """D83a: the board's sha256 of its input image must be the laptop's."""
+    b, state = rig["board"], rig["state"]
+    b.load(rig["model"])
+    assert b.time("yolox-nano-conv-256-c5", 5)["input_check"].startswith("sha256")
+    fault(state, input_differs=True)
+    with pytest.raises(BoardError) as e:
+        b.time("yolox-nano-conv-256-c5", 5)
+    b.close()
+    assert e.value.stop == INPUT_DIFFERS and "put back" in str(e.value)
+
+
+def test_the_boards_timing_script_makes_the_laptops_image(monkeypatch, capsys):
+    """TIME_SCRIPT run by CPython with stand-ins for OpenMV's ml, image, gc and time: the sha256 it prints for its
+    input buffer equals the laptop's synthetic_bytes, for RGB565 and grayscale inputs (D83a)."""
+    import types
+
+    for shape in ((1, 6, 10, 3), (1, 4, 5, 1)):
+        class Img:
+            def __init__(self, w, h, fmt):
+                self.buf = bytearray(w * h * (1 if fmt == "G" else 2))
+
+            def bytearray(self):
+                return self.buf
+        model = types.SimpleNamespace(input_shape=[shape], predict=lambda imgs: None)
+        mods = {"ml": types.SimpleNamespace(Model=lambda path: model),
+                "image": types.SimpleNamespace(Image=Img, GRAYSCALE="G", RGB565="R"),
+                "gc": types.SimpleNamespace(collect=lambda: None, mem_free=lambda: 1000),
+                "time": types.SimpleNamespace(ticks_us=lambda: 0, ticks_diff=lambda a, b: a - b)}
+        for k, v in mods.items():
+            monkeypatch.setitem(sys.modules, k, v)
+        code = bench_agent.TIME_SCRIPT % {"path": "/rom/x.tflite", "warmups": 2, "n": 3, "seed": 0,
+                                          "a": bench_agent.LCG_A, "c": bench_agent.LCG_C, "m": bench_agent.LCG_M}
+        exec(compile(code, "time_script", "exec"), {})
+        out = bench_agent.board_json(capsys.readouterr().out)
+        h, w, c = shape[1:]
+        assert out["input_sha256"] == hashlib.sha256(bench_agent.synthetic_bytes(w, h, c)).hexdigest()
+        assert out["input_bytes"] == w * h * (1 if c == 1 else 2) and out["us_total"] == 0

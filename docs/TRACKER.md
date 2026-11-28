@@ -584,8 +584,9 @@ against the fake board only; the rig test session runs each board's first card a
       after them are dfu-util's read padding) as a built-in step the job runs on any failed load, fault or timeout; then card 4
       (YOLOX Nano beside the vendor files, against the earlier 10.6 ms), written by the lead after 4b merges. If card 4 does
       not load, OpenMV's SDK matching v5.0.1 goes to Nick (a new tool, licence not read)
-      *(4b, S7 builder: `app/bench/n6_board.py`, the agent's `N6`, `tests/fake_n6.py`; DESIGN, As built, bite 4b. Card 4
-      is the lead's next; the rig session runs it after QE reviews it)*
+      *(4b, S7 builder: `app/bench/n6_board.py`, the agent's `N6`, `tests/fake_n6.py`; DESIGN, As built, bite 4b. Lead calls
+      D82b (a restore-only card first; card 4 waits for its PASS), D82c (every N6 card ends restored), D83a (the input's
+      sha256). Both cards are the lead's; the rig session runs each after QE reviews it)*
 - [x] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back
       verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
       tested with the fake board and on a ROMFS image file on the laptop *(4a + 4b)*
@@ -613,7 +614,7 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
-**Lead calls for the S7 test build's note:** D80–D89; the Pi image with zero-filled unused blocks taken as meeting
+**Lead calls for the S7 test build's note:** D80–D89 (with D82a, D82b, D82c, D83a); the Pi image with zero-filled unused blocks taken as meeting
 constraint 9 (SPEC Q33); bench tools under other OSI licences (D89 (3): tqdm MPL-2.0 AND MIT, typing_extensions PSF-2.0,
 numpy BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 with libgfortran GPL-3.0-or-later WITH GCC-exception-3.1
 and LAPACK BSD-3-Clause-Open-MPI in its wheel, Eigen MPL-2.0 in ml-dtypes, pip MIT; each "bench tool, not deployed").

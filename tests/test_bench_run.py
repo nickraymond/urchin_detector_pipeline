@@ -69,7 +69,9 @@ def test_run_end_to_end(site, jc):
     s = runs.summary(folder)["models"]
     assert 10.6 * 0.95 <= s["yolox_nano"]["median_ms"] <= 10.6 * 1.05 and s["yolox_tiny"]["windows"] == 3
     assert "yolox_nano: median" in job["message"]
-    assert riglog.read(data)[0]["what"] == "load yolox_nano, yolox_tiny"
+    rows = riglog.read(data)                                     # newest first: the N6 is left as found (Lead call)
+    assert [r["what"] for r in rows] == ["restore ROMFS0 from the backup (DFU alt 3)", "load yolox_nano, yolox_tiny"]
+    assert len(run["restores"]) == 1
 
 
 def test_run_is_refused_without_a_review_or_on_a_changed_card(site):
@@ -187,3 +189,37 @@ def test_card_page_runs_a_reviewed_card(tmp_path):
         assert ">done</a>" in page and "yolox_nano" in page and "3 of 3" in page
     finally:
         app.state.close_jobs()
+
+
+def test_a_restore_only_n6_card_restores_and_times_nothing(site, jc):
+    """Lead call (lead 2, PR 123): the rehearsal card before card 4."""
+    cfg, data = site
+    n = new_card(data, cfg.bench, models="", restore_only="on")
+    assert card.load(data, n)["restore_only"] is True and card.load(data, n)["models"] == []
+    p = runs.params(cfg, n)
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "done" and "ROMFS0 restored from the backup" in job["message"], job
+    run = json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
+    assert run["outcome"] == "done" and len(run["restores"]) == 1 and runs.windows_done(runs.run_dir(data, p["run_id"])) == []
+    assert [r["what"] for r in riglog.read(data)] == ["restore ROMFS0 from the backup (DFU alt 3)"]
+
+
+@pytest.mark.parametrize("over, why", [({"board": "pi", "restore_only": "on", "models": ""}, "only an N6 card"),
+                                       ({"restore_only": "on"}, "lists no model files")])
+def test_restore_only_is_for_n6_cards_without_models(site, over, why):
+    cfg, data = site
+    with pytest.raises(card.CardError, match=why):
+        new_card(data, cfg.bench, **over)
+
+
+def test_a_stop_rule_still_ends_with_the_restore_and_a_failed_end_restore_is_loud(site, jc):
+    cfg, data = site
+    n = new_card(data, cfg.bench)
+    p = runs.params(cfg, n, fake={"fail": {"time": "no_answer"}})
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "error" and "stop rule no_answer" in job["message"]
+    assert json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())["restores"]
+    p = runs.params(cfg, n, fake={"fail": {"restore": "no_answer"}})
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "error" and "stop rule restore_failed" in job["message"] and "end-of-card restore" in job["message"]
+    assert json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())["outcome"] == "stopped: restore_failed"
