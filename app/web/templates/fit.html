@@ -76,7 +76,8 @@
   {% for cand in cell.candidates %}{% set f = cand.fit %}
   <tr class="fit-{{ cand.code }}">
     <td>{{ cand.key }}<br><span class="hint">{{ cand.arch.licence }}{% if cand.mark %} · <b class="warn-text">{{ cand.mark }}: evaluation only</b>{% endif %}</span>
-      {% if cand.arch.note %}<br><span class="hint">{{ cand.arch.note }}</span>{% endif %}</td>
+      {% if cand.arch.note %}<br><span class="hint">{{ cand.arch.note }}</span>{% endif %}
+      {% if cand.arch.route_note %}<details class="hint"><summary>how its 8-bit file is made</summary>{{ cand.arch.route_note }}</details>{% endif %}</td>
     <td><b>{{ cand.headline }}</b>{% if cand.active %} <span class="hint">(waiting or running)</span>{% endif %}{% if cand.why %}<br><span class="hint">{{ cand.why }}</span>{% endif %}
       {% if f and not f.converts and f.error %}<details><summary>the error text</summary><pre class="fit-error">{{ f.error }}</pre></details>{% endif %}</td>
     <td>{% if f and f.placement %}{% set p = f.placement %}{% if c == "pi" %}{{ p.total }} operators, all on the CPU{% else %}{{ p.npu }} NPU{% if p.unit == "epochs" %} + {{ p.hybrid }} hybrid{% endif %} + {{ p.cpu }} CPU of {{ p.total }} {{ "steps" if p.unit == "epochs" else p.unit }}{% endif %}{% endif %}

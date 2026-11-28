@@ -235,6 +235,9 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   is made": the raw card image is still expected. Stopping it at 2:47 PM was the first lead's call, not his. Lead
   call (Build 2 lead 2): the rig test session takes the raw card image now that the card is cleared, before the
   first rig change (constraint 9 as written).
+- Q34 (2026-11-27). Keep trying instance segmenters: the project's own permissively licensed ones on the N6 are
+  worth having. `yoloxproto` and RTMDet-Ins-tiny are camera candidates; S7 times them, S10 trains one for the N6
+  if either runs there (build2 spec answer 16).
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 

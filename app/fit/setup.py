@@ -24,8 +24,11 @@ TOOLCHAIN = Path(__file__).parent / "toolchain"
 ENVS = [
     ("convert-venv", "3.11", "requirements-convert.txt", "PyTorch → ONNX → 8-bit; LiteRT (the Pi step)"),
     ("vela-5.0.0-venv", "3.12", "ethos-u-vela==5.0.0", "Arm Vela, the AE3 compiler"),
-    ("rfdetr-venv", "3.11", "requirements-rfdetr.txt", "RF-DETR Nano and RF-DETR-Seg Nano"),
-    ("rfdetr-plus-venv", "3.11", "requirements-rfdetr-plus.txt",
+    # bite 2e: RF-DETR's own export needs Python 3.12 (its `tflite` extra). The two environments of the route
+    # before it (rfdetr-venv, rfdetr-plus-venv; their requirements files are kept as the record) are no longer
+    # made or used; nothing removes them from a laptop that has them.
+    ("rfdetr-tflite-venv", "3.12", "requirements-rfdetr-tflite.txt", "RF-DETR Nano and RF-DETR-Seg Nano"),
+    ("rfdetr-plus-tflite-venv", "3.12", "requirements-rfdetr-plus-tflite.txt",
      "RF-DETR Atto / Femto / Pico: Roboflow licence, evaluation only"),
 ]
 CHECKOUTS = [(yolox.CHECKOUT, yolox.CODE["repo"], yolox.CODE["commit"], "YOLOX model code")]

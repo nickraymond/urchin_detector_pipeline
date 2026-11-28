@@ -375,6 +375,16 @@ Model weights, datasets and bench results live in the data folder, never in git.
     spec lead merges this spec's PR for him at the head QE passes; yes to ST's licence terms for
     ST Edge AI Core 4.1.0 (the builder reads them first and stops on anything unusual); no to
     weights trained on the DUO set as a starting point for a camera model.
+16. **Own instance segmenters for the N6 (2026-11-27, first Build 2 lead's chat):** "wait for the RTMDet-Ins
+    result, and lets keep trying instance segmenter also. Having the ability to create my own license
+    permissible instance semgenters would be powerful and help create a mote for me using the N6". So the
+    project's own `yoloxproto` (YOLOX with a prototype-mask branch, DESIGN D58; Apache-2.0 parts, no published
+    weights, accuracy unknown until trained) is a real camera candidate next to RTMDet-Ins-tiny: S7 times both
+    on the boards and S10 trains an instance segmenter for the N6 if either runs there. This fits answer 1
+    ("on a camera only if it converts easily") and the goal's "trained for a camera only if the table shows
+    that camera can run one": both convert for the N6 in S6, `yoloxproto` with no software step (DEV_LOG,
+    2026-11-27) and RTMDet-Ins-tiny with 2 of 134 steps in software (its upsampling layers; fit report of
+    2026-11-27). Lead call (Build 2 lead 2) that this is within scope, not a change of it; Nick can reverse it.
 
 ## Open questions
 
