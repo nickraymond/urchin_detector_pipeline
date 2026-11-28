@@ -281,3 +281,37 @@ def test_estimate_counts_one_validation_pass_per_val_every_epochs(page):
     assert est["seconds_per_epoch"] == pytest.approx(0.75 + 0.5 * 5 / 40, abs=1e-3)
     html = client.get("/p/p/train").text
     assert "0.5 s per validation × 5 passes" in html and 'name="val_every" type="number" min="1" max="1000" value="8"' in html
+
+
+def test_the_model_says_when_it_has_no_best_weights_and_when_the_overlap_was_capped(page):
+    """QE PR 111 nits: best.pt comes from validated epochs only, so a model without one says so (and when the
+    first validation runs); a run whose tile overlap was capped says what that means for big objects."""
+    client, folder = page
+    frozen(folder)
+    where = run(client, epochs="12", val_every="5")
+    mid = where.split("model=")[1]
+    assert wait_for(lambda: client.get("/p/p/train").text.count("<td>done</td>") == 1, 60)
+    mdir = folder / "models" / mid
+    page_ = client.get(f"/p/p/train?model={mid}").text
+    assert 'class="problem no-best"' in page_ and "taken only from validated epochs" in page_
+    (mdir / "checkpoints").mkdir(exist_ok=True)
+    (mdir / "checkpoints" / "best.pt").write_bytes(b"weights")
+    assert 'class="problem no-best"' not in client.get(f"/p/p/train?model={mid}").text
+    rec = json.loads((mdir / "recipe.json").read_text())
+    assert 'class="hint overlap-capped"' not in client.get(f"/p/p/train?model={mid}").text
+    rec["train"].update(eval_overlap=32, eval_overlap_capped=True)
+    (mdir / "recipe.json").write_text(json.dumps(rec))
+    page_ = client.get(f"/p/p/train?model={mid}").text
+    assert 'class="hint overlap-capped"' in page_ and "longer than 27 px" in page_
+
+
+def test_a_stopped_run_names_the_epoch_of_its_first_validation(page):
+    client, folder = page
+    frozen(folder)
+    from app.train import models
+    key, recipe = train_job.build_recipe("fake-tiny", {"epochs": "12", "val_every": "5"},
+                                         json.loads((folder / "datasets" / "v1" / "manifest.json").read_text()),
+                                         [1], {"kind": "scratch"})
+    mdir = models.create(folder, key, recipe)                  # never run: 0 of 12 epochs
+    page_ = client.get(f"/p/p/train?model={mdir.name}").text
+    assert "the first validation runs after epoch 5" in page_
