@@ -18,7 +18,9 @@ class FakeTrainer:
 
     def describe(self):
         return {"device": "none (fake)", "libraries": {"fake_trainer": "1"},
-                "steps_per_epoch": self.t.get("steps", 3)}
+                "steps_per_epoch": self.t.get("steps", 3),
+                "outside_used": (self.t.get("dataset", {}).get("outside", [])
+                                 if self.t.get("data") == "outside" else [])}
 
     def load(self):
         p = self.dir / "checkpoints" / "last.json"

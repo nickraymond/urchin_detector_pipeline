@@ -153,3 +153,17 @@ def test_docker_is_asked_at_most_once_a_minute(monkeypatch, tmp_path):
     setup._docker_seen["an-image:1"] = (setup.time.monotonic() - setup.DOCKER_CHECK_SECONDS - 1, True)
     setup.outside(fit)
     assert len(calls) == 2
+
+
+def test_files_that_must_not_stay_are_removed_and_block_ready(box):
+    """Lead call with D72: mmcv-lite's operator folder holds NVIDIA-licensed files; the app never loads it."""
+    jc, tools, bin_dir = box
+    assert setup.REMOVE == {"mmdet-venv": ["mmcv/ops"]}
+    run(jc, tools, bin_dir)
+    ops = tools / "mmdet-venv" / "lib" / "python3.11" / "site-packages" / "mmcv" / "ops"
+    ops.mkdir(parents=True)
+    (ops / "conv2d_gradfix.py").write_text("# NVIDIA\n")
+    why = {i["name"]: i["why"] for i in setup.items(tools) if not i["ok"]}
+    assert list(why) == ["mmdet-venv"] and "must not stay installed (mmcv/ops)" in why["mmdet-venv"]
+    assert run(jc, tools, bin_dir)["state"] == "done"
+    assert not ops.exists() and all(i["ok"] for i in setup.items(tools))

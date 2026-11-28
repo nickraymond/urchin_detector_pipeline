@@ -236,22 +236,112 @@ def test_only_frames_with_every_run_class_fully_checked_are_used(run, monkeypatc
     assert train_job.usable(one, [1]) == ([s for s in one if s["checked"] == [1]], 1)
 
 
-def test_a_start_other_than_scratch_is_refused_and_outside_data_is_not_claimed(run):
+def test_recipes_for_outside_data_and_pretrained_starts():
     from app.train import job as train_job
-    from app.train.yolox import Trainer
-    mdir, recipe = run("a")
-    pre = {**recipe, "train": {**recipe["train"], "start": {"kind": "pretrained", "model": "m1-x"}}}
-    with pytest.raises(RuntimeError, match="cannot start from pretrained weights yet"):
-        Trainer(mdir, pre, {"limits": {"device": "cpu"}})
     manifest = {"number": 3, "hash": "h", "classes": [{"id": 1, "name": "purple urchin"}],
                 "outside": [{"key": "urchinbot", "licence": "CC-BY-4.0"}]}
-    with pytest.raises(ValueError, match="can only start from scratch for now"):
-        train_job.build_recipe("yolox-nano-conv", {}, manifest, [1],
-                               {"kind": "pretrained", "model": "m1-x", "licences": []})
-    _, rec = train_job.build_recipe("yolox-nano-conv", {}, manifest, [1],
-                                    {"kind": "scratch", "licences": []})
+    scratch = {"kind": "scratch", "licences": []}
+    key, rec = train_job.build_recipe("yolox-nano-conv", {}, manifest, [1], scratch)
+    assert rec["train"]["data"] == "project" and key == "yolox-nano-conv-256-c1"
     assert rec["train"]["dataset"]["outside"] == [{"key": "urchinbot", "licence": "CC-BY-4.0"}]
-    assert trainer(mdir, recipe).describe()["outside_used"] == []     # what the run really used
+    # a pre-training run: one class "urchin", whatever classes the form ticked
+    key, rec = train_job.build_recipe("yolox-nano-conv", {"data": "outside"}, manifest, [1], scratch)
+    assert rec["arch"]["classes"] == ["urchin"] and rec["train"]["class_ids"] == []
+    assert rec["train"]["data"] == "outside" and key == "yolox-nano-conv-256-c1"
+    with pytest.raises(ValueError, match="holds no outside data"):
+        train_job.build_recipe("yolox-nano-conv", {"data": "outside"}, {**manifest, "outside": []}, [1], scratch)
+    with pytest.raises(ValueError, match="Train on"):
+        train_job.build_recipe("yolox-nano-conv", {"data": "the moon"}, manifest, [1], scratch)
+    # YOLOX may now start from a model pre-trained here; published weights stay refused
+    _, rec = train_job.build_recipe("yolox-nano-conv", {}, manifest, [1],
+                                    {"kind": "pretrained", "model": "m1-x", "licences": ["CC-BY-4.0"]})
+    assert rec["train"]["start"]["model"] == "m1-x"
+    with pytest.raises(ValueError, match="can only start from scratch for now"):
+        train_job.build_recipe("yolox-nano-conv", {}, manifest, [1], {"kind": "published"})
+
+
+def test_a_run_on_outside_data_and_a_run_that_starts_from_it(run, tmp_path, monkeypatch):
+    """Spec stage 7: outside data is for pre-training only, one class; a later run starts from
+    that model. The run record says what was really used and what was loaded."""
+    import torch
+    from app.datasets import loaders, outside
+    from app.train import models
+    from app.train.yolox import Trainer
+    mdir, recipe = run("a")                                   # the project run, made first
+    assert trainer(mdir, recipe).describe()["outside_used"] == []
+    rows = {s: [{"file": f["file"], "image": f["image"], "bytes": __import__("os").path.getsize(f["image"]),
+                 "width": 320, "height": 240, "boxes": [b[1:] for b in f["boxes"]]}
+                for f in frames(tmp_path, n, s)] for s, n in (("train", 8), ("valid", 4))}
+    from app.datasets import versions
+    rows_file = versions.root(tmp_path / "a") / "v1" / "outside" / "urchinbot.jsonl"
+    rows_file.parent.mkdir(parents=True)
+    rows_file.write_text("frozen rows\n")
+    entry = {"key": "urchinbot", "licence": "CC-BY-4.0", "folder": "urchinbot", "rows": "urchinbot.jsonl",
+             "sha256": versions.sha256_file(rows_file)}
+    monkeypatch.setattr(loaders, "load", lambda folder, number: ({"number": 1, "outside": [entry]}, {}))
+    monkeypatch.setattr(outside, "samples", lambda root, vdir, e, split: rows[split])
+    pre_recipe = {"arch": ydef.arch("nano", 96, ["urchin"]),
+                  "train": {**recipe["train"], "data": "outside", "class_ids": []}}
+    pre_dir = models.create(tmp_path / "a", "yolox-nano-conv-96-c1", pre_recipe)
+    with pytest.raises(RuntimeError, match="outside_data_dir is not set"):
+        Trainer(pre_dir, pre_recipe, {"limits": {"device": "cpu", "threads": 2}})
+    job = {"limits": {"device": "cpu", "threads": 2}, "outside_dir": str(tmp_path)}
+    pre = Trainer(pre_dir, pre_recipe, job)
+    d = pre.describe()
+    assert d["outside_used"] == [{"key": "urchinbot", "licence": "CC-BY-4.0"}]
+    assert d["train_frames"] == 8 and d["valid_frames"] == 4 and d["start_used"] == "scratch"
+    pre.load()
+    finish(pre, pre_dir, 0, 0)
+    best = torch.load(pre_dir / "checkpoints" / "best.pt", weights_only=True)["model"]
+    rows["train"][0]["bytes"] += 1                             # the folder changed since the freeze
+    with pytest.raises(RuntimeError, match="no longer the size the version froze"):
+        Trainer(pre_dir, pre_recipe, job)
+    rows["train"][0]["bytes"] -= 1
+    rows_file.write_text("edited by hand\n")                  # the version's own rows file changed
+    with pytest.raises(RuntimeError, match="no longer matches the hash in the version's manifest"):
+        Trainer(pre_dir, pre_recipe, job)
+    rows_file.write_text("frozen rows\n")
+    # the project run (2 classes) starts from it: everything but the class-score layers is loaded
+    start = {**recipe, "train": {**recipe["train"], "start": {"kind": "pretrained", "model": pre_dir.name}}}
+    t = trainer(mdir, start)
+    t.load()
+    assert t.describe()["start_used"] == "pretrained"
+    used = t.describe()["start_loaded"]
+    assert used["kind"] == "pretrained" and used["model"] == pre_dir.name
+    assert used["tensors_fresh"] == 6 and all(k.startswith("head.cls_preds.") for k in used["fresh"])
+    assert used["its_classes"] == ["urchin"]
+    got = t.model.state_dict()
+    assert torch.equal(got["backbone.backbone.stem.conv.weight"], best["backbone.backbone.stem.conv.weight"])
+    assert got["head.cls_preds.0.weight"].shape[0] == 2 and best["head.cls_preds.0.weight"].shape[0] == 1
+    assert torch.equal(t.ema["head.reg_preds.0.weight"], best["head.reg_preds.0.weight"])   # EMA starts there too
+    t.save(0, 1)
+    again = trainer(mdir, start)
+    assert again.load() == (0, 1) and again.describe()["start_loaded"]["note"] == "loaded at the run's first start"
+    # one class to one class, but another class: the class scores are not taken over (QE PR 90)
+    star = {"arch": ydef.arch("nano", 96, ["sea star"]),
+            "train": {**recipe["train"], "class_ids": [3], "start": {"kind": "pretrained", "model": pre_dir.name}}}
+    star_dir = models.create(tmp_path / "a", "yolox-nano-conv-96-c1", star)
+    monkeypatch.undo()                                         # the project's own loader again ...
+    monkeypatch.setattr(loaders, "detector_samples", lambda folder, version, split, ids=None: {
+        "samples": [{**f, "boxes": [b for b in f["boxes"] if b[0] in ids], "checked": list(ids)}
+                    for f in frames(tmp_path, 8 if split == "train" else 4, split)], "left_out": []})
+    monkeypatch.setattr(loaders, "verify_image", lambda s: None)
+    t3 = trainer(star_dir, star)
+    t3.load()
+    assert t3.describe()["start_loaded"]["tensors_fresh"] == 6
+    assert not torch.equal(t3.model.state_dict()["head.cls_preds.0.weight"], best["head.cls_preds.0.weight"])
+    same = {"arch": ydef.arch("nano", 96, ["urchin"]), "train": star["train"]}
+    same_dir = models.create(tmp_path / "a", "yolox-nano-conv-96-c1", same)
+    t4 = trainer(same_dir, same)
+    t4.load()
+    assert t4.describe()["start_loaded"]["tensors_fresh"] == 0     # the same class list: all of it
+    # missing weights and other kinds of start stop the run with the reason
+    gone = {**recipe, "train": {**recipe["train"], "start": {"kind": "pretrained", "model": "m9-none"}}}
+    other, _ = run("b")
+    with pytest.raises(RuntimeError, match="starting model's weights are missing"):
+        trainer(other, gone).load()
+    with pytest.raises(RuntimeError, match="cannot start from published weights"):
+        trainer(other, {**recipe, "train": {**recipe["train"], "start": {"kind": "published"}}})
 
 
 def test_estimate_times_steps_and_validation_and_saves_nothing(run):

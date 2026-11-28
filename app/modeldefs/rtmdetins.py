@@ -9,7 +9,9 @@ How it is built here, and what is left out:
   (D51). mmdetection imports `mmcv.ops`, which loads mmcv's compiled operators (`mmcv._ext`); `mmcv-lite` does
   not have them and PyPI has no macOS build of full mmcv (only a source archive). The raw network uses none of them (they are
   box post-processing such as NMS, and layers of other models), so build() answers those imports with a
-  stand-in that fails if anything calls it. mmdet's own code is not changed.
+  stand-in that fails if anything uses it. mmdet's own code is not changed. The set-up step also removes
+  `mmcv/ops` from the environment (13 files there carry NVIDIA licence headers; `app/fit/setup.py`, REMOVE), so
+  the stand-in is the only `mmcv.ops` there is.
 - Untrained: the config's pretrained backbone (`init_cfg`, a download from download.openmmlab.com) is removed,
   and `init_weights()` is never called. Measured with every connection refused: 0 network attempts.
 - The exported module is backbone -> neck -> head, raw maps. Left outside the model, as for the other
