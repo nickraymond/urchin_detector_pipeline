@@ -30,10 +30,10 @@ their fresh values, also when only the number of classes is the same. What was l
 run record.
 Published weights are never loaded (none is offered, D62).
 
-Each epoch ends with a check on fixed validation canvases (same crops every epoch, no colour,
-blur or haze): recall and precision at IoU 0.5, score 0.3, all classes together, from the EMA
-weights. That is a training-progress signal on crops, not the evaluation of S9 (tiles on whole
-test frames). A few of those canvases are saved with boxes drawn in `val_frames/`.
+Each epoch ends with a check on the validation frames as S9 will score test frames (D90): each whole
+frame at the model's eval factor, in overlapping tiles of the canvas (app/train/tiles.py), detections
+merged across the seams; no colour, blur or haze; recall and precision at IoU 0.5, score 0.3, all
+classes together, from the EMA weights. A few whole frames are saved with boxes drawn in `val_frames/`.
 
 Device (D65): the Apple GPU when it is there. Its gradients were wrong at first (PR 72) because
 the batch was laid out channels-last in memory (`from_numpy(NHWC).permute(...).float()` keeps
@@ -187,6 +187,9 @@ class Trainer:
         factor = self.eval_scale["factor"]
         self.eval_overlap = int(self.t["eval_overlap"]) if "eval_overlap" in self.t else (
             tiles.overlap(self.train, factor, self.canvas) if factor else 0)
+        # capped at half a canvas: the largest training objects may then be cut in every tile (QE PR 111)
+        self.eval_overlap_capped = self.t.get("eval_overlap_capped", bool(
+            factor and tiles.wanted_overlap(self.train, factor) > self.eval_overlap))
         self.steps = max(1, len(self.train) // self.batch) if len(self.train) >= self.batch \
             else 1                                    # a tiny dataset: one short batch per epoch
         self.epochs = int(self.t["epochs"])
@@ -268,6 +271,7 @@ class Trainer:
                 "start_used": self.start_used["kind"], "start_loaded": self.start_used,
                 "outside_used": self.outside_used,
                 "eval_scale": self.eval_scale, "eval_overlap": self.eval_overlap,
+                "eval_overlap_capped": self.eval_overlap_capped,
                 "libraries": {"torch": torch.__version__, "torchvision": torchvision.__version__,
                               "numpy": np.__version__, "yolox": ydef.CODE["commit"]}}
 
@@ -498,7 +502,7 @@ class Trainer:
                     for (n, ox, oy, _), det in zip(part, decode(export(imgs))):
                         if len(det):
                             th, tw = frames[n]["image"].shape[:2]
-                            det = det[~tiles.cut_by_inner_edge(det, ox, oy, self.canvas, tw, th)]
+                            det = det[~tiles.cut_by_inner_edge(det, ox, oy, self.canvas, tw, th, self.eval_overlap)]
                             det[:, 0] += ox
                             det[:, 1] += oy
                             found[n].append(det)

@@ -35,12 +35,23 @@ def eval_scale(train: list[dict]) -> dict:
             "median_side_px": round(median, 3), "boxes": len(sides)}
 
 
-def overlap(train: list[dict], factor: float, canvas: int) -> int:
-    """The tiles' overlap: the largest training box's longer side at the eval factor, plus the margin at each
-    side that `cut_by_inner_edge` treats as touching (so that box lies whole and clear of the edges in some
-    tile), at most half a canvas (a larger object cannot fit one tile whole anyway)."""
+def wanted_overlap(train: list[dict], factor: float) -> int:
+    """The largest training box's longer side at the eval factor, plus the margin at each side that
+    `cut_by_inner_edge` treats as touching: with this overlap that box lies whole and clear of the edges in some tile."""
     longest = max((max(b[3], b[4]) for s in train for b in s["boxes"]), default=0.0)
-    return int(min(canvas // 2, round(longest * factor) + 2 * EDGE_PX + 1))
+    return int(round(longest * factor) + 2 * EDGE_PX + 1)
+
+
+def overlap(train: list[dict], factor: float, canvas: int) -> int:
+    """The tiles' overlap: `wanted_overlap`, at most half a canvas. When it is capped, objects larger than
+    `guaranteed(overlap)` may lie whole in no tile clear of the edges, so `cut_by_inner_edge` keeps their
+    edge-touching copies (QE PR 111)."""
+    return min(canvas // 2, wanted_overlap(train, factor))
+
+
+def guaranteed(overlap_px: int) -> int:
+    """The longest box side that some tile is sure to hold whole and clear of its inner edges."""
+    return max(0, overlap_px - 2 * EDGE_PX - 1)
 
 
 def origins(length: int, canvas: int, overlap_px: int) -> list[int]:
@@ -60,12 +71,15 @@ def plan(width: int, height: int, canvas: int, overlap_px: int) -> list[tuple[in
 
 
 
-def cut_by_inner_edge(det: np.ndarray, ox: int, oy: int, canvas: int, width: int, height: int) -> np.ndarray:
+def cut_by_inner_edge(det: np.ndarray, ox: int, oy: int, canvas: int, width: int, height: int,
+                      overlap_px: int) -> np.ndarray:
     """For detections [cx, cy, w, h, ...] in tile coordinates: True where the box touches an edge of the tile
-    that lies inside the frame (a neighbouring tile overlaps it). Edges on the frame's own border never count."""
+    that lies inside the frame (a neighbouring tile overlaps it) and is no longer than `guaranteed(overlap_px)`,
+    so another tile holds it whole. Edges on the frame's own border never count; a larger box is always kept."""
     if not len(det):
         return np.zeros(0, bool)
     x1, y1 = det[:, 0] - det[:, 2] / 2, det[:, 1] - det[:, 3] / 2
     x2, y2 = det[:, 0] + det[:, 2] / 2, det[:, 1] + det[:, 3] / 2
-    return (((x1 <= EDGE_PX) & (ox > 0)) | ((y1 <= EDGE_PX) & (oy > 0))
-            | ((x2 >= canvas - EDGE_PX) & (ox + canvas < width)) | ((y2 >= canvas - EDGE_PX) & (oy + canvas < height)))
+    touches = (((x1 <= EDGE_PX) & (ox > 0)) | ((y1 <= EDGE_PX) & (oy > 0))
+               | ((x2 >= canvas - EDGE_PX) & (ox + canvas < width)) | ((y2 >= canvas - EDGE_PX) & (oy + canvas < height)))
+    return touches & (np.maximum(det[:, 2], det[:, 3]) <= guaranteed(overlap_px))

@@ -43,7 +43,7 @@ def test_every_training_sized_box_lies_whole_and_clear_of_inner_edges_in_some_ti
         for y in range(0, h - box, 11):
             det = np.array([[x + box / 2, y + box / 2, box, box, .9, 0]], np.float32)
             assert any(ox <= x and x + box <= ox + canvas and oy <= y and y + box <= oy + canvas
-                       and not tiles.cut_by_inner_edge(det - [ox, oy, 0, 0, 0, 0], ox, oy, canvas, w, h)[0]
+                       and not tiles.cut_by_inner_edge(det - [ox, oy, 0, 0, 0, 0], ox, oy, canvas, w, h, ov)[0]
                        for ox, oy in starts), (x, y)
 
 
@@ -68,7 +68,32 @@ def test_a_box_cut_by_an_inner_tile_edge_is_flagged_and_a_frame_edge_is_not():
                     [50, 50, 10, 10, .9, 0],    # inside
                     [95, 50, 6, 10, .9, 0]],    # touches the right edge
                    np.float32)
-    assert tiles.cut_by_inner_edge(det, 0, 0, 96, 300, 96).tolist() == [False, False, True]   # left = frame edge
-    assert tiles.cut_by_inner_edge(det, 100, 0, 96, 300, 96).tolist() == [True, False, True]
-    assert tiles.cut_by_inner_edge(det, 204, 0, 96, 300, 96).tolist() == [True, False, False]  # right = frame edge
-    assert tiles.cut_by_inner_edge(np.zeros((0, 6)), 0, 0, 96, 96, 96).tolist() == []
+    assert tiles.cut_by_inner_edge(det, 0, 0, 96, 300, 96, 48).tolist() == [False, False, True]   # left = frame edge
+    assert tiles.cut_by_inner_edge(det, 100, 0, 96, 300, 96, 48).tolist() == [True, False, True]
+    assert tiles.cut_by_inner_edge(det, 204, 0, 96, 300, 96, 48).tolist() == [True, False, False]  # right = frame edge
+    assert tiles.cut_by_inner_edge(np.zeros((0, 6)), 0, 0, 96, 96, 96, 48).tolist() == []
+
+
+@pytest.mark.parametrize("box", [130, 180, 250])
+def test_when_the_overlap_is_capped_no_large_object_is_dropped_in_every_tile(box):
+    """QE PR 111: on a 256 px canvas the overlap is capped at 128, so a box over `guaranteed(128)` may lie
+    whole in no tile clear of the edges. Each tile sees the part of the object inside it (what a detector
+    would report); at every position at least one of those copies is kept."""
+    w, h, canvas = 900, 256, 256          # one row: the top and bottom edges are the frame border
+    train = [sample([[0, 0, 0, box, box]])]
+    ov = tiles.overlap(train, 1.0, canvas)
+    assert ov == 128 and tiles.wanted_overlap(train, 1.0) > ov and tiles.guaranteed(ov) == 123
+    for x in range(0, w - box, 5):
+        kept = 0
+        for ox, oy in tiles.plan(w, h, canvas, ov):
+            x1, x2 = max(x, ox), min(x + box, ox + canvas)
+            if x2 - x1 < 1:
+                continue
+            det = np.array([[(x1 + x2) / 2 - ox, 3 + box / 2, x2 - x1, box, .9, 0]], np.float32)
+            kept += not tiles.cut_by_inner_edge(det, ox, oy, canvas, w, h, ov)[0]
+        assert kept >= 1, x
+
+
+def test_small_boxes_are_still_dropped_when_cut_and_the_overlap_is_capped():
+    det = np.array([[1, 50, 4, 100, .9, 0], [1, 50, 4, 124, .9, 0]], np.float32)   # longer sides 100, 124
+    assert tiles.cut_by_inner_edge(det, 100, 0, 256, 900, 300, 128).tolist() == [True, False]

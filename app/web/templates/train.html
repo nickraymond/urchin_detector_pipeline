@@ -44,7 +44,8 @@
   {% set busy = job.state in ("scheduled", "queued", "running", "pausing", "paused", "interrupted") %}
   <p><button formaction="/p/{{ info.name }}/train/estimate" data-job-lock="scheduled queued running pausing paused interrupted"{% if busy %} disabled{% endif %}>Estimate</button>
     <button class="primary" data-job-lock="scheduled queued running pausing paused interrupted"{% if busy %} disabled{% endif %}>Run</button>
-    <span class="hint">Estimate trains {{ estimate_steps }} steps (after 1 warm-up step) and checks the validation frames once, as a short job; it makes no model. Cancel stops it (a paused estimate starts over on Resume).</span></p>
+    <span class="hint">Estimate trains {{ estimate_steps }} steps (after 1 warm-up step) and checks the validation frames once, as a short job; it makes no model.
+      That check runs after <b>every</b> epoch: each whole validation frame at the evaluation scale, in tiles (a 4K frame can be hundreds of tiles), so it can take longer than the training steps. Cancel stops it (a paused estimate starts over on Resume).</span></p>
 </form>
 <script type="application/json" id="model-types">{{ types | tojson }}</script>
 {% if estimate %}{% set er = estimate.recipe %}
