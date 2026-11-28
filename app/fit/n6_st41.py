@@ -16,7 +16,10 @@ records in ~/.stmai (command, target, model type, layer count, platform; no fram
 the network closed it still queues a record even after "n", to send later. So every run here:
   1. answers "n" on stdin;
   2. runs inside macOS's `sandbox-exec` with the network denied and every write to ~/.stmai denied;
-  3. logs the checksum of ~/.stmai before and after.
+  3. logs the checksum of ~/.stmai before and after; a changed checksum stops the job with an error (the
+     block did not hold), after compile.log is written.
+The guard was checked against v4.1.0-20732 only (Nick's install, 2026-11-27): another 4.1.x may ask or store
+differently; check it again before using one.
 run() refuses to start the tool any other way. Never start this `stedgeai` outside this module.
 """
 
@@ -67,6 +70,10 @@ def run(command: list[str], cwd: Path, stats_file: Path = STATS_FILE) -> tuple[s
     return done, note
 
 
+class StatsFileChanged(RuntimeError):
+    """~/.stmai changed during a run: ST's tool wrote statistics despite the block. A job error, not a result."""
+
+
 def compile(tflite: Path, out: Path, job: dict) -> dict:
     from app.fit.convert_worker import ToolsMissing
     fit = job["fit"]
@@ -80,20 +87,24 @@ def compile(tflite: Path, out: Path, job: dict) -> dict:
     if not shutil.which("sandbox-exec"):
         raise ToolsMissing("macOS's sandbox-exec not found: ST Edge AI Core 4.1.0 is not run without it (it would "
                            "send usage statistics). Fix: none on this system; use the 4.0.0 step.")
-    version, _ = run(sandboxed([str(binary), "--version"]), out)
+    version, version_note = run(sandboxed([str(binary), "--version"]), out)
     command = [str(binary), "generate", "--target", "stm32n6", "--model", str(tflite),
                "--st-neural-art", f"default@{config}", "--workspace", str(out / "workspace"),
                "--output", str(out / "gen"), "--verbosity", "1", "--quiet"]
     done, note = run(sandboxed(command), out)
-    log = version.stdout + done.stdout + done.stderr + "\n" + note + "\n"
+    log = version.stdout + done.stdout + done.stderr + "\n" + version_note + "\n" + note + "\n"
     (out / "compile.log").write_text(log)
+    if "CHANGED" in version_note or "CHANGED" in note:
+        raise StatsFileChanged(f"~/.stmai changed while ST Edge AI Core 4.1.0 ran: the statistics block "
+                               f"did not hold. Nothing was recorded as a result; {out / 'compile.log'} has the "
+                               "checksums. Fix: do not run this step again; tell the lead.")
     tool = next((l.strip() for l in log.splitlines() if l.startswith("ST Edge AI Core")), "ST Edge AI Core 4.1.0")
     base = {"tool": tool, "tool_args": "--target stm32n6, OpenMV neuralart.json default profile, no --relocatable",
             "limit_bytes": n6.MODEL_AREA_BYTES, "limit_source": n6.LIMIT_SOURCE, "estimate_ms": None,
             "note": NOTE, "stats_file": note}
     report = out / "gen" / "network_generate_report.txt"
     if done.returncode != 0 or not report.is_file():
-        return {**base, "converts": False, "error": reports.error_lines(log.replace(note, "")), "failing_layers": []}
+        return {**base, "converts": False, "error": reports.error_lines(log.replace(version_note, "").replace(note, "")), "failing_layers": []}
     placed = reports.stedgeai_report(report.read_text(errors="replace"))
     return {**base, "converts": True, "file": None, "file_bytes": None, "memory_bytes": None,
             "placement": {"npu": placed["npu"], "hybrid": placed["hybrid"], "cpu": placed["cpu"],

@@ -488,35 +488,65 @@ the limits, and for a failure the layers that stopped it.
 **Needs:** the Build 2 spec on main.
 
 ### S7 — What runs where, on the boards  `[ ]`
-*State 2026-11-27 (lead): the rig test session owns the rig. Both cameras are backed up and checked (every
-readable partition read twice; files copied twice against checksums made on the boards; both back as found).
-Not yet: the Pi's card image (waits for root on the Pi, which Nick is giving), the AE3's RECOVERY partition
-(its bootloader refuses to read it), a rehearsal of the restore steps, QE's check of the evidence. Evidence:
-`~/NereusData/urchin_detector_pipeline/rig_backup/2026-11-27/` (never in git). No S7 code is started.*
+*State 2026-11-27 (Build 2 lead 2): the rig test session owns the rig; its backup passed QE with three declared
+gaps (below). Evidence: `~/NereusData/urchin_detector_pipeline/rig_backup/2026-11-27/` (never in git). No S7 code
+is started.*
 **Goal:** the table complete with measured numbers: each candidate that compiled is loaded on its board and
 timed. The team's test session runs it on Nick's Pi Zero 2W bench rig (IMX708, N6, AE3), which it owns from
 Nick's hand-over; builders and QE use a fake board. Nick is asked only for physical actions.
-- [ ] **rig backup first, before any change** (SPEC constraint 9): list what runs on the rig; stop its services;
-      image the Pi's whole SD card over SSH into `<data_dir>`'s rig-backup folder; read back each camera's file
-      flash, model area and firmware version over USB; checksums for every piece; written restore steps; check
-      the backup (the image mounts and its files compare; read-backs match their checksums). The method for each
-      camera is read from OpenMV's docs and the earlier work first, not guessed. Nothing else on the rig starts
-      until this passes QE
-- [ ] a rig log: every change made on the rig after the backup; "Restore the rig" steps kept true to it
-- [ ] bench units in `config.local.toml` (no names or addresses in git); any other target is refused; a fake board
-- [ ] test card page: question, units, frames and repeats, metric, pass bar, stop rules; saved with the run;
-      Run is refused without it
-- [ ] timing run: load a model file through each board's documented route (after the rig backup; every change in the rig log;
-      firmware only if a model route needs it), run it a fixed number of times, read back ms per inference and memory
-- [ ] several models on one camera, board part: load two (then three) of the best candidates together and
-      measure peak memory; if they do not fit together, load, run and unload one after the other and time the
-      whole sequence; headline per camera: both at once / one after the other / one kind only
-- [ ] Pi: the runtime candidates timed on the bench Pi; one picked, with its licence recorded
-- [ ] power is optional and never blocks a run (Nick, 2026-11-27: he adds a meter on the Pi 5 for the Pi Zero
-      2W, the N6 and the AE3 later): without a meter every run works and shows "not measured"; a meter listed
-      for a unit in `config.local.toml` adds a power log per run, energy per inference and a power-over-time
-      chart; "not validated" until a known-load check has passed; tested with a fake meter
-- [ ] the table shows measured numbers next to the compiler's estimates; a one-page "what runs where" report
+Design: DESIGN §Planned for S7; Lead calls D81–D86. One draft PR per bite, about 300 lines each. Builders test
+against the fake board only; the rig test session runs each board's first card after that board's bite is merged.
+
+- [x] **rig backup first, before any change** (SPEC constraint 9): done 2026-11-27 by the rig test session, QE 7
+      PASS with three declared gaps: the AE3's RECOVERY partition (its bootloader refuses it), no raw card image (a
+      software-only backup instead), and the restore steps not rehearsed. A rehearsal plan waits for Nick (SPEC
+      "Waiting for Nick")
+- [ ] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
+      like the rest; **the first rig change waits for it** and for QE's review of the first card
+
+**Bite 1 — Bench units, the `Board` interface, the fake board, the rig log** (D81)
+- [ ] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
+      `app/bench/`: `Board` (info, load, time, load-several, reset) and `FakeBoard` (timings, memory, failures on
+      request); any unit not listed is refused, tested
+- [ ] `<data_dir>/bench/rig_log.jsonl`: every change appended before and after, with its undo; a "Rig log" page
+
+**Bite 2 — Test card and the `bench` job** (D83, D84)
+- [ ] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
+      stop rules, cost, written by, reviewed by); Run is refused without a saved card; the card is saved with the run
+- [ ] job kind `bench` on `app/jobctl/`: one card → windows → `bench/<run id>/` (`run.json`, `timing.jsonl`); Pause
+      after a window, Cancel keeps finished windows; stop rules as job errors with a recovery hint; tested end to end
+      with the fake board
+
+**Bite 3 — The bench agent and the Pi** (D81, D85)
+- [ ] the agent (`app/bench/agent/`, plain Python 3): copied to its folder on the Pi over ssh, speaks JSON lines;
+      tested on the laptop against a fake transport
+- [ ] Pi runs with LiteRT first (same 8-bit file as S6): N windows, `perf_counter_ns` around invoke, `VmHWM`;
+      then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
+
+**Bite 4 — The N6 route** (D82, D83)
+- [ ] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back
+      verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
+      tested with the fake board and on a ROMFS image file on the laptop
+- [ ] first real card (rig test session): YOLOX Nano re-measured against the earlier 10.6 ms before any new model
+
+**Bite 5 — The AE3 route** (D82; under the one-day AE3 time box, S6's compile time counted)
+- [ ] `/flash` route with a heap check and an on-board size and sha256 check; ROMFS0 route for larger files with
+      our own build script on OpenMV's `mkromfs.py`; first real card: YOLOX Nano against the earlier 26.4 ms
+
+**Bite 6 — Several models on one camera, board half** (DESIGN §Planned for S7)
+- [ ] the pairs and the three from S6's "stored together": loaded together (peak memory) or, if not, load, run and
+      unload in one script with the whole sequence timed; headline per camera: both at once / one after the
+      other / one kind only
+
+**Bite 7 — Power add-on** (D86)
+- [ ] without a meter every run shows "not measured"; a meter listed for a unit adds `power.jsonl`, gross and net
+      energy per inference and a power-over-time chart; "not validated" until a saved known-load check; fake meter
+
+**Bite 8 — Measured numbers on the page, and the report**
+- [ ] each cell shows the median ms and spread, memory, and energy (or "not measured") next to the compiler's
+      estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
+      and why not, and the several-models headline per camera
+
 **Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
 measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.
@@ -571,6 +601,13 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [ ] live: loss and validation curves, a few validation frames with boxes drawn, time left; the finished
       model appears in a plain model list
 
+**Fixes found 2026-11-27**
+- [ ] the job runner starts before the job kinds are registered (`app/web/server.py` `jobctl`), so a queued or
+      due scheduled job at app start can end "no job kind … is registered" (QE 8, reproduced with a 0.3 s delay;
+      one `tests/test_schedule.py` failure in PR 97's suite): create it without starting, register, then start
+- [ ] the trainer's validation shrinks the whole frame to the canvas (`samples.py` `_scale` with `train=False`),
+      a different mode from training and from S9's eval scale (D90): validate at the eval scale with tiles
+
 **Demo (Nick):** on a project with an export, open Datasets and press "Freeze a version": the page shows counts
 per class and split. Open Train, pick YOLOX-Nano, press Estimate, then Run: the loss curve moves and validation
 frames show boxes. Pause, quit the app, start it, Resume: training continues from the last checkpoint. The
@@ -579,15 +616,37 @@ model is in the list when it ends.
 it can run beside S6–S7.
 
 ### S9 — Evaluate, model list, compare  `[ ]`
-**Goal:** spec stages 9 and 10 for detectors.
-- [ ] evaluate job on the test split with the recipe's tiling: count error per class and frame (share within
-      ±20%), precision / recall / mAP50 per class, small-object breakdown; how many frames and objects stand
-      behind each figure
-- [ ] per-frame view: ground truth and predictions drawn, sorted by worst error, in the app's large viewer
-- [ ] model list with status, scores, notes, archive; compare page: table, one chart per metric, the same
-      frames side by side; differences in dataset version or test set are called out
-- [ ] re-evaluate older models on a newer version's test split; RF-DETR as a second trainable detector type
-      (Nano; Atto / Femto / Pico only under SPEC constraint 6's exception)
+**Goal:** spec stages 9 and 10 for detectors. Design: DESIGN §Planned for S9; Lead calls D90–D94. One draft PR
+per bite, about 300 lines each. Bites 1–2 need only a trained model folder (a fake one in tests).
+
+**Bite 1 — Evaluate job and tiled inference** (D90)
+- [ ] the trainer stores `train.eval_scale` (44 px over the training split's median shorter box side) in
+      `recipe.json` at the start of a run; models trained before it get it worked out from their dataset version
+- [ ] job kind `evaluate`: one model × one test set → `eval/<version>-<test hash>/` (`eval.json`,
+      `predictions.jsonl`); frames as items; the eval scale, then tiles of the trained canvas with NMS across
+      seams; tests with a fake model
+
+**Bite 2 — The figures and how far they can be trusted** (D91, D92)
+- [ ] count error per class and frame (share within ±20 %, the strict share beside it), empty frames with a
+      prediction, precision / recall / mAP50 per class, small-object recall, largest object % error; frames and
+      objects behind each figure; Wilson for frame shares, frame (or group) bootstrap for the rest; the rank floor;
+      synthetic tests, mAP50 checked against pycocotools on a hand-made case
+
+**Bite 3 — Per-frame view**
+- [ ] ground truth and predictions drawn, sorted by worst error, in the app's large viewer
+
+**Bite 4 — Model list**
+- [ ] `/models`: every model with kind, type, size, dataset version, date, key scores, file size, status from the
+      files (DESIGN §Planned for S9), notes in Nick's words, archive (hides, never removes)
+
+**Bite 5 — Compare** (D92, D93)
+- [ ] pick models and one test set: one table, one chart per metric, the same frames side by side; differences in
+      version, recipe or classes called out; the paired rank rule; "Evaluate on this test set" for a model without
+      an eval there; a model that saw a test frame in training flagged
+
+**Bite 6 — RF-DETR Nano as a laptop reference** (D94; time-boxed to one day)
+- [ ] a second trainable detector type, laptop only; starting weights only with their licence recorded
+
 **Demo (Nick):** train a second detector with a different size or recipe; the compare page shows old vs new on
 the same test frames, and which frames each one gets wrong.
 **Needs:** S8.

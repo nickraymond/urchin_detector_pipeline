@@ -230,6 +230,11 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   urchin, sea star and sunflower sea star; the other classes stay labeled and wait. Nick can reverse it.
 - Q32 (2026-11-27). Nick approved the plan; the spec lead merges the spec PR for him at the QE-passed head. Yes
   to ST's licence terms for ST Edge AI Core 4.1.0. No to DUO-trained weights as a starting point for a camera model.
+- Q33 (2026-11-27, about 2:45 PM, spec lead's chat). The media on the Pi's card need no backup ("I have archived
+  the media content I need"); they were then deleted on his typed go. His sentence ends "before the image backup
+  is made": the raw card image is still expected. Stopping it at 2:47 PM was the first lead's call, not his. Lead
+  call (Build 2 lead 2): the rig test session takes the raw card image now that the card is cleared, before the
+  first rig change (constraint 9 as written).
 - Q34 (2026-11-27). Keep trying instance segmenters: the project's own permissively licensed ones on the N6 are
   worth having. `yoloxproto` and RTMDet-Ins-tiny are camera candidates; S7 times them, S10 trains one for the N6
   if either runs there (build2 spec answer 16).
@@ -249,11 +254,15 @@ Waiting for Nick (Build 2 lead, 2026-11-27; each with a recommendation; none blo
 - "Fully checked" is not ticked on any frame of the S5 test project, so a class is skipped everywhere
   (DESIGN D64; D66, in a PR under review on 2026-11-27, uses such frames for their labeled boxes only). REC: accepting a frame on the Review page marks the urchin and sea star classes fully
   checked unless he unticks one; the Build 1 lead would build it.
-- ST Edge AI Core 4.1.0: Nick said yes to its terms, but its installer must be run by him (a builder
-  session was refused). S6 runs on 4.0.0 (DESIGN D52); 4.1.0 is one later change.
 - His Roboflow plan: whether it covers the PML sizes, and what usage reporting it asks for (PML 1.0
   section 4). Until then: no trained PML weights, no frame through that package (DESIGN D59).
 - A LICENSE file for this public repo (it has none). REC: decide before others are pointed at the repo.
+- opencv-python-headless (pulled in by YOLOX's training imports) bundles LGPL parts; laptop training only, never on a
+  camera. REC: accept and record it in `THIRD_PARTY_LICENSES` (Build 2 lead 2, 2026-11-27, from the first lead's handoff).
+- A macOS arm-none-eabi-gcc so ST Edge AI Core 4.1 can make a loadable N6 file. REC: not now; OpenMV's firmware is
+  built against 4.0 (DESIGN D52, D71).
+- A rehearsal of the rig restore (the backup passed QE, but its restore steps were never run; the Pi part needs a
+  Linux machine to write the card). REC: rehearse at the end of S7's bench work, when the rig is restored anyway.
 
 Team notes (Nick, lead's chat 2026-11-27): builders and the lead's replacement run on Opus 5.5; Fable is
 kept for planning and spec work, and for QE and the rig test session, which check the builders' work (his

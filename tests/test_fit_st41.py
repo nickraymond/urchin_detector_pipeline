@@ -87,3 +87,28 @@ def test_compile_reports_placement_only_and_logs_the_checksum(tmp_path, monkeypa
     assert failed["converts"] is False and "LESS" in failed["error"]
     with pytest.raises(ToolsMissing, match="installed by Nick"):
         n6_st41.compile(model, out, {"fit": {**job["fit"], "stedgeai41": str(tmp_path / "none")}})
+
+
+@needs_sandbox
+def test_a_changed_statistics_file_stops_the_job_with_an_error(tmp_path, monkeypatch):
+    """QE PR 97: a changed ~/.stmai checksum is a job error, not a log line; compile.log keeps the evidence."""
+    stats = tmp_path / ".stmai"
+    stats.write_text("[statistics]\n")
+    monkeypatch.setattr(n6_st41.run, "__defaults__", (stats,))
+    monkeypatch.setattr(n6_st41.sandboxed, "__defaults__", (stats,))
+    sums = iter(["a" * 64, "a" * 64, "a" * 64, "b" * 64])     # --version unchanged; generate changes it
+    monkeypatch.setattr(n6_st41, "checksum", lambda path: next(sums))
+    omv = tmp_path / "omv" / "lib" / "stai" / "scripts"
+    omv.mkdir(parents=True)
+    (omv / "neuralart.json").write_text("{}")
+    out = tmp_path / "out"
+    out.mkdir()
+    tool = tmp_path / "stedgeai"
+    tool.write_text(f"#!/bin/sh\nmkdir -p {out}/gen && cp {REPORT} {out}/gen/network_generate_report.txt\n")
+    tool.chmod(0o755)
+    job = {"fit": {**convert.fit_settings({"openmv_dir": str(tmp_path / "omv")}), "stedgeai41": str(tool)}}
+    model = tmp_path / "model_int8.tflite"
+    model.write_bytes(b"x")
+    with pytest.raises(n6_st41.StatsFileChanged, match="did not hold"):
+        n6_st41.compile(model, out, job)
+    assert "CHANGED" in (out / "compile.log").read_text() and not (out / "fit.json").exists()
