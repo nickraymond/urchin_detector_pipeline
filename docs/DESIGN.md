@@ -909,7 +909,8 @@ after a load (not a stop rule: a full disk, a malformed answer) ends with the sa
 MicroPython script per window through `mpremote exec`: `gc.mem_free()` before `ml.Model('/rom/<name>')` and after, a
 pseudo-random image at the model's input size made on the board from seed 0 (D83a: its buffer's sha256 must equal the
 laptop's `synthetic_bytes`, else `input_differs`; nothing is written to the camera's `/flash`), 2 warm-ups, `time.ticks_us()` around each of N predicts (mean, min, max), `gc.mem_free()` after; one JSON line
-back after `NB:` (never base64). The agent sends alive lines while mpremote and dfu-util run; its own limits: 60 s for a
+back after `NB:` (never base64). The agent sends alive lines while mpremote and dfu-util run and while it waits for the bootloader or the boot; an scp
+to the Pi may take 60 s plus the file at 100 kB/s (`copy_limit`), and a slower one is `no_answer`; its own limits: 60 s for a
 script or a listing, 60 s + 2 s per inference for a window, 900 s for a 24 MiB write or read. **Not known, for card 4:**
 whether a board whose firmware cannot boot our image comes back in DFU by itself; the fake N6 covers both ends (it boots,
 or it shows nothing and the job ends as `restore_failed`). Laptop check, 2026-11-27: the real backup passes the checks above, and

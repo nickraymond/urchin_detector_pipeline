@@ -268,6 +268,15 @@ class N6:
         self.folder, self.mpremote, self.dfu_util, self.ports_glob = folder, mpremote, dfu_util, ports_glob
         self.alive, self.port, self.serial = alive, None, None
 
+    def waiting(self, last):
+        """One second of a wait for the bootloader or the boot, with an alive line every ALIVE_S seconds (QE PR 123:
+        the laptop's 60 s of silence must not end a wait that is up to 60 s long itself)."""
+        time.sleep(1)
+        if time.monotonic() - last >= ALIVE_S:
+            self.alive(0)
+            return time.monotonic()
+        return last
+
     def run(self, argv, limit_s, tail=1500):
         return run_steps(argv, None, self.alive, self.folder, limit_s, tail)
 
@@ -334,11 +343,11 @@ class N6:
         if self.in_dfu():
             return
         self.exec(self.find(), "import machine; machine.bootloader()", 15)   # an error as the port drops is normal
-        deadline = time.monotonic() + BACK_S
+        deadline, last = time.monotonic() + BACK_S, time.monotonic()
         while time.monotonic() < deadline:
             if self.in_dfu():
                 return
-            time.sleep(1)
+            last = self.waiting(last)
         raise Stop(NO_ANSWER, f"the N6's bootloader ({N6_DFU}, alt {ROMFS_ALT} = ROMFS0) did not appear within "
                               f"{BACK_S:g} s of machine.bootloader(). The N6 may be in its bootloader anyway: a "
                               "restore-only card writes the backup and boots it")
@@ -375,12 +384,12 @@ class N6:
         self.run(self.dfu("-a", str(BOOT_ALT), "-U", junk, "-R"), FLASH_S)
         if os.path.exists(junk):
             os.remove(junk)
-        deadline = time.monotonic() + BACK_S
+        deadline, last = time.monotonic() + BACK_S, time.monotonic()
         while time.monotonic() < deadline:
             try:
                 return self.find()
             except Stop:
-                time.sleep(1)
+                last = self.waiting(last)
         raise Stop(NO_ANSWER, f"the N6 did not answer within {BACK_S:g} s of leaving its bootloader")
 
     def flash(self, path, length, want, rom):

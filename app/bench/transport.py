@@ -200,6 +200,15 @@ def resolved_host(alias: str, run=subprocess.run) -> str:
     raise Refused(f"ssh -G {alias} names no hostname; the unit is not used.")
 
 
+COPY_BYTES_PER_S = 100_000            # the slowest copy allowed to the bench Pi (its Wi-Fi); a 24 MiB image: about 5 min
+
+
+def copy_limit(size: int) -> float:
+    """How long one scp may take: the usual 60 s plus the file at COPY_BYTES_PER_S (QE PR 123: 60 s flat was too short
+    for the N6's 24 MiB backup)."""
+    return TIMEOUT_S + size / COPY_BYTES_PER_S
+
+
 class SshTransport(Transport):
     """The agent on a bench Pi, for a listed unit (a `Unit` from `Bench.unit`, never a bare alias: QE PR 108).
     `check()` must pass before anything runs; start(), install() and put() call it."""
@@ -253,10 +262,15 @@ class SshTransport(Transport):
     def put(self, local: Path, name: str) -> None:
         self.check()
         self._run(["scp", "-q", "-o", "BatchMode=yes", str(local), f"{self.alias}:{REMOTE_FOLDER}/models/{file_name(name)}"],
-                  f"copy {file_name(name)}")
+                  f"copy {file_name(name)}", copy_limit(Path(local).stat().st_size))
 
-    def _run(self, argv: list[str], what: str) -> None:
-        done = self.run(argv, capture_output=True, text=True, timeout=self.timeout_s)
+    def _run(self, argv: list[str], what: str, limit_s: float | None = None) -> None:
+        limit_s = limit_s or self.timeout_s
+        try:
+            done = self.run(argv, capture_output=True, text=True, timeout=limit_s)
+        except subprocess.TimeoutExpired:          # QE PR 123: a slow copy is a stop rule, not a crash
+            raise BoardError(NO_ANSWER, f"could not {what} on {self.alias} within {limit_s:g} s: check the Pi's "
+                                        "network, then run the card again") from None
         if done.returncode != 0:
             raise BoardError(NO_ANSWER, f"could not {what} on {self.alias}: {done.stderr.strip()[-300:]}")
 

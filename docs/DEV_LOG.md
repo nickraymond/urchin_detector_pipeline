@@ -25,7 +25,9 @@ its bootloader; a failed reset is `no_answer`. A refused bootloader check says o
 gets out. The end-of-card messages name the step that failed.
 **Self-test:** no page changed beyond two hints. Tests on the fake N6 and the fake board: the last call is `mpremote
 connect <Pyboard port> reset`, the AE3 untouched; a reset in DFU is refused; a failed reset ends the job after the
-restore; a restore-only card ends with the reset.
+restore; a restore-only card ends with the reset. QE 10 (after PR 123): an scp to the Pi may take 60 s plus the file
+at 100 kB/s (the 24 MiB backup: about 5 min) and its timeout is `no_answer`, not a crash; the agent sends alive lines
+while it waits up to 60 s for the bootloader or the boot (a test with a 2 s laptop limit; it fails with them removed).
 **Broke/surprised us:** nothing.
 **Next:** the next open S7 item.
 

@@ -321,3 +321,38 @@ def test_a_refused_bootloader_check_says_ours_stays_in_it(rig):
     with pytest.raises(BoardError, match="stays in it: a restore-only card boots it"):
         b.load(rig["model"])
     b.close()
+
+
+def test_a_slow_copy_to_the_pi_is_a_stop_rule_with_room_for_the_24_mib_backup(tmp_path):
+    """QE PR 123 (after merge): scp had a flat 60 s and its timeout was not a BoardError."""
+    import subprocess
+    from app.bench.transport import SshTransport, copy_limit
+    from app.bench.units import Unit
+    assert copy_limit(25_165_824) > 300
+    seen = {}
+
+    def run(argv, **kw):
+        if argv[:2] == ["ssh", "-G"]:
+            return subprocess.CompletedProcess(argv, 0, "hostname benchpi.lan\n", "")
+        seen["timeout"] = kw["timeout"]
+        raise subprocess.TimeoutExpired(argv, kw["timeout"])
+    f = tmp_path / "big.img"
+    f.write_bytes(b"x" * 1_000_000)
+    with pytest.raises(BoardError, match="within 70 s") as e:
+        SshTransport(Unit("benchpi", "benchpi"), frozenset(), run=run).put(f, "big.img")
+    assert e.value.stop == "no_answer" and seen["timeout"] == 70.0
+
+
+def test_a_long_wait_for_the_bootloader_keeps_the_link_alive(rig):
+    """QE PR 123 (after merge): the agent sends alive lines while it waits for the bootloader or the boot, so the
+    laptop's silence limit does not end a wait the agent itself is still within."""
+    b, state = rig["board"], rig["state"]
+    fault(state, no_bootloader=True)                         # the bootloader never shows: the agent waits its BACK_S
+    t = b.transport
+    t.extra = tuple(x for x in t.extra) + ("--alive-s", "0.3")
+    t.extra = tuple(("5" if prev == "--back-s" else x) for prev, x in zip(("",) + t.extra[:-1], t.extra))
+    t.timeout_s = 2.0
+    with pytest.raises(BoardError) as e:
+        b.restore()
+    b.close()
+    assert "did not appear within 5 s" in str(e.value) and "no answer from the bench agent" not in str(e.value)
