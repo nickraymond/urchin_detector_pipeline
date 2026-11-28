@@ -591,6 +591,8 @@ against the fake board only; the rig test session runs each board's first card a
       verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
       tested with the fake board and on a ROMFS image file on the laptop *(4a + 4b)*
 - [ ] first real card (rig test session): YOLOX Nano re-measured against the earlier 10.6 ms before any new model
+- [ ] a suite-wide guard: any test that starts `ssh`, `scp`, `dfu-util` or `mpremote` from PATH fails (QE PR 123: one older
+      test reached `ssh -G h` once the N6 had a board)
 - [x] the N6's undo text in the rig log set from what the route really does (QE PR 98 nit 4; bite 1's is a placeholder)
       *(4b: write the backup's ROMFS0 back (the job's own restore, or RESTORE.md), then delete n6_*.img from the agent's models/)*
 

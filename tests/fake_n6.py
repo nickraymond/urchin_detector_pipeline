@@ -17,11 +17,12 @@ import hashlib  # noqa: E402
 from app.bench import romfs  # noqa: E402
 from app.bench.agent.bench_agent import synthetic_bytes  # noqa: E402
 
-DFU_LIST = """Found DFU: [37c5:9206] ver=0102, devnum=13, cfg=1, intf=0, path="1-1.3", alt=3, name="ROMFS0", serial="X"
-Found DFU: [37c5:9206] ver=0102, devnum=13, cfg=1, intf=0, path="1-1.3", alt=2, name="FILESYSTEM", serial="X"
-Found DFU: [37c5:9206] ver=0102, devnum=13, cfg=1, intf=0, path="1-1.3", alt=1, name="FIRMWARE", serial="X"
-Found DFU: [37c5:9206] ver=0102, devnum=13, cfg=1, intf=0, path="1-1.3", alt=0, name="BOOTLOADER", serial="X"
-"""
+SERIAL = "FAKE0N6SERIAL"
+
+
+def dfu_list(path, serial):
+    return "".join(f'Found DFU: [37c5:9206] ver=0102, devnum=13, cfg=1, intf=0, path="{path}", alt={a}, name="{n}", '
+                   f'serial="{serial}"\n' for a, n in ((3, "ROMFS0"), (2, "FILESYSTEM"), (1, "FIRMWARE"), (0, "BOOTLOADER")))
 
 
 class State:
@@ -89,11 +90,12 @@ def mpremote(s, args):
 
 
 def dfu_util(s, args):
-    if s.get("mode", "app") != "dfu":
+    serial = s.get("serial", SERIAL)
+    if s.get("mode", "app") != "dfu" or ("-S" in args and args[args.index("-S") + 1] != serial):
         print("dfu-util: No DFU capable USB device available")
         return 74
     if "-l" in args:
-        print(DFU_LIST)
+        print(dfu_list("1-1.3", serial) + (dfu_list("1-1.4", "SOMEONE_ELSE") if s.faults.get("two_devices") else ""))
         return 0
     alt = int(args[args.index("-a") + 1])
     part = s.d / "romfs0.bin"

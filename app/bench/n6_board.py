@@ -31,6 +31,8 @@ DFU_PAD = 4                       # dfu-util 0.11's read appends 4 bytes past th
 # (cameras/n6/dfu/n6_dfu_run.log: 25,165,828 bytes, sha256 dbffa6d2…).
 BACKUP = Path("~/NereusData/urchin_detector_pipeline/rig_backup/2026-11-27/cameras/n6/dfu/n6_ROMFS0.bin").expanduser()
 BACKUP_SHA256 = "dbffa6d2ee0474c7229c6e65e0af0339dd9da5d756abda995805b5551f7268d3"
+# The bench N6's bootloader, recorded with the backup (cameras/n6/dfu_list.txt): every dfu-util call is pinned to it
+DFU_SERIAL = "0030344D3643500200350010"
 IMAGE_NAME, BACKUP_NAME = "n6_romfs0_ours.img", "n6_romfs0_backup.img"     # in the agent's models/ folder
 RESTORE_UNDO = "none needed: this writes the backup's own ROMFS0 back (the state before the bench work)"
 
@@ -44,7 +46,11 @@ def rom_name(name: str) -> str:
 
 def check_input(t: dict) -> None:
     """D83a (Lead call, lead 2): the window counts only if the board's input image is the laptop's, byte for byte."""
-    h, w, c = t["input_shape"][-3:]
+    try:
+        h, w, c = (int(v) for v in t["input_shape"][-3:])
+    except (KeyError, TypeError, ValueError):
+        raise BoardError(INPUT_DIFFERS, f"the N6's answer names no input shape ({t.get('input_shape')!r}): the window "
+                                        "is not counted") from None
     want = hashlib.sha256(synthetic_bytes(w, h, c, SEED)).hexdigest()
     if t.get("input_sha256") != want:
         raise BoardError(INPUT_DIFFERS, f"the N6's input image ({h}x{w}x{c}, {t.get('input_bytes')} bytes) has sha256 "
@@ -77,8 +83,9 @@ class N6Board(PiBoard):
     kind = "n6"
 
     def __init__(self, unit: Unit, data_dir, transport: Transport, work_dir=None, backup: Path = BACKUP,
-                 backup_sha256: str = BACKUP_SHA256, partition: int = PARTITION):
+                 backup_sha256: str = BACKUP_SHA256, partition: int = PARTITION, dfu_serial: str = DFU_SERIAL):
         super().__init__(unit, data_dir, transport, install=None)
+        self.dfu_serial = dfu_serial
         self.work_dir = Path(work_dir or data_dir)
         self.backup_path, self.backup_sha256, self.partition = Path(backup), backup_sha256, partition
         self.rom_names: dict[str, str] = {}
@@ -94,7 +101,7 @@ class N6Board(PiBoard):
 
     def info(self) -> dict:
         self.connect()
-        return {**self.transport.request("info", kind="n6"), "agent": self.hello}
+        return {**self.transport.request("info", kind="n6", dfu_serial=self.dfu_serial), "agent": self.hello}
 
     def _load(self, models: list[Model], files: dict) -> dict:
         backup = Backup(self.backup_path, self.backup_sha256, self.partition)
@@ -114,7 +121,7 @@ class N6Board(PiBoard):
         self.rom_names = {m.name: rom_name(m.name) for m in models}
         self._backup = backup
         try:
-            done = self.transport.request("load", kind="n6", image=IMAGE_NAME,
+            done = self.transport.request("load", kind="n6", dfu_serial=self.dfu_serial, image=IMAGE_NAME,
                                           image_sha256=hashlib.sha256(image).hexdigest(), image_len=len(image),
                                           backup=BACKUP_NAME, backup_sha256=backup.sha256, rom=rom,
                                           ours=sorted(self.rom_names))
@@ -160,6 +167,15 @@ class N6Board(PiBoard):
         e.args = (f"{e} — ROMFS0 was then put back from the backup: read back identical "
                   f"({done['readback_sha256'][:16]}…), /rom lists the backup's {len(done['rom'])} entries",)
 
+    def _backup_on_pi(self, backup: Backup) -> None:
+        """The backup's partition into the agent's models/ unless the same bytes are there already."""
+        if self.transport.request("file_sha256", name=BACKUP_NAME)["sha256"] == backup.sha256:
+            return
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        local = self.work_dir / BACKUP_NAME
+        local.write_bytes(backup.partition)
+        self.transport.put(local, BACKUP_NAME)
+
     def restore(self) -> dict:
         """The backup's ROMFS0 back on the board, verified by read-back and the /rom listing (a rig change)."""
         backup = getattr(self, "_backup", None) or Backup(self.backup_path, self.backup_sha256, self.partition)
@@ -167,10 +183,11 @@ class N6Board(PiBoard):
                            RESTORE_UNDO, fake=self.unit.fake, sha256={BACKUP_NAME: backup.sha256}):
             try:
                 if self.transport.proc is None or self.transport.proc.poll() is not None:
-                    self.hello = None                        # the agent ended (a fault): start it again for the restore
+                    self.hello = None                        # never started, or ended (a fault): start it for the restore
                     self.connect()
-                done = self.transport.request("restore", kind="n6", backup=BACKUP_NAME, backup_sha256=backup.sha256,
-                                              rom=backup.rom)
+                self._backup_on_pi(backup)               # a restore-only card starts here (QE PR 123)
+                done = self.transport.request("restore", kind="n6", dfu_serial=self.dfu_serial, backup=BACKUP_NAME,
+                                              backup_sha256=backup.sha256, rom=backup.rom)
             except BoardError as r:
                 raise BoardError(RESTORE_FAILED, str(r)) from None
         self.image_on_board, self.rom_names = False, {}

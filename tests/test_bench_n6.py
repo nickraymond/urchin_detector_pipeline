@@ -53,7 +53,8 @@ def rig(tmp_path):
              "--ports", str(ports / "*"), "--partition", str(P), "--back-s", "2")
     unit = parse({}).unit("fake")
     board = N6Board(unit, data, LocalTransport(tmp_path / "agent", extra=extra, timeout_s=30), work_dir=tmp_path / "run",
-                    backup=backup, backup_sha256=hashlib.sha256(backup.read_bytes()).hexdigest(), partition=P)
+                    backup=backup, backup_sha256=hashlib.sha256(backup.read_bytes()).hexdigest(), partition=P,
+                    dfu_serial="FAKE0N6SERIAL")
     return {"board": board, "state": state, "data": data, "partition": partition,
             "model": Model("yolox-nano-conv-256-c5", model_file), "tmp": tmp_path}
 
@@ -67,8 +68,15 @@ def fault(state, **f):
 
 
 def only_alt3_written(state):
-    writes = [c for c in calls(state) if c[0] == "dfu-util" and "-D" in c]
-    return all(c[c.index("-a") + 1] == "3" for c in writes) and not list(state.glob("alt*_written"))
+    """Every write is alt 3, and every dfu-util call but the listing names the pinned serial (QE PR 123)."""
+    dfu = [c for c in calls(state) if c[0] == "dfu-util"]
+    writes = [c for c in dfu if "-D" in c]
+    return (all(c[c.index("-a") + 1] == "3" for c in writes) and not list(state.glob("alt*_written"))
+            and all(c[c.index("-S") + 1] == "FAKE0N6SERIAL" for c in dfu if "-l" not in c))
+
+
+def ae3_asks(state):
+    return [c for c in calls(state) if c[0] == "mpremote" and "OpenMV_Camera" in c[2]]
 
 
 def test_a_load_writes_the_backups_entries_plus_ours_and_times_it(rig):
@@ -243,3 +251,49 @@ def test_the_boards_timing_script_makes_the_laptops_image(monkeypatch, capsys):
         h, w, c = shape[1:]
         assert out["input_sha256"] == hashlib.sha256(bench_agent.synthetic_bytes(w, h, c)).hexdigest()
         assert out["input_bytes"] == w * h * (1 if c == 1 else 2) and out["us_total"] == 0
+
+
+def test_a_restore_only_start_on_a_fresh_agent_copies_the_backup_itself(rig):
+    """QE PR 123 ask 1: info() then restore() (the restore-only card), nothing loaded before."""
+    b, state = rig["board"], rig["state"]
+    bad = bytearray(rig["partition"])
+    bad[50] ^= 0xFF
+    (state / "romfs0.bin").write_bytes(bytes(bad))
+    try:
+        assert b.info()["board_type"] == "N6"
+        assert b.restore()["restored"] is True
+    finally:
+        b.close()
+    assert (state / "romfs0.bin").read_bytes() == rig["partition"] and only_alt3_written(state) and not ae3_asks(state)
+    assert [r["state"] for r in riglog.read(rig["data"]) if r["what"].startswith("restore ROMFS0")] == ["done"]
+
+
+def test_a_board_left_in_its_bootloader_is_a_normal_start_for_the_restore(rig):
+    """QE PR 123 asks 2 and 3: the N6 in DFU with a changed area; info says so, restore puts the backup back and
+    boots it, and the AE3's port is never asked (the N6's port was not known when the agent started)."""
+    b, state = rig["board"], rig["state"]
+    (state / "mode").write_text("dfu")
+    bad = bytearray(rig["partition"])
+    bad[50] ^= 0xFF
+    (state / "romfs0.bin").write_bytes(bytes(bad))
+    try:
+        assert b.info()["state"] == "bootloader"
+        b.restore()
+    finally:
+        b.close()
+    assert (state / "romfs0.bin").read_bytes() == rig["partition"] and (state / "mode").read_text() == "app"
+    assert not ae3_asks(state) and only_alt3_written(state)
+
+
+@pytest.mark.parametrize("setup, why", [({"faults.json": json.dumps({"two_devices": 1})}, "2 N6 bootloaders"),
+                                        ({"serial": "ANOTHER_N6"}, "not the backup's")])
+def test_an_unpinned_or_doubtful_bootloader_gets_nothing_written(rig, setup, why):
+    """QE PR 123 ask 4: exactly one 37c5:9206 device, with the recorded serial, before any -D."""
+    b, state = rig["board"], rig["state"]
+    for name, text in setup.items():
+        (state / name).write_text(text)
+    with pytest.raises(BoardError, match=why) as e:
+        b.load(rig["model"])
+    b.close()
+    assert e.value.stop == LOAD_FAILED and not any("-D" in c for c in calls(state) if c[0] == "dfu-util")
+    assert (state / "romfs0.bin").read_bytes() == rig["partition"] and not b.restores

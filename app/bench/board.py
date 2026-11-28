@@ -118,6 +118,8 @@ class FakeBoard(Board):
             self.timed += 1
             if self.fail_at and self.timed < self.fail_at:
                 return
+        if op in self.fail and self.fail[op] == "plain_error":     # tests: a fault that is not a BoardError
+            raise RuntimeError(f"fake {self.kind} board: {op} raised a plain error as asked")
         if op in self.fail:
             raise BoardError(self.fail[op], f"fake {self.kind} board: {op} failed ({self.fail[op]}) as asked")
 

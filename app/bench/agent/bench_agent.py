@@ -255,13 +255,18 @@ def sha256_head(path, n):
     return h.hexdigest(), n - left
 
 
+N6_PORT_NAME = "Pyboard"       # RESTORE.md: the N6's /dev/serial/by-id name holds Pyboard, the AE3's OpenMV_OpenMV_Camera
+
+
 class N6:
-    """The N6 on the Pi's USB. Found by asking it (omv.board_type(), D81); ports whose name says Pyboard are asked
-    first, and the search stops at the first N6, so the AE3 is normally not touched (one try each, no retry loop)."""
+    """The N6 on the Pi's USB. Found by asking it (omv.board_type(), D81), and only ports whose name holds Pyboard
+    are ever asked: the AE3's port is never touched on this route (QE PR 123: one operation at a time on the AE3).
+    Every dfu-util call names the N6's bootloader by its serial (-S), the one recorded with the backup, and refuses
+    when more than one 37c5:9206 device is present (QE PR 123)."""
 
     def __init__(self, folder, mpremote, dfu_util, ports_glob, alive):
-        self.folder, self.mpremote, self.dfu, self.ports_glob = folder, mpremote, dfu_util, ports_glob
-        self.alive, self.port = alive, None
+        self.folder, self.mpremote, self.dfu_util, self.ports_glob = folder, mpremote, dfu_util, ports_glob
+        self.alive, self.port, self.serial = alive, None, None
 
     def run(self, argv, limit_s, tail=1500):
         return run_steps(argv, None, self.alive, self.folder, limit_s, tail)
@@ -278,13 +283,14 @@ class N6:
             if os.path.exists(self.port) and self.asks_n6(self.port):
                 return self.port
             raise Stop(NO_ANSWER, f"the N6 does not answer on {os.path.basename(self.port)}")
-        ports = sorted(glob.glob(self.ports_glob), key=lambda p: ("Pyboard" not in os.path.basename(p), p))
+        ports = sorted(p for p in glob.glob(self.ports_glob) if N6_PORT_NAME in os.path.basename(p))
         for p in ports:
             if self.asks_n6(p):
                 self.port = p
                 return p
-        raise Stop(NO_ANSWER, f"no N6 answered on the Pi's USB (asked {len(ports)} port(s): "
-                              f"{', '.join(os.path.basename(p) for p in ports) or 'none'})")
+        raise Stop(NO_ANSWER, f"no N6 answered on the Pi's USB (asked {len(ports)} {N6_PORT_NAME} port(s): "
+                              f"{', '.join(os.path.basename(p) for p in ports) or 'none'}). It may be in its bootloader: "
+                              "a restore-only card writes the backup and boots it")
 
     def script(self, code, limit_s=TOOL_S):
         rc, out = self.exec(self.find(), code, limit_s)
@@ -298,9 +304,28 @@ class N6:
     def rom(self):
         return self.script(ROM_SCRIPT)
 
+    def dfu(self, *args):
+        """A dfu-util command line for the pinned N6 only."""
+        if not self.serial:
+            raise Stop(LOAD_FAILED, "no DFU serial was given for the N6: nothing is written to an unpinned device")
+        return [self.dfu_util, "-d", N6_DFU, "-S", self.serial, *args]
+
     def in_dfu(self):
-        rc, out = self.run([self.dfu, "-d", N6_DFU, "-l"], TOOL_S)
-        return rc == 0 and f'alt={ROMFS_ALT}, name="ROMFS0"' in out
+        """True when exactly one 37c5:9206 bootloader is present, it is ours (its serial) and alt 3 is ROMFS0."""
+        rc, out = self.run([self.dfu_util, "-d", N6_DFU, "-l"], TOOL_S)
+        lines = [l for l in out.splitlines() if l.startswith("Found DFU") and N6_DFU in l.lower()]
+        if rc != 0 or not lines:
+            return False
+        field = lambda key, line: (re.search(key + r'="([^"]*)"', line) or re.search(r"(.*)", line)).group(1)
+        devices = {field("path", l) for l in lines}             # one line per alt; one path per device
+        serials = {field("serial", l) for l in lines}
+        if len(devices) != 1 or len(serials) != 1:
+            raise Stop(LOAD_FAILED, f"{len(devices)} N6 bootloaders ({N6_DFU}) are on the USB: nothing is written "
+                                    "until only the bench N6 is in its bootloader")
+        if serials != {self.serial}:
+            raise Stop(LOAD_FAILED, f"the N6 bootloader on the USB has serial {sorted(serials)[0]}, not the backup's "
+                                    f"{self.serial}: another board; nothing is written")
+        return any(f'alt={ROMFS_ALT}, name="ROMFS0"' in l for l in lines)
 
     def enter_dfu(self):
         """The N6's bootloader, with alt 3 named ROMFS0 (checked on the day, as RESTORE.md says)."""
@@ -313,12 +338,13 @@ class N6:
                 return
             time.sleep(1)
         raise Stop(NO_ANSWER, f"the N6's bootloader ({N6_DFU}, alt {ROMFS_ALT} = ROMFS0) did not appear within "
-                              f"{BACK_S:g} s of machine.bootloader()")
+                              f"{BACK_S:g} s of machine.bootloader(). The N6 may be in its bootloader anyway: a "
+                              "restore-only card writes the backup and boots it")
 
     def write(self, path, alt=ROMFS_ALT):
         if alt != ROMFS_ALT:                       # D82: alt 0 (and every other alt) is never written
             raise Stop(LOAD_FAILED, f"refused: only alt {ROMFS_ALT} (ROMFS0) is ever written, not alt {alt}")
-        rc, out = self.run([self.dfu, "-d", N6_DFU, "-a", str(ROMFS_ALT), "-D", path], FLASH_S)
+        rc, out = self.run(self.dfu("-a", str(ROMFS_ALT), "-D", path), FLASH_S)
         if rc != 0:
             raise Stop(LOAD_FAILED, f"dfu-util could not write ROMFS0 (exit {rc}): {out.strip()[-400:]}")
 
@@ -327,7 +353,7 @@ class N6:
         check = os.path.join(self.folder, "models", "n6_readback.bin")
         if os.path.exists(check):
             os.remove(check)                       # dfu-util does not write over a file
-        rc, out = self.run([self.dfu, "-d", N6_DFU, "-a", str(ROMFS_ALT), "-U", check], FLASH_S)
+        rc, out = self.run(self.dfu("-a", str(ROMFS_ALT), "-U", check), FLASH_S)
         try:
             if rc != 0 or not os.path.isfile(check):
                 raise Stop(READBACK, f"dfu-util could not read ROMFS0 back (exit {rc}): {out.strip()[-400:]}")
@@ -344,7 +370,7 @@ class N6:
         junk = os.path.join(self.folder, "models", "n6_boot.bin")
         if os.path.exists(junk):
             os.remove(junk)
-        self.run([self.dfu, "-d", N6_DFU, "-a", str(BOOT_ALT), "-U", junk, "-R"], FLASH_S)
+        self.run(self.dfu("-a", str(BOOT_ALT), "-U", junk, "-R"), FLASH_S)
         if os.path.exists(junk):
             os.remove(junk)
         deadline = time.monotonic() + BACK_S
@@ -397,6 +423,8 @@ class Agent:
         op = req.get("op")
         kind = req.get("kind", "pi")
         if kind == "n6" and op in ("info", "load", "time", "reset", "restore"):
+            if req.get("dfu_serial"):
+                self.n6.serial = str(req["dfu_serial"])
             return getattr(self, "n6_" + op)(req)
         fn = getattr(self, "op_" + str(op), None)
         if fn is None:
@@ -416,7 +444,15 @@ class Agent:
                        written=False)
         return path
 
+    def op_file_sha256(self, req):
+        """sha256 of a file in models/, or None: the laptop copies the N6 backup only when it is not there already."""
+        path = os.path.join(self.models_dir, file_name(req["name"]))
+        return {"sha256": sha256(path) if os.path.isfile(path) else None}
+
     def n6_info(self, req):
+        if self.n6.in_dfu():                       # left in its bootloader (a Cancel, a dropped link): a normal start
+            return {"kind": "n6", "state": "bootloader", "board_type": "N6", "firmware": None, "mem_free": None,
+                    "rom": None, "dfu_serial": self.n6.serial, "model_area_bytes": PARTITION}
         found = self.n6.script(INFO_SCRIPT)
         return {"kind": "n6", **found, "port": os.path.basename(self.n6.port or ""), "rom": self.n6.rom(),
                 "model_area_bytes": PARTITION}

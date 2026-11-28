@@ -223,3 +223,14 @@ def test_a_stop_rule_still_ends_with_the_restore_and_a_failed_end_restore_is_lou
     job = wait(jc, jc.submit("bench", p), "done", "error")
     assert job["state"] == "error" and "stop rule restore_failed" in job["message"] and "end-of-card restore" in job["message"]
     assert json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())["outcome"] == "stopped: restore_failed"
+
+
+def test_a_plain_error_after_the_load_still_ends_restored(site, jc):
+    """QE PR 123 ask 5: an exit that is not a BoardError (a full disk, a bad answer) still runs the end restore."""
+    cfg, data = site
+    n = new_card(data, cfg.bench)
+    p = runs.params(cfg, n, fake={"fail": {"time": "plain_error"}})
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "error" and "did not report" in job["message"] and "put back from the backup" in job["message"]
+    run = json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
+    assert run["outcome"] == "stopped: error" and len(run["restores"]) == 1

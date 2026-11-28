@@ -149,6 +149,20 @@ def main() -> None:
         run.update(outcome="stopped: refused", ended=_now(), error=str(e))
         _write(folder / "run.json", run)
         raise RuntimeError(f"refused: {e} Nothing more was done on the unit; the windows already timed are kept.") from None
+    except Exception as e:                # QE PR 123: any other exit (a full disk, a bad answer) still ends restored (D82c)
+        board = locals().get("board")
+        failed = _end_restore(board, run)
+        _close(board)
+        note = (f" The end-of-card restore of ROMFS0 did not verify: {failed}. Next: {HINTS[RESTORE_FAILED]}." if failed
+                else " ROMFS0 was put back from the backup." if run.get("restores") else "")
+        run.update(outcome=f"stopped: {RESTORE_FAILED if failed else 'error'}", ended=_now(),
+                   error=f"{type(e).__name__}: {e}.{note}")
+        try:
+            _write(folder / "run.json", run)
+        except OSError:
+            pass                          # the disk may be the fault; the job's error still says it all
+        raise RuntimeError(f"the run stopped on an error the board did not report: {type(e).__name__}: {e}.{note} "
+                           "The windows already timed are kept.") from None
     failed = _end_restore(board, run)
     _close(board)
     if failed:

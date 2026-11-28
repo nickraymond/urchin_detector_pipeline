@@ -33,6 +33,9 @@ the rig log. On the laptop: the real backup passes the size, sha256 and re-encod
 image with `yolox-nano-conv-256-c5` is 11,195,160 bytes with the 10 vendor entries unchanged.
 **Broke/surprised us:** an older test (an N6 card on a made-up real unit, ssh host `h`) reached `ssh h` once the N6 had
 a board; `h` resolves to nothing here, and the test now uses the AE3. Open for card 4: whether an N6 that cannot boot our image comes back in DFU by itself.
+**Changed before merge (QE 10 FAIL on 9467ea0):** the restore copies the backup itself; an N6 in its bootloader is a
+normal start; only Pyboard ports are asked; dfu-util pinned to the backup's serial (`-S`, one device only); any other
+error after a load ends restored too. QE 10's two probes pass on the fix.
 **Next:** the restore-only card, then card 4 (the lead writes both; the rig session runs each after QE's review).
 
 ---

@@ -870,14 +870,19 @@ the AE3 stays refused. **Load:** the backup file must be 25,165,828 bytes with t
 (`machine.bootloader()`, then `dfu-util -d 37c5:9206 -l` must show alt 3 named ROMFS0, within 60 s), writes with `-a 3 -D`
 (the agent refuses any other alt), reads back with `-a 3 -U` (compare capped at the image length), boots with a read of
 alt 2 and `-R` (`ml/README.md`), waits for the N6 to answer, and checks that `/rom` lists exactly the image's names and
-sizes. The N6 is found by asking (`omv.board_type()`), ports named Pyboard first, stopping at the first N6, so the AE3 is
-not asked unless the N6's port is missing; after a boot only the N6's own port is asked again. **Restore** (built in):
+sizes. The N6 is found by asking (`omv.board_type()`), and only ports whose name holds `Pyboard` (RESTORE.md) are ever
+asked: the AE3's port is never touched on this route (QE PR 123). Every dfu-util call names the bench N6's bootloader by
+its serial (`-S`, the one recorded with the backup in `cameras/n6/dfu_list.txt`, sent by the laptop), and nothing is
+written unless `dfu-util -l` shows exactly one `37c5:9206` device with that serial. An N6 found in its bootloader is a
+normal start: `info` says so, and the restore writes from there. **Restore** (built in):
 any stop rule from a load whose write may have started (the agent answers `written`; unknown counts as written), from a
 window or from a reset runs `N6Board.restore()` before the error reaches the job: its own rig-log change ("restore ROMFS0
 from the backup"), the backup's partition written to alt 3, read back whole, booted, `/rom` equal to the backup's 10
 entries; the error then says it was put back, and `run.json` keeps each restore. A restore that does not verify is
 `restore_failed` (new stop rule and hint: run nothing more; restore by hand per RESTORE.md, replugging the N6 if it shows
-neither its serial port nor its bootloader). The agent is started again for the restore if it had ended. **Time:** one
+neither its serial port nor its bootloader). The agent is started again for the restore if it had ended, and the restore copies the backup's partition to the Pi
+itself when the same bytes are not already there (a restore-only card starts with nothing loaded). Any other error
+after a load (not a stop rule: a full disk, a malformed answer) ends with the same restore too. **Time:** one
 MicroPython script per window through `mpremote exec`: `gc.mem_free()` before `ml.Model('/rom/<name>')` and after, a
 pseudo-random image at the model's input size made on the board from seed 0 (D83a: its buffer's sha256 must equal the
 laptop's `synthetic_bytes`, else `input_differs`; nothing is written to the camera's `/flash`), 2 warm-ups, `time.ticks_us()` around each of N predicts (mean, min, max), `gc.mem_free()` after; one JSON line
