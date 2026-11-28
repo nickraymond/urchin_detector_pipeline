@@ -39,6 +39,14 @@
 {% else %}
 <p>No changes{% if not show_fake %} on a real unit{% endif %} yet.</p>
 {% endif %}
+<h2>To put the rig back</h2>
+{% if undo %}
+<p class="hint">Undo these in this order (newest first), then check the rig against the backup. The backup's
+  restore steps must cover every one of them before the next card runs.</p>
+<ol>{% for r in undo %}<li>{{ r.unit }} / {{ r.board }}: {{ r.undo }} <span class="hint">(undoes "{{ r.what }}", {{ r.state }})</span></li>{% endfor %}</ol>
+{% else %}
+<p>Nothing to undo: the app has made no change on a real unit, so the rig is as the backup left it.</p>
+{% endif %}
 {% if fake %}
 <p class="hint">{{ fake }} change{{ "s" if fake != 1 }} on the fake board (tests and self-tests) {{ "are" if fake != 1 else "is" }}
   {% if show_fake %}listed above. <a href="/bench/rig-log">Hide them</a>{% else %}hidden. <a href="/bench/rig-log?show_fake=1">Show them</a>{% endif %}.</p>

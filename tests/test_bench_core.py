@@ -149,7 +149,7 @@ def test_rig_log_page(client, tmp_path):
     page = c.get("/bench/rig-log").text
     assert "bench-a" in page and "pi, n6, ae3" in page and "2 field units listed" in page
     assert "bench-a-alias" not in page                 # the page does not show addresses
-    assert "No changes on a real unit yet" in page
+    assert "No changes on a real unit yet" in page and "Nothing to undo" in page
     FakeBoard(units.Bench().unit("fake"), "n6", data).load(model(tmp_path))
     with riglog.change(data, "bench-a", "pi", "copy model.tflite", "delete model.tflite"):
         pass
@@ -161,3 +161,5 @@ def test_rig_log_page(client, tmp_path):
     assert "1 change did not finish" in page and "1 change on the fake board" in page
     assert "load yolox_nano" in c.get("/bench/rig-log?show_fake=1").text
     assert 'href="/bench/rig-log"' in c.get("/").text
+    assert [r["what"] for r in riglog.undo_steps(riglog.read(data))] == ["write ROMFS0", "copy model.tflite"]
+    assert "write the backup&#39;s ROMFS0 <span" in page and "Nothing to undo" not in page

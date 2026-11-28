@@ -24,4 +24,5 @@ def register(app, templates, config_path, dashboard) -> None:
             "cfg": cfg, "rows": rows, "fake": fake, "show_fake": show_fake,
             "units": [cfg.bench.units[n] for n in sorted(cfg.bench.units)],
             "field_units": len(cfg.bench.field_units), "log_path": riglog.path(cfg.data_dir),
-            "unfinished": sum(1 for r in rows if r["state"] == "not finished")})
+            "unfinished": sum(1 for r in rows if r["state"] == "not finished"),
+            "undo": riglog.undo_steps(rows)})

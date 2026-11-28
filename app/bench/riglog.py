@@ -78,3 +78,10 @@ def read(data_dir) -> list[dict]:
             row["state"] = "done" if line.get("ok") else "failed"
             row["error"] = line.get("error", "")
     return [rows[k] for k in reversed(order)]
+
+
+def undo_steps(rows: list[dict]) -> list[dict]:
+    """What puts the rig back, in the order to do it: newest change first, real units only. A failed or
+    unfinished change is listed too (it may have changed the rig part-way). This list is what keeps the
+    backup's restore steps true to the rig (QE PR 94 carried nit 1)."""
+    return [r for r in rows if not r.get("fake") and r["state"] in ("done", "failed", "not finished")]

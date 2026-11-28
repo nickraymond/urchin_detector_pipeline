@@ -503,6 +503,9 @@ against the fake board only; the rig test session runs each board's first card a
 - [x] `<data_dir>/bench/rig_log.jsonl`: every change appended before and after, with its undo; a "Rig log" page
       *(S7 builder 1, branch `sprint/7-bench-core`: `app/bench/units.py`, `board.py`, `riglog.py`, `pages.py`; real
       units have no board yet and are refused until bites 3-5)*
+- [~] "Restore the rig" steps kept true to the rig log (QE PR 94 carried nit 1): the Rig log page lists every real
+      change's undo, newest first, under "To put the rig back"; who copies them into the backup's `RESTORE.md` and when
+      is a Lead call (asked in PR 98)
 
 **Bite 2 — Test card and the `bench` job** (D83, D84)
 - [ ] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
@@ -516,6 +519,7 @@ against the fake board only; the rig test session runs each board's first card a
       tested on the laptop against a fake transport
 - [ ] Pi runs with LiteRT first (same 8-bit file as S6): N windows, `perf_counter_ns` around invoke, `VmHWM`;
       then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
+- [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
 
 **Bite 4 — The N6 route** (D82, D83)
 - [ ] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back
