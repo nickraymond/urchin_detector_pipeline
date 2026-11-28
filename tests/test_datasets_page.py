@@ -53,15 +53,15 @@ def test_page_shows_what_training_will_see(tmp_path):
     frozen(folder)
     page = client.get("/p/p/datasets").text
     assert "What training will see (detector)" in page
-    assert "<td>purple urchin</td><td>20 (11)</td><td>8 (4)</td><td>0 (0)</td><td>28</td>" in page
-    assert "<b>under</b>: 122 more" in page and "8 objects on 4 frames" in page
+    assert "<td>purple urchin</td><td>22 (11)</td><td>8 (4)</td><td>0 (0)</td><td>30</td>" in page
+    assert "<b>under</b>: 120 more" in page and "6 objects on 3 frames" in page
     assert "1 frame(s) left out by the split check" in page
     assert "4 frame(s) with a class not fully checked" in page
     # counted by the trainer's rule: frames where only some picked classes are fully checked
-    assert "3 frame(s) are left out although some of the classes are fully checked on them" in page
+    assert "for its labeled boxes only" in page and "3 frame(s) with this choice" in page   # D66
     assert "every class picked above" in page
-    assert "<b>11</b> (3 left out)" in page
+    assert "<b>11</b> + 1 for their boxes only (2 left out)" in page
     stars = client.get("/p/p/datasets?classes=3").text
-    assert "<td>purple urchin</td><td>20 (11)</td>" not in stars and "are left out although" not in stars
+    assert "<td>purple urchin</td><td>22 (11)</td>" not in stars and "frame(s) with this choice" not in stars
     assert "<td>sea star</td><td>0 (11)</td>" in stars
     assert "not object classes" in client.get("/p/p/datasets?classes=9").text

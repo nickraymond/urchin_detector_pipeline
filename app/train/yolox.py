@@ -11,13 +11,14 @@ layer, the variant that compiled for both NPUs). Samples come from a frozen data
 (app/datasets/loaders.py) through app/train/samples.py; their order and augmentation are fixed by
 (seed, epoch, index), so a run paused mid-epoch continues with exactly the steps it had left.
 
-Review flags (spec "What gets trained"): frames with split check "no" and classes not fully
-checked are already left out by the loader. A box of a class that is not fully checked on a frame
-is painted over in grey before the frame is used, so the model is never taught that an unlabeled
-neighbour of it is background there. That alone is not enough: the animals nobody labeled are
-still in the picture. So a frame is used, for training and for validation, only when every class
-of the run is fully checked on it (app/train/job.py `usable`; QE PR 72); the frames left out are
-counted in the run record. (Finer, and keeping those frames: masking that class's loss. Not done.)
+Review flags (spec "What gets trained"; D66; `loaders.run_frames`): frames with split check "no"
+and frames with none of the run's classes fully checked are left out by the loader. A frame with
+every class of the run fully checked trains as usual and is the only kind used for validation.
+A frame with only some of them checked trains on its labeled boxes only: its box, class and
+"object here" losses count, and the "nothing here" part of YOLOX's objectness loss is switched
+off for the whole frame (`BoxesOnlyBCE`), because an animal of the unchecked class may sit there
+unlabeled and objectness has no class. A labeled box of a class that is not fully checked on a
+frame is not a target; it is painted over in grey so it teaches nothing either way.
 
 Pre-training (spec stage 7; TRACKER S8 bite 3): a run whose recipe says `data: "outside"`
 trains on the version's public sources only (app/datasets/outside.py `samples`; their train and
@@ -68,6 +69,40 @@ MAX_DETECTIONS = 100     # per canvas, as YOLOX's own evaluation keeps; an untra
 GREY = samples.GREY
 
 
+class BoxesOnlyBCE(torch.nn.Module):
+    """YOLOX's `bcewithlog_loss` (BCE with logits, no reduction) with one addition (D66). YOLOX's
+    loss calls it twice per batch (`yolo_head.py` `get_losses` @ 6ddff48): first for "is there an
+    object" on every anchor of every image, shape (images x anchors, 1), then for the class
+    scores of the matched anchors. For an image flagged boxes-only, the first call's loss is
+    zeroed on every anchor that has no object, so the image teaches "object here" on its labeled
+    boxes and never "nothing here" (it has no objectness loss term there; the image still takes
+    part in the batch's BatchNorm statistics). `begin()` is called before each forward pass."""
+
+    def __init__(self):
+        super().__init__()
+        self.neg_ok, self.anchors, self.calls = None, 0, 0
+
+    def begin(self, neg_ok, anchors: int = 0) -> None:
+        """neg_ok: one bool per image of the coming batch (True = fully checked), or None.
+        anchors: the model's anchors per image, so the objectness call can be told for sure
+        (a one-class model's class call has one column too)."""
+        self.neg_ok, self.anchors, self.calls = neg_ok, anchors, 0
+
+    def forward(self, pred, target):
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, target, reduction="none")
+        self.calls += 1
+        if self.calls == 1 and self.neg_ok is not None and not bool(self.neg_ok.all()):
+            n = self.neg_ok.numel()
+            if pred.dim() != 2 or pred.shape[1] != 1 or pred.shape[0] != n * self.anchors:
+                raise RuntimeError("YOLOX's loss no longer computes the objectness loss first, "
+                                   f"over every anchor (got shape {tuple(pred.shape)} for {n} "
+                                   f"images of {self.anchors} anchors): BoxesOnlyBCE must be "
+                                   "adapted to this YOLOX commit.")
+            keep = self.neg_ok.repeat_interleave(pred.shape[0] // n).view(-1, 1) | (target > 0)
+            loss = loss * keep.to(loss.dtype)
+        return loss
+
+
 def pick_device(wanted: str | None) -> str:
     if wanted in ("cpu", "mps", "cuda"):
         return wanted
@@ -114,7 +149,7 @@ class Trainer:
         self.dir, self.arch, self.t = Path(model_dir), recipe["arch"], recipe["train"]
         limits = job.get("limits") or {}
         self.device = pick_device(limits.get("device"))
-        self.warning, self.gpu_check = "", None
+        self.warning, self.gpu_check, self.no_valid, self.no_background = "", None, "", ""
         self.threads = int(limits.get("threads") or 4)
         torch.set_num_threads(self.threads)
         self.seed, self.canvas = int(self.t["seed"]), int(self.t["tile"])
@@ -132,12 +167,14 @@ class Trainer:
         if self.t.get("data") == "outside":
             self._outside_samples(folder, version, job.get("outside_dir"))
         else:
-            from app.train.job import usable
-            self.train, out_train = usable(
+            full, boxes_only = loaders.run_frames(
                 loaders.detector_samples(folder, version, "train", self.ids)["samples"], self.ids)
-            self.valid, out_valid = usable(
+            self.no_background = loaders.background_warning(full, boxes_only)
+            self.train = full + [{**s, "boxes_only": True} for s in boxes_only]
+            self.valid, out_valid = loaders.usable(
                 loaders.detector_samples(folder, version, "valid", self.ids)["samples"], self.ids)
-            self.left_out = {"train": out_train, "valid": out_valid}
+            self.boxes_only, self.left_out = len(boxes_only), {"train": 0, "valid": out_valid}
+            loaders.need_validation(self.valid)
             if not self.train:
                 raise RuntimeError(f"Dataset version {version} has no training frame for these "
                                    "classes (see the Datasets page: what training will see).")
@@ -175,9 +212,13 @@ class Trainer:
                                        "checked": [0], "ignore": []})
             self.outside_used.append({"key": e["key"], "licence": e["licence"]})
         self.train, self.valid = got["train"], got["valid"]
-        self.left_out = {"train": 0, "valid": 0}
+        self.boxes_only, self.left_out = 0, {"train": 0, "valid": 0}
         if not self.train:
             raise RuntimeError(f"The outside data of version {version} has no training image.")
+        if not self.valid:               # a source without a validation list: said, not refused
+            self.no_valid = ("No validation images in this version's outside data: the run has "
+                             "no validation curve, and the weights kept as best.pt are the last "
+                             "epoch's.")
         for s in self.train[:1] + self.valid[:1]:     # frozen by size in bytes (DESIGN, bite 3)
             p = Path(s["image"])
             if not p.is_file() or p.stat().st_size != s["bytes"]:
@@ -206,10 +247,15 @@ class Trainer:
 
     def describe(self) -> dict:
         import torchvision
-        return {"device": self.device, "warning": self.warning, "threads": self.threads,
+        return {"device": self.device, "threads": self.threads,
+                "warning": " ".join(w for w in (self.warning, self.no_background,
+                                                self.no_valid) if w),
                 "batch": self.batch, "gpu_check": self.gpu_check,
                 "steps_per_epoch": self.steps, "train_frames": len(self.train),
                 "valid_frames": len(self.valid),
+                # D66: training frames used for their labeled boxes only; validation frames
+                # left out because not every class is fully checked on them
+                "train_frames_boxes_only": self.boxes_only,
                 "frames_left_out_not_fully_checked": self.left_out,
                 # start_used: the kind really used; start_loaded: what a pre-trained start put in
                 "start_used": self.start_used["kind"], "start_loaded": self.start_used,
@@ -223,6 +269,7 @@ class Trainer:
         torch.manual_seed(self.seed)
         model = ydef.build_model(self.arch)
         yolox_mps.apply()
+        model.head.bcewithlog_loss = BoxesOnlyBCE()   # no weights of its own: checkpoints unchanged
         for m in model.modules():
             if isinstance(m, torch.nn.BatchNorm2d):
                 m.eps, m.momentum = 1e-3, 0.03
@@ -315,7 +362,7 @@ class Trainer:
             img[max(0, int(cy - h / 2)):int(cy + h / 2) + 1,
                 max(0, int(cx - w / 2)):int(cx + w / 2) + 1] = GREY
         boxes = [[self.ids.index(c), cx, cy, w, h] for c, cx, cy, w, h in got["boxes"]][:MAX_BOXES]
-        return img, boxes
+        return img, boxes, not sample.get("boxes_only", False)
 
     def _batch(self, picks: list[int], pool, epoch: int, source: list[dict], train: bool):
         made = list(pool.map(lambda i: self._example(source[i], epoch, i, train), picks))
@@ -324,7 +371,7 @@ class Trainer:
         imgs = torch.from_numpy(np.ascontiguousarray(
             np.stack([m[0] for m in made]).transpose(0, 3, 1, 2))).float()
         targets = torch.zeros((len(made), MAX_BOXES, 5))
-        for n, (_, boxes) in enumerate(made):
+        for n, (_, boxes, _) in enumerate(made):
             if boxes:
                 targets[n, :len(boxes)] = torch.tensor(boxes, dtype=torch.float32)
         return imgs.to(self.device), targets.to(self.device), made
@@ -334,9 +381,12 @@ class Trainer:
     def _step(self, picks: list[int], pool, epoch: int, it: int) -> dict:
         """One training step on the frames `picks`; `it` = steps since the run began (the
         learning-rate schedule's clock). Returns YOLOX's loss dict."""
-        imgs, targets, _ = self._batch(picks, pool, epoch, self.train, True)
+        imgs, targets, made = self._batch(picks, pool, epoch, self.train, True)
         for g in self.opt.param_groups:
             g["lr"] = self._lr(it)
+        self.model.head.bcewithlog_loss.begin(         # which images may teach "nothing here"
+            torch.tensor([m[2] for m in made], device=self.device),
+            sum((self.canvas // s) ** 2 for s in ydef.STRIDES))
         out = self.model(imgs, targets)
         self.opt.zero_grad(set_to_none=True)
         out["total_loss"].backward()
@@ -459,11 +509,15 @@ class Trainer:
         os.replace(tmp, last)
         if step == 0 and epoch > 0:                   # an epoch just ended: keep the best EMA
             rows = [r for r in _metrics(self.dir) if r["epoch"] == epoch - 1]
-            score = (rows[0].get("val_recall", 0) + rows[0].get("val_precision", 0)) if rows else 0
-            if score > self.best or not (self.dir / "checkpoints" / "best.pt").is_file():
-                self.best = max(self.best, score)
+            scored = bool(rows) and "val_recall" in rows[0]
+            score = rows[0]["val_recall"] + rows[0].get("val_precision", 0) if scored else None
+            # without validation frames there is no "best": keep the newest epoch (QE PR 93)
+            if not scored or score > self.best or not (self.dir / "checkpoints" / "best.pt").is_file():
+                self.best = max(self.best, score) if scored else self.best
                 tmp = last.with_name(".best.pt.tmp")
-                torch.save({"model": self.ema, "epoch": epoch, "score": score}, tmp)
+                torch.save({"model": self.ema, "epoch": epoch, "score": score,
+                            "kept_as": "best validation score" if scored
+                            else "last epoch (no validation frames)"}, tmp)
                 os.replace(tmp, self.dir / "checkpoints" / "best.pt")
 
     def unload(self) -> None:
