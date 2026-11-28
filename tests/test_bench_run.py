@@ -249,6 +249,15 @@ def test_a_failed_hard_reset_at_the_end_is_a_stop_rule_and_restore_only_ends_wit
     assert json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())["finish"]["hard_reset"] is True
 
 
+def test_run_json_keeps_the_stage_when_the_end_step_fails_too(site, jc):
+    """QE 11, card 8: a board_reset whose end step then failed lost run.json's `stage` (it was only in the text)."""
+    cfg, data = site
+    p = runs.params(cfg, new_card(data, cfg.bench), fake={"fail": {"time": "board_reset", "finish": "no_answer"}})
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "error" and "hard reset failed" in job["message"]
+    run = json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
+    assert run["stage"] == {"stage_failed": 4, "stage_name": "ml.Model", "last_stage": 3}
+
 
 def test_a_card_whose_board_never_answered_is_not_reset(site, jc):
     """QE PR 126 nit 2: no hard reset, and no second error, when the board never answered."""
@@ -310,3 +319,27 @@ def test_a_board_reset_says_whether_romfs0_was_put_back():
     assert "put ROMFS0 back" in hint("board_reset", {"restores": [{"restored": True}]})
     no_write = hint("board_reset", {"restores": []})
     assert "nothing was restored" in no_write and "put ROMFS0 back" not in no_write
+
+
+def test_a_csi_first_card_says_its_free_memory_lacks_the_frame_buffer(tmp_path):
+    """QE PR 131 nit 1: on a CSI-first card the free memory after the load also lacks the camera's frame buffer."""
+    data = tmp_path / "data"
+    (data / "fit" / "yolox_nano" / "int8").mkdir(parents=True)
+    (data / "fit" / "yolox_nano" / "int8" / "model_int8.tflite").write_bytes(b"m")
+    p = tmp_path / "config.local.toml"
+    p.write_text(f'data_dir = "{data}"\nvideo_roots = []\n')
+    shown = {}
+    for csi in ("on", ""):
+        n = new_card(data, units.Bench(), models="fit/yolox_nano/int8/model_int8.tflite", csi_first=csi)
+        app = server.create_app(p)
+        c = TestClient(app, base_url="http://127.0.0.1:8000", headers={"origin": "http://127.0.0.1:8000"})
+        try:
+            c.post(f"/bench/cards/{n}/run", follow_redirects=True)
+            end = time.monotonic() + 30
+            while ">done</a>" not in (page := c.get(f"/bench/cards/{n}").text) and time.monotonic() < end:
+                time.sleep(0.1)
+            shown[csi] = page
+        finally:
+            app.state.close_jobs()
+    assert ">done</a>" in shown["on"] and "frame buffer is taken too: CSI first" in shown["on"]
+    assert ">done</a>" in shown[""] and "frame buffer is taken too" not in shown[""]

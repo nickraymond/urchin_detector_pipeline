@@ -47,7 +47,7 @@
       {% if r.run.error %}<br><span class="error">{{ r.run.error }}</span>{% endif %}</td>{% endif %}
     {% if m %}<td>{{ name }}</td><td>{{ m.windows }} of {{ r.run.windows }}</td>
     <td>{% if m.median_ms is not none %}{{ "%.2f" | format(m.median_ms) }}{% else %}<span class="hint">fewer than 3 windows</span>{% endif %}</td>
-    <td>{{ "%.2f" | format(m.low_ms) }} – {{ "%.2f" | format(m.high_ms) }}</td><td>{% if m.mem_after_load is not none %}{{ m.mem_after_load }} B{% else %}<span class="hint">no figure</span>{% endif %}</td>
+    <td>{{ "%.2f" | format(m.low_ms) }} – {{ "%.2f" | format(m.high_ms) }}</td><td>{% if m.mem_after_load is not none %}{{ m.mem_after_load }} B{% if c.csi_first %} <span class="hint">(the camera's frame buffer is taken too: CSI first)</span>{% endif %}{% else %}<span class="hint">no figure</span>{% endif %}</td>
     {% elif r.run.restores %}<td colspan="5">ROMFS0 restored {{ r.run.restores | length }}×: read back identical ({{ r.run.restores[-1].readback_sha256[:16] }}…), /rom lists {{ r.run.restores[-1].rom | length }} entries</td>
     {% else %}<td colspan="5" class="hint">no window timed yet</td>{% endif %}
   </tr>

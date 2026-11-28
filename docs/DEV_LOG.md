@@ -17,6 +17,20 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-28 — Sprint S7 — Card 8's job faults (D83d) and QE PR 131's nits (S7 builder 4)
+**Branch:** sprint/7-n6-card8-nits
+**Done:** the end step's hard reset waits up to 10 s (`SETTLE_S`, agent `--settle-s`) for an N6 that reset itself to
+answer on its port before it judges port, bootloader or nothing; run.json keeps the first error's `stage` when the end
+step fails as well. The card page's free-memory figure on a CSI-first card says the frame buffer is taken too. D83c's
+"on this board" now "on an N6"; DEV_LOG's CSI self-test lists the eight stages. TRACKER: the N6 is stopped (cards 6-8).
+**Self-test:** fake N6 with a new `self_recovers` fault (port gone, bootloader 0.3 s later, port back at 1.5 s by
+itself, from a helper process): the end step hard-resets it with no boot; with `--settle-s 0` the same test fails with
+card 8's "does not answer". Card page (TestClient): the hint shows on a CSI-first card's run only.
+**Broke/surprised us:** nothing.
+**Next:** QE; the N6 waits on Nick's firmware answer.
+
+---
+
 ## 2026-11-28 — Sprint S7 — "CSI first" on an N6 card (D83c); a board_reset's text follows what was written (S7 builder)
 **Branch:** sprint/7-n6-csi
 **Done:** the card option "CSI first" (N6, a card that times something): a stage between the imports and `ml.Model`
@@ -24,9 +38,10 @@ with `ml/deploy_probe.py`'s camera set-up ("csi start") and one snapshot ("csi s
 the seeded image. Stage markers are now
 numbered per window, and the fake N6 tells stages apart by what they do. A no-write card's `board_reset` no longer says
 "the job put ROMFS0 back" (lead 2, card 7).
-**Self-test:** fake N6: with CSI first a window runs import, csi snapshot, ml.Model, … in that order, the input's sha256
-still the laptop's; a reset in the CSI stage names it ("stage 2 (csi start) … last stage that answered: stage 1
-(import)"); the six-plus-one stages in CPython (a stand-in `csi`) give the laptop's sha256. Card page: see the PR.
+**Self-test:** fake N6: with CSI first a window runs import, csi start, csi snapshot, ml.Model, … in that order, the
+input's sha256 still the laptop's; a reset in the CSI stage names it ("stage 2 (csi start) … last stage that answered:
+stage 1 (import)"); the eight stages in CPython (a stand-in `csi`) give the laptop's sha256. *(Corrected after QE PR 131
+nit 3: the stage list.)* Card page: see the PR.
 **Broke/surprised us:** nothing.
 **Next:** QE; the next card (the lead's): `fomo_face_detection.tflite` from /rom with CSI first, no write; then the ORT PR.
 

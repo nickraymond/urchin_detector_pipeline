@@ -591,6 +591,13 @@ against the fake board only; the rig test session runs each board's first card a
       verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
       tested with the fake board and on a ROMFS image file on the laptop *(4a + 4b)*
 - [ ] first real card (rig test session): YOLOX Nano re-measured against the earlier 10.6 ms before any new model
+- [ ] **N6 stopped** (lead 2, 2026-11-28): `ml.Model` resets this N6 on firmware v5.0.1-2 in cards 6, 7 and 8 (8: the
+      vendor's own `fomo_face_detection.tflite` from /rom, camera started first, no write). No more N6 cards until Nick
+      answers the firmware question (with the lead)
+- [x] card 8's two job faults (QE 11's run check, D83d): the end step gives a board that reset itself 10 s to come back
+      on its port before calling it a hang; run.json keeps the stage when the end step fails too *(S7 builder 4)*
+- [x] QE PR 131 nits: the free-memory figure on a CSI-first card says it lacks the frame buffer; D83c "on an N6";
+      DEV_LOG's stage list *(S7 builder 4)*
 - [ ] a suite-wide guard: any test that starts `ssh`, `scp`, `dfu-util` or `mpremote` from PATH fails (QE PR 123: one older
       test reached `ssh -G h` once the N6 had a board)
 - [x] the N6's undo text in the rig log set from what the route really does (QE PR 98 nit 4; bite 1's is a placeholder)

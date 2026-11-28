@@ -173,7 +173,8 @@ def main() -> None:
         if e.stop != RESTORE_FAILED:                      # a failed restore is not tried twice
             failed = _end_restore(board, run)
             if failed:
-                e = BoardError(failed.stop, f"{e} — and then the end of the card did not finish: {failed}")
+                e = BoardError(failed.stop, f"{e} — and then the end of the card did not finish: {failed}",
+                               e.detail)          # QE 11, card 8: run.json keeps the first error's stage
         _close(board)
         if e.detail.get("stage_failed"):                  # the N6's stages: which one, and the last that answered
             run["stage"] = {k: e.detail[k] for k in ("stage_failed", "stage_name", "last_stage") if k in e.detail}

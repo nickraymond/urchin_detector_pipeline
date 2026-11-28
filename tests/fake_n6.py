@@ -4,11 +4,14 @@ It answers the command lines the agent uses, as RESTORE.md and ml/README.md show
 in <state>/romfs0.bin. State files: `mode` (app | dfu | dead), `faults.json`, `calls.log` (one JSON argv per call).
 State: an exec without `resume` clears what the timing's stages defined (mpremote soft-resets first), and a stage
 whose predecessor's state is gone fails with a NameError (QE PR 130). Faults: csi_resets (the CSI stage takes the board into DFU), reset_at_stage (the timing's stage k drops the board into DFU), no_bootloader (machine.bootloader() leaves a board that shows nothing), write_fails (n writes fail), corrupt_write (n writes flip a byte), dead_unless_backup (a boot with anything
-but backup.bin in ROMFS0 leaves the board answering nothing, neither serial nor DFU), time_fails, hide (a /rom name).
+but backup.bin in ROMFS0 leaves the board answering nothing, neither serial nor DFU), time_fails, hide (a /rom name),
+self_recovers [a, b] with reset_at_stage (card 8: the port drops, the bootloader shows a s later, then the board comes
+back as its port by itself b s after the drop; a helper process does it, as the kernel would).
 """
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,6 +53,18 @@ class State:
         return False
 
 
+RECOVER = """
+import sys, time
+from pathlib import Path
+d, port, a, b = Path(sys.argv[1]), sys.argv[2], float(sys.argv[3]), float(sys.argv[4])
+time.sleep(a)
+(d / "mode").write_text("dfu")
+time.sleep(b - a)
+(d / "mode").write_text("app")
+Path(port).touch()
+"""
+
+
 def mpremote(s, args):
     port = args[1]
     resume = args[2:3] == ["resume"]
@@ -79,6 +94,14 @@ def mpremote(s, args):
         if k > 1 and s.get("session", "0") != str(k - 1):            # what the stage before defined is gone
             print("Traceback (most recent call last):\n  File \"<stdin>\", line 2, in <module>\n"
                   f"NameError: name '{'ml' if k == 2 else 'm'}' isn't defined")
+            return 1
+        if s.faults.get("reset_at_stage") == k and s.faults.get("self_recovers"):   # card 8
+            a, b = s.faults["self_recovers"]
+            s.put("mode", "dead")
+            Path(port).unlink()
+            subprocess.Popen([sys.executable, "-c", RECOVER, str(s.d), port, str(a), str(b)], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Traceback (most recent call last):\nOSError: [Errno 5] Input/output error")
             return 1
         if s.faults.get("reset_at_stage") == k:          # card 6: the board drops into its bootloader mid-script
             s.put("mode", "dfu")
