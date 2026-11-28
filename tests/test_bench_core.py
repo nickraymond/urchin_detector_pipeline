@@ -106,6 +106,8 @@ def test_empty_field_units_is_allowed_when_written(tmp_path):
 def test_real_unit_has_no_board_yet(tmp_path):
     cfg = config.load(write_cfg(tmp_path, BENCH)[0])
     with pytest.raises(units.Refused, match="not built yet"):
+        open_board(cfg.bench.unit("bench-a"), "ae3", tmp_path, bench=cfg.bench)
+    with pytest.raises(units.Refused, match="not given by"):        # the N6 and the Pi: only through [bench]
         open_board(cfg.bench.unit("bench-a"), "n6", tmp_path)
     with pytest.raises(ValueError):
         FakeBoard(cfg.bench.unit("bench-a"), "n6", tmp_path)

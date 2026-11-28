@@ -4,7 +4,7 @@ the app (it is copied alone). numpy and the runtime are imported only when a mod
 
 Protocol: JSON lines. The laptop writes one request per line, {"id": n, "op": ..., ...}; the agent answers each
 with one line, {"id": n, "ok": true, ...} or {"id": n, "ok": false, "stop": <stop rule>, "error": <words>}.
-Ops: hello, info, load, time, reset, bye, install_status, install (D89). Model files are copied into <folder>/models/ by the laptop before
+Ops: hello, info, load, time, reset, bye, install_status, install (D89); restore (n6). Model files are copied into <folder>/models/ by the laptop before
 "load"; the agent only checks their sha256 (a mismatch is the "readback_differs" stop rule, D84).
 
 Timing (D83): one seeded synthetic input at the model's input size; 2 warm-ups; time.perf_counter_ns() around
@@ -14,9 +14,13 @@ seconds or more after the last such line (D84: after each inference at the lates
 inferences at a second each) is not taken for a board that stopped answering. `time` returns the fields every
 Board.time returns (n, warmups, ms_mean, ms_min, ms_max, mem_before_load, mem_after_load, mem_after: free memory,
 MemAvailable) plus vm_hwm.
-The cameras (n6, ae3) are bites 4 and 5: asked for one, the agent says so.
+The N6 (bite 4b, kind "n6"): found by asking it; load writes our ROMFS0 image with dfu-util alt 3 (no other alt is
+ever written), reads it back, boots and lists /rom; restore does the same with the backup's partition; time runs
+TIME_SCRIPT through mpremote. mpremote and dfu-util are the Pi's own (RESTORE.md); tests pass fake ones. The AE3 is
+bite 5: asked for it, the agent says so.
 """
 
+import glob
 import hashlib
 import json
 import os
@@ -45,9 +49,9 @@ def file_name(name):
 
 
 class Stop(Exception):
-    def __init__(self, stop, message):
+    def __init__(self, stop, message, **extra):
         super().__init__(message)
-        self.stop = stop
+        self.stop, self.extra = stop, extra        # extra goes back in the answer (an N6 load says "written")
 
 
 def proc_kib(path, key):
@@ -128,21 +132,231 @@ PIP_ARGS = ["install", "--no-cache-dir", "--index-url", "https://pypi.org/simple
 FAKE_INSTALL = False            # tests only (--fake-install): make the environment without venv or pip
 
 
-def run_steps(argv, env, alive, cwd):
-    """Run one install command, writing an alive line every ALIVE_S seconds even while it prints nothing (pip is
-    silent while it downloads); returns (exit code, the output's tail)."""
-    with subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, cwd=cwd) as p:
+def run_steps(argv, env, alive, cwd, limit_s=None, tail=1500):
+    """Run one command, writing an alive line every ALIVE_S seconds even while it prints nothing (pip is silent
+    while it downloads; dfu-util while it writes); returns (exit code, the output's tail). After `limit_s` seconds
+    the command is killed and the exit code is None."""
+    with subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, cwd=cwd,
+                          errors="replace") as p:
         out = []
         reader = threading.Thread(target=lambda: out.extend(p.stdout), daemon=True)
         reader.start()
-        last = time.monotonic()
+        start = last = time.monotonic()
         while p.poll() is None:
-            time.sleep(0.2)
+            time.sleep(0.05)
+            if limit_s is not None and time.monotonic() - start > limit_s:
+                p.kill()
+                p.wait()
+                reader.join(5)
+                return None, "".join(out)[-tail:]
             if time.monotonic() - last >= ALIVE_S:
                 alive(len(out))
                 last = time.monotonic()
         reader.join(5)
-        return p.returncode, "".join(out)[-1500:]
+        return p.returncode, "".join(out)[-tail:]
+
+
+# --- the N6 (S7 bite 4b; D82, D82a, D83): the mpremote and dfu-util command lines RESTORE.md uses ---------------
+N6_DFU = "37c5:9206"           # the N6's bootloader: BOOTLOADER(0) FIRMWARE(1) FILESYSTEM(2) ROMFS0(3) (ml/README.md)
+ROMFS_ALT = 3                  # the model area: the ONLY alt this agent ever writes (alt 0 is never written)
+BOOT_ALT = 2                   # a read of FILESYSTEM with -R boots the firmware (ml/README.md :124)
+PARTITION = 0x01800000         # OMV_ROMFS_PART0_LENGTH, 24 MiB (boards/OPENMV_N6/board_config.h)
+RESTORE_FAILED = "restore_failed"
+TOOL_S = 60.0                  # one mpremote call or dfu-util listing; longer is a fault
+FLASH_S = 900.0                # one 24 MiB write or read over DFU
+BACK_S = 60.0                  # the N6 answering again after a boot, or its bootloader after machine.bootloader()
+N6_PORTS = "/dev/serial/by-id/*"
+MARK = "NB:"                   # the line a board script prints its JSON on (JSON lines, never base64: hil_board.py)
+
+ROM_SCRIPT = """
+import os, json
+r = {}
+for n in sorted(os.listdir('/rom')):
+    r[n] = os.stat('/rom/' + n)[6]
+print('NB:' + json.dumps(r))
+"""
+INFO_SCRIPT = """
+import os, sys, gc, json, omv
+gc.collect()
+print('NB:' + json.dumps({'board_type': omv.board_type(), 'firmware': sys.version, 'machine': os.uname().machine,
+                          'mem_free': gc.mem_free()}))
+"""
+# D83 on a camera: free memory before and after the load, 2 warm-ups, ticks_us around each of N predicts, free memory
+# after. The input is made on the board from seed 0 (a fixed pseudo-random image at the model's input size), so
+# nothing is written to the camera's /flash.
+TIME_SCRIPT = """
+import gc, json, time, ml, image
+gc.collect()
+before = gc.mem_free()
+m = ml.Model(%(path)r)
+gc.collect()
+loaded = gc.mem_free()
+s = m.input_shape[0]
+h, w, c = s[-3], s[-2], s[-1]
+img = image.Image(w, h, image.GRAYSCALE if c == 1 else image.RGB565)
+x = 0
+for yy in range(h):
+    for xx in range(w):
+        x = (1103515245 * x + 12345) & 0x7fffffff
+        img.set_pixel(xx, yy, x & 0xff if c == 1 else (x & 0xff, (x >> 8) & 0xff, (x >> 16) & 0xff))
+for _ in range(%(warmups)d):
+    m.predict([img])
+total = 0
+lo = hi = None
+for _ in range(%(n)d):
+    t = time.ticks_us()
+    m.predict([img])
+    d = time.ticks_diff(time.ticks_us(), t)
+    total += d
+    lo = d if lo is None or d < lo else lo
+    hi = d if hi is None or d > hi else hi
+gc.collect()
+print('NB:' + json.dumps({'us_total': total, 'us_min': lo, 'us_max': hi, 'mem_before_load': before,
+                          'mem_after_load': loaded, 'mem_after': gc.mem_free(), 'input_shape': list(s)}))
+"""
+
+
+def board_json(out):
+    """The JSON a board script printed after MARK, or None."""
+    for line in reversed(out.splitlines()):
+        if line.startswith(MARK):
+            try:
+                return json.loads(line[len(MARK):])
+            except ValueError:
+                return None
+    return None
+
+
+def sha256_head(path, n):
+    """sha256 of the first n bytes of a file (a read-back runs to the partition's end and beyond)."""
+    h, left = hashlib.sha256(), n
+    with open(path, "rb") as f:
+        while left > 0:
+            block = f.read(min(1 << 20, left))
+            if not block:
+                break
+            h.update(block)
+            left -= len(block)
+    return h.hexdigest(), n - left
+
+
+class N6:
+    """The N6 on the Pi's USB. Found by asking it (omv.board_type(), D81); ports whose name says Pyboard are asked
+    first, and the search stops at the first N6, so the AE3 is normally not touched (one try each, no retry loop)."""
+
+    def __init__(self, folder, mpremote, dfu_util, ports_glob, alive):
+        self.folder, self.mpremote, self.dfu, self.ports_glob = folder, mpremote, dfu_util, ports_glob
+        self.alive, self.port = alive, None
+
+    def run(self, argv, limit_s, tail=1500):
+        return run_steps(argv, None, self.alive, self.folder, limit_s, tail)
+
+    def exec(self, port, code, limit_s=TOOL_S):
+        return self.run([self.mpremote, "connect", port, "exec", code], limit_s)
+
+    def asks_n6(self, port):
+        code, out = self.exec(port, "import omv; print('NB:' + omv.board_type())", 15)
+        return code == 0 and (MARK + "N6") in out
+
+    def find(self):
+        if self.port:                              # once found, only the N6's own port is asked (never the AE3's)
+            if os.path.exists(self.port) and self.asks_n6(self.port):
+                return self.port
+            raise Stop(NO_ANSWER, f"the N6 does not answer on {os.path.basename(self.port)}")
+        ports = sorted(glob.glob(self.ports_glob), key=lambda p: ("Pyboard" not in os.path.basename(p), p))
+        for p in ports:
+            if self.asks_n6(p):
+                self.port = p
+                return p
+        raise Stop(NO_ANSWER, f"no N6 answered on the Pi's USB (asked {len(ports)} port(s): "
+                              f"{', '.join(os.path.basename(p) for p in ports) or 'none'})")
+
+    def script(self, code, limit_s=TOOL_S):
+        rc, out = self.exec(self.find(), code, limit_s)
+        found = board_json(out)
+        if rc is None:
+            raise Stop(NO_ANSWER, f"the N6 did not finish its script in {limit_s:g} s: {out.strip()[-400:]}")
+        if rc != 0 or found is None:
+            raise Stop(LOAD_FAILED, f"the N6's script failed (exit {rc}): {out.strip()[-600:]}")
+        return found
+
+    def rom(self):
+        return self.script(ROM_SCRIPT)
+
+    def in_dfu(self):
+        rc, out = self.run([self.dfu, "-d", N6_DFU, "-l"], TOOL_S)
+        return rc == 0 and f'alt={ROMFS_ALT}, name="ROMFS0"' in out
+
+    def enter_dfu(self):
+        """The N6's bootloader, with alt 3 named ROMFS0 (checked on the day, as RESTORE.md says)."""
+        if self.in_dfu():
+            return
+        self.exec(self.find(), "import machine; machine.bootloader()", 15)   # an error as the port drops is normal
+        deadline = time.monotonic() + BACK_S
+        while time.monotonic() < deadline:
+            if self.in_dfu():
+                return
+            time.sleep(1)
+        raise Stop(NO_ANSWER, f"the N6's bootloader ({N6_DFU}, alt {ROMFS_ALT} = ROMFS0) did not appear within "
+                              f"{BACK_S:g} s of machine.bootloader()")
+
+    def write(self, path, alt=ROMFS_ALT):
+        if alt != ROMFS_ALT:                       # D82: alt 0 (and every other alt) is never written
+            raise Stop(LOAD_FAILED, f"refused: only alt {ROMFS_ALT} (ROMFS0) is ever written, not alt {alt}")
+        rc, out = self.run([self.dfu, "-d", N6_DFU, "-a", str(ROMFS_ALT), "-D", path], FLASH_S)
+        if rc != 0:
+            raise Stop(LOAD_FAILED, f"dfu-util could not write ROMFS0 (exit {rc}): {out.strip()[-400:]}")
+
+    def read_back(self, n):
+        """sha256 of the first n bytes of ROMFS0 read back over DFU (verify by read-back, not by 'Download done')."""
+        check = os.path.join(self.folder, "models", "n6_readback.bin")
+        if os.path.exists(check):
+            os.remove(check)                       # dfu-util does not write over a file
+        rc, out = self.run([self.dfu, "-d", N6_DFU, "-a", str(ROMFS_ALT), "-U", check], FLASH_S)
+        try:
+            if rc != 0 or not os.path.isfile(check):
+                raise Stop(READBACK, f"dfu-util could not read ROMFS0 back (exit {rc}): {out.strip()[-400:]}")
+            have, got = sha256_head(check, n)
+            if got < n:
+                raise Stop(READBACK, f"the read-back holds {got:,} bytes, fewer than the {n:,} written")
+            return have
+        finally:
+            if os.path.exists(check):
+                os.remove(check)
+
+    def boot(self):
+        """Leave the bootloader (a read of alt 2 with -R; exit 251 is normal), then wait for the N6 to answer."""
+        junk = os.path.join(self.folder, "models", "n6_boot.bin")
+        if os.path.exists(junk):
+            os.remove(junk)
+        self.run([self.dfu, "-d", N6_DFU, "-a", str(BOOT_ALT), "-U", junk, "-R"], FLASH_S)
+        if os.path.exists(junk):
+            os.remove(junk)
+        deadline = time.monotonic() + BACK_S
+        while time.monotonic() < deadline:
+            try:
+                return self.find()
+            except Stop:
+                time.sleep(1)
+        raise Stop(NO_ANSWER, f"the N6 did not answer within {BACK_S:g} s of leaving its bootloader")
+
+    def flash(self, path, length, want, rom):
+        """Write `path` to ROMFS0, read it back (compare capped at `length`), boot, and check /rom against `rom`."""
+        self.enter_dfu()
+        self.write(path)
+        have = self.read_back(length)
+        if have != want:
+            raise Stop(READBACK, f"ROMFS0 read back differs: sha256 {have[:16]}… of the first {length:,} bytes, "
+                                 f"written {want[:16]}…")
+        self.boot()
+        listing = self.rom()
+        if listing != rom:
+            missing = sorted(set(rom) - set(listing))
+            extra = sorted(set(listing) - set(rom))
+            sizes = sorted(k for k in set(rom) & set(listing) if rom[k] != listing[k])
+            raise Stop(LOAD_FAILED, f"/rom does not list the image: missing {missing}, extra {extra}, "
+                                    f"other size {sizes}")
+        return have, listing
 
 
 def check_memory(what):
@@ -155,23 +369,92 @@ def check_memory(what):
 
 
 class Agent:
-    def __init__(self, folder, runtime="litert"):
+    def __init__(self, folder, runtime="litert", mpremote="mpremote", dfu_util="dfu-util", ports_glob=N6_PORTS):
         self.folder = os.path.abspath(folder)
         self.models_dir = os.path.join(self.folder, "models")
         self.runtime = RUNTIMES[runtime]()
         self.loaded = {}          # name -> (runtime model, threads)
         self.mem_before_load = self.mem_after_load = None
         self.alive = lambda done: None
+        self.n6 = N6(self.folder, mpremote, dfu_util, ports_glob, lambda done: self.alive(done))
 
     def handle(self, req):
         op = req.get("op")
+        kind = req.get("kind", "pi")
+        if kind == "n6" and op in ("info", "load", "time", "reset", "restore"):
+            return getattr(self, "n6_" + op)(req)
         fn = getattr(self, "op_" + str(op), None)
         if fn is None:
             raise Stop(LOAD_FAILED, f"unknown op {op!r}")
-        kind = req.get("kind", "pi")
         if op in ("info", "load", "time", "reset") and kind != "pi":
-            raise Stop(NOT_BUILT, f"the {kind} route is not built yet (S7 bites 4-5); this agent runs the Pi only")
+            raise Stop(NOT_BUILT, f"the {kind} route is not built yet (S7 bite 5); this agent runs the Pi and the N6")
         return fn(req)
+
+    # --- the N6 (S7 bite 4b) ---
+    def _n6_file(self, name, want):
+        path = os.path.join(self.models_dir, file_name(name))
+        if not os.path.isfile(path):
+            raise Stop(LOAD_FAILED, f"{name} is not in {self.models_dir}: the copy did not arrive", written=False)
+        have = sha256(path)
+        if have != want:
+            raise Stop(READBACK, f"{name} on the Pi has sha256 {have[:16]}…, the laptop sent {want[:16]}…",
+                       written=False)
+        return path
+
+    def n6_info(self, req):
+        found = self.n6.script(INFO_SCRIPT)
+        return {"kind": "n6", **found, "port": os.path.basename(self.n6.port or ""), "rom": self.n6.rom(),
+                "model_area_bytes": PARTITION}
+
+    def n6_load(self, req):
+        """Write our image (the backup's entries + ours, D82a) to ROMFS0 and check it. Both files are checked
+        before anything is written; a Stop says whether the write had started ("written"), so the laptop knows
+        whether the restore must run."""
+        image = self._n6_file(req["image"], req["image_sha256"])
+        self._n6_file(req["backup"], req["backup_sha256"])       # the way back is on the Pi before the first write
+        if os.path.getsize(image) != int(req["image_len"]) or int(req["image_len"]) > PARTITION:
+            raise Stop(LOAD_FAILED, f"the image is {os.path.getsize(image):,} bytes, the laptop said "
+                                    f"{req['image_len']:,} (model area {PARTITION:,})", written=False)
+        try:
+            self.n6.enter_dfu()
+        except Stop as e:
+            e.extra["written"] = False
+            raise
+        try:
+            have, listing = self.n6.flash(image, int(req["image_len"]), req["image_sha256"], req["rom"])
+        except Stop as e:
+            e.extra["written"] = True
+            raise
+        return {"loaded": sorted(req.get("ours", [])), "route": f"ROMFS0, DFU alt {ROMFS_ALT}", "readback_sha256": have,
+                "rom": listing, "port": os.path.basename(self.n6.port or "")}
+
+    def n6_restore(self, req):
+        """The backup's partition back into ROMFS0, read back whole, booted, /rom equal to the backup's listing."""
+        try:
+            backup = self._n6_file(req["backup"], req["backup_sha256"])
+            if os.path.getsize(backup) != PARTITION:
+                raise Stop(RESTORE_FAILED, f"the backup on the Pi is {os.path.getsize(backup):,} bytes, not the "
+                                           f"partition's {PARTITION:,}")
+            have, listing = self.n6.flash(backup, PARTITION, req["backup_sha256"], req["rom"])
+        except Stop as e:
+            raise Stop(RESTORE_FAILED, f"the restore of ROMFS0 did not finish: {e}") from None
+        return {"restored": True, "readback_sha256": have, "rom": listing}
+
+    def n6_time(self, req):
+        n = int(req["n"])
+        if n < 1:
+            raise Stop(LOAD_FAILED, "a window needs at least one inference")
+        code = TIME_SCRIPT % {"path": "/rom/" + req["rom_name"], "warmups": WARMUPS, "n": n}
+        r = self.n6.script(code, TOOL_S + 2.0 * (n + WARMUPS))
+        return {"n": n, "warmups": WARMUPS, "ms_mean": r["us_total"] / n / 1000, "ms_min": r["us_min"] / 1000,
+                "ms_max": r["us_max"] / 1000, "mem_before_load": r["mem_before_load"],
+                "mem_after_load": r["mem_after_load"], "mem_after": r["mem_after"], "input_shape": r["input_shape"]}
+
+    def n6_reset(self, req):
+        rc, out = self.n6.run([self.n6.mpremote, "connect", self.n6.find(), "soft-reset"], TOOL_S)
+        if rc != 0:
+            raise Stop(NO_ANSWER, f"the N6 did not take a soft reset (exit {rc}): {out.strip()[-300:]}")
+        return {"reset": True}
 
     def op_hello(self, req):
         return {"agent": VERSION, "python": platform.python_version(), "machine": platform.machine(),
@@ -314,7 +597,7 @@ def serve(agent, lines, write):
         try:
             write({"id": rid, "ok": True, **agent.handle(req)})
         except Stop as e:
-            write({"id": rid, "ok": False, "stop": e.stop, "error": str(e)})
+            write({**e.extra, "id": rid, "ok": False, "stop": e.stop, "error": str(e)})
         except Exception as e:                         # a fault in the agent itself: reported, the agent keeps going
             write({"id": rid, "ok": False, "stop": LOAD_FAILED, "error": f"agent fault: {type(e).__name__}: {e}"})
         if req.get("op") == "bye":
@@ -331,12 +614,18 @@ def main(argv):
     global FAKE_INSTALL
     FAKE_INSTALL = "--fake-install" in argv
     os.makedirs(os.path.join(folder, "models"), exist_ok=True)
+    mpremote = os.path.expanduser("~/mpv/bin/mpremote")             # the Pi's mpremote (RESTORE.md)
+    tools = {"mpremote": opt("--mpremote", mpremote if os.path.exists(mpremote) else "mpremote"),
+             "dfu_util": opt("--dfu-util", "dfu-util"), "ports_glob": opt("--ports", N6_PORTS)}
+    global PARTITION, BACK_S
+    PARTITION = int(opt("--partition", PARTITION))                # tests only: a small fake model area
+    BACK_S = float(opt("--back-s", BACK_S))
 
     def write(obj):
         sys.stdout.write(json.dumps(obj) + "\n")
         sys.stdout.flush()
 
-    serve(Agent(folder, runtime), sys.stdin, write)
+    serve(Agent(folder, runtime, **tools), sys.stdin, write)
 
 
 if __name__ == "__main__":

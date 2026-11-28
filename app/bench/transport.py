@@ -93,10 +93,13 @@ class Transport:
         self.proc.stdin.flush()
         while True:
             line = self._readline()
+            if line is None:                          # QE PR 119 nit 3: the agent ended; say so, with its log
+                err = self.log_tail().strip()
+                raise BoardError(NO_ANSWER, f"the bench agent ended before it answered {op!r} ({self.where()})"
+                                            f"{': ' + err[-300:] if err else ''}")
             if not line:
-                err = self.log_tail() if self.proc.poll() is not None else ""
                 raise BoardError(NO_ANSWER, f"no answer from the bench agent to {op!r} within {self.timeout_s:g} s "
-                                            f"({self.where()}){': ' + err.strip()[-300:] if err.strip() else ''}")
+                                            f"({self.where()})")
             try:
                 answer = json.loads(line)
                 if not isinstance(answer, dict):
@@ -104,23 +107,25 @@ class Transport:
             except ValueError:
                 raise BoardError(BAD_ANSWER, f"the bench agent printed a line that is not its answer to {op!r}: "
                                              f"{line.strip()[:200]!r} ({self.where()})") from None
+            if isinstance(answer.get("id"), int) and answer["id"] < rid:
+                continue                              # QE PR 119 nit 2: a late line from an earlier request
             if not (answer.get("alive") and answer.get("id") == rid):
                 break                                 # an "alive" line restarts the wait; anything else is the answer
         if answer.get("id") != rid:
             raise BoardError(NO_ANSWER, f"the bench agent answered request {answer.get('id')}, not {rid}")
         if not answer.get("ok"):
-            raise BoardError(answer.get("stop") or NO_ANSWER, answer.get("error") or "the agent refused")
+            raise BoardError(answer.get("stop") or NO_ANSWER, answer.get("error") or "the agent refused",
+                             detail={k: v for k, v in answer.items() if k not in ("id", "ok", "stop", "error")})
         return {k: v for k, v in answer.items() if k not in ("id", "ok")}
 
-    def _readline(self) -> str:
-        """The next whole line, or "" after timeout_s of silence or when the agent's stdout has closed."""
+    def _readline(self) -> str | None:
+        """The next whole line; "" after timeout_s of silence; None when the agent's stdout has closed."""
         try:
             line = self._lines.get(timeout=self.timeout_s)
         except queue.Empty:
             return ""
         if line is None:
             self._lines.put(None)                          # stays closed for any later read
-            return ""
         return line
 
     def close(self) -> None:
@@ -150,6 +155,7 @@ class LocalTransport(Transport):
 
     def __init__(self, folder: Path, runtime: str = "fake", python: str = sys.executable, timeout_s: float = TIMEOUT_S,
                  extra: tuple[str, ...] = (), log: Path | None = None):
+        """extra: more agent options (tests: --alive-s, --fake-ms; the fake N6's --mpremote, --dfu-util, --ports)."""
         self.folder, self.runtime, self.python, self.timeout_s = Path(folder), runtime, python, timeout_s
         self.log = Path(log) if log else self.folder / "agent.log"
         self.extra = tuple(extra)                     # tests: --alive-s, --fake-ms

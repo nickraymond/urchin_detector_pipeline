@@ -16,13 +16,14 @@ from app import config
 from app.bench import card as cards
 from app.bench import run as runs
 from app.bench.board import (BAD_ANSWER, LOAD_FAILED, LOW_MEMORY, NO_ANSWER, NOT_BUILT, NOT_LOADED, READBACK,
-                             BoardError, Model, open_board)
+                             RESTORE_FAILED, BoardError, Model, open_board)
 from app.bench.units import Refused
 from app.jobctl import worker as jw
 
 HINTS = {   # D84: what to do after each stop rule
     NO_ANSWER: "the board did not answer: check its cable and power, then run the card again",
-    READBACK: "the model area's read-back differs: put that board back from the backup (RESTORE.md) before "
+    READBACK: "the model area's read-back differs: unless the message says the built-in restore already put it back "
+              "(the N6), put that board back from the backup (RESTORE.md) before "
               "anything else, and note it in the rig log",
     LOAD_FAILED: "the load failed: check the rig log for this change and undo it before the next run",
     NOT_LOADED: "the model was not on the board when it was timed: run the card again; if it repeats, report it",
@@ -30,6 +31,9 @@ HINTS = {   # D84: what to do after each stop rule
                 "report it; nothing more runs until it is understood",
     LOW_MEMORY: "the Pi had under 50 MB free (D89): find what uses its memory (another process?) before running again",
     NOT_BUILT: "this board's route is not built yet: use the fake board or wait for its bite",
+    RESTORE_FAILED: "the N6's model area is NOT known to be the backup's: run nothing more on the rig; put ROMFS0 "
+                    "back by hand (RESTORE.md, \"N6: restore a partition\"), replugging the N6 if it shows neither "
+                    "its serial port nor its bootloader, and read it back before the next card",
 }
 
 
@@ -104,7 +108,8 @@ def main() -> None:
                         seconds=round(t["ms_mean"] * t["n"] / 1000, 3))
     except BoardError as e:
         _close(locals().get("board"))
-        run.update(outcome=f"stopped: {e.stop}", ended=_now(), error=str(e))
+        run.update(outcome=f"stopped: {e.stop}", ended=_now(), error=str(e),
+                   restores=getattr(locals().get("board"), "restores", []))     # the N6's built-in restore (bite 4b)
         _write(folder / "run.json", run)
         raise RuntimeError(f"stop rule {e.stop}: {e}. Next: {HINTS.get(e.stop, 'see the job log')}. "
                            "The windows already timed are kept.") from None

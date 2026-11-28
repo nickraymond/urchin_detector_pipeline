@@ -854,6 +854,35 @@ write route with "restore ROMFS0 from the backup image, verified by read-back" a
 load, fault or timeout; card 4 (YOLOX Nano beside the vendor files, against the earlier 10.6 ms) is the first N6 write. If it
 does not load, OpenMV's SDK that matches v5.0.1 goes to Nick.
 
+**As built, bite 4b** (`app/bench/n6_board.py`, the agent's `N6`; D82, D82a, D83, D84). `open_board` gives a listed unit's
+`n6` an `N6Board` over the same Unit-only `SshTransport` (the agent runs with the system `python3`: no runtime is needed);
+the AE3 stays refused. **Load:** the backup file must be 25,165,828 bytes with the recorded sha256 (`dbffa6d2…`,
+`n6_dfu_run.log`); its first 25,165,824 bytes are the partition, and `encode(decode(x)) == x[:length]` is checked on it
+(QE PR 119 nit 1) before anything is built. Our image is `with_ours(backup entries, [each card model as
+"<name>.tflite", align 32])`, written to the run folder with the backup's partition; both are copied to the agent's
+`models/` (backup first) inside the load's rig-log entry. The agent checks both sha256s, enters the bootloader
+(`machine.bootloader()`, then `dfu-util -d 37c5:9206 -l` must show alt 3 named ROMFS0, within 60 s), writes with `-a 3 -D`
+(the agent refuses any other alt), reads back with `-a 3 -U` (compare capped at the image length), boots with a read of
+alt 2 and `-R` (`ml/README.md`), waits for the N6 to answer, and checks that `/rom` lists exactly the image's names and
+sizes. The N6 is found by asking (`omv.board_type()`), ports named Pyboard first, stopping at the first N6, so the AE3 is
+not asked unless the N6's port is missing; after a boot only the N6's own port is asked again. **Restore** (built in):
+any stop rule from a load whose write may have started (the agent answers `written`; unknown counts as written), from a
+window or from a reset runs `N6Board.restore()` before the error reaches the job: its own rig-log change ("restore ROMFS0
+from the backup"), the backup's partition written to alt 3, read back whole, booted, `/rom` equal to the backup's 10
+entries; the error then says it was put back, and `run.json` keeps each restore. A restore that does not verify is
+`restore_failed` (new stop rule and hint: run nothing more; restore by hand per RESTORE.md, replugging the N6 if it shows
+neither its serial port nor its bootloader). The agent is started again for the restore if it had ended. **Time:** one
+MicroPython script per window through `mpremote exec`: `gc.mem_free()` before `ml.Model('/rom/<name>')` and after, a
+pseudo-random image at the model's input size made on the board from seed 0 (nothing is written to the camera's
+`/flash`), 2 warm-ups, `time.ticks_us()` around each of N predicts (mean, min, max), `gc.mem_free()` after; one JSON line
+back after `NB:` (never base64). The agent sends alive lines while mpremote and dfu-util run; its own limits: 60 s for a
+script or a listing, 60 s + 2 s per inference for a window, 900 s for a 24 MiB write or read. **Not known, for card 4:**
+whether a board whose firmware cannot boot our image comes back in DFU by itself; the fake N6 covers both ends (it boots,
+or it shows nothing and the job ends as `restore_failed`). Laptop check, 2026-11-27: the real backup passes the checks above, and
+our image with `yolox-nano-conv-256-c5` (1,194,488 bytes) is 11,195,160 bytes with the 10 vendor entries unchanged. Also
+QE PR 119 nits 2 (a late line from an earlier request is dropped) and 3 (a closed stdout says "the agent ended", with the
+log's tail).
+
 **Folders:**
 
 ```
