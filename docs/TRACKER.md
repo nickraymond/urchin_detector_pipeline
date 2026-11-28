@@ -678,6 +678,13 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
 - [x] pre-training is slow to feed: about 3 s per step of 32 on Urchinbot's 12-megapixel photos against 0.9 s
       on small frames (decoding, not the GPU); keep shrunk copies of outside images in the data folder
       *(`<data_dir>/cache/outside_images/`; 0.093 → 0.023-0.030 s per image once made, DESIGN §Bench results)*
+- [ ] carried from QE PR 120 (QE 10): (1) `samples._cached` globs the whole cache folder on every load: 7 ms per
+      call with names for all 9,872 Urchinbot photos, more than the warm read (2 ms); a sub-folder per key or a dict
+      filled once per run; (2) DESIGN to say what the cache costs on disk (about 10 GB for all of Urchinbot from the
+      PR's 61.2 MB for 63 copies) and that stale copies of changed originals are never removed; (3) a cold load
+      gives the original's pixels, later loads the copy's: one sentence in DESIGN (the D90 validation reads copies
+      too); (4) a failed cache write or unreadable copy ends the run with a bare OSError: fall back to the original
+      with one logged line
 - [x] frames where only some of the run's classes are fully checked are used for their labeled boxes only
       (Lead call D66; PR 93)
 - [ ] mosaic (four frames quilted into one canvas; in the earlier v2 recipe, not built here)
@@ -749,10 +756,13 @@ per bite, about 300 lines each. Bites 1–2 need only a trained model folder (a 
       synthetic tests, mAP50 checked against pycocotools on a hand-made case
       *(split by the builder: 2a the figures with the frames and objects behind each, `metrics.json`, AP50 against
       pycocotools (PR 122); 2b the intervals (Wilson checked against scipy; seeded bootstrap; whole groups from 5
-      site-and-date groups) and the rank floor per class: `app/evaluate/metrics.py`)*
+      site-and-date groups) and the rank floor per class: `app/evaluate/metrics.py`, PR 124; a collapsed
+      bootstrap shows Wilson on the objects, D92a)*
 
 **Bite 3 — Per-frame view**
 - [ ] ground truth and predictions drawn, sorted by worst error, in the app's large viewer
+- [ ] (QE PR 121) an eval goes stale when `best.pt` changes (a paused run resumed after it was evaluated): the
+      model list compares `eval.json`'s `weights_sha256` with the file and says so
 
 **Bite 4 — Model list**
 - [ ] `/models`: every model with kind, type, size, dataset version, date, key scores, file size, status from the

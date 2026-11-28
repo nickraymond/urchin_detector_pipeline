@@ -159,6 +159,23 @@ def _percentiles(vals: list) -> list[float] | None:
     return [round(float(lo), 6), round(float(hi), 6)]
 
 
+def _collapsed(ci: dict, shares: dict) -> dict:
+    """D92a (Lead call, lead 2): a bootstrap interval of zero width (e.g. recall 1.0 [1.0, 1.0] on 10 objects) says
+    nothing; for a share of objects (or predictions) the Wilson interval on them replaces it, labeled. The others
+    (AP50, the means) have no Wilson: their zero-width interval stays, labeled too. Changes ci in place."""
+    notes = {}
+    for k, iv in ci.items():
+        if iv is None or iv[1] - iv[0] > 0:
+            continue
+        if k in shares and shares[k][1]:
+            hit, n, what = shares[k]
+            ci[k] = wilson(hit, n)
+            notes[k] = f"bootstrap gave no spread; Wilson on {n} {what}"
+        else:
+            notes[k] = "bootstrap gave no spread"
+    return notes
+
+
 def figures(frames: list[dict], predictions: dict[str, list], class_ids: list[int], factor: float | None,
             threshold: float, groups: dict[str, str] | None = None) -> dict:
     """frames: the test samples ({"file", "width", "height", "boxes": [[class id, x, y, w, h]]}); predictions:
@@ -175,6 +192,9 @@ def figures(frames: list[dict], predictions: dict[str, list], class_ids: list[in
         point = _values(st, np.arange(len(frames)))
         boots = [_values(st, idx) for idx in boot["index"]]
         ci = {k: _percentiles([b[k] for b in boots]) if point[k] is not None else None for k in point}
+        tp, n_pred = int(st["tp"].sum()), int(st["n_pred"].sum())
+        notes = _collapsed(ci, {"precision": (tp, n_pred, "predictions"), "recall": (tp, n_true, "objects"),
+                                "small_recall": (int(st["small_hit"].sum()), small_true, "objects")})
         n_all = len(frames)
         ok = n_all >= RANK_FRAMES and n_true >= RANK_OBJECTS
         out[c] = {
@@ -195,6 +215,8 @@ def figures(frames: list[dict], predictions: dict[str, list], class_ids: list[in
                            f"{n_all} test frames and {n_true} true objects of this class; ranking two models "
                            f"needs at least {RANK_FRAMES} frames and {RANK_OBJECTS} objects"},
         }
+        for k, note in notes.items():         # D92a
+            out[c][k]["interval_note"] = note
     return {"classes": {str(c): v for c, v in out.items()}, "threshold": threshold, "small_px": SMALL_PX,
             "frames": len(frames),
             "intervals": {"level": 0.95, "wilson": list(WILSON),

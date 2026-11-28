@@ -35,6 +35,18 @@ not in each run folder, and the backup is copied to the Pi only when it is not t
 
 ---
 
+## 2026-11-27 — Sprint S9 — D92a: a collapsed bootstrap shows Wilson on the objects (S7 builder 1, on S9)
+**Branch:** sprint/9-d92a
+**Done:** the lead's call D92a in `app/evaluate/metrics.py` (`_collapsed`): a zero-width bootstrap interval on
+recall, small-object recall or precision becomes the Wilson interval on its objects (or predictions), labeled in
+`interval_note`; AP50 and the means keep theirs with "bootstrap gave no spread". TRACKER boxes for QE 10's four
+nits on PR 120 (the cache) and its note for bite 3 (an eval goes stale when best.pt changes).
+**Self-test:** tests only (no page): 10 of 10 found gives recall 1.0 with Wilson [0.722, 1.0] (scipy 0.72247).
+**Broke/surprised us:** nothing.
+**Next:** S9 bite 3 (per-frame view), as the lead assigns.
+
+---
+
 ## 2026-11-27 — Sprint S7 — The N6's DFU serial out of git (S7 builder, lead 2's ask)
 **Branch:** sprint/7-n6-serial-config
 **Done:** PR 123 had put the bench N6's real DFU serial in `app/bench/n6_board.py`, against SPEC's hard constraint (no
