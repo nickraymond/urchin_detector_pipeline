@@ -280,3 +280,33 @@ def test_a_card_of_models_already_in_rom_runs_with_no_write(site, jc):
     assert run["route"] == "already in /rom (no write)" and run["restores"] == [] and run["finish"]["hard_reset"]
     assert len(runs.windows_done(runs.run_dir(data, p["run_id"]))) == 3
     assert riglog.read(data) == []                           # nothing written: no rig change
+
+
+
+def test_csi_first_is_an_n6_option_and_reaches_a_real_n6_only():
+    from app.bench.worker import board_settings
+    real = units.parse({"field_units": [], "n6_dfu_serial": "ABCDEF0123456789",
+                        "units": {"b": {"ssh_host": "b", "cameras": ["n6"]}}}).unit("b")
+    assert board_settings({"board": "n6", "csi_first": True}, real) == {"csi_first": True}
+    assert board_settings({"board": "n6"}, real) == {} and board_settings({"board": "n6", "csi_first": True},
+                                                                          units.Bench().unit("fake")) == {}
+
+
+@pytest.mark.parametrize("over, ok", [({"board": "n6", "csi_first": "on", "models": "", "rom_models": "fomo_face_detection.tflite"}, True),
+                                      ({"board": "pi", "csi_first": "on"}, False),
+                                      ({"csi_first": "on", "restore_only": "on", "models": ""}, False)])
+def test_the_card_takes_csi_first_on_an_n6_that_times_something(site, over, ok):
+    cfg, data = site
+    if ok:
+        assert card.load(data, new_card(data, cfg.bench, **over))["csi_first"] is True
+    else:
+        with pytest.raises(card.CardError, match="CSI snapshot first"):
+            new_card(data, cfg.bench, **over)
+
+
+def test_a_board_reset_says_whether_romfs0_was_put_back():
+    """Lead 2, card 7: a no-write card's board_reset said "the job put ROMFS0 back"."""
+    from app.bench.worker import hint
+    assert "put ROMFS0 back" in hint("board_reset", {"restores": [{"restored": True}]})
+    no_write = hint("board_reset", {"restores": []})
+    assert "nothing was restored" in no_write and "put ROMFS0 back" not in no_write

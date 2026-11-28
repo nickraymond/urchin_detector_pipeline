@@ -56,8 +56,23 @@ def _write(path, body: dict) -> None:
 
 
 def board_settings(c: dict, unit) -> dict:
-    """What the card fixes on the board itself: a real Pi runs the card's thread count (D83, D88)."""
-    return {"threads": c.get("threads", 1)} if c["board"] == "pi" and not unit.fake else {}
+    """What the card fixes on the board itself: a real Pi runs the card's thread count (D83, D88); a real N6 takes
+    the CSI snapshot first when the card says so (D83c)."""
+    if unit.fake:
+        return {}
+    if c["board"] == "pi":
+        return {"threads": c.get("threads", 1)}
+    return {"csi_first": True} if c["board"] == "n6" and c.get("csi_first") else {}
+
+
+def hint(stop: str, run: dict) -> str:
+    """What to do next (HINTS); a board reset says whether ROMFS0 was put back or nothing had been written (lead 2,
+    card 7: a no-write card's text said "the job put ROMFS0 back")."""
+    if stop == BOARD_RESET and not run.get("restores"):
+        return ("the N6 reset itself during the timing (its port dropped or it showed its bootloader). Nothing had "
+                "been written to it, so nothing was restored; the end step booted it and reset it. The message names "
+                "the last stage that answered: report it")
+    return HINTS.get(stop, "see the job log")
 
 
 def _close(board) -> None:
@@ -165,7 +180,7 @@ def main() -> None:
         run.update(outcome=f"stopped: {e.stop}", ended=_now(), error=str(e),
                    restores=getattr(locals().get("board"), "restores", []))     # the N6's built-in restore (bite 4b)
         _write(folder / "run.json", run)
-        raise RuntimeError(f"stop rule {e.stop}: {e}. Next: {HINTS.get(e.stop, 'see the job log')}. "
+        raise RuntimeError(f"stop rule {e.stop}: {e}. Next: {hint(e.stop, run)}. "
                            "The windows already timed are kept.") from None
     except Refused as e:                  # e.g. the alias now resolves to a field unit (QE PR 112 nit 2)
         _close(locals().get("board"))
