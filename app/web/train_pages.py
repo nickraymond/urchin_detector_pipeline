@@ -36,6 +36,9 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             rows.append({"id": mid, "arch": rec.get("arch", {}), "train": t,
                          "done": len(got), "epochs": t.get("epochs"),
                          "last": got[-1] if got else None,
+                         # QE PR 111: best.pt comes only from validated epochs, so a run stopped before
+                         # its first one has none (S9's evaluate refuses such a model)
+                         "has_best": (mdir / "checkpoints" / "best.pt").is_file(),
                          "job": job_view(jobs.get(str(mdir)))})
         return rows
 
