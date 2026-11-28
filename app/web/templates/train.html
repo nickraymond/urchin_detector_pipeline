@@ -27,7 +27,9 @@
     <td class="hint">{% if picked.outside %}Outside data in this version: {% for o in picked.outside %}{{ o.name }} ({{ o.licence }}; {{ "{:,}".format(o.counts.train.images) }} training images){% if not loop.last %}, {% endif %}{% endfor %}.
       A pre-training run learns one class, "urchin", from it and ignores the class boxes below; a later run on this project's frames can start from that model.{% else %}This version holds no outside data (add a source on the Datasets page and freeze again). Pre-training on it gives a model that later runs can start from.{% endif %}</td></tr>
   <tr><th>Classes</th><td>{% for c in classes %}<label><input type="checkbox" name="classes" value="{{ c.id }}"{% if c.id in form.class_ids %} checked{% endif %}> {{ c.name }}</label> {% endfor %}</td>
-    <td class="hint">Default: sea stars and urchins (Nick, 2026-11-27). A class counts only on frames where it is fully checked.</td></tr>
+    <td class="hint">Default: sea stars and urchins (Nick, 2026-11-27). A class counts only on frames where it is fully checked.
+      {% if frame_counts %}<span id="frame-counts"{% if not frame_counts.full or not frame_counts.valid %} class="problem"{% endif %}>With the classes ticked when this page opened: <b>{{ frame_counts.full }}</b> training frames in full{% if frame_counts.boxes_only %} + <b>{{ frame_counts.boxes_only }}</b> for their labeled boxes only (never as "nothing here"){% endif %}, <b>{{ frame_counts.valid }}</b> validation frames.{% if not frame_counts.full %} No frame teaches "no object" with these classes: the detector may fire everywhere. Tick "fully checked" on the Review page for the classes you reviewed.{% endif %}{% if not frame_counts.valid %} A run needs at least one validation frame with every ticked class fully checked.{% endif %}</span>
+      Other choices: <a href="/p/{{ info.name }}/datasets">Datasets</a>.{% endif %}</td></tr>
   <tr><th>Input size (tile, px)</th><td><select name="input">{% for px in t0.inputs %}<option{% if px == form.input %} selected{% endif %}>{{ px }}</option>{% endfor %}</select></td><td class="hint" data-why="input">{{ t0.why.input }}</td></tr>
   <tr><th>Epochs</th><td><input name="epochs" type="number" min="1" max="1000" value="{{ form.epochs }}"></td><td class="hint" data-why="epochs">{{ t0.why.epochs }}</td></tr>
   <tr><th>Augmentation</th><td><select name="augment">{% for p in t0.presets %}<option{% if p == form.augment %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></td><td class="hint" data-why="augment">{{ t0.why.augment }}</td></tr>
@@ -61,6 +63,8 @@
 <h2>Model {{ shown.id }}</h2>
 <p class="hint">{{ shown.arch.classes | join(", ") }} · dataset version {{ shown.train.dataset.version }} ({{ shown.train.dataset.hash[:8] }})
   · {{ shown.train.epochs }} epochs · augmentation {{ shown.train.augment }} · seed {{ shown.train.seed }} · start: {{ shown.train.start.kind }}{% if shown.train.start.model %} ({{ shown.train.start.model }}){% endif %}{% if shown.train.data == "outside" %} · <b>pre-training on outside data</b>{% endif %}</p>
+{% set last_rec = (shown.train.recorded or [{}]) | last %}{% if last_rec.valid_frames == 0 %}<p class="problem no-validation">No validation frames in this run: there is no validation curve, and the weights kept as best are the last epoch's.</p>{% endif %}
+{% if no_background %}<p class="problem no-background">{{ no_background }}</p>{% endif %}
 <div id="curves" data-src="/p/{{ info.name }}/train/metrics/{{ shown.id }}" data-val="/p/{{ info.name }}/train/val/{{ shown.id }}/"><div class="charts"></div>
   <p class="hint curve-note"></p>
   <div class="val-frames"></div>
