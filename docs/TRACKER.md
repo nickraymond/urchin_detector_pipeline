@@ -552,12 +552,23 @@ against the fake board only; the rig test session runs each board's first card a
       with the run as `card.json`)*
 
 **Bite 3 — The bench agent and the Pi** (D81, D85)
-- [ ] the agent (`app/bench/agent/`, plain Python 3): copied to its folder on the Pi over ssh, speaks JSON lines;
+- [x] the agent (`app/bench/agent/`, plain Python 3): copied to its folder on the Pi over ssh, speaks JSON lines;
       tested on the laptop against a fake transport; before the agent's first connection, the host that
       `ssh -G <alias>` resolves to is checked against `field_units` too (QE PR 98 nit 5)
-- [ ] Pi runs with LiteRT first (same 8-bit file as S6): N windows, `perf_counter_ns` around invoke, `VmHWM`;
+      *(3a, S6 builder 3: `app/bench/agent/bench_agent.py`, `transport.py`, `pi_board.py`; `open_board` still refuses
+      real units: wiring `PiBoard` into it lands after PR 105, which changes `board.py`)*
+- [~] Pi runs with LiteRT first (same 8-bit file as S6): N windows, `perf_counter_ns` around invoke, `VmHWM`;
       then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
+      *(3a: the agent's LiteRT runtime is built and self-tested on the laptop (convert-venv, ai-edge-litert 2.2.0,
+      Apache 2.0 by its metadata). Open: installing a runtime into its own environment in the agent's folder on
+      the Pi as a logged rig change (whether ai-edge-litert has a wheel for the Pi's Python is not checked yet);
+      ONNX Runtime; ncnn)*
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
+- [ ] 3b, before the Pi's first card (QE PR 108 nits): `PiBoard` wired into `open_board`, an `SshTransport` built
+      only from a unit `Bench.unit` returned (a test that an unlisted alias never reaches ssh); a non-JSON line on
+      the agent's stdout is a stop rule that quotes it; the agent's stderr goes to `agent.log` in the run folder, not
+      a pipe; the card states 1 thread for the first LiteRT card (D88); the runtime
+      installed on the Pi as a logged rig change, its version's licence read then
 
 **Bite 4 — The N6 route** (D82, D83)
 - [ ] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back

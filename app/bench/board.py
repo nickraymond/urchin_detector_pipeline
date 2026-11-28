@@ -5,7 +5,9 @@ A board is one of three kinds: `pi` (the bench Pi itself), `n6`, `ae3`. Its five
     info()                      kind, firmware, free memory, model area size
     load(model)                 put one model file on the board (a rig change: logged before and after)
     load_several(models)        put several on the board together (one model area image / one process)
-    time(name, n)               one timing window (D83): 2 warm-ups, then n inferences; ms and memory
+    time(name, n)               one timing window (D83): 2 warm-ups, then n inferences; returns at least n,
+                                warmups, ms_mean, ms_min, ms_max, mem_before_load, mem_after_load, mem_after
+                                (free memory in bytes; the bench job reads these, QE PR 108)
     reset()                     back to a known state (a soft reset; no rig change)
 
 A failure is a BoardError whose `stop` names the test card's stop rule (D84). The real kinds come with
