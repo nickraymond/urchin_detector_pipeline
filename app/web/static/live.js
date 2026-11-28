@@ -9,6 +9,12 @@
   let pressed = false;   // never swap a button away between mouse down and click
   document.addEventListener("pointerdown", () => { pressed = true; });
   document.addEventListener("pointerup", () => { setTimeout(() => { pressed = false; }, 300); });
+  // Cancel cannot be undone, so it asks first (S8 Demo rehearsal: a click meant for Pause
+  // landed on Cancel). Any form with data-confirm does the same.
+  document.addEventListener("submit", e => {
+    const f = e.target.closest("form[data-confirm]");
+    if (f && !window.confirm(f.dataset.confirm)) e.preventDefault();
+  }, true);
 
   function states(root) {
     return Array.from(root.querySelectorAll("[data-state]"), e => e.dataset.state);
@@ -25,7 +31,8 @@
     let last = null;
     const reloadOn = (box.dataset.reloadOn || "").split(" ").filter(Boolean);
     async function tick() {
-      if (!document.hidden && !pressed) {
+      // never swap a box while a field in it is being filled in (Stop by on a running job)
+      if (!document.hidden && !pressed && !box.contains(document.activeElement)) {
         try {
           const r = await fetch(box.dataset.live, {cache: "no-store"});
           const text = r.ok ? await r.text() : null;

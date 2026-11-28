@@ -148,6 +148,9 @@ table.plan td + td, table.plan th + th { text-align: right; }
 .job-panel.compact .job-bar progress { width: 110px; }
 .job-panel .job-line, .job-panel .job-bar, .job-panel .job-actions { margin-right: 10px; }
 .job-panel .job-line { display: inline-block; }
+/* S8 Demo rehearsal: Cancel stood right after Pause in a block that re-renders; keep it apart. */
+.job-actions .job-cancel { margin-left: 28px; }
+.job-actions .job-cancel button { color: #b71c1c; }
 table.jobs progress { width: 110px; }
 .running-sign { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #2e7d32;
   border-right-color: transparent; vertical-align: -1px; animation: job-spin 1s linear infinite; }

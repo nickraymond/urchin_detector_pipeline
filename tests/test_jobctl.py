@@ -132,6 +132,7 @@ def test_cancel_while_pausing_ends_the_worker_at_once(jc, tmp_path):
     jid = jc.submit("fake", params(tmp_path, n=3, delay=0.2, hang_at=2))
     wait_for(lambda: writes(tmp_path) == [1])
     wait_for(lambda: (tmp_path / "out" / ".hung").exists())   # item 2 takes 120 s
+    wait_for(lambda: jc.status(jid)["done"] == 1)            # the runner has read item 1 (QE 10)
     t = time.monotonic()
     jc.pause(jid)
     job = jc.status(jid)
@@ -410,3 +411,18 @@ def test_a_job_waiting_at_app_start_is_not_run_before_its_kind_is_registered(tmp
     c.start()                                                 # twice: harmless
     assert wait_state(c, again, "done", "error")["state"] == "done"
     c.close()
+
+
+def test_an_item_read_after_pause_keeps_the_finishing_message(jc, tmp_path):
+    """QE 10 (main, 2026-11-27): the runner wrote "item 1 of 3" over "finishing item 2 of 3…"
+    when it read item 1's event only after Pause was asked."""
+    jid = jc.submit("fake", params(tmp_path, n=3, delay=0.2, hang_at=2))
+    wait_for(lambda: (tmp_path / "out" / ".hung").exists())
+    jc.runner._on_event(jid, {"event": "item", "i": 1, "n": 3})
+    assert jc.status(jid)["message"] == "item 1 of 3"              # running: the plain count
+    with jc.runner._lock:
+        jc.runner._want[jid] = "pause"                            # as pause() leaves it
+    jc.runner._on_event(jid, {"event": "item", "i": 1, "n": 3})  # the late event
+    assert jc.status(jid)["message"].startswith("finishing item 2 of 3; Resume appears in")
+    jc.cancel(jid)
+    wait_state(jc, jid, "cancelled", timeout=10)

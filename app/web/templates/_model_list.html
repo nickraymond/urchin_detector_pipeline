@@ -1,0 +1,10 @@
+{# The Train page's model list, also rendered by /p/<name>/train/live/models so a running
+   model's epochs and job state follow the run (S8 Demo rehearsal: it showed 0 / 120 at epoch 29). #}
+{% if not models %}<p>No model yet.</p>{% else %}
+<table class="stages" id="model-list"><thead><tr><th>Model</th><th>Classes</th><th>Dataset</th><th>Epochs</th><th>Last epoch</th><th>Job</th></tr></thead><tbody>
+  {% for m in models %}<tr>{% if m.error %}<td>{{ m.id }}</td><td colspan="5" class="problem">{{ m.error }}</td>{% else %}
+    <td><a href="/p/{{ info.name }}/train?model={{ m.id }}">{{ m.id }}</a></td><td>{{ m.arch.classes | join(", ") }}</td>
+    <td>version {{ m.train.dataset.version }}</td><td>{{ m.done }} / {{ m.epochs }}</td>
+    <td>{% if m.last %}{% for k, v in m.last.items() if k not in ("epoch", "seconds") and v is number %}{{ k }} {{ v | round(4) }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %}</td>
+    <td>{{ m.job.state or "—" }}</td>{% endif %}</tr>{% endfor %}
+</tbody></table>{% endif %}

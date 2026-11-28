@@ -303,6 +303,12 @@ app/web/templates/jobs.html   the Jobs page: list, Pause / Resume / Cancel / Sta
   it waits becomes paused; Resume clears a Stop by that has passed and keeps one still to come (QE PR 37). `start_now` and Cancel work on a scheduled job; a project
   with a scheduled extraction or SAM job refuses another until it is started or cancelled. The Labeling page's
   finish time counts from the scheduled start.
+  *S8 Demo fixes (2026-11-27):* Stop by can be set, changed or cleared on a job that is scheduled, waiting,
+  running, paused or interrupted (`JobControl.set_stop_by`, `POST /jobs/<id>/stop-by`, a field on every full job
+  panel); the watcher reads the time from the store every second, so a new time holds at once. It must be still to
+  come and, on a scheduled job, after its start. Cancel asks to confirm (`data-confirm`, `live.js`) and stands apart
+  from Pause; a live box is never swapped while a field in it has focus. The Train page's model line and model
+  list are live fragments (`/p/<name>/train/live/model`, `/p/<name>/train/live/models`).
 - **As built, bite 5b (PR 39).** `app/jobctl/awake.py`: one keep-awake process (D38's command, with `-w` the app's
   PID) held by an `Awake` object; a JobControl thread checks every 2 s whether any keep-awake job is scheduled,
   queued, running or pausing, starts the process if so and ends it (its own Popen only) if not; submitting a

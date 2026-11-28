@@ -275,10 +275,9 @@ class Runner:
                 want = self._want.get(jid)
             if want:   # Pause or Cancel came while the worker was being started
                 self._send_pause(jid, proc)
-            stop_by = schedule.parse(job.get("stop_by"))
-            if stop_by is not None:
-                threading.Thread(target=self._stop_at, args=(jid, proc, stop_by),
-                                 name="stop-by", daemon=True).start()
+            # always watched: Stop by can be set or changed while the job runs (S8 Demo fixes)
+            threading.Thread(target=self._stop_at, args=(jid, proc),
+                             name="stop-by", daemon=True).start()
             if lim["memory_guard"]:
                 threading.Thread(target=self._guard, args=(jid, proc, lim["memory_guard_gb"]),
                                  name="memory-guard", daemon=True).start()
@@ -331,10 +330,12 @@ class Runner:
             self._on_event(jid, ev)
         return last, final, round(time.monotonic() - started), err
 
-    def _stop_at(self, jid: int, proc: subprocess.Popen, stop_by: datetime) -> None:
-        """D37: pause the job when its Stop by comes; Resume carries on later."""
+    def _stop_at(self, jid: int, proc: subprocess.Popen) -> None:
+        """D37: pause the job when its Stop by comes; Resume carries on later. The time is read
+        from the store every second, so one set or changed while the job runs holds too."""
         while proc.poll() is None:
-            if datetime.now() >= stop_by:
+            stop_by = schedule.parse((self.store.get(jid) or {}).get("stop_by"))
+            if stop_by is not None and datetime.now() >= stop_by:
                 self.request(jid, "pause", reason=f"stop by {schedule.show(schedule.iso(stop_by))}")
                 return
             time.sleep(1.0)
@@ -397,8 +398,11 @@ class Runner:
                 self.store.update(jid, summary=self._summary)
             eta = (round(sum(self._times) / len(self._times) * (n - i))
                    if self._times and i is not None and n is not None and n >= i else None)
+            with self._lock:   # QE 10: an item read after Pause must not undo "finishing …"
+                pausing = jid in self._want and f"kill-{jid}" not in self._want
             self.store.update(jid, done=i or 0, total=n, eta_s=eta,
-                              message=f"{self._item} {i} of {n}")
+                              message=self._finishing({"done": i or 0, "total": n}) if pausing
+                              else f"{self._item} {i} of {n}")
             self.log(jid, "item " + json.dumps({k: v for k, v in ev.items() if k != "event"}))
         elif e == "progress":   # a kind without items (playback copy): percent + message
             pct = ev.get("percent")
