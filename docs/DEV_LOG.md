@@ -17,6 +17,24 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S7 — The N6 card ends with a hard reset (D82d); QE PR 123's nit (S7 builder, bite 4b)
+**Branch:** sprint/7-n6-reset
+**Done:** `N6Board.finish()` and the agent's `hard_reset`: `mpremote reset` on the N6's own port after the end-of-card
+restore, on every exit the restore covers (done, Pause, a stop rule, another error) and after a restore-only card; not in
+its bootloader; a failed reset is `no_answer`. A refused bootloader check says our N6 stays in its bootloader and how it
+gets out. The end-of-card messages name the step that failed.
+**Self-test:** no page changed beyond two hints. Tests on the fake N6 and the fake board: the last call is `mpremote
+connect <Pyboard port> reset`, the AE3 untouched; a reset in DFU is refused; a failed reset ends the job after the
+restore; a restore-only card ends with the reset. QE 10 (after PR 123): an scp to the Pi may take 60 s plus the file
+at 100 kB/s (the 24 MiB backup: about 5 min) and its timeout is `no_answer`, not a crash; the agent sends alive lines
+while it waits up to 60 s for the bootloader or the boot (a test with a 2 s laptop limit; it fails with them removed). QE 10's card 5 check: every mpremote and dfu-util call
+is in `agent.log` (it was 0 bytes); Lead call D82e: the N6 images are stored once by sha256 in `bench/n6_images/`,
+not in each run folder, and the backup is copied to the Pi only when it is not there yet.
+**Broke/surprised us:** nothing.
+**Next:** the next open S7 item.
+
+---
+
 ## 2026-11-27 — Sprint S9 — D92a: a collapsed bootstrap shows Wilson on the objects (S7 builder 1, on S9)
 **Branch:** sprint/9-d92a
 **Done:** the lead's call D92a in `app/evaluate/metrics.py` (`_collapsed`): a zero-width bootstrap interval on

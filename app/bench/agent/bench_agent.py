@@ -268,8 +268,23 @@ class N6:
         self.folder, self.mpremote, self.dfu_util, self.ports_glob = folder, mpremote, dfu_util, ports_glob
         self.alive, self.port, self.serial = alive, None, None
 
+    def waiting(self, last):
+        """One second of a wait for the bootloader or the boot, with an alive line every ALIVE_S seconds (QE PR 123:
+        the laptop's 60 s of silence must not end a wait that is up to 60 s long itself)."""
+        time.sleep(1)
+        if time.monotonic() - last >= ALIVE_S:
+            self.alive(0)
+            return time.monotonic()
+        return last
+
     def run(self, argv, limit_s, tail=1500):
-        return run_steps(argv, None, self.alive, self.folder, limit_s, tail)
+        """One tool call; its command line, exit code and output go to stderr, which is the run's agent.log (QE 10:
+        dfu-util's own words must be kept)."""
+        rc, out = run_steps(argv, None, self.alive, self.folder, limit_s, tail)
+        shown = [a if len(a) < 200 else a[:60] + f"… ({len(a)} chars)" for a in argv]     # scripts are long
+        sys.stderr.write(f"[{time.strftime('%H:%M:%S')}] $ {' '.join(shown)}\nexit {rc}\n{out.rstrip()}\n")
+        sys.stderr.flush()
+        return rc, out
 
     def exec(self, port, code, limit_s=TOOL_S):
         return self.run([self.mpremote, "connect", port, "exec", code], limit_s)
@@ -321,10 +336,12 @@ class N6:
         serials = {field("serial", l) for l in lines}
         if len(devices) != 1 or len(serials) != 1:
             raise Stop(LOAD_FAILED, f"{len(devices)} N6 bootloaders ({N6_DFU}) are on the USB: nothing is written "
-                                    "until only the bench N6 is in its bootloader")
+                                    "until only the bench N6 is in its bootloader. If ours was sent there, it stays in "
+                                    "it: a restore-only card boots it once the other device is gone")
         if serials != {self.serial}:
             raise Stop(LOAD_FAILED, f"the N6 bootloader on the USB has serial {sorted(serials)[0]}, not the backup's "
-                                    f"{self.serial}: another board; nothing is written")
+                                    f"{self.serial}: another board; nothing is written. If ours was sent to its "
+                                    "bootloader, it stays there: a restore-only card boots it once the other is gone")
         return any(f'alt={ROMFS_ALT}, name="ROMFS0"' in l for l in lines)
 
     def enter_dfu(self):
@@ -332,11 +349,11 @@ class N6:
         if self.in_dfu():
             return
         self.exec(self.find(), "import machine; machine.bootloader()", 15)   # an error as the port drops is normal
-        deadline = time.monotonic() + BACK_S
+        deadline, last = time.monotonic() + BACK_S, time.monotonic()
         while time.monotonic() < deadline:
             if self.in_dfu():
                 return
-            time.sleep(1)
+            last = self.waiting(last)
         raise Stop(NO_ANSWER, f"the N6's bootloader ({N6_DFU}, alt {ROMFS_ALT} = ROMFS0) did not appear within "
                               f"{BACK_S:g} s of machine.bootloader(). The N6 may be in its bootloader anyway: a "
                               "restore-only card writes the backup and boots it")
@@ -373,12 +390,12 @@ class N6:
         self.run(self.dfu("-a", str(BOOT_ALT), "-U", junk, "-R"), FLASH_S)
         if os.path.exists(junk):
             os.remove(junk)
-        deadline = time.monotonic() + BACK_S
+        deadline, last = time.monotonic() + BACK_S, time.monotonic()
         while time.monotonic() < deadline:
             try:
                 return self.find()
             except Stop:
-                time.sleep(1)
+                last = self.waiting(last)
         raise Stop(NO_ANSWER, f"the N6 did not answer within {BACK_S:g} s of leaving its bootloader")
 
     def flash(self, path, length, want, rom):
@@ -422,7 +439,7 @@ class Agent:
     def handle(self, req):
         op = req.get("op")
         kind = req.get("kind", "pi")
-        if kind == "n6" and op in ("info", "load", "time", "reset", "restore"):
+        if kind == "n6" and op in ("info", "load", "time", "reset", "restore", "hard_reset"):
             if req.get("dfu_serial"):
                 self.n6.serial = str(req["dfu_serial"])
             return getattr(self, "n6_" + op)(req)
@@ -508,6 +525,17 @@ class Agent:
         if rc != 0:
             raise Stop(NO_ANSWER, f"the N6 did not take a soft reset (exit {rc}): {out.strip()[-300:]}")
         return {"reset": True}
+
+    def n6_hard_reset(self, req):
+        """The card's last step (lead 2, after PR 123): `mpremote reset`, so the N6's own main.py runs again and the
+        board is left as found. Nothing is asked of it afterwards (that would stop main.py again). A board in its
+        bootloader is not reset here: the restore boots it."""
+        if self.n6.in_dfu():
+            raise Stop(NO_ANSWER, "the N6 is in its bootloader, not booted: run a restore-only card, which boots it")
+        rc, out = self.n6.run([self.n6.mpremote, "connect", self.n6.find(), "reset"], TOOL_S)
+        if rc != 0:
+            raise Stop(NO_ANSWER, f"the N6 did not take a hard reset (exit {rc}): {out.strip()[-300:]}")
+        return {"hard_reset": True, "port": os.path.basename(self.n6.port or "")}
 
     def op_hello(self, req):
         return {"agent": VERSION, "python": platform.python_version(), "machine": platform.machine(),

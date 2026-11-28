@@ -304,6 +304,84 @@ def test_an_unpinned_or_doubtful_bootloader_gets_nothing_written(rig, setup, why
     assert (state / "romfs0.bin").read_bytes() == rig["partition"] and not b.restores
 
 
+def test_the_card_ends_with_a_hard_reset_of_the_booted_n6_only(rig):
+    """Lead 2, after PR 123: `mpremote reset` on the N6's own port, last; never asked of the AE3; refused in DFU."""
+    b, state = rig["board"], rig["state"]
+    b.load(rig["model"])
+    b.restore()
+    assert b.finish()["hard_reset"] is True
+    last = calls(state)[-1]
+    assert last[0] == "mpremote" and last[1] == "connect" and "Pyboard" in last[2] and last[3:] == ["reset"]
+    (state / "mode").write_text("dfu")
+    with pytest.raises(BoardError, match="bootloader"):
+        b.finish()
+    b.close()
+    assert not ae3_asks(state)
+
+
+def test_a_refused_bootloader_check_says_ours_stays_in_it(rig):
+    """QE PR 123 nit: the refusal says our N6 was sent to its bootloader and how it gets out."""
+    b, state = rig["board"], rig["state"]
+    (state / "faults.json").write_text(json.dumps({"two_devices": 1}))
+    with pytest.raises(BoardError, match="stays in it: a restore-only card boots it"):
+        b.load(rig["model"])
+    b.close()
+
+
+def test_a_slow_copy_to_the_pi_is_a_stop_rule_with_room_for_the_24_mib_backup(tmp_path):
+    """QE PR 123 (after merge): scp had a flat 60 s and its timeout was not a BoardError."""
+    import subprocess
+    from app.bench.transport import SshTransport, copy_limit
+    from app.bench.units import Unit
+    assert copy_limit(25_165_824) > 300
+    seen = {}
+
+    def run(argv, **kw):
+        if argv[:2] == ["ssh", "-G"]:
+            return subprocess.CompletedProcess(argv, 0, "hostname benchpi.lan\n", "")
+        seen["timeout"] = kw["timeout"]
+        raise subprocess.TimeoutExpired(argv, kw["timeout"])
+    f = tmp_path / "big.img"
+    f.write_bytes(b"x" * 1_000_000)
+    with pytest.raises(BoardError, match="within 70 s") as e:
+        SshTransport(Unit("benchpi", "benchpi"), frozenset(), run=run).put(f, "big.img")
+    assert e.value.stop == "no_answer" and seen["timeout"] == 70.0
+
+
+def test_a_long_wait_for_the_bootloader_keeps_the_link_alive(rig):
+    """QE PR 123 (after merge): the agent sends alive lines while it waits for the bootloader or the boot, so the
+    laptop's silence limit does not end a wait the agent itself is still within."""
+    b, state = rig["board"], rig["state"]
+    fault(state, no_bootloader=True)                         # the bootloader never shows: the agent waits its BACK_S
+    t = b.transport
+    t.extra = tuple(x for x in t.extra) + ("--alive-s", "0.3")
+    t.extra = tuple(("5" if prev == "--back-s" else x) for prev, x in zip(("",) + t.extra[:-1], t.extra))
+    t.timeout_s = 2.0
+    with pytest.raises(BoardError) as e:
+        b.restore()
+    b.close()
+    assert "did not appear within 5 s" in str(e.value) and "no answer from the bench agent" not in str(e.value)
+
+
+def test_dfu_utils_words_are_in_agent_log_and_the_images_are_stored_once(rig):
+    """QE 10's card 5 check: agent.log kept dfu-util's output (it was 0 bytes); Lead call: the 24 MiB images are not
+    copied into every run folder, but stored once by sha256, and the load names the path."""
+    b = rig["board"]
+    done = b.load(rig["model"])
+    b.close()
+    b2 = N6Board(b.unit, rig["data"], b.transport.__class__(rig["tmp"] / "agent", extra=b.transport.extra, timeout_s=30),
+                 work_dir=rig["tmp"] / "run2", backup=b.backup_path, backup_sha256=b.backup_sha256, partition=P,
+                 dfu_serial="FAKE0N6SERIAL")
+    b2.load(rig["model"])
+    b2.close()
+    log = (rig["tmp"] / "agent" / "agent.log").read_text()
+    assert "-a 3 -D" in log and "Download done." in log and "exit 0" in log
+    stored = sorted((rig["data"] / "bench" / "n6_images").glob("*.img"))
+    assert len(stored) == 2 and done["image_path"] in map(str, stored)            # backup + ours, once for both runs
+    assert hashlib.sha256(Path(done["image_path"]).read_bytes()).hexdigest() == done["image_sha256"]
+    assert not list(rig["tmp"].glob("run*/*.img"))
+
+
 def test_an_n6_board_without_a_serial_sends_and_writes_nothing(rig):
     b, state = rig["board"], rig["state"]
     b.dfu_serial = ""

@@ -137,6 +137,7 @@ def test_ssh_commands_for_a_bench_unit(tmp_path):
     assert t.argv()[:6] == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "benchpi"]
     assert t.argv()[6:] == ["python3", "urchin_bench/bench_agent.py", "urchin_bench", "--runtime", "litert"]
     t.install()
+    (tmp_path / "m.tflite").write_bytes(b"m")              # put() reads its size for the copy's time limit
     t.put(tmp_path / "m.tflite", "fit/a/model.tflite")
     copies = [c for c in run.calls if c[0] == "scp"]
     assert copies[0][-1] == "benchpi:urchin_bench/bench_agent.py"

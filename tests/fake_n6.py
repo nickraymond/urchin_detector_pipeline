@@ -2,7 +2,7 @@
 
 It answers the command lines the agent uses, as RESTORE.md and ml/README.md show them, over a small fake ROMFS0 held
 in <state>/romfs0.bin. State files: `mode` (app | dfu | dead), `faults.json`, `calls.log` (one JSON argv per call).
-Faults: write_fails (n writes fail), corrupt_write (n writes flip a byte), dead_unless_backup (a boot with anything
+Faults: no_bootloader (machine.bootloader() leaves a board that shows nothing), write_fails (n writes fail), corrupt_write (n writes flip a byte), dead_unless_backup (a boot with anything
 but backup.bin in ROMFS0 leaves the board answering nothing, neither serial nor DFU), time_fails, hide (a /rom name).
 """
 
@@ -58,10 +58,10 @@ def mpremote(s, args):
     if s.get("mode", "app") != "app":
         print(f"mpremote: failed to access {port} (it may be in use by another program)")
         return 1
-    if verb == "soft-reset":
+    if verb in ("soft-reset", "reset"):
         return 0
     if "machine.bootloader()" in code:
-        s.put("mode", "dfu")
+        s.put("mode", "dead" if s.faults.get("no_bootloader") else "dfu")
         print("Traceback (most recent call last):\nOSError: [Errno 5] Input/output error")
         return 1
     entries, _ = romfs.decode((s.d / "romfs0.bin").read_bytes())

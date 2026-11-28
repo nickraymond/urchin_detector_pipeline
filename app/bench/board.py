@@ -152,6 +152,13 @@ class FakeBoard(Board):
         self._maybe_fail("reset")
         self.loaded = {}
 
+    def finish(self) -> dict:
+        """The fake N6's end-of-card hard reset (fail={"finish": ...} to make it fail)."""
+        if self.kind != "n6":
+            raise ValueError("only the N6 ends a card with a hard reset")
+        self._maybe_fail("finish")
+        return {"hard_reset": True, "fake": True}
+
     def restore(self) -> dict:
         """The fake N6's "ROMFS0 back from the backup" (fail={"restore": ...} to make it fail), logged as the real one."""
         if self.kind != "n6":
