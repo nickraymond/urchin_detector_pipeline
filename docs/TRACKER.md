@@ -604,7 +604,8 @@ against the fake board only; the rig test session runs each board's first card a
 
 **Lead calls for the S7 test build's note:** D80–D89; the Pi image with zero-filled unused blocks taken as meeting
 constraint 9 (SPEC Q33); bench tools under other OSI licences (D89 (3): tqdm MPL-2.0 AND MIT, typing_extensions PSF-2.0,
-numpy BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0, each "bench tool, not deployed").
+numpy BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 with libgfortran GPL-3.0-or-later WITH GCC-exception-3.1
+and LAPACK BSD-3-Clause-Open-MPI in its wheel, Eigen MPL-2.0 in ml-dtypes, pip MIT; each "bench tool, not deployed").
 **Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
 measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.
