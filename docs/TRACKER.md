@@ -415,8 +415,10 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       full-integer TFLite and quantized ONNX both stop (DESIGN §Bench results, bite 2f); YOLOX Nano gives the same
       117 + 2 + 0 as 4.0.0. A guarded second N6 compiler step (`app/fit/n6_st41.py`): "n" to ST's statistics
       question, network and `~/.stmai` denied, refuses to start otherwise; placement only
-- [ ] 2f, page part (not built): show a candidate's 4.1.0 result (`targets/n6_st41/fit.json`) as a second line
-      in its N6 row, with a button to run it; today the step can be queued only from code
+- [x] 2f, page part: a candidate's 4.1.0 result (`targets/n6_st41/fit.json`) is a second line under its N6 row
+      ("a second N6 compiler beside 4.0.0: placement only, not the cell's result"), with its own Run / Run again;
+      it never sets a cell's headline and "Run all" does not queue it; "Run again" on any camera queues it again
+      with the others when it had a result (they share the 8-bit file)
 - [x] 2c-ii: RTMDet-Ins-tiny (Apache-2.0) as a published small conv instance segmenter
       (`app/modeldefs/rtmdetins.py`, D72): mmdetection's pure-Python packages in `mmdet-venv`; built untrained with
       no network; through the real job: runs, partly on the CPU, on the N6 (2 software steps) and the AE3 (1 CPU

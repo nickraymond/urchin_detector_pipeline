@@ -36,7 +36,7 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
             "tools": setup.items(cfg.tools_dir), "outside": setup.outside(cfg.fit),
             "setup_job": jobctl(cfg).latest("tools_setup"),
             "cameras": [(c, convert.CAMERAS[c]) for c in table.CAMERA_ORDER], "active": len(active),
-            "missing": len(table.missing(cfg.data_dir)) - len(active), "mib": table.mib, "memory_figure": table.memory_figure,
+            "missing": len(table.missing(cfg.data_dir)) - sum(c in convert.CAMERAS for _, c in active), "mib": table.mib, "memory_figure": table.memory_figure,
             "earlier_source": table.EARLIER_SOURCE})
 
     @app.post("/fit/run-all")
@@ -81,11 +81,11 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
         if not cfg.ok:
             return dashboard(request, status=503)
         arch = next((a for a in modeldefs.candidates() if modeldefs.arch_key(a) == key), None)
-        if arch is None or camera not in convert.CAMERAS:
+        if arch is None or camera not in convert.STEP_LABELS:
             return back(error=f"No such cell: {key!r} on {camera!r}.")
         jc = jobctl(cfg)
         if (key, camera) in active_cells(jc):
-            return back(note=f"{key} on {convert.CAMERAS[camera]} is already waiting or running.")
+            return back(note=f"{key} on {convert.STEP_LABELS[camera]} is already waiting or running.")
         try:
             folder = convert.model_dir(cfg.data_dir, arch)
             again = convert.read_fit(folder, camera) is not None
@@ -93,13 +93,14 @@ def register(app, templates, config_path, jobctl, dashboard) -> None:
             # behind it, so the cell is queued once more after the redo (QE PR 85). A job that then finds the
             # result on disk is skipped.
             active = active_cells(jc)
-            others = [c for c in table.CAMERA_ORDER if again and c != camera
+            steps = [*table.CAMERA_ORDER, *(s for s, _ in convert.SECOND.values())]   # all share the 8-bit file
+            others = [c for c in steps if again and c != camera
                       and (convert.read_fit(folder, c) is not None or (key, c) in active)]
             jc.submit("convert", convert.params(arch, camera, cfg.data_dir, cfg.tools_dir, redo=again, fit=cfg.fit))
             for c in others:
                 jc.submit("convert", convert.params(arch, c, cfg.data_dir, cfg.tools_dir, fit=cfg.fit))
         except JobError as e:
             return back(error=str(e))
-        also = (f", and its cells on {' and '.join(convert.CAMERAS[c] for c in others)} with it (they share "
+        also = (f", and its cells on {' and '.join(convert.STEP_LABELS[c] for c in others)} with it (they share "
                 "its 8-bit model)") if others else ""
-        return back(note=f"{key} on {convert.CAMERAS[camera]} queued{' again' if again else ''}{also}.")
+        return back(note=f"{key} on {convert.STEP_LABELS[camera]} queued{' again' if again else ''}{also}.")

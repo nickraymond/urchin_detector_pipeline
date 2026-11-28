@@ -22,6 +22,9 @@ from app import modeldefs
 from app.jobctl import JobError, Kind
 
 CAMERAS = {"n6": "OpenMV N6", "pi": "Pi Zero 2W", "ae3": "OpenMV AE3"}
+# A second compiler for a camera, run only from its own button (bite 2f, D71): camera -> (step, words)
+SECOND = {"n6": ("n6_st41", "ST Edge AI Core 4.1.0")}
+STEP_LABELS = {**CAMERAS, **{step: f"{CAMERAS[c]} ({words})" for c, (step, words) in SECOND.items()}}
 # camera -> the module with compile(tflite, out_dir, job) -> dict
 COMPILERS: dict[str, str] = {"n6": "app.fit.n6", "ae3": "app.fit.ae3", "pi": "app.fit.pi",
                              # a second N6 compiler, beside 4.0.0 (bite 2f, D71): placement only, never "Run all"
