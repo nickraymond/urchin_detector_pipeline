@@ -838,8 +838,9 @@ alignment: 32 for a model, 4 for the rest), stopping at the image's own length (
 OpenMV's own functions when the tree is on the machine); `with_ours` puts the board's files first, then ours, refuses a
 name the board already has, and refuses an image larger than the model area. Known-good, measured on the laptop
 2026-11-27: re-encoding the backup's 10 entries gives 10,000,600 bytes identical to the backup's image (sha256
-`d9bd4350f97afc69…`); the rest of the 24 MiB partition is not blank (older content past the image; a read-back compare is
-capped at the image's length, as `ml/README.md` says).
+`d9bd4350f97afc69…`); the rest of the 24 MiB partition is all 0xFF, and the backup file's last 4 bytes (25,165,828 against
+the partition's 25,165,824) are 0x00 that dfu-util's read appends past the partition (RESTORE.md item 4; corrected on QE PR
+119). A read-back compare is capped at the image's length, as `ml/README.md` says.
 **D82a's second gate: does not pass (2026-11-27).** Every vendor model in the backup carries the marker
 `atonn-v1.1.0-31-g27f5d5bc (RELOC)`; every model S6's N6 step compiles (OpenMV SDK 1.6.0, ST Edge AI Core 4.0.0) carries
 `STAI-3.0.0-254-g7cc65410 (RELOC.GCC)`; all start with the same 8-byte `NBIN` header. The earlier image that ran on the
