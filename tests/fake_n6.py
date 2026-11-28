@@ -3,7 +3,7 @@
 It answers the command lines the agent uses, as RESTORE.md and ml/README.md show them, over a small fake ROMFS0 held
 in <state>/romfs0.bin. State files: `mode` (app | dfu | dead), `faults.json`, `calls.log` (one JSON argv per call).
 State: an exec without `resume` clears what the timing's stages defined (mpremote soft-resets first), and a stage
-whose predecessor's state is gone fails with a NameError (QE PR 130). Faults: reset_at_stage (the timing's stage k drops the board into DFU), no_bootloader (machine.bootloader() leaves a board that shows nothing), write_fails (n writes fail), corrupt_write (n writes flip a byte), dead_unless_backup (a boot with anything
+whose predecessor's state is gone fails with a NameError (QE PR 130). Faults: csi_resets (the CSI stage takes the board into DFU), reset_at_stage (the timing's stage k drops the board into DFU), no_bootloader (machine.bootloader() leaves a board that shows nothing), write_fails (n writes fail), corrupt_write (n writes flip a byte), dead_unless_backup (a boot with anything
 but backup.bin in ROMFS0 leaves the board answering nothing, neither serial nor DFU), time_fails, hide (a /rom name).
 """
 
@@ -84,22 +84,30 @@ def mpremote(s, args):
             s.put("mode", "dfu")
             print("Traceback (most recent call last):\nOSError: [Errno 5] Input/output error")
             return 1
-        if k == 2:
+        kind = ("csi" if "csi.CSI()" in code else "snap" if "csi0.snapshot()" in code else "model" if "ml.Model(" in code else "shape" if "m.input_shape" in code
+                else "image" if "img.bytearray()" in code else "windows" if "ticks_us" in code
+                else "predict" if "m.predict" in code else "import")
+        if kind == "csi" and s.faults.get("csi_resets"):   # a camera stage that takes the board down
+            s.put("mode", "dfu")
+            print("Traceback (most recent call last):\nOSError: [Errno 5] Input/output error")
+            return 1
+        if kind == "model":
             name = re.search(r"ml\.Model\('/rom/([^']+)'\)", code).group(1)
             s.put("model", name)
             if name not in rom or s.faults.get("time_fails"):
                 print("Traceback (most recent call last):\nOSError: Failed to load network")
                 return 1
-        answers = {1: {"mem_before_load": 25_000_000}, 2: {"mem_after_load": 24_000_000}, 3: {"input_shape": [1, 8, 8, 3]},
-                   5: {}}
-        if k == 4:
+        answers = {"import": {"mem_before_load": 25_000_000}, "model": {"mem_after_load": 24_000_000},
+                   "shape": {"input_shape": [1, 8, 8, 3]}, "predict": {}, "csi": {}, "snap": {}}
+        if kind == "image":
             image = synthetic_bytes(8, 8, 3) + (b"!" if s.faults.get("input_differs") else b"")
-            answers[4] = {"input_sha256": hashlib.sha256(image).hexdigest(), "input_bytes": len(image)}
-        if k == 6:
+            answers["image"] = {"input_sha256": hashlib.sha256(image).hexdigest(), "input_bytes": len(image)}
+        if kind == "windows":
             n = int(re.search(r"for _ in range\((\d+)\):\n    t = time", code).group(1))
-            answers[6] = {"us_total": 10_600 * n, "us_min": 10_500, "us_max": 10_700, "mem_after": 24_000_000}
+            answers["windows"] = {"us_total": 10_600 * n, "us_min": 10_500, "us_max": 10_700, "mem_after": 24_000_000}
+        s.put("kinds", s.get("kinds") + kind + " ")
         s.put("session", str(k))
-        print("NB:" + json.dumps({"stage": k, **answers[k]}))
+        print("NB:" + json.dumps({"stage": k, **answers[kind]}))
     elif "firmware" in code:
         print("NB:" + json.dumps({"board_type": "N6", "firmware": "fake N6 5.0.1", "machine": "fake N6",
                                   "mem_free": 25_000_000}))

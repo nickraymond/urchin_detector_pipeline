@@ -248,14 +248,17 @@ def test_the_boards_timing_script_makes_the_laptops_image(monkeypatch, capsys):
         mods = {"ml": types.SimpleNamespace(Model=lambda path: model),
                 "image": types.SimpleNamespace(Image=Img, GRAYSCALE="G", RGB565="R"),
                 "gc": types.SimpleNamespace(collect=lambda: None, mem_free=lambda: 1000),
-                "time": types.SimpleNamespace(ticks_us=lambda: 0, ticks_diff=lambda a, b: a - b)}
+                "time": types.SimpleNamespace(ticks_us=lambda: 0, ticks_diff=lambda a, b: a - b, sleep_ms=lambda ms: None),
+                "csi": types.SimpleNamespace(RGB565="R", QVGA="Q", CSI=lambda: types.SimpleNamespace(
+                    reset=lambda: None, pixformat=lambda f: None, framesize=lambda f: None, snapshot=lambda: None))}
         for k, v in mods.items():
             monkeypatch.setitem(sys.modules, k, v)
         fill = {"path": "/rom/x.tflite", "n": 3, "seed": 0, "a": bench_agent.LCG_A, "c": bench_agent.LCG_C,
                 "m": bench_agent.LCG_M}
         board, out = {}, {}                                # one namespace: stages 2-6 run with `resume`
-        for k, (name, code) in enumerate(bench_agent.STAGES, 1):
-            exec(compile(code % fill, f"stage {k} ({name})", "exec"), board)
+        stages = bench_agent.STAGES[:1] + bench_agent.CSI_STAGES + bench_agent.STAGES[1:]     # with D83c's stages
+        for k, (name, code) in enumerate(stages, 1):
+            exec(compile(code % {**fill, "k": k}, f"stage {k} ({name})", "exec"), board)
             marker = bench_agent.board_json(capsys.readouterr().out)
             assert marker["stage"] == k, name                  # each stage prints its own marker
             out.update(marker)
@@ -479,8 +482,8 @@ def test_the_fake_n6_loses_the_stages_state_on_an_exec_without_resume(rig):
     import subprocess as sp
     state, port = rig["state"], str(next((rig["tmp"] / "by-id").glob("*Pyboard*")))
     fake = [sys.executable, str(FAKE), str(state), "mpremote", "connect", port]
-    one, two = (code % {"path": "/rom/vendor_det.tflite", "n": 1, "seed": 0, "a": 1, "c": 1, "m": 1}
-                for _, code in bench_agent.STAGES[:2])
+    one, two = (code % {"path": "/rom/vendor_det.tflite", "n": 1, "seed": 0, "a": 1, "c": 1, "m": 1, "k": k}
+                for k, (_, code) in enumerate(bench_agent.STAGES[:2], 1))
     assert sp.run(fake + ["exec", one], capture_output=True, text=True).returncode == 0
     assert sp.run(fake + ["exec", "import omv; print('NB:' + omv.board_type())"], capture_output=True).returncode == 0
     r = sp.run(fake + ["resume", "exec", two], capture_output=True, text=True)
@@ -500,3 +503,29 @@ def test_a_no_write_card_whose_board_reset_is_booted_at_the_end(rig):
     b.close()
     assert (state / "mode").read_text() == "app" and not any("-D" in c for c in calls(state) if c[0] == "dfu-util")
     assert any(c[0] == "dfu-util" and "-R" in c and c[c.index("-a") + 1] == "2" for c in calls(state))
+
+
+
+def test_csi_first_takes_one_snapshot_between_the_imports_and_ml_model(rig):
+    """Lead call D83c: the earlier deploy_probe.py's camera lines as their own stage; the input stays seeded."""
+    b, state = rig["board"], rig["state"]
+    b.csi_first = True
+    b.use_rom(["vendor_det.tflite"])
+    t = b.time("vendor_det.tflite", 5)
+    b.close()
+    assert t["stages"] == ["import", "csi start", "csi snapshot", "ml.Model", "input_shape", "seeded image",
+                           "one predict", "N windows"]
+    assert (state / "kinds").read_text().split() == ["import", "csi", "snap", "model", "shape", "image", "predict", "windows"]
+    assert t["input_check"].startswith("sha256")                        # D83a: still the laptop's seeded image
+
+
+def test_a_reset_in_the_csi_stage_names_it(rig):
+    b, state = rig["board"], rig["state"]
+    b.csi_first = True
+    b.use_rom(["vendor_det.tflite"])
+    fault(state, csi_resets=True)
+    with pytest.raises(BoardError) as e:
+        b.time("vendor_det.tflite", 5)
+    b.close()
+    assert e.value.stop == "board_reset"
+    assert "stage 2 (csi start) did not answer; the last stage that answered: stage 1 (import)" in str(e.value)

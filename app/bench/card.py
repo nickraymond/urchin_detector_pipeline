@@ -111,6 +111,10 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             problems.append("a Pi card times one runtime: its model files are all .tflite or all .onnx")
         else:
             runtime = kinds.pop()
+    # Lead call D83c (lead 2): an N6 card may take a CSI snapshot before ml.Model, as ml/deploy_probe.py did
+    csi_first = str(form.get("csi_first", "")).strip().lower() in ("on", "1", "true", "yes")
+    if csi_first and (board != "n6" or restore_only):
+        problems.append("only an N6 card that times something can take the CSI snapshot first")
     rules = [" ".join(r.split()) for r in str(form.get("stop_rules", "")).splitlines() if r.strip()]
     if not rules:
         problems.append("a card needs at least one stop rule")
@@ -126,7 +130,8 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             **({"threads": threads} if board == "pi" else {}),    # fixed for the run and recorded (D83, D88)
             **({"runtime": runtime} if runtime else {}),
             **({"restore_only": True} if restore_only else {}),
-            **({"rom_models": rom_models} if rom_models else {})}
+            **({"rom_models": rom_models} if rom_models else {}),
+            **({"csi_first": True} if csi_first else {})}
 
 
 def has_restore_rule(rules) -> bool:

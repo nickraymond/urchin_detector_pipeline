@@ -40,6 +40,8 @@
      <textarea name="models" rows="3" cols="80">{{ f.models }}</textarea></label></p>
   <p><label>Or, N6 only: models already in its /rom, one name per line (a vendor's, such as yolov8n_192.tflite): timed with no write at all<br>
      <textarea name="rom_models" rows="2" cols="80">{{ f.rom_models }}</textarea></label></p>
+  <p><label><input type="checkbox" name="csi_first"{% if f.csi_first %} checked{% endif %}> CSI first (N6): before
+     ml.Model, set the camera up and take one snapshot, as the earlier work's deploy_probe.py did; the input stays the seeded image (D83c)</label></p>
   <p><label><input type="checkbox" name="restore_only"{% if f.restore_only %} checked{% endif %}> Restore only (N6): put the
      backup's ROMFS0 back, read it back, boot and list /rom; no models, nothing timed</label></p>
   <p><label>Windows (at least {{ min_windows }}) <input name="windows" type="number" min="{{ min_windows }}" value="{{ f.windows }}"></label>

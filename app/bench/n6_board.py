@@ -84,9 +84,10 @@ class N6Board(PiBoard):
     kind = "n6"
 
     def __init__(self, unit: Unit, data_dir, transport: Transport, work_dir=None, backup: Path = BACKUP,
-                 backup_sha256: str = BACKUP_SHA256, partition: int = PARTITION, dfu_serial: str = ""):
+                 backup_sha256: str = BACKUP_SHA256, partition: int = PARTITION, dfu_serial: str = "",
+                 csi_first: bool = False):
         super().__init__(unit, data_dir, transport, install=None)
-        self.dfu_serial = dfu_serial
+        self.dfu_serial, self.csi_first = dfu_serial, csi_first         # D83c: the CSI snapshot before ml.Model
         self.work_dir = Path(work_dir or data_dir)
         self.backup_path, self.backup_sha256, self.partition = Path(backup), backup_sha256, partition
         self.rom_names: dict[str, str] = {}
@@ -158,7 +159,7 @@ class N6Board(PiBoard):
         if name not in self.rom_names:
             raise BoardError(NOT_LOADED, f"{name} is not in the N6's model area: load it first")
         try:
-            t = self.transport.request("time", kind="n6", rom_name=self.rom_names[name], n=n)
+            t = self.transport.request("time", kind="n6", rom_name=self.rom_names[name], n=n, csi_first=self.csi_first)
             check_input(t)
             return t
         except BoardError as e:
