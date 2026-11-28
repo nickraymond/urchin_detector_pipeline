@@ -16,6 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app import sidecars
 from app.jobctl import Kind
 from app.sam import classes
 from app.stages import extract
@@ -294,7 +295,7 @@ def labeled_frames(folder: Path, files: list[str]) -> list[tuple[str, int]]:
     raw = results.raw_dir(folder)
     try:
         times = {e.name: e.stat().st_mtime_ns for e in os.scandir(raw)
-                 if e.name.endswith(".json")}
+                 if e.name.endswith(".json") and not sidecars.is_sidecar(e.name)}
     except FileNotFoundError:
         return []
     have = [(f, times[f + ".json"]) for f in files if f + ".json" in times]
