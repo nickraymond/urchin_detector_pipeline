@@ -388,14 +388,15 @@ the three kinds, untrained, converted to 8-bit and put through each camera's com
 no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV/ml/` (`yolox_urchin/export.py`,
 `compile_model.sh`) and its compile-gate method (`ml/compile_gate_report.md`).
 
-**Bite 1 — Prior art, toolchains, licences (plan nibble + setup, no app pages)** (D51–D55; DESIGN §Planned for S6)
+**Bite 1 — Prior art, toolchains, licences (plan nibble + setup, no app pages)** (D51–D55; DESIGN §S6 as built)
 - [x] re-read the earlier export and compile scripts and say what is reused and how it is brought in
-- [~] set up as documented, versions and licences recorded: the PyTorch → 8-bit route, ST Edge AI Core 4.1.0 (Nick said yes to
+- [x] set up as documented, versions and licences recorded: the PyTorch → 8-bit route, ST Edge AI Core 4.1.0 (Nick said yes to
       ST's licence terms, 2026-11-27: read them first, save a copy in the data folder, stop on anything unusual), Arm Vela (Apache-2.0), and the Pi runtime candidates on the laptop
-      *Done 2026-11-27: the 8-bit route (`convert-venv`), Vela 5.0.0 native, LiteRT on the laptop. Open: ST Edge AI
-      Core 4.1.0 is not installed (the builder session was refused permission to run ST's installer; its terms,
-      SLA0044, are read and saved in `<tools_dir>/licences/` and `<data_dir>/fit/licences/`). S6 uses the known-good 4.0.0 in the container (D52); ncnn and ONNX Runtime
-      for the Pi are set up in bite 3c.*
+      *Done 2026-11-27: the 8-bit route (`convert-venv`), Vela 5.0.0 native, LiteRT on the laptop. ST Edge AI Core
+      4.1.0 was installed by Nick with ST's own installer (its terms, SLA0044, read and saved in
+      `<tools_dir>/licences/` and `<data_dir>/fit/licences/`); it is a second, guarded N6 compiler (bite 2f, D71),
+      and the cell results use the known-good 4.0.0 in the container (D52). ONNX Runtime and ncnn for the Pi are
+      compared on the bench Pi in S7 (bite 3c).*
 - [x] known-good first: reproduce the earlier YOLOX-Nano result on both compilers (AE3 one `ethos-u` block; N6
       about 117 + 2 + 0 of 119, the earlier trained export; untrained it was 116 + 2 + 0 of 118) before changing anything
 - [x] decide and log in DESIGN: where these tools' Python packages live (the app's PyTorch is pinned to 2.10.0,
@@ -415,13 +416,15 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       full-integer TFLite and quantized ONNX both stop (DESIGN §Bench results, bite 2f); YOLOX Nano gives the same
       117 + 2 + 0 as 4.0.0. A guarded second N6 compiler step (`app/fit/n6_st41.py`): "n" to ST's statistics
       question, network and `~/.stmai` denied, refuses to start otherwise; placement only
-- [ ] 2f, page part (not built): show a candidate's 4.1.0 result (`targets/n6_st41/fit.json`) as a second line
-      in its N6 row, with a button to run it; today the step can be queued only from code
+- [x] 2f, page part: a candidate's 4.1.0 result (`targets/n6_st41/fit.json`) is a second line under its N6 row
+      ("a second N6 compiler beside 4.0.0: placement only, not the cell's result"), with its own Run / Run again;
+      it never sets a cell's headline and "Run all" does not queue it; "Run again" on any camera queues it again
+      with the others when it had a result (they share the 8-bit file)
 - [x] 2c-ii: RTMDet-Ins-tiny (Apache-2.0) as a published small conv instance segmenter
       (`app/modeldefs/rtmdetins.py`, D72): mmdetection's pure-Python packages in `mmdet-venv`; built untrained with
       no network; through the real job: runs, partly on the CPU, on the N6 (2 software steps) and the AE3 (1 CPU
       operator), runs on the Pi side (DESIGN §Bench results). SparseInst not tried (time box)
-- [ ] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
+- [x] the candidate architectures with code licence read at the source and added to `THIRD_PARTY_LICENSES`,
       each as a model definition the app can build untrained at a given input size; anything not permissive
       stays out: 2a detector (YOLOX Nano / Tiny, RF-DETR Nano); 2b segmenter (two or three small ones); 2c
       instance segmenter (RF-DETR-Seg Nano and one or two small conv ones)
@@ -451,7 +454,7 @@ compilers; 3c the Pi)**
 - [x] 3c: the Pi (`app/fit/pi.py`): the 8-bit file runs under LiteRT on the laptop; operators, any that is not
       built in, file size; the laptop's time is kept as a laptop figure only. ONNX Runtime and ncnn are compared on
       the bench Pi in S7 (each needs its own 8-bit route)
-- [ ] job kind `convert` on `app/jobctl/`: one candidate × one camera → 8-bit model → the camera's compiler →
+- [x] job kind `convert` on `app/jobctl/`: one candidate × one camera → 8-bit model → the camera's compiler →
       a fit report as data (converts yes / no; layers on the NPU / hybrid / CPU; file size and memory against
       the board's limits; the compiler's own speed estimate, marked as an estimate; the failing layers by name);
       a failed conversion is a result, not a job error; tested with a fake compiler
@@ -470,22 +473,41 @@ compilers; 3c the Pi)**
       queues the other cells that had a result again behind it (PR 85)
 - [x] a LiteRT fault on the Pi step (runtime missing or changed) is a job error with a fix, not "does not run on
       the Pi" (QE PR 79 nit 1; PR 85)
+- [x] a stored result knows what made its 8-bit file (`int8/made_with.json`: export settings and code pin,
+      copied into every `fit.json`); a result from an older recipe says "made with an older recipe: Run again"
+      (QE PR 92 nit 1). Also: RF-DETR's route no longer records the opset and onnxsim settings it does not use
+      (nit 2); `THIRD_PARTY_LICENSES` names namex and sng4onnx and opencv-python 4.11's LGPL binaries (nit 4)
 - [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
       (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
       YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's
       earlier work are only checked. Tested with stand-ins for `uv` and `git`
-- [ ] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
+- [x] the table: kind × camera; each cell lists its candidates with the fit report and a headline (runs /
       runs, partly on the CPU / does not run / not tried); earlier measured numbers shown as "earlier work" with
       their date; "Run all" queues every missing cell
-- [ ] several models on one camera, laptop part: for each pair and all three of the best candidates per
+- [x] several models on one camera, laptop part: for each pair and all three of the best candidates per
       camera, whether their files fit side by side in the model area (N6, AE3) or in storage and memory (Pi), and how
       much room is left
-- [ ] the AE3 column is under the one-day time box: what is not converted in that time is recorded with its reason
+- [x] the AE3 column is under the one-day time box: what is not converted in that time is recorded with its reason
 
 **Demo (Nick):** open "What runs where" and press "Run all": the table fills, cell by cell, for the three kinds
 on the N6, the Pi and the AE3. Click a cell: per candidate, the layers on the NPU and on the CPU, sizes against
 the limits, and for a failure the layers that stopped it.
 **Needs:** the Build 2 spec on main.
+**Demo checklist** (S6 builder 3 at the close; the lead hands it over with the Lead calls D51–D59, D70, D71, D72
+and the wording, memory and licence-ranking calls of PR 80):
+1. `uv run app`; open "What runs where" from the dashboard. The tools section: every row "ready" or "found".
+2. Press "Run all": the cells fill one at a time (the Jobs page shows the queue); a model that fails stays as a
+   result with its reason, not a job error.
+3. Each cell has a headline (runs / runs, partly on the CPU / does not run / not tried) and its best candidate;
+   the Roboflow-licensed RF-DETR sizes appear only on their own "evaluation only" line, never as a cell's best.
+4. Click into a cell: per candidate, the layers on the NPU and the CPU, the file against the limit, memory
+   against the camera's figure, the compiler's estimate marked "estimate"; open "the error text" on a failed
+   row and "how its 8-bit file is made" on an RF-DETR row.
+5. "Several models on one camera: stored together": the best of each kind per camera, in pairs and all
+   three, against the room left.
+6. Press "Run again" on a cell that has a result: the note says the candidate's other cells are queued with it.
+7. Under each N6 candidate, the "↳ ST Edge AI Core 4.1.0" row: placement only, never the cell's result, not
+   queued by "Run all"; its own Run button starts the guarded 4.1.0 step (D71).
 
 ### S7 — What runs where, on the boards  `[ ]`
 *State 2026-11-27 (Build 2 lead 2): the rig test session owns the rig; its backup passed QE with three declared
@@ -501,8 +523,9 @@ against the fake board only; the rig test session runs each board's first card a
       PASS with three declared gaps: the AE3's RECOVERY partition (its bootloader refuses it), no raw card image (a
       software-only backup instead), and the restore steps not rehearsed. A rehearsal plan waits for Nick (SPEC
       "Waiting for Nick")
-- [ ] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
-      like the rest; **the first rig change waits for it** and for QE's review of the first card
+- [x] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
+      like the rest: QE 9 PASS 2026-11-27 with declared gaps (unused blocks zero-filled; restore not rehearsed).
+      The first rig change now waits only for QE's review of the first card
 
 **Bite 1 — Bench units, the `Board` interface, the fake board, the rig log** (D81)
 - [x] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
@@ -516,15 +539,17 @@ against the fake board only; the rig test session runs each board's first card a
       `RESTORE.md` after each card, before the next (D87); every card's stop rules include "RESTORE.md matches the rig log"
 
 **Bite 2 — Test card and the `bench` job** (D83, D84)
-- [ ] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
+- [x] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
       stop rules, cost, written by, reviewed by); Run is refused without a saved card; the card is saved with the run
+      *(2a, split by the builder: `app/bench/card.py`, `/bench/cards`; Run and "saved with the run" land with 2b)*
 - [ ] job kind `bench` on `app/jobctl/`: one card → windows → `bench/<run id>/` (`run.json`, `timing.jsonl`); Pause
       after a window, Cancel keeps finished windows; stop rules as job errors with a recovery hint; tested end to end
       with the fake board
 
 **Bite 3 — The bench agent and the Pi** (D81, D85)
 - [ ] the agent (`app/bench/agent/`, plain Python 3): copied to its folder on the Pi over ssh, speaks JSON lines;
-      tested on the laptop against a fake transport
+      tested on the laptop against a fake transport; before the agent's first connection, the host that
+      `ssh -G <alias>` resolves to is checked against `field_units` too (QE PR 98 nit 5)
 - [ ] Pi runs with LiteRT first (same 8-bit file as S6): N windows, `perf_counter_ns` around invoke, `VmHWM`;
       then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
@@ -534,10 +559,12 @@ against the fake board only; the rig test session runs each board's first card a
       verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
       tested with the fake board and on a ROMFS image file on the laptop
 - [ ] first real card (rig test session): YOLOX Nano re-measured against the earlier 10.6 ms before any new model
+- [ ] the N6's undo text in the rig log set from what the route really does (QE PR 98 nit 4; bite 1's is a placeholder)
 
 **Bite 5 — The AE3 route** (D82; under the one-day AE3 time box, S6's compile time counted)
 - [ ] `/flash` route with a heap check and an on-board size and sha256 check; ROMFS0 route for larger files with
       our own build script on OpenMV's `mkromfs.py`; first real card: YOLOX Nano against the earlier 26.4 ms
+- [ ] the AE3's undo texts (`/flash` and ROMFS0) set from what the routes really do (QE PR 98 nit 4)
 
 **Bite 6 — Several models on one camera, board half** (DESIGN §Planned for S7)
 - [ ] the pairs and the three from S6's "stored together": loaded together (peak memory) or, if not, load, run and
@@ -553,6 +580,8 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
+**Lead calls for the S7 test build's note:** D80–D87; the Pi image with zero-filled unused blocks taken as meeting
+constraint 9 (SPEC Q33).
 **Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
 measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.
@@ -631,9 +660,10 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       model appears in a plain model list
 
 **Fixes found 2026-11-27**
-- [ ] the job runner starts before the job kinds are registered (`app/web/server.py` `jobctl`), so a queued or
+- [x] the job runner starts before the job kinds are registered (`app/web/server.py` `jobctl`), so a queued or
       due scheduled job at app start can end "no job kind … is registered" (QE 8, reproduced with a 0.3 s delay;
       one `tests/test_schedule.py` failure in PR 97's suite): create it without starting, register, then start
+      *Done (PR 103): `JobControl.start()`; the app registers every kind first.*
 - [ ] the trainer's validation shrinks the whole frame to the canvas (`samples.py` `_scale` with `train=False`),
       a different mode from training and from S9's eval scale (D90): validate at the eval scale with tiles
 
@@ -700,6 +730,9 @@ and the same frames with each model's masks.
       model is evaluated on the laptop like any model; the compare page shows what converting cost
 - [ ] accuracy run on S7's bench runner: send the test frames, read back raw outputs, score as in S9 / S10; the
       gap to the laptop's 8-bit result is shown (a gap means a runtime bug)
+- [ ] before any frame or trained weight goes through RF-DETR's own export (`app/fit/to_int8_rfdetr.py`), its
+      network refusal covers the step's child processes too (today it is in-process; onnx2tf starts onnxsim as a
+      child), so "0 attempts" counts all of them (QE PR 92 nit 3)
 - [ ] pick: one detector and one segmenter per camera marked "picked for the bake-off"; a one-page report
 **Demo (Nick):** press "Fit to cameras" on a trained detector and a segmenter; the test session runs the
 card on the rig: on-camera scores next to the laptop's. When the card's repeats are done, mark a pick and open the report (the

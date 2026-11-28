@@ -214,9 +214,7 @@ def test_run_one_cell_again_and_unknown_cells_are_refused(site, monkeypatch):
                                          follow_redirects=False).headers["location"]
     r = client.post("/fit/run", data={"key": "plainseg-s-256-c6", "camera": "ae3"}, follow_redirects=False)
     assert r.headers["location"].endswith("queued.")            # never tried: not "again", no redo
-    end = time.monotonic() + 30
-    while convert.read_fit(data / "fit" / "plainseg-s-256-c6", "ae3") is None and time.monotonic() < end:
-        time.sleep(0.2)
+    wait_all_done(client, data)              # the job ended, not only its fit.json written (QE PR 102 nit 1)
     assert convert.read_fit(data / "fit" / "plainseg-s-256-c6", "ae3")["converts"] is True
     r = client.post("/fit/run", data={"key": "plainseg-s-256-c6", "camera": "ae3"}, follow_redirects=False)
     assert "queued+again" in r.headers["location"]              # it has a result now: from scratch

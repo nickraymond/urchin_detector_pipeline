@@ -104,7 +104,9 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         or crash as interrupted (D34). Only called when cfg.ok (data_dir exists, D13)."""
         key = str(cfg.data_dir)
         if key not in controls:
-            jc = JobControl(cfg.data_dir / "jobs", awake_cmd=AWAKE_CMD)
+            # not started yet: every kind is registered first, so a job that is queued or due at
+            # app start never meets a runner that does not know its kind (TRACKER S8 Fixes)
+            jc = JobControl(cfg.data_dir / "jobs", start=False, awake_cmd=AWAKE_CMD)
             jc.register(label.sam_kind())
             jc.register(label.add_kind())
             jc.register(export_worker.export_kind())
@@ -114,6 +116,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
             jc.register(clips.playback_kind())
             jc.register(fit_convert.convert_kind())   # Build 2 (S6): one model x one camera
             jc.register(fit_setup.setup_kind())       # Build 2 (S6): the tool environments
+            jc.start()
             controls[key] = jc
         return controls[key]
 
@@ -295,6 +298,7 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
 
     fit_pages.register(app, templates, config_path, jobctl, dashboard)   # Build 2: "What runs where"
     bench_pages.register(app, templates, config_path, dashboard)          # Build 2 (S7): the rig log
+    bench_pages.register_cards(app, templates, config_path, dashboard)    # Build 2 (S7): test cards
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):

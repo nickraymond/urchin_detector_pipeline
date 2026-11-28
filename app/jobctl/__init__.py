@@ -74,9 +74,20 @@ class JobControl:
         self.recover_s = RECOVER_S
         self._recovered: dict[int, float] = {}   # job id -> since when memory is free enough
         self.auto_resume_error = ""
+        self._started = False
         if start:
-            self.runner.start()
-            threading.Thread(target=self._keep_awake, name="keep-awake", daemon=True).start()
+            self.start()
+
+    def start(self) -> None:
+        """Begin taking jobs. An app that registers its job kinds after creating the module
+        passes start=False, registers them, then calls this: a job that is queued or due when
+        the app starts must not be picked up before its kind is known (it ended "no job kind
+        ... is registered"; QE 8, 2026-11-27). Calling it twice does nothing."""
+        if self._started:
+            return
+        self._started = True
+        self.runner.start()
+        threading.Thread(target=self._keep_awake, name="keep-awake", daemon=True).start()
 
     def _keep_awake(self) -> None:
         while not self._awake_stop.wait(2.0):

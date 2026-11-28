@@ -4,6 +4,7 @@ from the files on disk (D33), and reading a fit report back. No torch here.
 
     <folder>/recipe.json
     <folder>/int8/model_int8.tflite, int8.json, convert.log      (failed.json when the 8-bit step failed)
+    <folder>/int8/made_with.json    what of the recipe made the 8-bit file (export settings, code pin)
     <folder>/targets/<camera>/fit.json, compile.log, the compiler's files
 
 <folder> is <data_dir>/fit/<arch key>/ for an untrained candidate.
@@ -21,6 +22,9 @@ from app import modeldefs
 from app.jobctl import JobError, Kind
 
 CAMERAS = {"n6": "OpenMV N6", "pi": "Pi Zero 2W", "ae3": "OpenMV AE3"}
+# A second compiler for a camera, run only from its own button (bite 2f, D71): camera -> (step, words)
+SECOND = {"n6": ("n6_st41", "ST Edge AI Core 4.1.0")}
+STEP_LABELS = {**CAMERAS, **{step: f"{CAMERAS[c]} ({words})" for c, (step, words) in SECOND.items()}}
 # camera -> the module with compile(tflite, out_dir, job) -> dict
 COMPILERS: dict[str, str] = {"n6": "app.fit.n6", "ae3": "app.fit.ae3", "pi": "app.fit.pi",
                              # a second N6 compiler, beside 4.0.0 (bite 2f, D71): placement only, never "Run all"
@@ -53,6 +57,30 @@ def int8_failed_path(folder: Path) -> Path:
 
 def fit_path(folder: Path, camera: str) -> Path:
     return Path(folder) / "targets" / camera / "fit.json"
+
+
+def made_with_path(folder: Path) -> Path:
+    return Path(folder) / "int8" / "made_with.json"
+
+
+def made_with(arch: dict) -> dict:
+    """The parts of a recipe that decide the 8-bit file: the export settings (tool environment, route, opset,
+    onnxsim) and the model code's pin. The arch key covers the rest (family, size, variant, input, classes).
+    JSON round trip, so a stored copy compares equal (QE PR 92 nit 1)."""
+    return json.loads(json.dumps({"export": modeldefs.export_settings(arch), "code": arch["code"]}))
+
+
+def older_recipe(fit: dict | None, arch: dict) -> bool:
+    """True when a stored result was made by a different recipe than the candidate's current one, so the page
+    says "Run again". A result from before made_with.json existed is compared by its int8.json's export
+    settings; one with neither record (an 8-bit step that failed before then) is not marked."""
+    if not fit:
+        return False
+    now = made_with(arch)
+    if fit.get("made_with"):
+        return fit["made_with"] != now
+    export = (fit.get("int8") or {}).get("export")
+    return export is not None and export != now["export"]
 
 
 def read_fit(folder: Path, camera: str) -> dict | None:

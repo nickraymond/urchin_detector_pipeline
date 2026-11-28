@@ -117,7 +117,9 @@ def table(data_dir: Path, active: set[tuple[str, str]] = frozenset()) -> list[di
                 fit = convert.read_fit(convert.model_dir(data_dir, arch), camera)
                 code, why = headline(fit, camera)
                 cands.append({"key": key, "arch": arch, "fit": fit, "code": code, "headline": label(code, fit),
-                              "why": why, "mark": arch.get("licence_mark"), "active": (key, camera) in active})
+                              "why": why, "mark": arch.get("licence_mark"), "active": (key, camera) in active,
+                              "older": convert.older_recipe(fit, arch),
+                              "second": second(data_dir, arch, camera, active)})
             best = min((c for c in cands if c["mark"] is None), key=lambda c: RANK[c["code"]], default=None)
             marked = min((c for c in cands if c["mark"] and c["fit"]), key=lambda c: RANK[c["code"]], default=None)
             cells[camera] = {"code": best["code"] if best else "not_tried",
@@ -126,6 +128,19 @@ def table(data_dir: Path, active: set[tuple[str, str]] = frozenset()) -> list[di
                              "earlier": [e for e in EARLIER if (e["kind"], e["camera"]) == (kind, camera)]}
         rows.append({"kind": kind, "label": KIND_LABELS[kind], "cells": cells})
     return rows
+
+
+def second(data_dir: Path, arch: dict, camera: str, active: set[tuple[str, str]]) -> dict | None:
+    """A candidate's result from the camera's second compiler (the N6's ST Edge AI Core 4.1.0, D71), shown on its
+    own line under the candidate: it never sets a cell's headline and "Run all" does not queue it."""
+    if camera not in convert.SECOND:
+        return None
+    step, words = convert.SECOND[camera]
+    key = modeldefs.arch_key(arch)
+    fit = convert.read_fit(convert.model_dir(data_dir, arch), step)
+    code, why = headline(fit, camera)
+    return {"step": step, "words": words, "fit": fit, "code": code, "headline": label(code, fit), "why": why,
+            "active": (key, step) in active, "older": convert.older_recipe(fit, arch)}
 
 
 def missing(data_dir: Path) -> list[tuple[dict, str]]:
