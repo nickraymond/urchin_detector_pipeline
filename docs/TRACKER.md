@@ -637,9 +637,10 @@ YOLOX detector on it as a job. Reuse first: the trainer and recipe from `ADIN_SP
       model appears in a plain model list
 
 **Fixes found 2026-11-27**
-- [ ] the job runner starts before the job kinds are registered (`app/web/server.py` `jobctl`), so a queued or
+- [x] the job runner starts before the job kinds are registered (`app/web/server.py` `jobctl`), so a queued or
       due scheduled job at app start can end "no job kind … is registered" (QE 8, reproduced with a 0.3 s delay;
       one `tests/test_schedule.py` failure in PR 97's suite): create it without starting, register, then start
+      *Done (PR 103): `JobControl.start()`; the app registers every kind first.*
 - [ ] the trainer's validation shrinks the whole frame to the canvas (`samples.py` `_scale` with `train=False`),
       a different mode from training and from S9's eval scale (D90): validate at the eval scale with tiles
 
