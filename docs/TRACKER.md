@@ -599,6 +599,8 @@ against the fake board only; the rig test session runs each board's first card a
       on its port before calling it a hang; run.json keeps the stage when the end step fails too *(S7 builder 4)*
 - [x] QE PR 131 nits: the free-memory figure on a CSI-first card says it lacks the frame buffer; D83c "on an N6";
       DEV_LOG's stage list *(S7 builder 4)*
+- [x] QE PR 132 nits: D85b in bite 3c's as-built text; the ORT input 0-255 (D55); the QDQ step stops after 600 s and
+      leaves no half-made `model_qdq.onnx`; TRACKER names the file *(S7 builder 4; PR 132 merged before they landed)*
 - [ ] a suite-wide guard: any test that starts `ssh`, `scp`, `dfu-util` or `mpremote` from PATH fails (QE PR 123: one older
       test reached `ssh -G h` once the N6 had a board)
 - [x] the N6's undo text in the rig log set from what the route really does (QE PR 98 nit 4; bite 1's is a placeholder)
