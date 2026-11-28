@@ -41,8 +41,24 @@ the YOLOX predictor on best.pt's EMA weights. Tests with a fake predictor (job, 
 recipe's scale and cap carried) and a stand-in detector on painted squares (native boxes back in place).
 **Self-test:** builder 2's m4 copy through `JobControl` on the Apple GPU: 6 test frames, factor 0.7586 worked out,
 recall 26 / 27 and precision 26 / 26 at 0.3 (DESIGN §Bench results). No page: bite 3 adds the model list.
-**Broke/surprised us:** nothing.
+**Broke/surprised us:** QE 10 found a crash's cut last line in `predictions.jsonl` swallowed the next frame's line,
+so a "done" eval could miss a frame silently. Fixed: whole lines on every start, every frame once before
+`eval.json`; also one set of weights per eval and boxes clipped to the frame (QE nits 1, 2).
 **Next:** S9 bite 2 (the figures, D91, D92).
+
+---
+
+## 2026-11-27 — Sprint S8 — The Train page's frame counts follow the class ticks (S7 builder 1, on S8)
+**Branch:** sprint/8-live-counts
+**Done:** one counter (`frame_counts` in `app/web/train_pages.py`) and one template (`_frame_counts.html`) for the
+page and for `GET /p/<name>/train/counts?version=&classes=`; `train.js` fetches it on every class tick and swaps the
+span (a late answer to an older tick is ignored); no class ticked says so; a bad class id or version says why.
+**Self-test:** s8_squares copy, version 1: "With the classes ticked: 42 training frames in full, 12 validation
+frames."; unticking sea star fetched `counts?version=1&classes=1` (200); unticking both: "Tick at least one class
+…"; ticking sea star again: the counts back. (Every class is fully checked there, so the numbers do not move; the
+test covers a version where they do.)
+**Broke/surprised us:** nothing.
+**Next:** shrunk copies of outside images (TRACKER S8).
 
 ---
 

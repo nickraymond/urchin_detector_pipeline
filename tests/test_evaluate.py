@@ -155,3 +155,60 @@ def test_numpy_nms_keeps_the_best_per_class():
                    np.float32)
     kept = tiles.nms(det, 0.45)
     assert kept[:, 4].tolist() == pytest.approx([.9, .7, .6])
+
+
+def test_a_line_cut_by_a_crash_is_cut_back_and_scored_again(project, jc):
+    """QE PR 121: a half-written last line must not swallow the next frame's line."""
+    mdir = model(project, "cut")
+    p = runs.params(project, mdir.name, predictor=FAKE)
+    out = runs.eval_dir(project, mdir.name, p["key"])
+    out.mkdir(parents=True)
+    first = runs.test_frames(project, 1, [1])[0]["file"]
+    (out / "predictions.jsonl").write_text('{"file": "%s", "boxes": [[1, 0, 0, 5' % first)    # no newline
+    assert wait(jc, jc.submit("evaluate", p), "done", "error")["state"] == "done"
+    files = runs.done_files(out)
+    assert len(files) == len(set(files)) == p["frames"] == len((out / "predictions.jsonl").read_text().splitlines())
+    assert (out / "eval.json").is_file()
+
+
+def test_trim_keeps_whole_lines_once_and_a_missing_frame_refuses_eval_json(tmp_path):
+    good = lambda f: json.dumps({"file": f, "boxes": []}) + "\n"
+    p = tmp_path / "predictions.jsonl"
+    p.write_text(good("a") + "{oops\n" + good("b") + good("a") + '{"file": "c"')
+    assert runs.trim(tmp_path) == 3 and p.read_text() == good("a") + good("b")
+    assert runs.read_predictions(tmp_path, ["a", "b"]) == {"a": [], "b": []}
+    with pytest.raises(RuntimeError, match="1 missing"):
+        runs.read_predictions(tmp_path, ["a", "b", "c"])
+    assert runs.trim(tmp_path / "none") == 0
+
+
+def test_a_resume_after_best_pt_changed_is_refused(project, jc):
+    """QE PR 121 nit 1: one eval, one set of weights."""
+    mdir = model(project, "w")
+    p = {**runs.params(project, mdir.name, predictor=FAKE), "fake_delay": 0.15}
+    jid = jc.submit("evaluate", p)
+    out = runs.eval_dir(project, mdir.name, p["key"])
+    end = time.monotonic() + 20
+    while len(runs.done_files(out)) < 1 and time.monotonic() < end:
+        time.sleep(0.02)
+    jc.pause(jid)
+    if wait(jc, jid, "paused", "done")["state"] == "done":
+        pytest.skip("the eval finished before Pause")
+    (mdir / "checkpoints" / "best.pt").write_bytes(b"new weights")
+    jc.resume(jid)
+    job = wait(jc, jid, "done", "error")
+    assert job["state"] == "error" and "changed since this evaluation started" in json.dumps(job)
+    assert not (out / "eval.json").exists()
+
+
+def test_boxes_are_clipped_to_the_frame(tmp_path):
+    class Edge:
+        batch = 1
+
+        def predict(self, imgs):            # one box hanging over the top-left corner of every tile
+            return [np.array([[2, 2, 10, 10, .9, 0]], np.float32) for _ in imgs]
+    Image.fromarray(np.zeros((40, 40, 3), np.uint8)).save(tmp_path / "f.png")
+    s = {"file": "f.png", "image": str(tmp_path / "f.png"), "width": 40, "height": 40, "boxes": [], "ignore": []}
+    boxes, _ = eval_worker.frame(s, 1.0, 64, 0, Edge())
+    assert boxes and all(b[1] >= 0 and b[2] >= 0 and b[1] + b[3] <= 40 and b[2] + b[4] <= 40 for b in boxes)
+    assert boxes[0][1:5] == [0.0, 0.0, 7.0, 7.0]
