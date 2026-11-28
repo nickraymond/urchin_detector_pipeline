@@ -124,7 +124,9 @@ def test_a_fault_in_a_window_restores_too(rig):
     with pytest.raises(BoardError) as e:
         b.time("yolox-nano-conv-256-c5", 10)
     b.close()
-    assert e.value.stop == LOAD_FAILED and "Failed to load network" in str(e.value) and "put back" in str(e.value)
+    assert e.value.stop == "script_failed" and "Failed to load network" in str(e.value) and "put back" in str(e.value)
+    assert "stage 2 (ml.Model) did not answer; the last stage that answered: stage 1 (import)" in str(e.value)
+    assert e.value.detail["stage_failed"] == 2 and e.value.detail["last_stage"] == 1
     assert (state / "romfs0.bin").read_bytes() == rig["partition"] and len(b.restores) == 1
 
 
@@ -231,7 +233,7 @@ def test_a_window_on_another_input_is_not_counted_and_restores(rig):
 
 
 def test_the_boards_timing_script_makes_the_laptops_image(monkeypatch, capsys):
-    """TIME_SCRIPT run by CPython with stand-ins for OpenMV's ml, image, gc and time: the sha256 it prints for its
+    """The six STAGES, run in turn by CPython with stand-ins for OpenMV's ml, image, gc and time: the sha256 it prints for its
     input buffer equals the laptop's synthetic_bytes, for RGB565 and grayscale inputs (D83a)."""
     import types
 
@@ -249,10 +251,14 @@ def test_the_boards_timing_script_makes_the_laptops_image(monkeypatch, capsys):
                 "time": types.SimpleNamespace(ticks_us=lambda: 0, ticks_diff=lambda a, b: a - b)}
         for k, v in mods.items():
             monkeypatch.setitem(sys.modules, k, v)
-        code = bench_agent.TIME_SCRIPT % {"path": "/rom/x.tflite", "warmups": 2, "n": 3, "seed": 0,
-                                          "a": bench_agent.LCG_A, "c": bench_agent.LCG_C, "m": bench_agent.LCG_M}
-        exec(compile(code, "time_script", "exec"), {})
-        out = bench_agent.board_json(capsys.readouterr().out)
+        fill = {"path": "/rom/x.tflite", "n": 3, "seed": 0, "a": bench_agent.LCG_A, "c": bench_agent.LCG_C,
+                "m": bench_agent.LCG_M}
+        board, out = {}, {}                                # one namespace: stages 2-6 run with `resume`
+        for k, (name, code) in enumerate(bench_agent.STAGES, 1):
+            exec(compile(code % fill, f"stage {k} ({name})", "exec"), board)
+            marker = bench_agent.board_json(capsys.readouterr().out)
+            assert marker["stage"] == k, name                  # each stage prints its own marker
+            out.update(marker)
         h, w, c = shape[1:]
         assert out["input_sha256"] == hashlib.sha256(bench_agent.synthetic_bytes(w, h, c)).hexdigest()
         assert out["input_bytes"] == w * h * (1 if c == 1 else 2) and out["us_total"] == 0
@@ -313,6 +319,7 @@ def test_the_card_ends_with_a_hard_reset_of_the_booted_n6_only(rig):
     last = calls(state)[-1]
     assert last[0] == "mpremote" and last[1] == "connect" and "Pyboard" in last[2] and last[3:] == ["reset"]
     (state / "mode").write_text("dfu")
+    b.image_on_board = True                   # ours may be on it: never booted before a restore (QE PR 130 keeps this)
     with pytest.raises(BoardError, match="bootloader"):
         b.finish()
     b.close()
@@ -414,3 +421,82 @@ def test_no_board_serial_reaches_agent_log_or_an_answer(rig):
     log = (rig["tmp"] / "agent" / "agent.log").read_text()
     assert "<n6_dfu_serial>" in log and "-a 3 -D" in log
     assert "FAKE0N6SERIAL" not in log and "ANOTHER_N6" not in log and "ANOTHER_N6" not in str(e.value)
+
+
+def test_a_board_that_resets_mid_stage_is_board_reset_and_names_the_last_stage(rig):
+    """Card 6: the board dropped into its bootloader within 2 s of the timing, with no traceback."""
+    b, state = rig["board"], rig["state"]
+    b.load(rig["model"])
+    fault(state, reset_at_stage=4)
+    with pytest.raises(BoardError) as e:
+        b.time("yolox-nano-conv-256-c5", 5)
+    b.close()
+    assert e.value.stop == "board_reset" and "the last stage that answered: stage 3 (input_shape)" in str(e.value)
+    assert "put back from the backup" in str(e.value) and e.value.detail["stage_failed"] == 4
+    assert (state / "romfs0.bin").read_bytes() == rig["partition"] and not ae3_asks(state)
+    execs = [c for c in calls(state) if c[0] == "mpremote" and "'stage': " in c[-1]]
+    assert [("resume" in c) for c in execs] == [False, True, True, True]           # stage 1 fresh, then resume
+
+
+def test_a_vendor_model_in_rom_is_timed_with_no_write(rig):
+    """Lead call, lead 2 (after card 6): the known-good control: a model already in /rom, nothing written."""
+    b, state = rig["board"], rig["state"]
+    assert b.use_rom(["vendor_det.tflite"])["route"] == "already in /rom (no write)"
+    t = b.time("vendor_det.tflite", 5)
+    assert t["n"] == 5 and t["stages"][-1] == "N windows" and t["input_check"].startswith("sha256")
+    with pytest.raises(BoardError, match="not in the N6's /rom"):
+        b.use_rom(["ours_not_there.tflite"])
+    b.close()
+    assert not any(c[0] == "dfu-util" and ("-D" in c or "-U" in c) for c in calls(state))      # only `-l` listings
+    assert [r["what"] for r in riglog.read(rig["data"])] == ["copy the bench agent"]            # the agent itself only
+    assert (state / "romfs0.bin").read_bytes() == rig["partition"]
+
+
+def test_a_long_tool_output_keeps_its_head_and_its_tail():
+    """QE 10, card 6: only the tail was kept, and the board's first lines were lost."""
+    text = "BOARD: first line\n" + "x" * 10_000 + "\nmpremote: lost the port"
+    kept = bench_agent.head_tail(text, 3000)
+    assert kept.startswith("BOARD: first line") and kept.endswith("lost the port") and "characters cut" in kept
+    assert bench_agent.head_tail("short", 3000) == "short"
+
+
+def test_a_window_sends_nothing_between_its_stages(rig):
+    """QE PR 130: find() before every stage soft-reset the board (no `resume`), so stage 2 lost stage 1's imports.
+    The fake N6 now loses state the same way; a whole window passes, and the stages are back to back."""
+    b, state = rig["board"], rig["state"]
+    b.use_rom(["vendor_det.tflite"])
+    assert b.time("vendor_det.tflite", 5)["n"] == 5
+    b.close()
+    mp = [c for c in calls(state) if c[0] == "mpremote"]
+    first = next(i for i, c in enumerate(mp) if "'stage': 1" in c[-1])
+    window = mp[first:first + 6]
+    assert [("'stage': %d" % k) in c[-1] for k, c in zip(range(1, 7), window)] == [True] * 6
+    assert [("resume" in c) for c in window] == [False] + [True] * 5
+
+
+def test_the_fake_n6_loses_the_stages_state_on_an_exec_without_resume(rig):
+    """The rule the fake models: put a non-resume call back between two stages and stage 2 answers a NameError."""
+    import subprocess as sp
+    state, port = rig["state"], str(next((rig["tmp"] / "by-id").glob("*Pyboard*")))
+    fake = [sys.executable, str(FAKE), str(state), "mpremote", "connect", port]
+    one, two = (code % {"path": "/rom/vendor_det.tflite", "n": 1, "seed": 0, "a": 1, "c": 1, "m": 1}
+                for _, code in bench_agent.STAGES[:2])
+    assert sp.run(fake + ["exec", one], capture_output=True, text=True).returncode == 0
+    assert sp.run(fake + ["exec", "import omv; print('NB:' + omv.board_type())"], capture_output=True).returncode == 0
+    r = sp.run(fake + ["resume", "exec", two], capture_output=True, text=True)
+    assert r.returncode == 1 and "NameError: name 'ml'" in r.stdout
+
+
+def test_a_no_write_card_whose_board_reset_is_booted_at_the_end(rig):
+    """QE PR 130: a /rom card's board left in its bootloader is booted by the end step (alt 2 read with -R, no write),
+    then hard-reset; with nothing of ours on it no restore is needed."""
+    b, state = rig["board"], rig["state"]
+    b.use_rom(["vendor_det.tflite"])
+    fault(state, reset_at_stage=3)
+    with pytest.raises(BoardError) as e:
+        b.time("vendor_det.tflite", 5)
+    assert e.value.stop == "board_reset" and (state / "mode").read_text() == "dfu"
+    assert b.finish()["hard_reset"] is True
+    b.close()
+    assert (state / "mode").read_text() == "app" and not any("-D" in c for c in calls(state) if c[0] == "dfu-util")
+    assert any(c[0] == "dfu-util" and "-R" in c and c[c.index("-a") + 1] == "2" for c in calls(state))

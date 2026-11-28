@@ -141,6 +141,18 @@ class N6Board(PiBoard):
         return {**done, "image_sha256": hashlib.sha256(image).hexdigest(), "image_bytes": len(image),
                 "image_path": str(local_image), "rom_names": self.rom_names}
 
+    def use_rom(self, names: list[str]) -> dict:
+        """Time models already in the board's /rom (a vendor's), with no write at all (Lead call, lead 2, after card 6):
+        each must be in /rom now. Not a rig change: nothing is copied or written."""
+        info = self.info()
+        rom = info.get("rom") or {}
+        missing = [n for n in names if n not in rom]
+        if missing:
+            raise BoardError(NOT_LOADED, f"{', '.join(missing)} is not in the N6's /rom (it lists {len(rom)}: "
+                                         f"{', '.join(sorted(rom)) or 'nothing'}); nothing was written")
+        self.rom_names = {n: n for n in names}
+        return {"loaded": sorted(names), "route": "already in /rom (no write)", "rom": rom}
+
     def time(self, name: str, n: int) -> dict:
         self.connect()
         if name not in self.rom_names:
@@ -178,7 +190,8 @@ class N6Board(PiBoard):
         """The card's last step, after the end-of-card restore (lead 2, after PR 123): a hard reset of the booted N6
         so its own main.py runs again. Not a rig-log change: nothing stored on the board changes."""
         self.connect()
-        done = self.transport.request("hard_reset", kind="n6", dfu_serial=self.dfu_serial)
+        done = self.transport.request("hard_reset", kind="n6", dfu_serial=self.dfu_serial,
+                                      boot_if_in_bootloader=not self.image_on_board)
         self.finished = done
         return done
 

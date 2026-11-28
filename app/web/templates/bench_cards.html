@@ -19,7 +19,7 @@
     <td><a href="/bench/cards/{{ c.number }}">{{ c.number }}</a></td>
     <td>{{ c.question }}</td>
     <td>{{ c.unit }} / {{ c.board }}</td>
-    <td>{{ c.models | map(attribute="name") | join(", ") }}</td>
+    <td>{{ c.models | map(attribute="name") | join(", ") }}{% if c.rom_models %}{{ c.rom_models | join(", ") }} <span class="hint">(in /rom)</span>{% endif %}</td>
     <td>{{ c.windows }} × {{ c.n }}</td>
     <td>{{ c.written_by }}</td>
     <td>{% if c.reviewed %}{{ c.review.reviewed_by }}{% elif c.review %}<span class="error">card changed after review</span>{% else %}not reviewed{% endif %}</td>
@@ -38,6 +38,8 @@
      <label>Board <select name="board">{% for k in kinds %}<option{% if f.board == k %} selected{% endif %}>{{ k }}</option>{% endfor %}</select></label></p>
   <p><label>Model files, one path per line (under the data folder; relative paths start there)<br>
      <textarea name="models" rows="3" cols="80">{{ f.models }}</textarea></label></p>
+  <p><label>Or, N6 only: models already in its /rom, one name per line (a vendor's, such as yolov8n_192.tflite): timed with no write at all<br>
+     <textarea name="rom_models" rows="2" cols="80">{{ f.rom_models }}</textarea></label></p>
   <p><label><input type="checkbox" name="restore_only"{% if f.restore_only %} checked{% endif %}> Restore only (N6): put the
      backup's ROMFS0 back, read it back, boot and list /rom; no models, nothing timed</label></p>
   <p><label>Windows (at least {{ min_windows }}) <input name="windows" type="number" min="{{ min_windows }}" value="{{ f.windows }}"></label>

@@ -257,3 +257,26 @@ def test_a_card_whose_board_never_answered_is_not_reset(site, jc):
     job = wait(jc, jc.submit("bench", p), "done", "error")
     assert job["state"] == "error" and "stop rule no_answer" in job["message"] and "hard reset" not in job["message"]
     assert "finish" not in json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
+
+
+@pytest.mark.parametrize("over, why", [({"rom_models": "yolov8n_192.tflite", "board": "pi", "models": ""}, "only an N6 card"),
+                                       ({"rom_models": "yolov8n_192.tflite"}, "not both"),
+                                       ({"rom_models": "../x.tflite", "models": ""}, "a file name ending in .tflite"),
+                                       ({"rom_models": "a.tflite\na.tflite", "models": ""}, "listed twice")])
+def test_rom_models_are_for_n6_cards_alone(site, over, why):
+    cfg, data = site
+    with pytest.raises(card.CardError, match=why):
+        new_card(data, cfg.bench, **over)
+
+
+def test_a_card_of_models_already_in_rom_runs_with_no_write(site, jc):
+    cfg, data = site
+    n = new_card(data, cfg.bench, models="", rom_models="yolov8n_192.tflite")
+    assert card.load(data, n)["rom_models"] == ["yolov8n_192.tflite"] and card.load(data, n)["models"] == []
+    p = runs.params(cfg, n)
+    job = wait(jc, jc.submit("bench", p), "done", "error")
+    assert job["state"] == "done", job
+    run = json.loads((runs.run_dir(data, p["run_id"]) / "run.json").read_text())
+    assert run["route"] == "already in /rom (no write)" and run["restores"] == [] and run["finish"]["hard_reset"]
+    assert len(runs.windows_done(runs.run_dir(data, p["run_id"]))) == 3
+    assert riglog.read(data) == []                           # nothing written: no rig change
