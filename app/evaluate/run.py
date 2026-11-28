@@ -35,6 +35,15 @@ def test_frames(folder: Path, version: int, class_ids: list[int]) -> list[dict]:
     return full
 
 
+def test_groups(folder: Path, version: int) -> dict[str, str] | None:
+    """file -> the frame's site-and-date group (D43) for D92's bootstrap; None when the version was split by video
+    (the export could not read site and date), as those groups are not dives."""
+    manifest, _ = loaders.load(folder, version)
+    if manifest.get("grouped_by") == "video":
+        return None
+    return {f["file"]: f["group"] for f in manifest["frames"] if f.get("group")}
+
+
 def test_hash(frames: list[dict], class_ids: list[int]) -> str:
     body = json.dumps({"classes": sorted(class_ids), "frames": sorted([f["file"], f.get("sha256", "")] for f in frames)})
     return hashlib.sha256(body.encode()).hexdigest()[:12]

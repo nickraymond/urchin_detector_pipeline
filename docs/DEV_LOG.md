@@ -17,6 +17,21 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S9 — Bite 2b: how far a figure can be trusted (S7 builder 1, on S9)
+**Branch:** sprint/9-intervals (stacked on sprint/9-figures, PR 122)
+**Done:** D92 in `app/evaluate/metrics.py`: a 95 % interval on every figure (Wilson for frame shares; a seeded
+bootstrap, 1,000 draws, for the rest); whole site-and-date groups resampled from 5 groups up, frames below that with
+a note; the rank floor per class (10 frames, 30 objects). `run.test_groups` reads the groups from the manifest (none
+for a version split by video). QE 10's nit on PR 118: no class ticked on the Train page is red now.
+**Self-test:** builder 2's m4 copy, metrics recomputed from its predictions: class 1 recall 0.941 [0.842, 1.0], AP50
+0.941 [0.842, 1.0]; class 3 recall 1.0 [1.0, 1.0]; within ±20 % 1.0 [0.610, 1.0] (Wilson, 6 frames); 1 group, so
+frames are resampled and the note says so; both classes under the rank floor (6 frames). Train page, every class
+unticked: the span has class "problem", border rgb(198, 40, 40).
+**Broke/surprised us:** nothing.
+**Next:** S9 bite 3 (per-frame view), as the lead assigns.
+
+---
+
 ## 2026-11-27 — Sprint S9 — Bite 2a: the figures of an eval (S7 builder 1, on S9)
 **Branch:** sprint/9-figures (stacked on sprint/9-evaluate, PR 121)
 **Done:** `app/evaluate/metrics.py` (D91): count error (mean, mean absolute), within ±20 % and the strict share with

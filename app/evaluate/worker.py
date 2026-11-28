@@ -105,7 +105,7 @@ def main() -> None:
             preds[line["file"]] = line["boxes"]
         except (ValueError, KeyError):
             continue
-    figs = metrics.figures(frames, preds, ids, factor, runs.THRESHOLD)      # bite 2a (D91)
+    figs = metrics.figures(frames, preds, ids, factor, runs.THRESHOLD, runs.test_groups(folder, version))  # D91, D92
     tmp = out / ".metrics.json.tmp"
     tmp.write_text(json.dumps(figs, indent=1, sort_keys=True))
     os.replace(tmp, out / "metrics.json")
