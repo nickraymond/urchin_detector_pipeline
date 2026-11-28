@@ -723,6 +723,18 @@ app/web/models_pages.py    /models (list, notes, archive) and /compare; template
 <project>/models/<model id>/notes.txt, state.json   Nick's notes; {"archived": bool}
 ```
 
+**As built, bite 1** (`app/evaluate/run.py`, `worker.py`, `yolox.py`): the tiling is `app/train/tiles.py`, shared with
+the trainer's validation (not a second `app/evaluate/tiles.py`), plus a numpy NMS (`tiles.nms`) for the seams. Job kind
+`evaluate`, item "frame". `params` refuses a model without `best.pt` (the Train page's reason), a pre-training model
+(one class, "urchin", none of the project's), a trainer with no predictor, a test split with no frame fully checked
+for every class of the run, and a test set already evaluated. The test set's hash covers its frames (file and sha256)
+and the class ids. The eval factor and overlap come from the recipe, or for an older model are worked out from its
+version's training split the same way (`scale_for`, recorded as the source). The worker re-checks the hash, scores
+frame by frame (Pause between frames, Resume skips frames on disk), keeps every box down to score 0.01 for mAP50
+(D91), and writes `eval.json` last (weights' sha256, scale and its source, overlap and whether capped, threshold 0.3,
+floor, NMS IoU, device, code). The YOLOX predictor loads best.pt's EMA weights into S6's model and uses the
+trainer's `decode`. No page yet: bite 3's model list starts the job.
+
 Status in the model list comes from the files, not a stored field: trained (`checkpoints/best.pt`) →
 evaluated (an `eval/`) → converted (`int8/` and a `targets/*/fit.json`) → bench tested (a bench run that
 names the model) → picked (S11).
@@ -964,6 +976,12 @@ does not load, OpenMV's SDK that matches v5.0.1 goes to Nick.
 | D72 | 2026-11-27 | **Lead call** (Build 2 lead, 2026-11-27; proposed by S6 builder 2, bite 2c-ii): RTMDet-Ins-tiny is built from mmdetection's pure-Python packages (`mmdet` 3.3.0, `mmengine` 0.10.7, `mmcv-lite` 2.1.0) in its own tool environment `mmdet-venv`, on top of the conversion pins. mmdetection imports `mmcv.ops`, which loads mmcv's compiled operators; `app/modeldefs/rtmdetins.py` answers those imports with a stand-in instead of compiling full mmcv from source: a stood-in operator raises the stand-in's own message when it is used, and a stood-in submodule called directly raises Python's `TypeError`; loud either way. `mmcv-lite` ships mmcv's operator folder as source, and 13 files in it carry NVIDIA licence headers that forbid use without an agreement with NVIDIA; nothing may import `mmcv.ops` for real in this environment, and the set-up step removes the whole `mmcv/ops` folder after the install (`setup.REMOVE`; the environment reads "not ready" while it is there). The exported module is backbone, neck and head with raw maps; box decoding, NMS and the mask step (a tiny per-instance conv, "dynamic conv") stay outside the model, as for the other candidates. It goes through the known-good 8-bit route (`route: "onnx2tf"`). | PyPI has no macOS build of full mmcv (a source archive only), and a source build is a compiler job of its own on this laptop; the raw network needs none of the compiled operators (they are NMS and other models' layers), which the build confirms, before and after the folder was removed: 5,616,362 parameters, the readme's 5.6 M, with 0 network attempts in the build check (every connection refused and counted). mmdetection's own code is unchanged. The risk is a later mmdet version calling a compiled operator inside the network: the stand-in then fails loudly at build time. The stand-in is checked for the untrained fit check only: if S10 trains RTMDet-Ins, training and its losses may need real operators, and the stand-in is checked again then. Nick can reverse it. |
 
 ## Bench / test results
+
+**S9 bite 1, 2026-11-27 — the evaluate job on a trained model. SYNTHETIC data only** (S8 builder 2's m4, YOLOX-Nano
+256, 400 epochs on `s8_squares` v1, a copy). Through `JobControl` as the app runs it, on the Apple GPU: 6 test frames,
+eval factor 0.7586 worked out from version 1's training split (the same as the trainer's), overlap 61, not capped;
+31 boxes saved down to score 0.01; at the 0.3 threshold, matched at IoU 0.5 by class: recall 26 / 27, precision
+26 / 26. One model, one small test split (n = 1): a check that the job scores, not a measure of a detector.
 
 **S8 Fixes 2, 2026-11-27 — validation at D90's eval scale, in tiles. SYNTHETIC data only** (S8 builder 2's
 `s8_squares`: painted squares, 2 classes; copies in a scratch data folder). One model scored by the trainer's

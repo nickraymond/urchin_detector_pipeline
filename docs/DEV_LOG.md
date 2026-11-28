@@ -17,6 +17,21 @@ what broke, what's next.*
 
 ---
 
+## 2026-11-27 — Sprint S9 — Bite 1: the evaluate job (S7 builder 1, on S9)
+**Branch:** sprint/9-evaluate
+**Done:** `app/evaluate/` (D90): job kind `evaluate`, one model × one test set → `eval/v<version>-<test hash>/`
+(`predictions.jsonl` frame by frame, `eval.json` last); refusals (no best.pt with the Train page's reason, a
+pre-training model, no predictor, no fully checked test frame, already evaluated); the eval scale from the recipe or
+worked out for older models; tiles from `app/train/tiles.py` with a numpy NMS across seams; scores kept down to 0.01;
+the YOLOX predictor on best.pt's EMA weights. Tests with a fake predictor (job, Pause / Resume, refusals, the
+recipe's scale and cap carried) and a stand-in detector on painted squares (native boxes back in place).
+**Self-test:** builder 2's m4 copy through `JobControl` on the Apple GPU: 6 test frames, factor 0.7586 worked out,
+recall 26 / 27 and precision 26 / 26 at 0.3 (DESIGN §Bench results). No page: bite 3 adds the model list.
+**Broke/surprised us:** nothing.
+**Next:** S9 bite 2 (the figures, D91, D92).
+
+---
+
 ## 2026-11-27 — Sprint S7 — Bites 3a, 3b, 4a and follow-ups (S6 builder 3)
 **Branches:** sprint/7-bench-agent (PR 108), sprint/7-pi-runtime (112), sprint/7-pi-install (113), sprint/7-card-threads (115),
 sprint/7-bench-nits (117), sprint/7-n6-romfs (119); also sprint/6-camera-order (109)
