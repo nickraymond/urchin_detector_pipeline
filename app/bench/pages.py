@@ -41,7 +41,7 @@ def register_cards(app, templates, config_path, dashboard, jobctl) -> None:
         return RedirectResponse(path + ("?" + urlencode(query) if query else ""), status_code=303)
 
     def cards_view(request, cfg, error: str = "", typed: dict | None = None, status: int = 200):
-        defaults = {"windows": card.DEFAULT_WINDOWS, "n": card.DEFAULT_N, "metric": card.DEFAULT_METRIC,
+        defaults = {"windows": card.DEFAULT_WINDOWS, "n": card.DEFAULT_N, "threads": card.DEFAULT_THREADS, "metric": card.DEFAULT_METRIC,
                     "stop_rules": "\n".join(card.DEFAULT_STOP_RULES)}
         return templates.TemplateResponse(request, "bench_cards.html", {
             "cfg": cfg, "error": error, "cards": card.list_cards(cfg.data_dir), "units": cfg.bench.names(),

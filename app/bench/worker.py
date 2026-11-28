@@ -43,6 +43,11 @@ def _write(path, body: dict) -> None:
     os.replace(tmp, path)
 
 
+def board_settings(c: dict, unit) -> dict:
+    """What the card fixes on the board itself: a real Pi runs the card's thread count (D83, D88)."""
+    return {"threads": c.get("threads", 1)} if c["board"] == "pi" and not unit.fake else {}
+
+
 def _close(board) -> None:
     """End the agent's process on the Pi (a PiBoard); the fake board has nothing to close."""
     close = getattr(board, "close", None)
@@ -73,7 +78,7 @@ def main() -> None:
     run["job_id"] = job.get("job_id")             # the page reads the job's state (a Cancel ends the worker at once)
     try:
         board = open_board(unit, c["board"], data_dir, bench=cfg.bench, log_dir=folder,
-                           **({"threads": c.get("threads", 1)} if not unit.fake else {}), **job.get("fake", {}))
+                           **board_settings(c, unit), **job.get("fake", {}))
         run["board_info"] = board.info()
         loaded = board.load_several([Model(m["name"], m["path"]) for m in c["models"]])
         run["route"] = loaded.get("route", "")
