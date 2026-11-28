@@ -521,15 +521,17 @@ against the fake board only; the rig test session runs each board's first card a
       `RESTORE.md` after each card, before the next (D87); every card's stop rules include "RESTORE.md matches the rig log"
 
 **Bite 2 — Test card and the `bench` job** (D83, D84)
-- [ ] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
+- [x] the card as data and a page (question, units, models and sha256, frames, windows and N, metric, pass bar,
       stop rules, cost, written by, reviewed by); Run is refused without a saved card; the card is saved with the run
+      *(2a, split by the builder: `app/bench/card.py`, `/bench/cards`; Run and "saved with the run" land with 2b)*
 - [ ] job kind `bench` on `app/jobctl/`: one card → windows → `bench/<run id>/` (`run.json`, `timing.jsonl`); Pause
       after a window, Cancel keeps finished windows; stop rules as job errors with a recovery hint; tested end to end
       with the fake board
 
 **Bite 3 — The bench agent and the Pi** (D81, D85)
 - [ ] the agent (`app/bench/agent/`, plain Python 3): copied to its folder on the Pi over ssh, speaks JSON lines;
-      tested on the laptop against a fake transport
+      tested on the laptop against a fake transport; before the agent's first connection, the host that
+      `ssh -G <alias>` resolves to is checked against `field_units` too (QE PR 98 nit 5)
 - [ ] Pi runs with LiteRT first (same 8-bit file as S6): N windows, `perf_counter_ns` around invoke, `VmHWM`;
       then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
@@ -539,10 +541,12 @@ against the fake board only; the rig test session runs each board's first card a
       verify, `/rom` listing; the camera timing script (2 warm-ups, `ticks_us` around N × `predict`, `gc.mem_free`);
       tested with the fake board and on a ROMFS image file on the laptop
 - [ ] first real card (rig test session): YOLOX Nano re-measured against the earlier 10.6 ms before any new model
+- [ ] the N6's undo text in the rig log set from what the route really does (QE PR 98 nit 4; bite 1's is a placeholder)
 
 **Bite 5 — The AE3 route** (D82; under the one-day AE3 time box, S6's compile time counted)
 - [ ] `/flash` route with a heap check and an on-board size and sha256 check; ROMFS0 route for larger files with
       our own build script on OpenMV's `mkromfs.py`; first real card: YOLOX Nano against the earlier 26.4 ms
+- [ ] the AE3's undo texts (`/flash` and ROMFS0) set from what the routes really do (QE PR 98 nit 4)
 
 **Bite 6 — Several models on one camera, board half** (DESIGN §Planned for S7)
 - [ ] the pairs and the three from S6's "stored together": loaded together (peak memory) or, if not, load, run and
