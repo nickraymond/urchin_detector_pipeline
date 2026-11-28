@@ -230,10 +230,11 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   urchin, sea star and sunflower sea star; the other classes stay labeled and wait. Nick can reverse it.
 - Q32 (2026-11-27). Nick approved the plan; the spec lead merges the spec PR for him at the QE-passed head. Yes
   to ST's licence terms for ST Edge AI Core 4.1.0. No to DUO-trained weights as a starting point for a camera model.
-- Q33 (2026-11-27, about 2:46 PM, spec lead's chat). The rig backup needs no media from the Pi's card, "only
-  runtime software" ("I have archived the media content I need"); the media were then deleted on his typed go.
-  So constraint 9's "SD card image" was met as a software-only backup (partition table, boot partition, root file
-  system without the media; RESTORE.md in the rig backup folder). The constraint's wording is Nick's to change.
+- Q33 (2026-11-27, about 2:45 PM, spec lead's chat). The media on the Pi's card need no backup ("I have archived
+  the media content I need"); they were then deleted on his typed go. His sentence ends "before the image backup
+  is made": the raw card image is still expected. Stopping it at 2:47 PM was the first lead's call, not his. Lead
+  call (Build 2 lead 2): the rig test session takes the raw card image now that the card is cleared, before the
+  first rig change (constraint 9 as written).
 - Q24. Outside data and starting weights: the urchin datasets from his earlier detector work, already
   on the laptop with their licences recorded. Only sources whose recorded verdict allows commercial use.
 
