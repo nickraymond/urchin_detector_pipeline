@@ -22,10 +22,13 @@ from app.jobctl import JobError, Kind
 
 CAMERAS = {"n6": "OpenMV N6", "pi": "Pi Zero 2W", "ae3": "OpenMV AE3"}
 # camera -> the module with compile(tflite, out_dir, job) -> dict
-COMPILERS: dict[str, str] = {"n6": "app.fit.n6", "ae3": "app.fit.ae3", "pi": "app.fit.pi"}
+COMPILERS: dict[str, str] = {"n6": "app.fit.n6", "ae3": "app.fit.ae3", "pi": "app.fit.pi",
+                             # a second N6 compiler, beside 4.0.0 (bite 2f, D71): placement only, never "Run all"
+                             "n6_st41": "app.fit.n6_st41"}
 # [fit] in config.local.toml (D52): where Nick's earlier work left the N6 toolchain
 FIT_DEFAULTS = {"openmv_dir": "~/openmv-dev/openmv", "sdk_dir": "~/openmv-sdk-1.6.0-linux-x86_64",
-                "docker_image": "firmware-builder:latest"}
+                "docker_image": "firmware-builder:latest",
+                "stedgeai41": "/Applications/ST/STEdgeAI/4.1/Utilities/macarm/stedgeai"}
 
 
 def fit_settings(raw: dict | None = None) -> dict:

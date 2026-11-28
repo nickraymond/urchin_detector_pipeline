@@ -149,7 +149,7 @@ class Trainer:
         self.dir, self.arch, self.t = Path(model_dir), recipe["arch"], recipe["train"]
         limits = job.get("limits") or {}
         self.device = pick_device(limits.get("device"))
-        self.warning, self.gpu_check, self.no_valid = "", None, ""
+        self.warning, self.gpu_check, self.no_valid, self.no_background = "", None, "", ""
         self.threads = int(limits.get("threads") or 4)
         torch.set_num_threads(self.threads)
         self.seed, self.canvas = int(self.t["seed"]), int(self.t["tile"])
@@ -169,7 +169,7 @@ class Trainer:
         else:
             full, boxes_only = loaders.run_frames(
                 loaders.detector_samples(folder, version, "train", self.ids)["samples"], self.ids)
-            loaders.need_background(full, boxes_only)
+            self.no_background = loaders.background_warning(full, boxes_only)
             self.train = full + [{**s, "boxes_only": True} for s in boxes_only]
             self.valid, out_valid = loaders.usable(
                 loaders.detector_samples(folder, version, "valid", self.ids)["samples"], self.ids)
@@ -248,7 +248,8 @@ class Trainer:
     def describe(self) -> dict:
         import torchvision
         return {"device": self.device, "threads": self.threads,
-                "warning": " ".join(w for w in (self.warning, self.no_valid) if w),
+                "warning": " ".join(w for w in (self.warning, self.no_background,
+                                                self.no_valid) if w),
                 "batch": self.batch, "gpu_check": self.gpu_check,
                 "steps_per_epoch": self.steps, "train_frames": len(self.train),
                 "valid_frames": len(self.valid),

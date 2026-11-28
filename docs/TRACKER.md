@@ -411,6 +411,12 @@ no labeled data. Reuse first: the export and compile scripts of `ADIN_SPI_OpenMV
       own in two sizes; 256 px, the five classes plus "other"; built untrained in the app's own tests
 - [x] 2c-i: instance segmenters (D58): RF-DETR-Seg Nano (312 px) and YOLOX Nano / Tiny with prototype masks (our
       own small conv one, 256 px)
+- [x] 2f (Lead call D71): does ST Edge AI Core 4.1.0 (Nick's install) compile any RF-DETR size for the N6? No:
+      full-integer TFLite and quantized ONNX both stop (DESIGN §Bench results, bite 2f); YOLOX Nano gives the same
+      117 + 2 + 0 as 4.0.0. A guarded second N6 compiler step (`app/fit/n6_st41.py`): "n" to ST's statistics
+      question, network and `~/.stmai` denied, refuses to start otherwise; placement only
+- [ ] 2f, page part (not built): show a candidate's 4.1.0 result (`targets/n6_st41/fit.json`) as a second line
+      in its N6 row, with a button to run it; today the step can be queued only from code
 - [x] 2c-ii: RTMDet-Ins-tiny (Apache-2.0) as a published small conv instance segmenter
       (`app/modeldefs/rtmdetins.py`, D72): mmdetection's pure-Python packages in `mmdet-venv`; built untrained with
       no network; through the real job: runs, partly on the CPU, on the N6 (2 software steps) and the AE3 (1 CPU

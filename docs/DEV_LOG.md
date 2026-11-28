@@ -36,12 +36,30 @@ needed more epochs (numbers in PR 87).
 A mistake of mine: PR 84 reached main with three conflict-marker lines in DESIGN (a second conflicted file missed
 when merging main in); fixed by PR 89, which adds a test that fails on such markers.
 The lead's call D66 (frames with only some classes checked train on their labeled boxes only) is built in PR 93,
-with two refusals: a run with no fully checked training frame, and a run with no fully checked validation frame.
+with the lead's two further calls: a run with no fully checked training frame is allowed with a visible warning; a
+run with no fully checked validation frame is refused.
 PR 103 makes the job runner start after the job kinds are registered (TRACKER S8 "Fixes", item 1).
 **Open in S8 (each has a box in TRACKER):** feeding outside images faster; mosaic; the haze preset and the warm-up
 rule are not measured; a full pre-training run (hours); no run on Nick's real frames yet (no class is fully checked
 on them, D64); the attribution text travelling with a model; three small carried QE nits.
 **Next:** shrunk copies of outside images; then a full pre-training run on Urchinbot.
+## 2026-11-27 — Sprint S6 — Bite 2f: ST Edge AI Core 4.1.0 on the RF-DETR family (S6 builder 2)
+**Branch:** sprint/6-st-4-1
+**Done:** read-only check of Nick's install (v4.1.0-20732, Neural-ART module 12.1.0, macOS build only); the
+known-good YOLOX Nano (117 + 2 + 0, as 4.0.0); the five RF-DETR full-integer files, then quantized ONNX for Nano
+and Atto: none compiles (table in DESIGN §Bench results). `app/fit/n6_st41.py`: 4.1.0 as a second, guarded N6
+compiler step with its tests; `[fit] stedgeai41`.
+**Broke/surprised us:** ST's tool collects usage statistics. Its prompt showed after two runs of mine had already
+gone with the network open (YOLOX Nano, untrained; no frames or weights are in what it collects). Reported at
+once; Nick ruled the same hour (D71). Giving the tool a private HOME does not work (it ignores `$HOME`, and that
+try queued one record, which the lead cleared); denying the write to `~/.stmai` in the sandbox does.
+The install cannot go into the 4.0.0 route's container (no Linux `stedgeai`; `/Applications` is not shared with
+Docker), and natively the relocatable step has no `arm-none-eabi-gcc`: placement only.
+**Self-test:** the real step on YOLOX Nano (converts, 117 + 2 + 0) and Atto ("LESS … not supported"), with
+`~/.stmai` unchanged by checksum both times (`s6/probe_st41/step_selftest/`).
+**Not done:** the page part (a 4.1.0 line and button in the N6 rows): an open TRACKER box.
+**Next:** S6's close: TRACKER ticks, DESIGN as-built, the Demo checklist, "Run all" on Nick's data folder.
+
 ## 2026-11-27 — Sprint S7 — Bite 1: bench units, the Board interface, FakeBoard, the rig log (S7 builder 1)
 **Branch:** sprint/7-bench-core
 **Done:** `app/bench/` (D81): `[bench]` units read from `config.local.toml` (field units refused by name or ssh host;

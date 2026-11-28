@@ -127,16 +127,17 @@ def need_validation(valid_full: list[dict]) -> None:
             "choice).")
 
 
-def need_background(full: list[dict], boxes_only: list[dict]) -> None:
-    """Refuse a run whose training frames are all boxes-only (QE PR 93): no frame would ever
-    teach "nothing here", and the detector would never have been shown background."""
+def background_warning(full: list[dict], boxes_only: list[dict]) -> str:
+    """The warning for a run whose training frames are all boxes-only, or "" (Lead call, lead 2,
+    2026-11-27, on QE's FAIL of PR 93: such a run is allowed, with a visible warning on the
+    Train page before Run and on the model; Nick's real project has no fully checked frame yet,
+    so a refusal would block all training)."""
     if boxes_only and not full:
-        raise DatasetError(
-            f"None of the {len(boxes_only)} training frames has every picked class fully "
-            "checked, so this run would never be shown what \"nothing here\" looks like. Pick "
-            "only the classes that are fully checked on the reviewed frames, or tick \"fully "
-            "checked\" for the others on the Review page, then export and freeze again (the "
-            "Datasets page shows the frame counts for a class choice).")
+        return (f"No frame teaches \"no object\" here: none of the {len(boxes_only)} training "
+                "frames has every picked class fully checked, so the detector may fire "
+                "everywhere. Tick \"fully checked\" on the Review page for the classes you "
+                "reviewed, then export and freeze again.")
+    return ""
 
 
 def usable(samples: list[dict], class_ids: list[int]) -> tuple[list[dict], int]:
