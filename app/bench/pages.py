@@ -76,6 +76,9 @@ def register_cards(app, templates, config_path, dashboard, jobctl) -> None:
             c = card.load(cfg.data_dir, number)
         except card.CardError as e:
             return HTMLResponse(str(e), status_code=404)
+        except (ValueError, OSError) as e:            # a card file that cannot be read (QE PR 105 nit 2)
+            return HTMLResponse(f"Card {number} cannot be read: {type(e).__name__}: {e}. Its file is "
+                                f"bench/cards/{number}.json under the data folder; write a new card.", status_code=422)
         jc, found = jobctl(cfg), runs.runs_for_card(cfg.data_dir, number)
         for r in found:
             jid = r["run"].get("job_id")
