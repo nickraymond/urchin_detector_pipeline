@@ -18,6 +18,7 @@ import sqlite3
 import sys
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
@@ -168,7 +169,8 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
                 # the summary's counts, urchins first (the number the morning summary is for)
                 "found": sorted(((job.get("summary") or {}).get("counts") or {}).items(),
                                 key=lambda kv: ("urchin" not in kv[0], -kv[1], kv[0])),
-                "stop_show": schedule.show(job.get("stop_by"))}
+                "stop_show": schedule.show(job.get("stop_by")),
+                "stop_passed": bool(job.get("stop_by")) and schedule.parse(job["stop_by"]) <= datetime.now()}
 
     def read_schedule(start: str, stop: str):
         """(start_at, stop_by, problem) from the two optional clock-time fields (D37)."""
@@ -280,19 +282,27 @@ def create_app(config_path: Path = config.DEFAULT_PATH) -> FastAPI:
         return back if back.startswith("/") and not back.startswith("//") else "/jobs"
 
     @app.post("/jobs/{job_id}/{action}")
-    def job_action(request: Request, job_id: int, action: str, back: str = Form("/jobs")):
-        """Pause / Resume / Cancel any job (D34); back to the page the button was on."""
+    def job_action(request: Request, job_id: int, action: str, back: str = Form("/jobs"),
+                   stop: str = Form("")):
+        """Pause / Resume / Cancel any job (D34), or set its Stop by (a clock time, empty
+        clears it); back to the page the button was on."""
         cfg = config.load(config_path)
         if not cfg.ok:
             return dashboard(request, status=503)
         do = {"pause": "pause", "resume": "resume", "cancel": "cancel",
-              "start-now": "start_now"}.get(action)
+              "start-now": "start_now", "stop-by": "set_stop_by"}.get(action)
         if do is None:
             return PlainTextResponse(f"No job action {action!r}.", status_code=404)
         back, note = safe_back(back), ""
         try:
-            getattr(jobctl(cfg), do)(job_id)
-        except JobError as e:
+            jc = jobctl(cfg)
+            if do == "set_stop_by":
+                start = schedule.parse(jc.status(job_id).get("start_at"))
+                after = max(start, datetime.now()) if start else datetime.now()
+                jc.set_stop_by(job_id, schedule.next_time(stop, after) if stop.strip() else None)
+            else:
+                getattr(jc, do)(job_id)
+        except (JobError, schedule.ScheduleError) as e:
             note = str(e)
         sep = "&" if "?" in back else "?"
         return RedirectResponse(back + (sep + urlencode({"note": note}) if note else ""),

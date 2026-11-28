@@ -335,3 +335,30 @@ def test_a_stopped_run_names_the_epoch_of_its_first_validation(page):
     mdir = models.create(folder, key, recipe)                  # never run: 0 of 12 epochs
     page_ = client.get(f"/p/p/train?model={mdir.name}").text
     assert "the first validation runs after epoch 5" in page_
+
+
+def test_the_model_line_and_the_model_list_follow_the_run(page):
+    """S8 Demo rehearsal: both were drawn once when the page opened, so a running model showed
+    "0 / 120" and "next: after epoch 5" at epoch 28. They are live fragments now."""
+    client, folder = page
+    frozen(folder)
+    key, recipe = train_job.build_recipe("fake-tiny", {"epochs": "12", "val_every": "5"},
+                                         json.loads((folder / "datasets" / "v1" / "manifest.json").read_text()),
+                                         [1], {"kind": "scratch"})
+    mdir = models.create(folder, key, recipe)
+    html = client.get(f"/p/p/train?model={mdir.name}").text
+    assert f'data-live="/p/p/train/live/model?model={mdir.name}"' in html
+    assert 'data-live="/p/p/train/live/models"' in html and "<h2>Models</h2>" in html
+    one = client.get(f"/p/p/train/live/model?model={mdir.name}")
+    assert one.headers["cache-control"] == "no-store" and "(next: after epoch 5)" in one.text
+    assert "<td>0 / 12</td>" in client.get("/p/p/train/live/models").text
+    with (mdir / "train.jsonl").open("a") as f:                # the run moves on: 7 epochs
+        for e in range(7):
+            f.write(json.dumps({"epoch": e, "seconds": 1.0, "loss": 1.0}) + "\n")
+    one = client.get(f"/p/p/train/live/model?model={mdir.name}").text
+    assert "(next: after epoch 10)" in one and "the first validation runs after" in one
+    assert "<td>7 / 12</td>" in client.get("/p/p/train/live/models").text
+    (mdir / "checkpoints").mkdir(exist_ok=True)
+    (mdir / "checkpoints" / "best.pt").write_bytes(b"weights")
+    assert 'class="problem no-best"' not in client.get(f"/p/p/train/live/model?model={mdir.name}").text
+    assert client.get("/p/p/train/live/model?model=m9-nope").text == ""
