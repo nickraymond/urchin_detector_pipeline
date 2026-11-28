@@ -844,7 +844,11 @@ capped at the image's length, as `ml/README.md` says).
 `STAI-3.0.0-254-g7cc65410 (RELOC.GCC)`; all start with the same 8-byte `NBIN` header. The earlier image that ran on the
 board (`~/nereus_ml/romfs_n6_stage1/out/romfs0.img`, 2026-08-25) was `STAI-3.0.0` for every model, the vendor's included,
 so the board's firmware and its vendor models have changed since. Whether a `STAI-3.0.0` model loads under v5.0.1 cannot be
-told from the files: no N6 write route is built until the lead decides how to answer it.
+told from the files. Lead call (Build 2 lead 2, 2026-11-27): answer it on the board (within Nick's "anything, restore
+after"; alt 0 is never written, so DFU recovery stays; the backup's ROMFS0 was read twice and matched). Bite 4b builds the
+write route with "restore ROMFS0 from the backup image, verified by read-back" as a step the job runs itself on any failed
+load, fault or timeout; card 4 (YOLOX Nano beside the vendor files, against the earlier 10.6 ms) is the first N6 write. If it
+does not load, OpenMV's SDK that matches v5.0.1 goes to Nick.
 
 **Folders:**
 
