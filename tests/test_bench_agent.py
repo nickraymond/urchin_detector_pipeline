@@ -263,3 +263,34 @@ def test_the_agent_refuses_a_load_and_a_window_under_50_mb_free(tmp_path, monkey
     free["v"] = 30 * 1024 * 1024
     window, load = talk(agent, {"id": 2, "op": "time", "name": "m", "n": 3}, {"id": 3, "op": "load", "files": {"m": sha}})
     assert window["stop"] == LOW_MEMORY == load["stop"] and "30.0 MB free" in window["error"]
+
+
+def test_an_answer_in_the_same_write_as_an_alive_line_is_read(tmp_path):
+    """QE PR 119: both lines in one chunk; the answer must not stay behind in a buffer."""
+    class Burst(LocalTransport):
+        def argv(self):
+            return [sys.executable, "-c",
+                    "import sys, json\n"
+                    "for line in sys.stdin:\n"
+                    "    r = json.loads(line)\n"
+                    "    sys.stdout.write(json.dumps({'id': r['id'], 'alive': True, 'done': 1}) + '\\n'"
+                    " + json.dumps({'id': r['id'], 'ok': True, 'op': r['op']}) + '\\n')\n"
+                    "    sys.stdout.flush()\n"]
+    t = Burst(tmp_path, timeout_s=5)
+    try:
+        assert t.start() == {"op": "hello"}
+        for _ in range(20):
+            assert t.request("time", n=1) == {"op": "time"}
+    finally:
+        t.close()
+
+
+def test_no_alive_line_after_the_last_inference_of_a_window(tmp_path, monkeypatch):
+    monkeypatch.setattr(ag, "ALIVE_S", 0.0)                         # an alive line after every inference but the last
+    agent = ag.Agent(tmp_path / "agent", "fake")
+    src, sha = model_file(tmp_path)
+    (tmp_path / "agent" / "models").mkdir(parents=True)
+    (tmp_path / "agent" / "models" / "m").write_bytes(src.read_bytes())
+    out = talk(agent, {"id": 1, "op": "load", "files": {"m": sha}}, {"id": 2, "op": "time", "name": "m", "n": 4})
+    alive = [o["done"] for o in out if o.get("alive")]
+    assert alive == [1, 2, 3] and out[-1]["ok"] and out[-1]["n"] == 4

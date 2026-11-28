@@ -217,7 +217,7 @@ class Agent:
             t = time.perf_counter_ns()
             self.runtime.invoke(model)
             each.append((time.perf_counter_ns() - t) / 1e6)
-            if time.monotonic() - last >= ALIVE_S:
+            if len(each) < n and time.monotonic() - last >= ALIVE_S:     # none after the last: the answer follows
                 self.alive(len(each))
                 last = time.monotonic()
         return {"n": n, "warmups": WARMUPS, "threads": threads, "ms_mean": sum(each) / n, "ms_min": min(each),

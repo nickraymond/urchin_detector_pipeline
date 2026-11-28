@@ -807,7 +807,9 @@ The input is seeded (seed 0): random integers over the input's 8-bit range, or u
 `SshTransport` runs `ssh -o BatchMode=yes <alias> python3 urchin_bench/bench_agent.py urchin_bench` and copies with
 `scp`, after `ssh -G <alias>`'s hostname has passed the field-unit check (no connection is opened for that). Sixty
 seconds of silence is `no_answer` (D84); during a window the agent writes an "alive" line every 5 s, which
-restarts the wait (QE PR 108). `time` returns `Board.time`'s fields (free memory as `mem_*`) plus `vm_hwm`. The agent's folder on the Pi is `~/urchin_bench/` (D88). `PiBoard`
+restarts the wait (QE PR 108); none follows a window's last inference. One reader thread owns the agent's stdout and
+hands over whole lines through a queue (QE PR 119: waiting on the pipe, then reading a buffered stream, lost an answer
+that came in the same chunk as an alive line). `time` returns `Board.time`'s fields (free memory as `mem_*`) plus `vm_hwm`. The agent's folder on the Pi is `~/urchin_bench/` (D88). `PiBoard`
 (`app/bench/pi_board.py`) is a `Board`: `load` copies through the transport inside the rig-log entry;
 `install_agent()` is its own rig change, undone by deleting `~/urchin_bench`.
 

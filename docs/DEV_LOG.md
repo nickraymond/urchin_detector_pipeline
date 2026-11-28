@@ -28,7 +28,9 @@ the Pi's LiteRT environment from a hash-pinned file installed once as a logged r
 **Broke/surprised us:** backports.strenum 1.3.1 requires Python < 3.11, so the Pi resolves 1.2.8 (the rig session's dry run
 gave the real versions; tqdm's piwheels file differs from PyPI's, hence PyPI only with hashes). The N6's vendor models are
 now built with `atonn-v1.1.0` (firmware v5.0.1) while ours are `STAI-3.0.0` (SDK 1.6.0): D82a's gate did not pass; card 4
-answers it on the board (Lead call (a)). A flaky test set a 1 s limit before Python had started.
+answers it on the board (Lead call (a)). The alive test was flaky because of a real fault, found by QE 9: the transport
+waited on the pipe and then read a buffered stream, so an answer in the same chunk as an alive line was lost (`no_answer`);
+now one reader thread hands over whole lines. I had first blamed Python's start time.
 **Next:** S7 bite 4b, the N6 write route with a built-in restore from the backup (handoff: S6_builder3_handoff.md in the
 lead's notes folder).
 
