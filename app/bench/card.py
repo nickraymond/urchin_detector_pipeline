@@ -86,7 +86,8 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
     return {"question": text["question"], "unit": unit_name, "board": board, "models": models,
             "frames": "one seeded synthetic image at each model's input size, sent as a file (D83)",
             "windows": windows, "n": n, "metric": text["metric"] or DEFAULT_METRIC, "pass_bar": text["pass_bar"],
-            "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now()}
+            "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now(),
+            **({"threads": 1} if board == "pi" else {})}    # D88: the Pi's first LiteRT card runs 1 thread
 
 
 def has_restore_rule(rules) -> bool:

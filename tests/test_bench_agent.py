@@ -88,8 +88,8 @@ def test_pi_board_through_the_local_transport_logs_the_copy(tmp_path):
         log = riglog.read(data)
         assert [r["state"] for r in log] == ["done"] and log[0]["fake"] is True
         assert log[0]["sha256"] == {"fit/yolox-nano-conv-256-c5": sha}
-        board.install_agent()                                     # a local agent needs no copy: nothing logged
-        assert len(riglog.read(data)) == 1
+        board.install_agent()                                     # the pin files into the local folder: logged
+        assert [r["what"] for r in riglog.read(data)][0] == "copy the bench agent"
     finally:
         board.close()
 
@@ -140,7 +140,8 @@ def test_ssh_commands_for_a_bench_unit(tmp_path):
     t.put(tmp_path / "m.tflite", "fit/a/model.tflite")
     copies = [c for c in run.calls if c[0] == "scp"]
     assert copies[0][-1] == "benchpi:urchin_bench/bench_agent.py"
-    assert copies[1][-1] == "benchpi:urchin_bench/models/fit_a_model.tflite"
+    assert copies[1][-1] == "benchpi:urchin_bench/requirements-litert-2.2.0.txt"
+    assert copies[-1][-1] == "benchpi:urchin_bench/models/fit_a_model.tflite"
 
 
 def test_installing_the_agent_on_a_unit_is_a_logged_rig_change(tmp_path):

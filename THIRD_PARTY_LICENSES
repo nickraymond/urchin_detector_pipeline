@@ -544,3 +544,14 @@ its log, and every result folder holds `recipe.json`, `int8.json` and `fit.json`
 From bite 2e on the package is installed, at the same version, in `rfdetr-plus-tflite-venv` (Python 3.12;
 `requirements-rfdetr-plus-tflite.txt`); its LICENSE there is the same text (sha256 `a3b5627c…`).
 Its extra dependency, timm 1.0.31: Apache-2.0 (PyPI metadata).
+
+The bench Pi's LiteRT environment (S7 bite 3b, D85, D89): `~/urchin_bench/venv-litert-2.2.0` on the bench Pi only, from
+  `app/bench/agent/requirements-litert-2.2.0.txt` (versions as pip resolved them on the Pi, pinned by PyPI's sha256).
+  Every one is a bench tool, not deployed: used unmodified on the bench Pi to time models, never copied into git,
+  onto a camera or into anything shipped (D89: SPEC constraint 6 covers models, their code, weights and data).
+  Licences as PyPI's metadata for each pinned version gives them (pypi.org JSON, read 2026-11-27; the wheels'
+  own licence files were not read): ai-edge-litert 2.2.0 — Apache 2.0; numpy 2.5.5 — BSD-3-Clause AND 0BSD AND MIT
+  AND Zlib AND CC0-1.0 (numpy and the libraries its wheels bundle) — bench tool, not deployed; flatbuffers 25.12.19
+  — Apache 2.0; ml-dtypes 0.7.0 — Apache-2.0; protobuf 7.36.2 — 3-Clause BSD License; backports-strenum 1.2.8 —
+  MIT; tqdm 4.70.1 — MPL-2.0 AND MIT — bench tool, not deployed; typing-extensions 4.16.0 — PSF-2.0 — bench tool,
+  not deployed.

@@ -17,6 +17,7 @@ from app.bench import card as cards
 from app.bench import run as runs
 from app.bench.board import (BAD_ANSWER, LOAD_FAILED, LOW_MEMORY, NO_ANSWER, NOT_BUILT, NOT_LOADED, READBACK,
                              BoardError, Model, open_board)
+from app.bench.units import Refused
 from app.jobctl import worker as jw
 
 HINTS = {   # D84: what to do after each stop rule
@@ -71,7 +72,8 @@ def main() -> None:
         "fake": unit.fake, "models": c["models"], "windows": c["windows"], "n": c["n"], "started": _now()}
     run["job_id"] = job.get("job_id")             # the page reads the job's state (a Cancel ends the worker at once)
     try:
-        board = open_board(unit, c["board"], data_dir, bench=cfg.bench, log_dir=folder, **job.get("fake", {}))
+        board = open_board(unit, c["board"], data_dir, bench=cfg.bench, log_dir=folder,
+                           **({"threads": c.get("threads", 1)} if not unit.fake else {}), **job.get("fake", {}))
         run["board_info"] = board.info()
         loaded = board.load_several([Model(m["name"], m["path"]) for m in c["models"]])
         run["route"] = loaded.get("route", "")
@@ -101,6 +103,11 @@ def main() -> None:
         _write(folder / "run.json", run)
         raise RuntimeError(f"stop rule {e.stop}: {e}. Next: {HINTS.get(e.stop, 'see the job log')}. "
                            "The windows already timed are kept.") from None
+    except Refused as e:                  # e.g. the alias now resolves to a field unit (QE PR 112 nit 2)
+        _close(locals().get("board"))
+        run.update(outcome="stopped: refused", ended=_now(), error=str(e))
+        _write(folder / "run.json", run)
+        raise RuntimeError(f"refused: {e} Nothing more was done on the unit; the windows already timed are kept.") from None
     _close(board)
     run.update(outcome="done", ended=_now())
     _write(folder / "run.json", run)

@@ -143,7 +143,7 @@ class FakeBoard(Board):
         self.loaded = {}
 
 
-def open_board(unit: Unit, kind: str, data_dir, bench=None, log_dir=None, **fake) -> Board:
+def open_board(unit: Unit, kind: str, data_dir, bench=None, log_dir=None, threads: int = 1, **fake) -> Board:
     """The board to run on. The fake unit gets a FakeBoard. A real unit's Pi gets a PiBoard over ssh (S7 bite 3b),
     built only from a unit `bench.unit()` returns again here; its cameras are refused until bites 4-5."""
     if kind not in KINDS:
@@ -157,5 +157,6 @@ def open_board(unit: Unit, kind: str, data_dir, bench=None, log_dir=None, **fake
             raise Refused(f"{unit.name} was not given by [bench]; a real unit is only used as [bench] lists it")
         from app.bench.pi_board import PiBoard
         from app.bench.transport import SshTransport
-        return PiBoard(unit, data_dir, SshTransport(unit, bench.field_units, log=Path(log_dir or data_dir) / "agent.log"))
+        return PiBoard(unit, data_dir, SshTransport(unit, bench.field_units, log=Path(log_dir or data_dir) / "agent.log"),
+                       threads=threads, install="litert")
     raise Refused(f"the {kind} route on real units is not built yet (S7 bites 4-5); use the fake board")
