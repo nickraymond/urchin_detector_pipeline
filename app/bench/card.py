@@ -101,6 +101,10 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
     if len(set(rom_models)) != len(rom_models):
         problems.append("a /rom model is listed twice")
     models = [] if restore_only or rom_models else _models(data_dir, form.get("models", ""), problems)
+    # Lead call D83c (lead 2): an N6 card may take a CSI snapshot before ml.Model, as ml/deploy_probe.py did
+    csi_first = str(form.get("csi_first", "")).strip().lower() in ("on", "1", "true", "yes")
+    if csi_first and (board != "n6" or restore_only):
+        problems.append("only an N6 card that times something can take the CSI snapshot first")
     rules = [" ".join(r.split()) for r in str(form.get("stop_rules", "")).splitlines() if r.strip()]
     if not rules:
         problems.append("a card needs at least one stop rule")
@@ -115,7 +119,8 @@ def build(data_dir, bench: units.Bench, form: dict) -> dict:
             "stop_rules": rules, "cost_minutes": cost, "written_by": text["written_by"], "written_at": _now(),
             **({"threads": threads} if board == "pi" else {}),    # fixed for the run and recorded (D83, D88)
             **({"restore_only": True} if restore_only else {}),
-            **({"rom_models": rom_models} if rom_models else {})}
+            **({"rom_models": rom_models} if rom_models else {}),
+            **({"csi_first": True} if csi_first else {})}
 
 
 def has_restore_rule(rules) -> bool:

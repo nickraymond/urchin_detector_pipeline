@@ -215,18 +215,18 @@ STAGES = [
 import gc, json, time, ml, image, hashlib, binascii
 gc.collect()
 nb_before = gc.mem_free()
-print('NB:' + json.dumps({'stage': 1, 'mem_before_load': nb_before}))
+print('NB:' + json.dumps({'stage': %(k)d, 'mem_before_load': nb_before}))
 """),
     ("ml.Model", """
 m = ml.Model(%(path)r)
 gc.collect()
 nb_loaded = gc.mem_free()
-print('NB:' + json.dumps({'stage': 2, 'mem_after_load': nb_loaded}))
+print('NB:' + json.dumps({'stage': %(k)d, 'mem_after_load': nb_loaded}))
 """),
     ("input_shape", """
 s = m.input_shape[0]
 h, w, c = s[-3], s[-2], s[-1]
-print('NB:' + json.dumps({'stage': 3, 'input_shape': list(s)}))
+print('NB:' + json.dumps({'stage': %(k)d, 'input_shape': list(s)}))
 """),
     ("seeded image", """
 img = image.Image(w, h, image.GRAYSCALE if c == 1 else image.RGB565)
@@ -236,11 +236,11 @@ for i in range(len(b)):
     x = (%(a)d * x + %(c)d) & %(m)d
     b[i] = (x >> 16) & 0xff
 sha = binascii.hexlify(hashlib.sha256(b).digest()).decode()
-print('NB:' + json.dumps({'stage': 4, 'input_sha256': sha, 'input_bytes': len(b)}))
+print('NB:' + json.dumps({'stage': %(k)d, 'input_sha256': sha, 'input_bytes': len(b)}))
 """),
     ("one predict", """
 m.predict([img])
-print('NB:' + json.dumps({'stage': 5}))
+print('NB:' + json.dumps({'stage': %(k)d}))
 """),
     ("N windows", """
 m.predict([img])
@@ -254,9 +254,21 @@ for _ in range(%(n)d):
     lo = d if lo is None or d < lo else lo
     hi = d if hi is None or d > hi else hi
 gc.collect()
-print('NB:' + json.dumps({'stage': 6, 'us_total': total, 'us_min': lo, 'us_max': hi, 'mem_after': gc.mem_free()}))
+print('NB:' + json.dumps({'stage': %(k)d, 'us_total': total, 'us_min': lo, 'us_max': hi, 'mem_after': gc.mem_free()}))
 """),
 ]
+# Lead call D83c (lead 2): an N6 card's "csi first" adds this stage between the imports and ml.Model, as the earlier
+# work's ml/deploy_probe.py did (its csi0 lines). The snapshot is only taken; the input stays the seeded image (D83a).
+CSI_STAGE = ("csi snapshot", """
+import csi
+csi0 = csi.CSI()
+csi0.reset()
+csi0.pixformat(csi.RGB565)
+csi0.framesize(csi.QVGA)
+time.sleep_ms(400)
+csi0.snapshot()
+print('NB:' + json.dumps({'stage': %(k)d}))
+""")
 BOARD_RESET, SCRIPT_FAILED = "board_reset", "script_failed"
 
 
@@ -356,7 +368,7 @@ class N6:
     def rom(self):
         return self.script(ROM_SCRIPT)
 
-    def stage(self, k, name, code, limit_s, resume, port):
+    def stage(self, k, name, code, limit_s, resume, port, names):
         """Stage k of the timing (STAGES): its own exec on `port`, found once before stage 1; nothing else is sent to
         the board between stages (QE PR 130: any exec without `resume`, find()'s own question included, soft-resets
         it and wipes what the stages before defined). Its marker must come back. A failure is named by the last
@@ -367,7 +379,7 @@ class N6:
         found = board_json(out)
         if rc == 0 and found is not None and found.get("stage") == k:
             return {key: v for key, v in found.items() if key != "stage"}
-        last = f"stage {k - 1} ({STAGES[k - 2][0]})" if k > 1 else "none"
+        last = f"stage {k - 1} ({names[k - 2]})" if k > 1 else "none"
         where = f"stage {k} ({name}) did not answer; the last stage that answered: {last}"
         extra = {"stage_failed": k, "stage_name": name, "last_stage": k - 1}
         if rc is None:
@@ -578,15 +590,17 @@ class Agent:
         if n < 1:
             raise Stop(LOAD_FAILED, "a window needs at least one inference")
         fill = {"path": "/rom/" + req["rom_name"], "n": n, "seed": SEED, "a": LCG_A, "c": LCG_C, "m": LCG_M}
+        stages = STAGES[:1] + ([CSI_STAGE] if req.get("csi_first") else []) + STAGES[1:]      # D83c
         got, port = {}, self.n6.find()               # asked once, before stage 1 (which starts fresh anyway)
-        for k, (name, code) in enumerate(STAGES, 1):
-            limit = TOOL_S + (2.0 * (n + 1) if k == 6 else 0)
-            got.update(self.n6.stage(k, name, code % fill, limit, resume=k > 1, port=port))
+        for k, (name, code) in enumerate(stages, 1):
+            limit = TOOL_S + (2.0 * (n + 1) if k == len(stages) else 0)
+            got.update(self.n6.stage(k, name, code % {**fill, "k": k}, limit, resume=k > 1, port=port,
+                                     names=[s[0] for s in stages]))
         return {"n": n, "warmups": WARMUPS, "ms_mean": got["us_total"] / n / 1000, "ms_min": got["us_min"] / 1000,
                 "ms_max": got["us_max"] / 1000, "mem_before_load": got["mem_before_load"],
                 "mem_after_load": got["mem_after_load"], "mem_after": got["mem_after"], "input_shape": got["input_shape"],
                 "input_sha256": got.get("input_sha256"), "input_bytes": got.get("input_bytes"),
-                "stages": [name for name, _ in STAGES]}
+                "stages": [name for name, _ in stages]}
 
     def n6_reset(self, req):
         rc, out = self.n6.run([self.n6.mpremote, "connect", self.n6.find(), "soft-reset"], TOOL_S)
