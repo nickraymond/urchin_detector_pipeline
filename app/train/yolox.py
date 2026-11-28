@@ -104,6 +104,12 @@ class BoxesOnlyBCE(torch.nn.Module):
         return loss
 
 
+def outside_cache(project_folder: Path) -> Path:
+    """<data_dir>/cache/outside_images/: shrunk copies of outside images, shared by every project (the data
+    folder is two levels above a project). Safe to delete: copies are made again as needed."""
+    return Path(project_folder).parents[1] / "cache" / "outside_images"
+
+
 def pick_device(wanted: str | None) -> str:
     if wanted in ("cpu", "mps", "cuda"):
         return wanted
@@ -211,6 +217,9 @@ class Trainer:
                 f"Dataset version {version} holds no outside data, or outside_data_dir is not set "
                 "in config.local.toml: a run on outside data needs both.")
         vdir = versions.root(folder) / f"v{int(version)}"
+        # shrunk copies of the outside photos (12 MP JPEG decoding was most of a step's time): in the data
+        # folder, never in the outside folder, which is read-only (TRACKER S8)
+        cache = outside_cache(folder)
         self.ids, got = [0], {"train": [], "valid": []}
         for e in entries:
             if not outside.BY_KEY.get(e["key"], {}).get("allowed"):
@@ -222,7 +231,7 @@ class Trainer:
             for split in got:
                 for r in outside.samples(Path(outside_dir), vdir, e, split):
                     got[split].append({**r, "boxes": [[0, *b] for b in r["boxes"]],
-                                       "checked": [0], "ignore": []})
+                                       "checked": [0], "ignore": [], "cache": str(cache)})
             self.outside_used.append({"key": e["key"], "licence": e["licence"]})
         self.train, self.valid = got["train"], got["valid"]
         self.boxes_only, self.left_out = 0, {"train": 0, "valid": 0}

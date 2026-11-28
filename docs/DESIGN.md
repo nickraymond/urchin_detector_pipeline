@@ -632,6 +632,12 @@ came out differently:
   boxes only, V validation frames" for the classes ticked when it opened. Only a pre-training run whose
   outside source has no validation images runs without validation: it says so and keeps the last epoch's
   weights as `best.pt`.
+- **Shrunk copies of outside images (TRACKER S8).** A pre-training run's samples name a cache folder,
+  `<data_dir>/cache/outside_images/` (never the outside folder, which is read-only; shared by all projects; safe to
+  delete). `samples._load` reads the smallest stored copy at least as large as the size asked for; with none it
+  decodes the original and stores a JPEG copy (quality 95) at twice that size, unless that would be the original's
+  own size. A copy is named by the original's path, byte size and modification time, so a changed original gets new
+  copies; whole files only (written under a temporary name). Measured on 64 Urchinbot photos (§Bench results).
 - **Train job (bite 4a).** `python -m app.train.worker`: one item per epoch; the metrics line is written
   first, then the checkpoint, and on every start `train.jsonl` is cut back to the epochs before the
   checkpoint's, so a crash between the two writes repeats a line instead of losing or doubling it. Pause
@@ -964,6 +970,20 @@ does not load, OpenMV's SDK that matches v5.0.1 goes to Nick.
 | D72 | 2026-11-27 | **Lead call** (Build 2 lead, 2026-11-27; proposed by S6 builder 2, bite 2c-ii): RTMDet-Ins-tiny is built from mmdetection's pure-Python packages (`mmdet` 3.3.0, `mmengine` 0.10.7, `mmcv-lite` 2.1.0) in its own tool environment `mmdet-venv`, on top of the conversion pins. mmdetection imports `mmcv.ops`, which loads mmcv's compiled operators; `app/modeldefs/rtmdetins.py` answers those imports with a stand-in instead of compiling full mmcv from source: a stood-in operator raises the stand-in's own message when it is used, and a stood-in submodule called directly raises Python's `TypeError`; loud either way. `mmcv-lite` ships mmcv's operator folder as source, and 13 files in it carry NVIDIA licence headers that forbid use without an agreement with NVIDIA; nothing may import `mmcv.ops` for real in this environment, and the set-up step removes the whole `mmcv/ops` folder after the install (`setup.REMOVE`; the environment reads "not ready" while it is there). The exported module is backbone, neck and head with raw maps; box decoding, NMS and the mask step (a tiny per-instance conv, "dynamic conv") stay outside the model, as for the other candidates. It goes through the known-good 8-bit route (`route: "onnx2tf"`). | PyPI has no macOS build of full mmcv (a source archive only), and a source build is a compiler job of its own on this laptop; the raw network needs none of the compiled operators (they are NMS and other models' layers), which the build confirms, before and after the folder was removed: 5,616,362 parameters, the readme's 5.6 M, with 0 network attempts in the build check (every connection refused and counted). mmdetection's own code is unchanged. The risk is a later mmdet version calling a compiled operator inside the network: the stand-in then fails loudly at build time. The stand-in is checked for the untrained fit check only: if S10 trains RTMDet-Ins, training and its losses may need real operators, and the stand-in is checked again then. Nick can reverse it. |
 
 ## Bench / test results
+
+**S8, 2026-11-27 — shrunk copies of outside images.** `samples.make` (256 px canvas, training scale) on the first
+64 Urchinbot training rows of `s8_squares` v2 (12-megapixel JPEGs, 4000 × 3000 and up), CPU, one thread, Python
+in the app's environment; probe scripts in the builder's session scratchpad (not in git). Originals read from
+`~/nereus_ml/datasets/urchinbot`; copies written to a scratch folder.
+
+| Pass | s per image | Notes |
+|---|---|---|
+| no cache (as before) | 0.093 | JPEG draft decode, then resize |
+| cache cold (epoch 0) | 0.131 | decodes and writes 63 copies: 61.2 MB against 371.5 MB of originals |
+| cache warm (epoch 0 again) | 0.023 | every image from its copy |
+| epochs 1, 2, 3 (new random scales) | 0.030, 0.027, 0.024 | 3, 2, 0 more copies needed |
+
+One run of 64 images (n = 1): a speed check of the cache, not a training-time measurement.
 
 **S8 Fixes 2, 2026-11-27 — validation at D90's eval scale, in tiles. SYNTHETIC data only** (S8 builder 2's
 `s8_squares`: painted squares, 2 classes; copies in a scratch data folder). One model scored by the trainer's

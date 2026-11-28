@@ -59,16 +59,75 @@ def order(n: int, seed: int, epoch: int) -> list[int]:
     return idx
 
 
-def _load(path: str, size: tuple[int, int]) -> np.ndarray:
+def _load(path: str, size: tuple[int, int], cache: str | None = None) -> np.ndarray:
     """The upright frame as RGB uint8 at `size` (w, h). A JPEG that is shrunk a lot is decoded
-    at a reduced size first (the earlier work's fast path for 4000 px frames)."""
+    at a reduced size first (the earlier work's fast path for 4000 px frames). With `cache` (a
+    folder; outside data only, TRACKER S8), a shrunk copy at least as large as `size` is read
+    instead of the original when there is one, and one is written when there is not."""
+    if cache:
+        hit = _cached(path, size, cache)
+        if hit is not None:
+            with Image.open(hit) as im:
+                im = im.convert("RGB")
+                return np.asarray(im if im.size == size else im.resize(size, Image.BOX))
     with Image.open(path) as im:
+        stored = im.size                                     # the original's own size, before any draft
         if im.format == "JPEG":
             im.draft("RGB", (size[0] * 2, size[1] * 2))   # never below twice the target
+        drafted = im.size
         im = images.upright(im).convert("RGB")
+        if cache:
+            turned = im.size != drafted                        # upright() swapped the sides
+            _store(path, im, size, cache, stored[::-1] if turned else stored)
         if im.size != size:
             im = im.resize(size, Image.BOX if size[0] < im.size[0] else Image.BILINEAR)
         return np.asarray(im)
+
+
+CACHE_MARGIN = 2.0      # a copy is made at twice the size asked for, so later scales mostly fit in it
+CACHE_QUALITY = 95      # JPEG quality of a copy (the project's own frames are written at 95, D17)
+
+
+def cache_key(path: str) -> str:
+    """The original's identity: its path, size in bytes and modification time (a changed file gets new copies)."""
+    import hashlib
+    import os
+    st = os.stat(path)
+    return hashlib.sha1(f"{os.path.abspath(path)}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:20]
+
+
+def _cached(path: str, size: tuple[int, int], cache: str):
+    """The smallest stored copy of `path` that is at least `size` on both sides, or None."""
+    from pathlib import Path
+    from app import sidecars
+    best = None
+    for p in sidecars.real(Path(cache).glob(cache_key(path) + "_*.jpg")):
+        try:
+            w, h = (int(v) for v in p.stem.rsplit("_", 1)[1].split("x"))
+        except ValueError:
+            continue
+        if w >= size[0] and h >= size[1] and (best is None or w < best[0]):
+            best = (w, p)
+    return best[1] if best else None
+
+
+def _store(path: str, im: Image.Image, size: tuple[int, int], cache: str, original: tuple[int, int]) -> None:
+    """Write a copy of the upright image `im` at CACHE_MARGIN x `size` (never larger than `im`); a copy as
+    large as the `original` (upright w, h) is not made: it would save no decoding."""
+    import os
+    from pathlib import Path
+    w = min(im.size[0], round(size[0] * CACHE_MARGIN))
+    h = min(im.size[1], round(w * im.size[1] / im.size[0]))
+    if w >= original[0] and h >= original[1]:
+        return
+    folder = Path(cache)
+    folder.mkdir(parents=True, exist_ok=True)
+    out = folder / f"{cache_key(path)}_{w}x{h}.jpg"
+    if out.exists():
+        return
+    tmp = folder / f".{out.name}.{os.getpid()}.{id(im)}.tmp"
+    im.resize((w, h), Image.BOX).save(tmp, format="JPEG", quality=CACHE_QUALITY)
+    os.replace(tmp, out)            # whole files only: threads and a second worker may race
 
 
 def _scale(sample: dict, canvas: int, rng: random.Random, train: bool, full: tuple[int, int]) -> float:
@@ -117,7 +176,7 @@ def make(sample: dict, canvas: int, seed: int, epoch: int, index: int,
     full = (sample["width"], sample["height"])
     geometry = train and steps["geometry"]
     s = _scale(sample, canvas, rng, geometry, full)
-    img = _load(sample["image"], (max(1, round(full[0] * s)), max(1, round(full[1] * s))))
+    img = _load(sample["image"], (max(1, round(full[0] * s)), max(1, round(full[1] * s))), sample.get("cache"))
     th, tw = img.shape[:2]
     sx, sy = tw / full[0], th / full[1]
     boxes = [[b[0], b[1] * sx, b[2] * sy, b[3] * sx, b[4] * sy] for b in sample["boxes"]]
@@ -163,7 +222,7 @@ def frame_at(sample: dict, factor: float | None, canvas: int) -> dict:
     cx, cy, w, h]], "ignore": [[cx, cy, w, h]], "scale"} in resized-frame pixels; no augmentation."""
     full = (sample["width"], sample["height"])
     s = factor if factor else min(1.0, canvas / max(full))
-    img = _load(sample["image"], (max(1, round(full[0] * s)), max(1, round(full[1] * s))))
+    img = _load(sample["image"], (max(1, round(full[0] * s)), max(1, round(full[1] * s))), sample.get("cache"))
     sx, sy = img.shape[1] / full[0], img.shape[0] / full[1]
     boxes = [[c, (x + w / 2) * sx, (y + h / 2) * sy, w * sx, h * sy] for c, x, y, w, h in sample["boxes"]]
     ignore = [[(x + w / 2) * sx, (y + h / 2) * sy, w * sx, h * sy] for x, y, w, h in sample.get("ignore", [])]
