@@ -529,6 +529,9 @@ against the fake board only; the rig test session runs each board's first card a
 - [x] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
       like the rest: QE 9 PASS 2026-11-27 with declared gaps (unused blocks zero-filled; restore not rehearsed).
       The first rig change now waits only for QE's review of the first card
+- 2026-11-27 6:13 PM: a pip dry run in a temporary venv in /tmp on the Pi, asked by the lead before any card was reviewed,
+  against this sprint's rule; logged in the rig log and removed. Lead's mistake; from now on every write on the rig waits
+  for a reviewed card. *(Build 2 lead 2's call, its words)*
 
 **Bite 1 — Bench units, the `Board` interface, the fake board, the rig log** (D81)
 - [x] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
@@ -560,17 +563,17 @@ against the fake board only; the rig test session runs each board's first card a
 - [~] Pi runs with LiteRT first (same 8-bit file as S6): N windows, `perf_counter_ns` around invoke, `VmHWM`;
       then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
       *(3a: the agent's LiteRT runtime is built and self-tested on the laptop (convert-venv, ai-edge-litert 2.2.0,
-      Apache 2.0 by its metadata). Open: installing a runtime into its own environment in the agent's folder on
-      the Pi as a logged rig change (whether ai-edge-litert has a wheel for the Pi's Python is not checked yet);
-      ONNX Runtime; ncnn)*
+      Apache 2.0 by its metadata). 3b-ii: the install into its own environment in the agent's folder, a logged rig
+      change, from PyPI's cp313 aarch64 wheel (D89). Open: the first card on the Pi; ONNX Runtime; ncnn)*
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
-- [~] 3b, before the Pi's first card (QE PR 108 nits; D89): `PiBoard` wired into `open_board`, an `SshTransport` built
+- [x] 3b, before the Pi's first card (QE PR 108 nits; D89): `PiBoard` wired into `open_board`, an `SshTransport` built
       only from a unit `Bench.unit` returned (a test that an unlisted alias never reaches ssh); a non-JSON line on
       the agent's stdout is a stop rule that quotes it; the agent's stderr goes to `agent.log` in the run folder, not
       a pipe; the card states 1 thread for the first LiteRT card (D88); the runtime
       installed on the Pi as a logged rig change, its version's licence read then
       *(3b-i, S6 builder 3: wiring, the Unit-only ssh link, `bad_answer`, `agent.log`, the 50 MB floor, D84's wording.
-      Open for 3b-ii: the `install` op (D89) and the card's thread count (D88))*
+      3b-ii: the `install` op from the hash-pinned file (D89), the agent copied only when it changed, the card's
+      thread count (D88). The Pi's first card is the rig test session's, after QE)*
 
 **Bite 4 — The N6 route** (D82, D83)
 - [ ] ROMFS0 image with the vendor's models plus ours (`build_romfs_n6.sh` method), DFU alt 3, read-back
@@ -599,8 +602,9 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
-**Lead calls for the S7 test build's note:** D80–D87; the Pi image with zero-filled unused blocks taken as meeting
-constraint 9 (SPEC Q33).
+**Lead calls for the S7 test build's note:** D80–D89; the Pi image with zero-filled unused blocks taken as meeting
+constraint 9 (SPEC Q33); bench tools under other OSI licences (D89 (3): tqdm MPL-2.0 AND MIT, typing_extensions PSF-2.0,
+numpy BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0, each "bench tool, not deployed").
 **Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
 measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.

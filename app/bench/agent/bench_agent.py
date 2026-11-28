@@ -4,7 +4,7 @@ the app (it is copied alone). numpy and the runtime are imported only when a mod
 
 Protocol: JSON lines. The laptop writes one request per line, {"id": n, "op": ..., ...}; the agent answers each
 with one line, {"id": n, "ok": true, ...} or {"id": n, "ok": false, "stop": <stop rule>, "error": <words>}.
-Ops: hello, info, load, time, reset, bye. Model files are copied into <folder>/models/ by the laptop before
+Ops: hello, info, load, time, reset, bye, install_status, install (D89). Model files are copied into <folder>/models/ by the laptop before
 "load"; the agent only checks their sha256 (a mismatch is the "readback_differs" stop rule, D84).
 
 Timing (D83): one seeded synthetic input at the model's input size; 2 warm-ups; time.perf_counter_ns() around
@@ -22,7 +22,10 @@ import json
 import os
 import platform
 import re
+import shutil
+import subprocess
 import sys
+import threading
 import time
 
 VERSION = "1"
@@ -31,6 +34,7 @@ ALIVE_S = 5.0          # an "alive" line this often during a window: D84 asks at
 SEED = 0
 NO_ANSWER, READBACK, LOAD_FAILED, NOT_LOADED, NOT_BUILT, LOW_MEMORY = (
     "no_answer", "readback_differs", "load_failed", "not_loaded", "not_built", "low_memory")
+INSTALL_FAILED = "install_failed"
 MEM_FLOOR = 50 * 1024 * 1024   # D89: no load and no window when MemAvailable is under 50 MB
 
 
@@ -117,6 +121,29 @@ class LiteRT:
 
 RUNTIMES = {"fake": FakeRuntime, "litert": LiteRT}
 
+# D89: a runtime's own environment inside the agent's folder, from a hash-pinned file the laptop copies next to the agent
+INSTALLS = {"litert": {"venv": "venv-litert-2.2.0", "requirements": "requirements-litert-2.2.0.txt"}}
+PIP_ARGS = ["install", "--no-cache-dir", "--index-url", "https://pypi.org/simple", "--only-binary=:all:",
+            "--require-hashes", "--no-input", "-r"]
+FAKE_INSTALL = False            # tests only (--fake-install): make the environment without venv or pip
+
+
+def run_steps(argv, env, alive, cwd):
+    """Run one install command, writing an alive line every ALIVE_S seconds even while it prints nothing (pip is
+    silent while it downloads); returns (exit code, the output's tail)."""
+    with subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, cwd=cwd) as p:
+        out = []
+        reader = threading.Thread(target=lambda: out.extend(p.stdout), daemon=True)
+        reader.start()
+        last = time.monotonic()
+        while p.poll() is None:
+            time.sleep(0.2)
+            if time.monotonic() - last >= ALIVE_S:
+                alive(len(out))
+                last = time.monotonic()
+        reader.join(5)
+        return p.returncode, "".join(out)[-1500:]
+
 
 def check_memory(what):
     """The D89 floor: refuse `what` when free memory is known and under 50 MB (unknown on the laptop: no check)."""
@@ -201,8 +228,72 @@ class Agent:
         self.loaded = {}
         return {"reset": True}
 
+    def _install(self, req):
+        name = req.get("runtime", "litert")
+        if name not in INSTALLS:
+            raise Stop(INSTALL_FAILED, f"no install is defined for runtime {name!r}")
+        spec = INSTALLS[name]
+        venv = os.path.join(self.folder, spec["venv"])
+        req_file = os.path.join(self.folder, spec["requirements"])
+        if not os.path.isfile(req_file):
+            raise Stop(INSTALL_FAILED, f"{spec['requirements']} is not in {self.folder}: copy the agent again")
+        return spec, venv, req_file, os.path.join(venv, "installed.json")
+
+    def op_install_status(self, req):
+        spec, venv, req_file, record = self._install(req)
+        try:
+            with open(record) as f:
+                done = json.load(f)
+        except (OSError, ValueError):
+            return {"ready": False, "venv": spec["venv"]}
+        return {"ready": done.get("requirements_sha256") == sha256(req_file), "venv": spec["venv"], "installed": done}
+
+    def op_install(self, req):
+        """Build the runtime's environment (D89). Every write stays inside the agent's folder: the venv, pip's
+        temporary files (TMPDIR) and no cache; pip reads no config file (the Pi's points at piwheels too)."""
+        spec, venv, req_file, record = self._install(req)
+        if os.path.isdir(venv):
+            shutil.rmtree(venv)                       # a half-made environment from an earlier try
+        tmp = os.path.join(self.folder, "tmp")
+        os.makedirs(tmp, exist_ok=True)
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": self.folder, "TMPDIR": tmp,
+               "PIP_CONFIG_FILE": os.devnull, "PIP_NO_CACHE_DIR": "1", "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+               "PYTHONNOUSERSITE": "1"}
+        py = os.path.join(venv, "bin", "python")
+        steps = [("make the environment", [sys.executable, "-m", "venv", venv]),
+                 ("install the pinned packages", [py, "-m", "pip", *PIP_ARGS, req_file])]
+        for what, argv in steps:
+            code, out = (fake_step(argv, venv) if FAKE_INSTALL else run_steps(argv, env, self.alive, self.folder))
+            if code != 0:
+                shutil.rmtree(venv, ignore_errors=True)
+                hint = (" python3's venv module does not work here; D89: no apt, so the install stops"
+                        if what == "make the environment" else "")
+                raise Stop(INSTALL_FAILED, f"could not {what} (exit code {code}).{hint}\n{out}")
+        listing = ("import json, importlib.metadata as m; print(json.dumps({d.metadata['Name']: [d.version, "
+                   "d.metadata.get('License-Expression') or d.metadata.get('License') or ''] for d in m.distributions()}))")
+        code, out = fake_step([py, "-c", listing], venv) if FAKE_INSTALL else run_steps([py, "-c", listing], env, self.alive, self.folder)
+        packages = json.loads(out.strip().splitlines()[-1]) if code == 0 else {}
+        done = {"runtime": req.get("runtime", "litert"), "venv": spec["venv"], "python": os.path.join(spec["venv"], "bin", "python"),
+                "requirements_sha256": sha256(req_file), "packages": packages,
+                "at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+        with open(record, "w") as f:
+            json.dump(done, f, indent=1)
+        shutil.rmtree(tmp, ignore_errors=True)
+        return {"built": True, "installed": done}
+
     def op_bye(self, req):
         return {"bye": True}
+
+
+def fake_step(argv, venv):
+    """--fake-install: the venv is a folder whose python is this one; pip and the listing are pretended."""
+    if argv[1:3] == ["-m", "venv"]:
+        os.makedirs(os.path.join(venv, "bin"), exist_ok=True)
+        os.symlink(sys.executable, os.path.join(venv, "bin", "python"))
+        return 0, ""
+    if "-c" in argv:
+        return 0, json.dumps({"ai-edge-litert": ["2.2.0", "Apache 2.0"]})
+    return 0, "pretended: " + " ".join(argv[1:])
 
 
 def serve(agent, lines, write):
@@ -236,6 +327,8 @@ def main(argv):
     runtime = opt("--runtime", "litert")
     ALIVE_S = float(opt("--alive-s", ALIVE_S))
     FakeRuntime.ms = float(opt("--fake-ms", 0))          # tests only: how long one fake inference takes
+    global FAKE_INSTALL
+    FAKE_INSTALL = "--fake-install" in argv
     os.makedirs(os.path.join(folder, "models"), exist_ok=True)
 
     def write(obj):
