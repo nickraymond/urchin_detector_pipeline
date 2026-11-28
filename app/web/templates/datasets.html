@@ -66,8 +66,8 @@
   <a href="/p/{{ info.name }}/labels">Review page</a>, tick "fully checked" for these classes on the frames you
   reviewed, then Export and freeze a new version.</p></section>{% endif %}
 {% if not w.frames.train.used and w.frames.train.boxes_only %}<section class="problem no-full-frames"><p><b>No training frame has every class picked above fully checked</b>
-  ({{ w.frames.train.boxes_only }} have only some of them). A run of these classes is refused: it would never be shown what "nothing here"
-  looks like. Pick only the classes that are fully checked, or tick "fully checked" for the others on the
+  ({{ w.frames.train.boxes_only }} have only some of them). A run of these classes trains on labeled boxes only: no frame teaches it
+  "no object", so the detector may fire everywhere. Tick "fully checked" for the classes you reviewed on the
   <a href="/p/{{ info.name }}/labels">Review page</a>, then Export and freeze a new version.</p></section>{% endif %}
 {% if w.frames.train.used and not w.frames.valid.used %}<section class="problem no-valid-frames"><p><b>No validation frame has every class picked above fully checked.</b>
   A run of these classes is refused: it could not be checked while it trains. Pick only the classes that are fully checked, or tick

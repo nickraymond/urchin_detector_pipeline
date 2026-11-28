@@ -79,7 +79,6 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
             return key, recipe
         full, boxes_only = loaders.run_frames(
             loaders.detector_samples(folder, version, "train", ids)["samples"], ids)
-        loaders.need_background(full, boxes_only)
         loaders.need_validation(loaders.usable(
             loaders.detector_samples(folder, version, "valid", ids)["samples"], ids)[0])
         if not any(s["boxes"] for s in full + boxes_only):
@@ -132,8 +131,17 @@ def register(app, templates, with_project, jobctl, job_view, read_schedule) -> N
                               "valid": len(kinds["valid"][0])}
                 except loaders.DatasetError:
                     counts = None
+            no_background = ""      # for the model shown: was it ever taught "no object"? (D66)
+            if shown and not shown.get("error") and shown["train"].get("data") != "outside":
+                try:
+                    ids = shown["train"]["class_ids"]
+                    no_background = loaders.background_warning(*loaders.run_frames(
+                        loaders.detector_samples(folder, shown["train"]["dataset"]["version"],
+                                                 "train", ids)["samples"], ids))
+                except (loaders.DatasetError, KeyError):
+                    no_background = ""
             return templates.TemplateResponse(request, "train.html", {
-                "frame_counts": counts,
+                "frame_counts": counts, "no_background": no_background,
                 "cfg": cfg, "info": info, "error": error, "versions": found, "picked": picked,
                 "classes": loaders.object_classes(picked) if picked else [],
                 "form": form, "estimate": est, "estimate_steps": train_job.ESTIMATE_STEPS,

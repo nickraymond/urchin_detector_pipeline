@@ -262,11 +262,12 @@ def test_partly_checked_frames_train_on_their_boxes_only(run, monkeypatch):
     assert t.run_epoch(0, 0, lambda: False)["done"]
 
 
-def test_runs_without_background_or_without_validation_frames_are_refused(run, monkeypatch):
-    """QE PR 93 and the lead's call on it: every training frame boxes-only = a detector never
-    shown background; no fully checked validation frame = a run that cannot be checked. Both are
-    refused with what to do. A pre-training source without validation images is not refused:
-    the run says so and keeps the last epoch as best.pt."""
+def test_runs_without_background_warn_and_runs_without_validation_frames_are_refused(run, monkeypatch):
+    """QE PR 93 and the lead's calls on it: every training frame boxes-only = a detector never
+    shown "no object": allowed, with a warning on the job and in the run record. No fully
+    checked validation frame = a run that cannot be checked: refused with what to do. A
+    pre-training source without validation images is not refused: the run says so and keeps the
+    last epoch as best.pt."""
     import torch
     from app.datasets import loaders
     mdir, recipe = run("a")
@@ -279,10 +280,14 @@ def test_runs_without_background_or_without_validation_frames_are_refused(run, m
         f["checked"] = [1, 3]
     for f in data["train"]:
         f["checked"] = [3]
-    with pytest.raises(RuntimeError, match="None of the 8 training frames has every picked class"):
-        trainer(mdir, recipe)
+    warned = trainer(mdir, recipe)
+    assert warned.describe()["train_frames_boxes_only"] == 8 == len(warned.train)
+    assert 'No frame teaches "no object" here: none of the 8 training frames' in warned.describe()["warning"]
+    warned.load()
+    assert warned.run_epoch(0, 0, lambda: False)["done"]         # it trains, on labeled boxes only
     for f in data["train"]:
         f["checked"] = [1, 3]
+    assert trainer(mdir, recipe).describe()["warning"] == ""
     # no validation at all (the outside-data case, made here by emptying the list after the checks)
     t = trainer(mdir, recipe)
     t.valid, t.no_valid = [], "No validation images in this version's outside data: ..."
