@@ -688,6 +688,23 @@ matches the rig log" are prefilled), model files only under the data folder, eac
 name is its candidate folder for S6's files (`fit/<arch key>/int8/model_int8.tflite`), else its path under the data
 folder. Frames are fixed by D83 (one seeded synthetic image per model), so the card states them and has no field.
 
+**As built, bite 3a** (the agent, the transports, the Pi board): `app/bench/agent/bench_agent.py` is one file,
+standard library only (numpy and the runtime are imported when a model loads), started as `python3
+bench_agent.py <folder> --runtime litert|fake`. JSON lines: each request `{"id", "op", ...}` gets exactly one
+answer `{"id", "ok": true, ...}` or `{"id", "ok": false, "stop", "error"}`; an unreadable line is answered with
+`id: null`. Ops: hello, info, load, time, reset, bye; asked for `n6` or `ae3` it answers `not_built` (bites 4-5).
+The laptop copies each model into `<folder>/models/` under its name with anything but letters, digits, `.`, `_`
+and `-` replaced by `_` (`file_name`, one rule on both sides); `load` checks the sha256 (a mismatch is
+`readback_differs`). `time`: 2 warm-ups, `perf_counter_ns` around each invoke, mean / min / max, `VmHWM` and
+`MemAvailable` from `/proc` (None where there is none, as on the laptop); threads fixed at load and returned.
+The input is seeded (seed 0): random integers over the input's 8-bit range, or uniform 0-1 for a float input.
+`app/bench/transport.py`: `LocalTransport` runs the agent as a child process on the laptop (the fake transport);
+`SshTransport` runs `ssh -o BatchMode=yes <alias> python3 urchin_bench/bench_agent.py urchin_bench` and copies with
+`scp`, after `ssh -G <alias>`'s hostname has passed the field-unit check (no connection is opened for that). No
+answer in 60 s is `no_answer` (D84). The agent's folder on the Pi is `~/urchin_bench/` (Builder call). `PiBoard`
+(`app/bench/pi_board.py`) is a `Board`: `load` copies through the transport inside the rig-log entry;
+`install_agent()` is its own rig change, undone by deleting `~/urchin_bench`.
+
 **Folders:**
 
 ```
