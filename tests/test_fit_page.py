@@ -55,6 +55,8 @@ def test_headlines():
     st = {"converts": False, "stage": "compile", "tool": "ST Edge AI Core v4.0.0", "error": "INTERNAL ERROR: x"}
     assert table.headline(st, "n6") == ("no", "the compiler stopped with an internal error (ST Edge AI Core v4.0.0)")
     assert table.label("no", st) == "does not run"
+    assert table.headline({"converts": False, "stage": "compile", "tool": "LiteRT", "error": "x"}, "pi") == (
+        "no", "LiteRT could not load or run its 8-bit file")
     assert "with an error (Arm Vela 5.0.0)" in table.headline({**st, "tool": "Arm Vela 5.0.0", "error": "bad"}, "ae3")[1]
     pi = {"converts": True, "file_bytes": 10, "limit_bytes": None, "placement": placed(0, 0, 30, "operators"),
           "failing_layers": []}
@@ -118,6 +120,7 @@ def test_page_shows_results_reasons_marks_and_earlier_work(site):
     assert "does not convert with today&#39;s route (8-bit step)" in page and "not a compiler verdict" in page
     assert "<details><summary>the error text</summary>" in page and "attn/MatMul failed" in page
     assert "evaluation only</b>: rfdetrplus-atto-380-c5 does not convert" in page    # its own line in the cell
+    assert page.count("how its 8-bit file is made") >= 6 and "Static (full-integer) INT8 is not supported" in page
     assert "mJ gross" in page and "no memory figure recorded for this camera yet" in page
     assert "the compiler stopped with an internal error (a compiler 1.0)" in page
     assert "What runs where" in page and "OpenMV N6" in page and "Pi Zero 2W" in page and "OpenMV AE3" in page
