@@ -470,6 +470,10 @@ compilers; 3c the Pi)**
       queues the other cells that had a result again behind it (PR 85)
 - [x] a LiteRT fault on the Pi step (runtime missing or changed) is a job error with a fix, not "does not run on
       the Pi" (QE PR 79 nit 1; PR 85)
+- [x] a stored result knows what made its 8-bit file (`int8/made_with.json`: export settings and code pin,
+      copied into every `fit.json`); a result from an older recipe says "made with an older recipe: Run again"
+      (QE PR 92 nit 1). Also: RF-DETR's route no longer records the opset and onnxsim settings it does not use
+      (nit 2); `THIRD_PARTY_LICENSES` names namex and sng4onnx and opencv-python 4.11's LGPL binaries (nit 4)
 - [x] 3d (found by the builder; D51 promised it): "Set up the tools" as a job with a button on `/fit`
       (`app/fit/setup.py`, `setup_worker.py`): the four tool environments from `app/fit/toolchain/` with `uv`, the
       YOLOX checkout at its commit with `git`; what is ready is skipped; the N6 compiler's pieces from Nick's
@@ -501,8 +505,9 @@ against the fake board only; the rig test session runs each board's first card a
       PASS with three declared gaps: the AE3's RECOVERY partition (its bootloader refuses it), no raw card image (a
       software-only backup instead), and the restore steps not rehearsed. A rehearsal plan waits for Nick (SPEC
       "Waiting for Nick")
-- [ ] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
-      like the rest; **the first rig change waits for it** and for QE's review of the first card
+- [x] the raw card image of the Pi, now that the media are deleted (SPEC Q33; constraint 9 as written), checked
+      like the rest: QE 9 PASS 2026-11-27 with declared gaps (unused blocks zero-filled; restore not rehearsed).
+      The first rig change now waits only for QE's review of the first card
 
 **Bite 1 — Bench units, the `Board` interface, the fake board, the rig log** (D81)
 - [x] `[bench]` in `config.local.toml` (ssh host alias, camera kinds, `field_units` refused by name; nothing in git);
@@ -553,6 +558,8 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
+**Lead calls for the S7 test build's note:** D80–D87; the Pi image with zero-filled unused blocks taken as meeting
+constraint 9 (SPEC Q33).
 **Demo (Nick):** nothing to run at the bench. Open "What runs where": the cells show ms per inference and memory
 measured on the N6, the Pi and the AE3, each linked to its test card and run. Open the report: which kinds run on which camera and why not, and whether each camera can hold and run
 several models at once or only one kind at a time.
@@ -678,6 +685,9 @@ and the same frames with each model's masks.
       model is evaluated on the laptop like any model; the compare page shows what converting cost
 - [ ] accuracy run on S7's bench runner: send the test frames, read back raw outputs, score as in S9 / S10; the
       gap to the laptop's 8-bit result is shown (a gap means a runtime bug)
+- [ ] before any frame or trained weight goes through RF-DETR's own export (`app/fit/to_int8_rfdetr.py`), its
+      network refusal covers the step's child processes too (today it is in-process; onnx2tf starts onnxsim as a
+      child), so "0 attempts" counts all of them (QE PR 92 nit 3)
 - [ ] pick: one detector and one segmenter per camera marked "picked for the bake-off"; a one-page report
 **Demo (Nick):** press "Fit to cameras" on a trained detector and a segmenter; the test session runs the
 card on the rig: on-camera scores next to the laptop's. When the card's repeats are done, mark a pick and open the report (the

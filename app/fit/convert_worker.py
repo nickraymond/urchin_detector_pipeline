@@ -58,6 +58,7 @@ def run_int8(job: dict, folder: Path, ctl) -> str:
         raise ToolsMissing(f"Tool environment not found: {python}. Fix: set the tools up (DESIGN D51).")
     out = folder / "int8"
     out.mkdir(parents=True, exist_ok=True)
+    write_json(convert.made_with_path(folder), convert.made_with(job["arch"]))   # before the file it describes
     (out / "model_int8.tflite.part").unlink(missing_ok=True)     # left by a step that was killed
     env = {**os.environ, "PYTHONPATH": str(REPO), "PYTHONDONTWRITEBYTECODE": "1",
            "URCHIN_TOOLS_DIR": job["tools_dir"], "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
@@ -88,10 +89,14 @@ def report(job: dict, folder: Path, body: dict) -> dict:
         int8 = json.loads((folder / "int8" / "int8.json").read_text())
     except (OSError, ValueError):
         int8 = None
+    try:
+        made = json.loads(convert.made_with_path(folder).read_text())
+    except (OSError, ValueError):
+        made = None                                   # an 8-bit file from before made_with.json
     return {"arch_key": job["arch_key"], "camera": job["camera"], "kind": arch["kind"],
             "family": arch["family"], "size": arch["size"], "input": arch["input"],
             "licence": arch["licence"], "licence_mark": arch.get("licence_mark"),
-            "when": datetime.now().isoformat(timespec="seconds"), "int8": int8, **body}
+            "when": datetime.now().isoformat(timespec="seconds"), "int8": int8, "made_with": made, **body}
 
 
 def main() -> None:

@@ -234,7 +234,12 @@ Answered (Nick, spec lead's chat 2026-11-26; Build 2, `docs/source/build2_spec.m
   the media content I need"); they were then deleted on his typed go. His sentence ends "before the image backup
   is made": the raw card image is still expected. Stopping it at 2:47 PM was the first lead's call, not his. Lead
   call (Build 2 lead 2): the rig test session takes the raw card image now that the card is cleared, before the
-  first rig change (constraint 9 as written).
+  first rig change (constraint 9 as written). Done 2026-11-27, QE 9 PASS with declared gaps (`QE9_pi_image_check.md`
+  in the team's notes; evidence in the rig backup folder, never in git). Lead call: the image zero-fills unused
+  blocks instead of copying them bit for bit. QE checked its length, checksums, the first 8 MiB, the boot partition,
+  the file-system id and 215 sampled files at their places on the card; no restore has been run. On that evidence it
+  is taken to meet constraint 9 (on the S7 test build's list of Lead calls for Nick). The restore rehearsal stays on
+  "Waiting for Nick" and does not block the first rig change.
 - Q34 (2026-11-27). Keep trying instance segmenters: the project's own permissively licensed ones on the N6 are
   worth having. `yoloxproto` and RTMDet-Ins-tiny are camera candidates; S7 times them, S10 trains one for the N6
   if either runs there (build2 spec answer 16).
