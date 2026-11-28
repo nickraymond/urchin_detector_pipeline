@@ -123,10 +123,50 @@ class LiteRT:
         return "ai-edge-litert " + metadata.version("ai-edge-litert")
 
 
-RUNTIMES = {"fake": FakeRuntime, "litert": LiteRT}
+class OnnxRuntime:
+    """ONNX Runtime (onnxruntime, MIT; D85), the second Pi candidate, on an 8-bit QDQ ONNX file; the CPU provider,
+    `threads` intra-op threads and one inter-op thread, so the count is the card's."""
+    name = "onnxruntime"
+    DTYPES = {"tensor(float)": "float32", "tensor(uint8)": "uint8", "tensor(int8)": "int8", "tensor(float16)": "float16"}
+
+    def open(self, path, threads):
+        import numpy as np
+        import onnxruntime as ort
+        so = ort.SessionOptions()
+        so.intra_op_num_threads, so.inter_op_num_threads = threads, 1
+        sess = ort.InferenceSession(path, so, providers=["CPUExecutionProvider"])
+        inp = sess.get_inputs()[0]
+        if inp.type not in self.DTYPES:
+            raise ValueError(f"input type {inp.type} is not one this agent makes data for")
+        dtype = np.dtype(self.DTYPES[inp.type])
+        shape = [d if isinstance(d, int) and d > 0 else 1 for d in inp.shape]      # a free dimension: batch 1
+        rng = np.random.default_rng(SEED)
+        if dtype.kind in "iu":
+            info = np.iinfo(dtype)
+            data = rng.integers(info.min, info.max, size=shape, endpoint=True, dtype=dtype)
+        else:
+            data = rng.uniform(0.0, 1.0, size=shape).astype(dtype)
+        return {"sess": sess, "feed": {inp.name: data}, "inp": inp, "shape": shape, "dtype": dtype.name}
+
+    def invoke(self, model):
+        model["sess"].run(None, model["feed"])
+
+    def describe(self, model):
+        return {"input": {"shape": model["shape"], "dtype": model["dtype"]},
+                "outputs": [{"shape": [d if isinstance(d, int) else None for d in o.shape], "dtype": self.DTYPES.get(o.type, o.type)}
+                            for o in model["sess"].get_outputs()]}
+
+    def version(self):
+        import onnxruntime as ort
+        return "onnxruntime " + ort.__version__
+
+
+RUNTIMES = {"fake": FakeRuntime, "litert": LiteRT, "onnxruntime": OnnxRuntime}
 
 # D89: a runtime's own environment inside the agent's folder, from a hash-pinned file the laptop copies next to the agent
-INSTALLS = {"litert": {"venv": "venv-litert-2.2.0", "requirements": "requirements-litert-2.2.0.txt"}}
+INSTALLS = {"litert": {"venv": "venv-litert-2.2.0", "requirements": "requirements-litert-2.2.0.txt"},
+            "onnxruntime": {"venv": "venv-onnxruntime-1.29.0", "requirements": "requirements-onnxruntime-1.29.0.txt"}}
+SUFFIX_RUNTIME = {".tflite": "litert", ".onnx": "onnxruntime"}    # a Pi card's runtime follows its model files
 PIP_ARGS = ["install", "--no-cache-dir", "--index-url", "https://pypi.org/simple", "--only-binary=:all:",
             "--require-hashes", "--no-input", "-r"]
 FAKE_INSTALL = False            # tests only (--fake-install): make the environment without venv or pip

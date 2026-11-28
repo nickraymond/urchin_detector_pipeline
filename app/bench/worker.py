@@ -56,12 +56,13 @@ def _write(path, body: dict) -> None:
 
 
 def board_settings(c: dict, unit) -> dict:
-    """What the card fixes on the board itself: a real Pi runs the card's thread count (D83, D88); a real N6 takes
-    the CSI snapshot first when the card says so (D83c)."""
+    """What the card fixes on the board itself: a real Pi runs the card's thread count (D83, D88) under the
+    runtime its model files name (.tflite: LiteRT, .onnx: ONNX Runtime; D85); a real N6 takes the CSI snapshot
+    first when the card says so (D83c)."""
     if unit.fake:
         return {}
     if c["board"] == "pi":
-        return {"threads": c.get("threads", 1)}
+        return {"threads": c.get("threads", 1), "runtime": c.get("runtime", "litert")}
     return {"csi_first": True} if c["board"] == "n6" and c.get("csi_first") else {}
 
 

@@ -564,7 +564,8 @@ against the fake board only; the rig test session runs each board's first card a
       then ONNX Runtime; ncnn time-boxed to half a day; each runtime's licence read at the source before install
       *(3a: the agent's LiteRT runtime is built and self-tested on the laptop (convert-venv, ai-edge-litert 2.2.0,
       Apache 2.0 by its metadata). 3b-ii: the install into its own environment in the agent's folder, a logged rig
-      change, from PyPI's cp313 aarch64 wheel (D89). Open: the first card on the Pi; ONNX Runtime; ncnn)*
+      change, from PyPI's cp313 aarch64 wheel (D89). 3c: ONNX Runtime 1.29.0 in the agent, its pinned environment, a
+      Pi card's runtime from its files' kind; the 8-bit QDQ file: see the PR. Open: the Pi cards; ncnn)*
 - [ ] one runtime picked, with its licence recorded (QE PR 94 carried nit 1)
 - [x] 3b, before the Pi's first card (QE PR 108 nits; D89): `PiBoard` wired into `open_board`, an `SshTransport` built
       only from a unit `Bench.unit` returned (a test that an unlisted alias never reaches ssh); a non-JSON line on
@@ -616,7 +617,9 @@ against the fake board only; the rig test session runs each board's first card a
       estimate, linked to its card and run; one-page "what runs where" report: which kinds run on which camera
       and why not, and the several-models headline per camera
 
-**Lead calls for the S7 test build's note:** D80–D89 (with D82a, D82b, D82c, D82d, D83a); the Pi image with zero-filled unused blocks taken as meeting
+**Lead calls for the S7 test build's note:** D80–D89 (with D82a, D82b, D82c, D82d, D83a, D85a; D85b: ONNX Runtime's
+bench environment under D89 (3): Eigen MPL-2.0 and Mbed TLS (taken under Apache-2.0) inside onnxruntime's library, and an
+Intel MKL notice for code that is not in the aarch64 build); the Pi image with zero-filled unused blocks taken as meeting
 constraint 9 (SPEC Q33); bench tools under other OSI licences (D89 (3): tqdm MPL-2.0 AND MIT, typing_extensions PSF-2.0,
 numpy BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 with libgfortran GPL-3.0-or-later WITH GCC-exception-3.1
 and LAPACK BSD-3-Clause-Open-MPI in its wheel, Eigen MPL-2.0 in ml-dtypes, pip MIT; each "bench tool, not deployed").
